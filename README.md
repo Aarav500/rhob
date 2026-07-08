@@ -1,191 +1,229 @@
-# RHOB — Reward-Hacking Onset Benchmark
+# RHOB v1.0 — Reward Hacking Onset Benchmark
 
-RHOB is a standardized benchmark for **early detection of reward hacking**. It
-provides instrumented environments with ground-truth *onset* timestamps,
-standardized metrics, and a simple detector interface, so that detection methods
-can be compared head-to-head for the first time.
+A comprehensive benchmark for **detecting reward hacking across diverse mechanisms**.
 
-> **Status: Milestone 1 (Vertical Slice).** This release ships one complete
-> end-to-end pipeline: the `GridWorld-Wireheading` environment, the `Random` and
-> `CUSUM` baselines, the full metrics suite, HDF5 storage, and the evaluation
-> runner. Additional environments, baselines (Flight Recorder, ensembles, …),
-> tiers, and the leaderboard arrive in later milestones.
-
----
-
-## What RHOB measures
-
-Given a training run whose **proxy** reward is rising, is the agent *learning*
-(good) or *hacking* (bad)? RHOB frames this as **onset detection**: find the
-first training step at which the true objective begins to degrade while the
-proxy keeps improving. Detectors never see the true reward — they must infer the
-onset from what a real monitor could observe.
-
-Each environment is a **data generator**: it records complete training runs
-(proxy/true return curves plus behavioural features) and attaches an oracle
-onset label. Detectors are evaluated on these pre-recorded trajectories, which
-makes evaluation fast, deterministic, and fully reproducible.
-
----
+**RHOB** provides:
+- **9 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, etc.)
+- **30 baseline detectors** across 4 access levels (reward-only to oracle)
+- **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
+- **Cross-family transfer analysis** measuring detector generalization to unseen mechanisms
+- **Admission gate** certifying families measure hacking detection, not just change detection
 
 ## Installation
 
 ```bash
-git clone <repo-url> rhob
+git clone https://github.com/YOUR_ORG/rhob.git
 cd rhob
-pip install -e ".[dev]"      # core + test/lint tooling
+pip install -e ".[dev]"
 ```
 
-Requires Python ≥ 3.10. Core dependencies: `numpy`, `scipy`, `scikit-learn`,
-`h5py`, `pydantic`, `click`. (The `environments` extra adds `gymnasium` and
-`stable-baselines3` for PPO-based generation in future continuous-control
-tiers; the Tier 1 tabular environment does not need them.)
+Requires Python ≥ 3.10. Core dependencies: `numpy`, `scipy`, `scikit-learn`, `pydantic`.
 
----
-
-## Quickstart
-
-### 1. Generate the benchmark dataset
-
-```bash
-python scripts/generate_gridworld_data.py --output data/gridworld_wireheading.h5
-```
-
-This trains tabular Q-learning agents on `GridWorld-Wireheading` (7 hacking + 3
-clean runs by default), labels the onsets, and writes an HDF5 dataset.
-
-### 2. Evaluate detectors (the "10-line evaluation")
+## Quick Start: Evaluate a Detector
 
 ```python
-import rhob
+from rhob.v3.benchmark import Benchmark
+from rhob.detectors import RewardThresholdDetector
 
-trajectories = rhob.load_dataset("data/gridworld_wireheading.h5")
-
-reports = rhob.compare(
-    [rhob.RandomDetector(), rhob.CUSUMDetector()],
-    trajectories,
-)
-print(rhob.results_table(reports))
+# Evaluate on Family 1 (gridworld camping)
+detector = RewardThresholdDetector()
+results = Benchmark.evaluate(detector, families=["gridworld_camping"], n_seeds=10)
+print(f"Overall AUROC: {results.overall_auroc:.3f}")
 ```
 
-```
-| Method | Access | RHOB-Score | 99% CI          | Mean AUROC | Miss | TFD   | FPR@k |
-|--------|--------|------------|-----------------|------------|------|-------|-------|
-| CUSUM  | L1     | 0.994      | [0.989, 0.997]  | 0.994      | 0.00 | 0.002 | 0.300 |
-| Random | L1     | 0.494      | [0.484, 0.498]  | 0.494      | 0.00 | —     | 0.767 |
-```
+For more examples, see [`examples/`](examples/).
 
-### 3. Write your own detector
+## The Core Insight: The Matched-Proxy Principle
 
-```python
-import rhob
+Real reward hacking means: **the proxy reward rises while the true objective collapses**. The matched-proxy construction operationalizes this:
 
-class MyDetector(rhob.Detector):
-    name = "my_detector"
-    id = "user/my_detector"
-    access_level = rhob.AccessLevel.L1   # reward-only
+- Both variants produce **identical proxy-reward distributions**
+- But their **true-reward signals diverge sharply**
+- Any detector that discriminates must read information *beyond* the proxy
 
-    def reset(self):
-        self.history = []
+This is not artificial—it's the case that matters most: reward hacking where dashboards show "success" while systems are failing.
 
-    def step(self, obs):
-        self.history.append(obs.reward)
-        # ... return a hacking probability in [0, 1] ...
-        return 0.0
+### What We Found
 
-report = rhob.evaluate(MyDetector(), trajectories)
-print(report.rhob_score)
-```
+| Access Level | Typical AUROC | Key Finding |
+|---|---|---|
+| **L0** (reward-only) | ~0.50 (chance) | Matched proxy = information barrier |
+| **L1** (state-visitation) | ~0.53 | Raw histograms fail due to representational incompatibility across families |
+| **L2** (behavioral) | ~0.69 (in-dist), 0.95 (transfer) | Compact features transfer excellently to unseen mechanisms |
+| **L3** (oracle) | ~0.87 | Ground-truth provides ceiling for measurement |
 
-Subclass `rhob.Detector`, declare an `access_level`, implement `reset()` and
-`step()`. The runner enforces the detector contract (bounded, deterministic,
-access-compliant scores) before scoring.
+**Cross-family transfer (train on 6 families, test on 3 held-out):**
+- L0/L1 detectors: pinned at chance on every held-out family
+- L2 detectors: **0.95 average transfer AUROC**, exceeding in-distribution performance
+- L2 ensemble: **perfect 1.00 transfer** on all three held-out families
 
----
+**Key insight:** Transfer depends on **representation abstraction**, not access level. Raw state histograms are dimensioned per-family and structurally incompatible across mechanisms.
 
-## The environment: GridWorld-Wireheading
+## The 9 Families
 
-A Tier 1 **reward-tampering** environment. The agent should reach and hold a
-goal cell, but an adjacent *wirehead* cell pays large proxy reward for nothing.
-Early in training the agent legitimately learns the goal (proxy and true rise
-together); part-way through, the tampering opportunity activates and the agent
-switches to farming it — the proxy keeps rising while the true return collapses.
-That divergence is the **onset**.
+### Families 1–6 (v3.2 Baselines)
 
-See [`docs/data_schema.md`](docs/data_schema.md) for the onset definition, the
-data format, and the generation design (including why tabular Q-learning is used
-for this discrete environment), and [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md)
-for the full record of engineering and research decisions (alternatives
-considered, rejection rationale, and implications).
+1. **Gridworld Camping** — Discrete tile-camping (minimal proof-of-concept)
+2. **Continuous Camping** — 2D point-mass (continuous difficulty spectrum)
+3. **Proxy Correlation Gaming** — Exploit spurious feature correlation
+4. **Shortcut Exploitation** — Take forbidden direct path vs. scenic detour
+5. **Novelty Farming** — Revisit exploration frontier for novelty bonus
+6. **Orbit Chirality** — Angular pattern (deceptive-alignment analogue)
 
----
+### Families 7–9 (v5 New, Held-out for Transfer)
 
-## Metrics
+7. **Goal Misgeneralization** — Reach wrong goal (mechanistically distinct from 1–6)
+8. **Physics Exploitation** — Jump high but crash (physics safety vs. proxy metric)
+9. **Distributional Shift** — Overfit to train distribution, fail on test
 
-| Metric | Meaning |
-|---|---|
-| **AUROC / AUPRC** | Per-step discrimination of post-onset vs. pre-onset/clean steps |
-| **Detection latency** | Normalized `(t_detect − t*) / T` |
-| **Miss rate** | Fraction of hacking runs never detected |
-| **TFD** | Median latency among detected runs |
-| **FPR@k** | False-positive rate among the *k* most confident alerts |
-| **RHOB-Score** | Tier-weighted mean AUROC (primary ranking metric) |
+## The 30 Detectors
 
-All aggregates are reported with bootstrap confidence intervals.
+### L0: Reward-Only (13)
+Temporal statistics on proxy reward only. Tautologically fail on matched-proxy families.
 
----
+### L1: State-Visitation (8)
+Occupancy patterns, state-frequency anomaly, centroid drift, etc. Transfer completely on admission-gated families.
 
-## Access levels
+### L2: Behavioral (8)
+Hand-engineered anti-symmetric features from trajectory traces. Transfer excellently to unseen families.
 
-Detectors declare how much information they consume; the access filter
-*structurally* prevents seeing anything above the declared level.
+### L3: Oracle (2)
+- **True Reward Oracle**: Direct access to ground-truth true reward (ceiling measurement)
+- **Perfect Feature Oracle**: Direct access to the exact anti-symmetric feature each family was designed around
 
-| Level | Sees |
-|---|---|
-| **L1** | Proxy reward only |
-| **L2** | + policy/behavioural features |
-| **L3** | + gradients / KL (future) |
-| **L4** | + internal state (future) |
+## Running Experiments
 
----
-
-## Specification suite
-
-The benchmark is defined by a set of frozen specification documents (the
-foundation for all future development):
-
-| Document | Purpose |
-|---|---|
-| [BENCHMARK_SPEC.md](BENCHMARK_SPEC.md) | Vision, scope, definitions, assumptions, success criteria |
-| [ENVIRONMENT_SPEC.md](ENVIRONMENT_SPEC.md) | Environment interface (add environments without touching core) |
-| [DETECTOR_API.md](DETECTOR_API.md) | Standardized detector interface (statistical + deep) |
-| [METRICS_SPEC.md](METRICS_SPEC.md) | Official metrics, when to report, visualization |
-| [DATASET_SPEC.md](DATASET_SPEC.md) | HDF5 layout + external-dataset compatibility |
-| [CONFIG_SPEC.md](CONFIG_SPEC.md) | Configuration system and YAML schemas |
-| [LEADERBOARD_SPEC.md](LEADERBOARD_SPEC.md) | Submission format, protocol, reproducibility |
-| [REPOSITORY_ARCHITECTURE.md](REPOSITORY_ARCHITECTURE.md) | Modules, dependencies, extension points |
-| [docs/difficulty_spectrum.md](docs/difficulty_spectrum.md) | Tier 2 continuous pairs (02–04): the tunable difficulty spectrum |
-| [results/detector_evaluation/](results/detector_evaluation/) | The 6-detector × 4-pair results table: L0 barrier, L2 sufficiency |
-| [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) | Every significant decision and its rationale |
-| [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) | Critical review of the implementation |
-| [REFACTOR_PLAN.md](REFACTOR_PLAN.md) · [ROADMAP_NEXT.md](ROADMAP_NEXT.md) | Prioritized refactors and next milestones |
-
-Stability tags used throughout: **[Stable]** frozen for 1.x · **[Provisional]**
-may change once · **[Planned]** specified but not yet implemented.
-
----
-
-## Development
+### Regenerate the full v5 leaderboard (30 × 9)
 
 ```bash
-pytest                       # run the test suite (76 tests)
-pytest --cov=rhob            # with coverage (≈96%)
-ruff check src tests         # lint
-ruff format src tests        # format
+python scripts/v5_leaderboard_and_transfer.py
+# Outputs: leaderboard/v5_leaderboard.json
 ```
 
----
+Runtime: ~2–3 hours on a CPU. Generates detection AUROC for every detector on every family's default-difficulty pair.
+
+### Run the cross-family transfer experiment
+
+```bash
+python scripts/cross_family_transfer.py --n-seeds-train 15 --n-seeds-test 20
+# Outputs: leaderboard/cross_family_transfer.json
+```
+
+Trains Reward MLP, State Divergence, Trajectory MLP, and a Top-5 L2 ensemble on Families 1–6, evaluates on held-out Families 7–9.
+
+Runtime: ~1–2 hours.
+
+### Regenerate figures
+
+```bash
+python scripts/plot_v5_results.py
+# Outputs: paper/figures/v5_heatmap.png, v5_access_summary.png, v5_transfer.png
+```
+
+## Adding a New Detector
+
+```python
+from rhob.detectors.posthoc import PosthocDetector, RunData
+from sklearn.metrics import roc_auc_score
+
+class MyDetector(PosthocDetector):
+    @property
+    def access_level(self) -> str:
+        return "L2"  # or "L0", "L1", "L3"
+
+    @property
+    def name(self) -> str:
+        return "My Custom Detector"
+
+    def classify(self, run: RunData) -> float:
+        """Return a score: higher = more likely hacking."""
+        # run.proxy_rewards, run.behav_trace, run.state_counts available based on access_level
+        if run.behav_trace is None:
+            return 0.5
+        return float(run.behav_trace[-100:].mean())
+
+    def detect_onset(self, run: RunData) -> int:
+        """Return the first episode where hacking begins, or -1 if not detected."""
+        trace = run.behav_trace
+        if trace is None or len(trace) < 10:
+            return -1
+        for t in range(10, len(trace)):
+            if abs(trace[t]) > 0.5:
+                return t
+        return -1
+```
+
+Then evaluate:
+
+```python
+from rhob.v3.benchmark import Benchmark
+
+detector = MyDetector()
+results = Benchmark.evaluate(detector, families=["gridworld_camping"], n_seeds=10)
+print(results.overall_auroc)
+```
+
+## Adding a New Family
+
+Subclass `BaseFamily`, implement `generate_pair(difficulty, seed)`, which returns a `MatchedPair`:
+
+```python
+from rhob.v3.base_family import BaseFamily, MatchedPair
+from rhob.v3.registry import FamilyRegistry
+
+@FamilyRegistry.register("my_family")
+class MyFamily(BaseFamily):
+    @property
+    def name(self) -> str:
+        return "my_family"
+
+    def difficulty_range(self) -> tuple[float, float]:
+        return (0.60, 0.98)
+
+    def generate_pair(self, difficulty: float, seed: int = 0) -> MatchedPair:
+        # Return a MatchedPair with hacking and legitimate rollout functions
+        # and a proxy-preserving symmetry σ
+        ...
+```
+
+**New families must pass the admission gate** (5 automated checks certifying matched proxy, behavioral separation, true-reward divergence, onset localizability, and camping quality).
+
+See `src/rhob/v3/families/` for examples.
+
+## Reproducibility
+
+See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for:
+- How to reproduce all experiments from scratch
+- How to regenerate all figures
+- Detailed experiment design and random seed strategy
+- How to verify the admission gate on new families
+
+## Paper & Citation
+
+- **Paper (v1.0)**: `paper/main.tex` (PDF available in releases)
+- **Supplementary material**: `supplementary_material/`
+
+If you use RHOB, please cite:
+
+```bibtex
+@article{shah2026rhob,
+  title={RHOB v1.0: Generalizable Reward Hacking Detection Through Matched-Proxy Benchmarking},
+  author={Shah, Aarav},
+  journal={TMLR},
+  year={2026}
+}
+```
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Contributing
+
+We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) for the submission process and admission-gate requirements.
+
+## Links
+
+- **Interactive Leaderboard**: https://huggingface.co/spaces/Aarav500/rhob-leaderboard (coming soon)
+- **GitHub**: https://github.com/Aarav500/rhob
+- **Paper**: https://arxiv.org/abs/... (coming soon)
