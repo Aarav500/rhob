@@ -1,23 +1,32 @@
-# RHOB v1.0 — Reward Hacking Onset Benchmark
+# RHOB — Reward Hacking Onset Benchmark
+
+[![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A comprehensive benchmark for **detecting reward hacking across diverse mechanisms**.
 
 **RHOB** provides:
 - **9 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, etc.)
-- **30 baseline detectors** across 4 access levels (reward-only to oracle)
+- **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
 - **Cross-family transfer analysis** measuring detector generalization to unseen mechanisms
 - **Admission gate** certifying families measure hacking detection, not just change detection
 
+**Can a PhD student evaluate their detector in under 30 minutes?** That's the
+bar — see the [Detector Tutorial](docs/TUTORIAL_DETECTOR.md).
+
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_ORG/rhob.git
+git clone https://github.com/Aarav500/rhob.git
 cd rhob
 pip install -e ".[dev]"
 ```
 
 Requires Python ≥ 3.10. Core dependencies: `numpy`, `scipy`, `scikit-learn`, `pydantic`.
+See [docs/INSTALL.md](docs/INSTALL.md) for Docker, Colab, and troubleshooting.
+
+No local install? Open [notebooks/rhob_quickstart.ipynb](notebooks/rhob_quickstart.ipynb) in Colab.
 
 ## Quick Start: Evaluate a Detector
 
@@ -31,7 +40,8 @@ results = Benchmark.evaluate(detector, families=["gridworld_camping"], n_seeds=1
 print(f"Overall AUROC: {results.overall_auroc:.3f}")
 ```
 
-For more examples, see [`examples/`](examples/).
+For more examples, see [`examples/`](examples/) or the full
+[Detector Tutorial](docs/TUTORIAL_DETECTOR.md).
 
 ## The Core Insight: The Matched-Proxy Principle
 
@@ -76,7 +86,7 @@ This is not artificial—it's the case that matters most: reward hacking where d
 8. **Physics Exploitation** — Jump high but crash (physics safety vs. proxy metric)
 9. **Distributional Shift** — Overfit to train distribution, fail on test
 
-## The 30 Detectors
+## The 35 Detectors
 
 ### L0: Reward-Only (13)
 Temporal statistics on proxy reward only. Tautologically fail on matched-proxy families.
@@ -90,6 +100,19 @@ Hand-engineered anti-symmetric features from trajectory traces. Transfer excelle
 ### L3: Oracle (2)
 - **True Reward Oracle**: Direct access to ground-truth true reward (ceiling measurement)
 - **Perfect Feature Oracle**: Direct access to the exact anti-symmetric feature each family was designed around
+
+### External Baselines (5)
+Classical, citable methods from the wider change-point/anomaly-detection/representation-learning/Bayesian-inference literature, not designed for RHOB — included so the leaderboard compares detection *approaches* fairly, not just in-house features:
+
+| Detector | Access | Method family | Reference |
+|---|---|---|---|
+| Page-Hinkley Test | L0 | Classical change-point | Page (1954); Hinkley (1971) |
+| Isolation Forest | L2 | Unsupervised anomaly detection | Liu, Ting & Zhou (2008) |
+| AR(p) Residual | L2 | Sequence model | Classical autoregressive baseline |
+| PCA Reconstruction | L1 | Representation learning | Linear reconstruction-error baseline |
+| Bayesian Online Changepoint Detection | L0 | Bayesian inference | Adams & MacKay (2007) |
+
+See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_baselines/).
 
 ## Running Experiments
 
@@ -188,7 +211,19 @@ class MyFamily(BaseFamily):
 
 **New families must pass the admission gate** (5 automated checks certifying matched proxy, behavioral separation, true-reward divergence, onset localizability, and camping quality).
 
-See `src/rhob/v3/families/` for examples.
+See `src/rhob/v3/families/` for examples. For a guided walkthrough, see the
+[Environment Tutorial](docs/TUTORIAL_ENVIRONMENT.md).
+
+## Documentation
+
+| Doc | For |
+|---|---|
+| [docs/INSTALL.md](docs/INSTALL.md) | Setup, Docker, Colab, troubleshooting |
+| [docs/TUTORIAL_DETECTOR.md](docs/TUTORIAL_DETECTOR.md) | Evaluate or add a detector in <30 min |
+| [docs/TUTORIAL_ENVIRONMENT.md](docs/TUTORIAL_ENVIRONMENT.md) | Add a new hacking-mechanism family |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Submission process and admission-gate requirements |
+| [REPRODUCIBILITY.md](REPRODUCIBILITY.md) | Regenerate every experiment and figure from scratch |
+| [docs/site/index.html](docs/site/index.html) | Benchmark website (GitHub Pages) |
 
 ## Reproducibility
 
@@ -224,6 +259,7 @@ We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ## Links
 
+- **Benchmark Website**: https://aarav500.github.io/rhob/ (GitHub Pages, [source](docs/site/index.html))
 - **Interactive Leaderboard**: https://huggingface.co/spaces/Aarav500/rhob-leaderboard (coming soon)
 - **GitHub**: https://github.com/Aarav500/rhob
 - **Paper**: https://arxiv.org/abs/... (coming soon)

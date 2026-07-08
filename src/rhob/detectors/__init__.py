@@ -10,6 +10,13 @@ This module contains:
 """
 
 from rhob.detectors.base import AbstractDetector, OverheadEstimate
+from rhob.detectors.external_baselines import (
+    ARResidualDetector,
+    BOCPDDetector,
+    IsolationForestDetector,
+    PageHinkleyDetector,
+    PCAReconstructionDetector,
+)
 from rhob.detectors.l0_reward_autocorr import RewardAutocorrelationDetector
 from rhob.detectors.l0_reward_cusum import RewardCUSUMDetector
 from rhob.detectors.l0_reward_kde import RewardKDEDetector
@@ -83,4 +90,10 @@ __all__ = [
     # L3 (oracle ceiling)
     "TrueRewardOracleDetector",
     "PerfectFeatureOracleDetector",
+    # External baselines (classical/non-RHOB-specific methods, for fair comparison)
+    "PageHinkleyDetector",
+    "IsolationForestDetector",
+    "ARResidualDetector",
+    "PCAReconstructionDetector",
+    "BOCPDDetector",
 ]

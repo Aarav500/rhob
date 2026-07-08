@@ -106,7 +106,7 @@ def transfer_eval(detector, families: list[str], level: str, n_seeds: int):
             for r in restricted_a + restricted_b:
                 try:
                     scores.append(detector.classify(r))
-                except (ValueError, RuntimeError) as e:
+                except (ValueError, RuntimeError):
                     n_incompatible += 1
                     scores.append(0.5)
             if len(set(labels)) > 1:

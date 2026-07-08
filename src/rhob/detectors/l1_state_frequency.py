@@ -7,7 +7,6 @@ Detects via entropy of state frequency distribution and concentration index.
 from __future__ import annotations
 
 import numpy as np
-from scipy import stats
 
 from rhob.detectors.posthoc import PosthocDetector, RunData
 

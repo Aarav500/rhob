@@ -4,6 +4,27 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.1.0] — Usability & External Baselines
+
+**Phase 3 (usability):**
+- Added `docs/INSTALL.md`, `docs/TUTORIAL_DETECTOR.md`, `docs/TUTORIAL_ENVIRONMENT.md`
+- Added `Dockerfile` for a zero-local-setup path
+- Added `notebooks/rhob_quickstart.ipynb` (Colab-ready)
+- Added `docs/site/index.html`, a static benchmark website (deployed via GitHub Pages)
+- Added `.github/workflows/tests.yml` (CI across Python 3.10-3.12) and `pages.yml`
+- Archived ~30 internal planning/spec documents from the repo root into `docs/internal/`
+
+**Phase 5 (external baselines):**
+- Added 5 classical detectors from outside RHOB's own design lineage, in
+  `src/rhob/detectors/external_baselines/`: Page-Hinkley Test (classical
+  change-point), Isolation Forest (unsupervised anomaly detection), AR(p)
+  Residual (sequence-model baseline), PCA Reconstruction (representation
+  learning), and Bayesian Online Changepoint Detection (Adams & MacKay, 2007)
+- All five verified against `gridworld_camping`: L0 baselines correctly sit
+  at chance (matched-proxy tautology holds for classical methods too), L1/L2
+  baselines discriminate above chance
+- 12 new unit tests in `tests/test_detectors/test_external_baselines.py`
+
 ## [Unreleased] — Baseline Detectors: the Main Results Table
 
 Implements and runs 6 baseline detectors spanning 3 access levels across all 4

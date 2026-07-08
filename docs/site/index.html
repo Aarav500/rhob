@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RHOB — Reward Hacking Onset Benchmark</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #666; --accent: #b3261e;
+    --card: #f7f7f7; --border: #e0e0e0; --code: #f0f0f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14151a; --fg: #e8e8e8; --muted: #9a9a9a; --accent: #ff6b5e;
+      --card: #1e1f26; --border: #33343d; --code: #23242c; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.6; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+  h1 { font-size: 2.2rem; margin-bottom: 0.25rem; }
+  .tagline { color: var(--muted); font-size: 1.15rem; margin-top: 0; }
+  h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .badge { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.3rem 0.7rem; font-size: 0.85rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem; margin: 1.5rem 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.2rem; }
+  .card .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .card .label { color: var(--muted); font-size: 0.9rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+  code, pre { background: var(--code); border-radius: 6px; }
+  code { padding: 0.15rem 0.4rem; font-size: 0.9em; }
+  pre { padding: 1rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  a { color: var(--accent); }
+  .links { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; }
+  .links a { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem;
+    text-decoration: none; }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>RHOB</h1>
+<p class="tagline">Reward Hacking Onset Benchmark — can your detector tell hacking from legitimate improvement when the proxy reward looks identical?</p>
+
+<div class="badges">
+  <span class="badge">v1.0</span>
+  <span class="badge">9 families</span>
+  <span class="badge">35 detectors</span>
+  <span class="badge">MIT license</span>
+</div>
+
+<div class="links">
+  <a href="https://github.com/Aarav500/rhob">GitHub</a>
+  <a href="../../README.md">Docs</a>
+  <a href="../TUTORIAL_DETECTOR.md">Detector Tutorial</a>
+  <a href="../../notebooks/rhob_quickstart.ipynb">Colab Notebook</a>
+</div>
+
+<h2>The core idea</h2>
+<p>Real reward hacking means: <em>the proxy reward rises while the true objective collapses.</em>
+RHOB operationalizes this with matched-proxy pairs — a hacking and a legitimate variant that produce
+<strong>identical proxy-reward distributions</strong> but diverge sharply on ground-truth outcome. Any
+detector that discriminates between them must read information beyond the proxy.</p>
+
+<h2>Access-level hierarchy</h2>
+<table>
+<tr><th>Level</th><th>Access</th><th>Typical AUROC</th></tr>
+<tr><td>L0</td><td>Proxy reward only</td><td>~0.50 (chance — matched proxy is an information barrier)</td></tr>
+<tr><td>L1</td><td>+ state-visitation histogram</td><td>~0.53 (raw histograms fail to transfer)</td></tr>
+<tr><td>L2</td><td>+ behavioral trace</td><td>~0.69 in-distribution, <strong>0.95 on held-out families</strong></td></tr>
+<tr><td>L3</td><td>Oracle (ground truth)</td><td>~0.87 (ceiling)</td></tr>
+</table>
+
+<h2>Cross-family transfer (train on 6 families, test on 3 held-out)</h2>
+<div class="cards">
+  <div class="card"><div class="num">0.498</div><div class="label">Reward MLP (L0) transfer AUROC</div></div>
+  <div class="card"><div class="num">0.500</div><div class="label">State Divergence (L1) transfer AUROC</div></div>
+  <div class="card"><div class="num">0.950</div><div class="label">Trajectory MLP (L2) transfer AUROC</div></div>
+  <div class="card"><div class="num">1.000</div><div class="label">L2 Ensemble transfer AUROC</div></div>
+</div>
+<p><strong>Key finding:</strong> transfer depends on <em>representation abstraction</em>, not access level.
+Raw state histograms (L1) are dimensioned per-family and structurally incompatible across mechanisms.
+Compact behavioral features (L2) transfer because they're mechanism-agnostic by construction.</p>
+
+<h2>Quick start</h2>
+<pre><code>pip install rhob  # or: git clone + pip install -e ".[dev]"
+
+from rhob.v3.benchmark import Benchmark
+from rhob.detectors import RewardThresholdDetector
+
+detector = RewardThresholdDetector()
+results = Benchmark.evaluate(detector, families=["gridworld_camping"], n_seeds=10)
+print(results.overall_auroc)
+</code></pre>
+
+<h2>External baselines</h2>
+<p>RHOB compares detection <em>approaches</em>, not just in-house features. Included classical
+baselines: Page-Hinkley change-point test, Isolation Forest anomaly detection, autoregressive
+sequence-model residuals, PCA reconstruction error, and Bayesian Online Changepoint Detection.</p>
+
+<footer>
+  RHOB is MIT-licensed. See <a href="https://github.com/Aarav500/rhob">the repository</a> for the full
+  paper, reproducibility guide, and contribution process.
+</footer>
+
+</div>
+</body>
+</html>

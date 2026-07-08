@@ -1,7 +1,6 @@
 """Tests for GoalMisgeneralization family."""
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
 
 from rhob.v3.registry import FamilyRegistry
 

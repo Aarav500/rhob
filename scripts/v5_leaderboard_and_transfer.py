@@ -9,7 +9,6 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
 
 from rhob.detectors import (
     AngularMomentumDetector,
@@ -44,7 +43,6 @@ from rhob.detectors import (
     VisitationEntropyTrendDetector,
 )
 from rhob.v3.benchmark import Benchmark
-from rhob.v3.registry import FamilyRegistry
 
 # All 30 detectors
 DETECTORS = [

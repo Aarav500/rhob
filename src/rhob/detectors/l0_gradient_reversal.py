@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-from scipy import signal
 from rhob.detectors.posthoc import PosthocDetector, RunData
 
 

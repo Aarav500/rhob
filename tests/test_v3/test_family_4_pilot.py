@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-from sklearn.metrics import roc_auc_score
 
 from rhob.v3.registry import FamilyRegistry
-from rhob.detectors import BehavioralThresholdDetector
 
 
 def test_family_4_registered():

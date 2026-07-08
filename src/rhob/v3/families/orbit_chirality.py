@@ -44,7 +44,6 @@ def _run_orbit_episode(
         behav_trace: signed angular momentum (anti-symmetric)
     """
     rng = np.random.default_rng(seed)
-    center = np.array([0.0, 0.0])
 
     proxy_rewards = []
     true_rewards = []

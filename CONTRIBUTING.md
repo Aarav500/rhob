@@ -2,6 +2,10 @@
 
 Welcome! This guide helps you contribute families, detectors, or improvements to RHOB v3. All contributions follow the matched-proxy methodology and pass community review.
 
+**New here?** Start with the 30-minute [Detector Tutorial](docs/TUTORIAL_DETECTOR.md)
+or [Environment Tutorial](docs/TUTORIAL_ENVIRONMENT.md) before reading this
+full reference guide.
+
 ## Table of Contents
 1. [Before You Start](#before-you-start)
 2. [Contributing a Family](#contributing-a-family)

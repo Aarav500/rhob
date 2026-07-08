@@ -2,7 +2,6 @@
 """Populate leaderboard with v3.2 detector suite (29 total)."""
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 
