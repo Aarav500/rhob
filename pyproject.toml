@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rhob"
+version = "0.1.0"
+description = "Reward-Hacking Onset Benchmark (RHOB) - standardized evaluation for reward-hacking detection"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Aarav Shah", email = "aarav7.shah@gmail.com"}]
+
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "h5py>=3.8",
+    "pydantic>=2.0",
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+# Needed only for PPO/SB3-based trajectory generation in future
+# continuous-control tiers. The Tier 1 tabular environments do not require them.
+environments = ["gymnasium>=0.29", "stable-baselines3>=2.0"]
+# Continuous-control tier (Pairs 02-04): the DQN camping agent needs PyTorch.
+# The Tier 1 gridworld pairs and all core evaluation do NOT require it.
+continuous = ["torch>=2.0", "matplotlib>=3.5"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+pythonpath = ["src"]
+addopts = "-q --tb=short"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]

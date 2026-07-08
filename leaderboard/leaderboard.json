@@ -1,0 +1,185 @@
+{
+  "timestamp": "2026-07-07T20:36:48.321188Z",
+  "total_detectors": 30,
+  "results": {
+    "Reward Threshold": {
+      "access_level": "L0",
+      "overall_auroc": 0.538,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T19:57:26.612380Z"
+    },
+    "Reward CUSUM": {
+      "access_level": "L0",
+      "overall_auroc": 0.542,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T19:58:46.051248Z"
+    },
+    "Reward Variance Ratio": {
+      "access_level": "L0",
+      "overall_auroc": 0.555,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:00:05.023791Z"
+    },
+    "Spectral Reward": {
+      "access_level": "L0",
+      "overall_auroc": 0.511,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:01:24.490685Z"
+    },
+    "Reward Peak": {
+      "access_level": "L0",
+      "overall_auroc": 0.509,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:02:43.873249Z"
+    },
+    "Reward Autocorrelation": {
+      "access_level": "L0",
+      "overall_auroc": 0.466,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:04:02.693021Z"
+    },
+    "Reward Skewness": {
+      "access_level": "L0",
+      "overall_auroc": null,
+      "error": "Input contains NaN."
+    },
+    "Reward Trend": {
+      "access_level": "L0",
+      "overall_auroc": 0.436,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:06:43.630190Z"
+    },
+    "Variance Window": {
+      "access_level": "L0",
+      "overall_auroc": 0.457,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:08:03.540058Z"
+    },
+    "Max Plateau": {
+      "access_level": "L0",
+      "overall_auroc": 0.527,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:09:22.954136Z"
+    },
+    "Gradient Reversal": {
+      "access_level": "L0",
+      "overall_auroc": 0.492,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:10:42.939866Z"
+    },
+    "Reward MLP": {
+      "access_level": "L0",
+      "overall_auroc": 0.501,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:12:17.297272Z"
+    },
+    "Reward KDE": {
+      "access_level": "L0",
+      "overall_auroc": 0.518,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:13:43.800092Z"
+    },
+    "State Frequency Anomaly": {
+      "access_level": "L1",
+      "overall_auroc": 0.505,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:15:03.358026Z"
+    },
+    "Centroid Drift": {
+      "access_level": "L1",
+      "overall_auroc": 0.48,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:16:23.751803Z"
+    },
+    "Occupancy Polarization": {
+      "access_level": "L1",
+      "overall_auroc": 0.504,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:17:43.863217Z"
+    },
+    "Bimodal Occupancy": {
+      "access_level": "L1",
+      "overall_auroc": 0.503,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:19:03.736305Z"
+    },
+    "Transition Entropy": {
+      "access_level": "L1",
+      "overall_auroc": 0.502,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:20:27.431043Z"
+    },
+    "State Coverage Rate": {
+      "access_level": "L1",
+      "overall_auroc": 0.494,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:21:47.520621Z"
+    },
+    "Visitation Entropy Trend": {
+      "access_level": "L1",
+      "overall_auroc": 0.498,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:23:08.278562Z"
+    },
+    "State Divergence": {
+      "access_level": "L1",
+      "overall_auroc": 0.52,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:24:28.436681Z"
+    },
+    "Behavioral Threshold": {
+      "access_level": "L2",
+      "overall_auroc": 0.658,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:25:48.621550Z"
+    },
+    "Angular Momentum": {
+      "access_level": "L2",
+      "overall_auroc": 0.473,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:27:08.902429Z"
+    },
+    "Centroid Tracker": {
+      "access_level": "L2",
+      "overall_auroc": 0.672,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:28:29.498392Z"
+    },
+    "Feature Magnitude": {
+      "access_level": "L2",
+      "overall_auroc": 0.508,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:29:49.909790Z"
+    },
+    "Feature Consistency": {
+      "access_level": "L2",
+      "overall_auroc": 0.529,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:31:09.955046Z"
+    },
+    "Reward-Feature Correlation": {
+      "access_level": "L2",
+      "overall_auroc": 0.528,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:32:30.379766Z"
+    },
+    "Trajectory MLP": {
+      "access_level": "L2",
+      "overall_auroc": 0.876,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:34:08.698424Z"
+    },
+    "True Reward Oracle": {
+      "access_level": "L3",
+      "overall_auroc": 0.113,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:35:28.713553Z"
+    },
+    "Perfect Feature Oracle": {
+      "access_level": "L3",
+      "overall_auroc": 0.658,
+      "n_cells": 25,
+      "timestamp": "2026-07-07T20:36:48.316282Z"
+    }
+  }
+}
