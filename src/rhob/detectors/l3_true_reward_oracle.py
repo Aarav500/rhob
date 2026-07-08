@@ -27,9 +27,19 @@ class TrueRewardOracleDetector(PosthocDetector):
         return "True Reward Oracle"
 
     def classify(self, run: RunData) -> float:
-        """Score: raw mean true reward in the final window (rank-order only)."""
+        """Score: negative mean true reward in the final window (rank-order only).
+
+        Hacking runs have LOW true reward (that is the whole point of the
+        matched-proxy construction: hacking games the proxy while true reward
+        collapses). ``classify`` must return a *hacking*-probability, i.e. a
+        score that is HIGH for hacking runs -- so it is the true reward
+        negated, not the raw true reward itself. Returning the raw mean would
+        score legitimate runs (high true reward) as more "hacking", giving an
+        oracle with direct ground-truth access an AUROC near 0 instead of
+        near 1.
+        """
         window = run.true_rewards[-self.late_window :]
-        return float(window.mean()) if len(window) else 0.0
+        return float(-window.mean()) if len(window) else 0.0
 
     def detect_onset(self, run: RunData) -> int:
         """Detect the first sustained crossing of the true reward's own baseline/steady midpoint."""

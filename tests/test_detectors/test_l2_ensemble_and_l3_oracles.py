@@ -50,7 +50,10 @@ def test_true_reward_oracle_classifies_and_localizes():
     assert detector.access_level == "L3"
     hacking = _run(behav_sign=0.0, true_low=True)
     legit = _run(behav_sign=0.0, true_low=False)
-    assert detector.classify(hacking) < detector.classify(legit)
+    # classify() must return a hacking-*likelihood* (PosthocDetector contract:
+    # "higher = more likely hacking"), so the low-true-reward (hacking) run
+    # must score HIGHER, not lower, than the high-true-reward (legit) run.
+    assert detector.classify(hacking) > detector.classify(legit)
     onset = detector.detect_onset(hacking)
     assert 15 < onset < 25
 

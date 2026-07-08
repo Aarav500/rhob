@@ -79,17 +79,23 @@ class DistributionalShift(BaseFamily):
             behav_trace = []
 
             for t in range(self.n_episodes):
-                # Proxy reward: matched via careful state distribution
-                # Hacking: 85% in high states (0-4), 15% in others
-                # Legitimate: uniform across all
-                if state < 5:
-                    reward_uniform = 0.7
-                else:
-                    reward_uniform = 0.65  # Close to high reward to match
-
+                # Proxy reward: the *expected* reward under the uniform
+                # distribution -- a fixed quantity independent of which state
+                # is actually visited. This is what "matched proxy" requires:
+                # equal reward *values per state* is not enough if the two
+                # variants visit those states with different frequencies, since
+                # then the aggregate reward *process* (its variance/pattern)
+                # still diverges and leaks through to L0 detectors even though
+                # the mean is close. Making it visitation-independent makes
+                # the proxy series literally identical between variants.
+                reward_uniform_high, reward_uniform_low = 0.7, 0.65
+                reward_uniform = 0.5 * reward_uniform_high + 0.5 * reward_uniform_low
                 proxy_rewards.append(float(reward_uniform))
 
-                # True: sparse distribution rewards only states 6-9
+                # True: sparse distribution rewards only states 6-9 -- this
+                # legitimately depends on the actually-visited state, since
+                # true reward is precisely "how well would this behavior score
+                # if evaluated under the sparse test distribution."
                 if state >= 6:
                     reward_sparse = 0.95
                 else:
@@ -128,12 +134,10 @@ class DistributionalShift(BaseFamily):
             behav_trace = []
 
             for t in range(self.n_episodes):
-                # Proxy: matched with hacking
-                if state < 5:
-                    reward_uniform = 0.7
-                else:
-                    reward_uniform = 0.65
-
+                # Proxy: identical fixed uniform-distribution expectation as
+                # the hacking variant (see comment there).
+                reward_uniform_high, reward_uniform_low = 0.7, 0.65
+                reward_uniform = 0.5 * reward_uniform_high + 0.5 * reward_uniform_low
                 proxy_rewards.append(float(reward_uniform))
 
                 # True: uniform exploration benefits from sparse distribution
