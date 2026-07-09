@@ -21,6 +21,7 @@ class HackingMechanism(str, Enum):
     GOAL_MISGENERALIZATION = "goal_misgen"  # agent pursues a correlated goal
     DECEPTIVE_ALIGNMENT = "deceptive"      # agent appears aligned but is not
     REWARD_TAMPERING = "tampering"         # agent modifies the reward channel
+    RM_OVEROPTIMIZATION = "rm_overopt"     # agent exploits a fitted reward model's blind spot
 
 
 class EnvironmentComplexity(str, Enum):

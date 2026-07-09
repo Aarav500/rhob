@@ -12,6 +12,7 @@ from rhob.v3.families import (  # noqa: F401
     physics_exploitation,
     proxy_correlation_gaming,
     reward_channel_tampering,
+    rlhf_reward_model_overopt,
     sensor_calibration_tampering,
     shortcut_exploitation,
 )
@@ -30,4 +31,5 @@ __all__ = [
     "sensor_calibration_tampering",
     "monitored_sandbagging",
     "eval_probe_sandbagging",
+    "rlhf_reward_model_overopt",
 ]
