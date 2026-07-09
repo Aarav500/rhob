@@ -7,28 +7,37 @@ no auth, no write path. Community detector results are submitted via a PR touchi
 project's existing "static files are fine" leaderboard design
 (see ``src/rhob/v3/leaderboard/board.py``).
 
-Run locally:
+Run locally (from within a full clone of the repo):
     pip install -e ".[space]"
     python space/app.py
+
+When deployed to a Hugging Face Space, only this directory's contents are uploaded
+(see .github/workflows/deploy_space.yml), with rhob installed as a regular pip
+dependency (space/requirements.txt) rather than imported via a sibling src/ -- and the
+deploy step copies leaderboard/*.json alongside this file, so the two candidate
+locations below cover "running inside the full repo" and "running as a deployed Space"
+respectively.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import gradio as gr
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from rhob.v3.leaderboard.adapters import load_any_leaderboard_json
+from rhob.v3.leaderboard.board import Leaderboard
 
-from rhob.v3.leaderboard.adapters import load_any_leaderboard_json  # noqa: E402
-from rhob.v3.leaderboard.board import Leaderboard  # noqa: E402
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
+_HERE = Path(__file__).resolve().parent
+_CANDIDATE_LEADERBOARD_DIRS = [
+    _HERE / "leaderboard",  # deployed Space: deploy step copies data alongside app.py
+    _HERE.parent / "leaderboard",  # local dev: running from within the full repo clone
+]
+_LEADERBOARD_DIR = next((d for d in _CANDIDATE_LEADERBOARD_DIRS if d.is_dir()), _CANDIDATE_LEADERBOARD_DIRS[0])
 LEADERBOARD_FILES = [
-    REPO_ROOT / "leaderboard" / "v5_leaderboard.json",
-    REPO_ROOT / "leaderboard" / "leaderboard.json",
+    _LEADERBOARD_DIR / "v5_leaderboard.json",
+    _LEADERBOARD_DIR / "leaderboard.json",
 ]
 
 

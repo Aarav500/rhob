@@ -1,0 +1,47 @@
+name: deploy-space
+
+# Pushes space/ to a Hugging Face Space. Manual trigger only (workflow_dispatch), not
+# on every push to main: this needs an HF_TOKEN secret that only exists once a
+# maintainer has created the Space and added the secret (see docs/DEPLOY_SPACE.md).
+# Running this before that setup is done would just fail loudly on every push, so it's
+# opt-in until then.
+
+on:
+  workflow_dispatch:
+    inputs:
+      space_repo:
+        description: 'Target HF Space repo, e.g. "Aarav500/rhob-leaderboard"'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install huggingface_hub
+        run: pip install huggingface_hub
+      - name: Stage deploy bundle (app + leaderboard data)
+        run: |
+          mkdir -p deploy_bundle
+          cp -r space/. deploy_bundle/
+          cp -r leaderboard deploy_bundle/leaderboard
+      - name: Push to the Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          import os
+          from huggingface_hub import HfApi
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.upload_folder(
+              folder_path='deploy_bundle',
+              repo_id='${{ inputs.space_repo }}',
+              repo_type='space',
+              commit_message='Deploy from GitHub Actions (${{ github.sha }})',
+          )
+          "

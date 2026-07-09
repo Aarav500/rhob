@@ -1,0 +1,4 @@
+gradio>=4.0
+pandas>=2.0
+numpy>=1.24
+rhob @ git+https://github.com/Aarav500/rhob.git@main

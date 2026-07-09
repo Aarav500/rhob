@@ -1,0 +1,41 @@
+name: leaderboard-validate
+
+# Validates any detector-result submission JSON added or changed in a PR under
+# submissions/, using the existing `python -m rhob validate` CLI command
+# (src/rhob/v3/cli/__main__.py::cmd_validate). Community contributors submit a result
+# by adding a file there; this catches malformed submissions before merge.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "submissions/**.json"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Find changed submission files
+        id: changed
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1
+          files=$(git diff --name-only origin/${{ github.base_ref }} -- 'submissions/*.json')
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$files" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: Validate each changed submission
+        if: steps.changed.outputs.files != ''
+        run: |
+          status=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "Validating $f"
+            python -m rhob validate "$f" || status=1
+          done <<< "${{ steps.changed.outputs.files }}"
+          exit $status
