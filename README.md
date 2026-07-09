@@ -297,9 +297,10 @@ We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) fo
 ## Links
 
 - **Benchmark Website**: https://aarav500.github.io/rhob/ (GitHub Pages, [source](docs/site/index.html))
-- **Interactive Leaderboard**: run locally with `pip install -e ".[space]" && python space/app.py`
-  ([source](space/app.py)); not yet deployed to a public Hugging Face Space -- see
-  [docs/DEPLOY_SPACE.md](docs/DEPLOY_SPACE.md) for the one-time setup steps
+- **Interactive Leaderboard**: live at [AWS EC2](http://54.208.200.139/) and (once deployed)
+  [HF Space](https://huggingface.co/spaces/Aarav500/rhob-leaderboard); or run locally with
+  `pip install -e ".[space]" && python space/app.py` ([source](space/app.py)) -- see
+  [docs/DEPLOY_SPACE.md](docs/DEPLOY_SPACE.md) for the HF Space deploy steps
 - **Submit a detector result**: drop a submission JSON in [`submissions/`](submissions/)
   and open a PR (auto-validated by CI) -- see [submissions/README.md](submissions/README.md)
 - **GitHub**: https://github.com/Aarav500/rhob

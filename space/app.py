@@ -99,7 +99,10 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
         "Read-only viewer over the committed leaderboard data in this repository. "
         "See the [Detector Tutorial](https://github.com/Aarav500/rhob/blob/main/docs/TUTORIAL_DETECTOR.md) "
         "for how to evaluate your own detector, and the **How to Submit** tab below for "
-        "how results get added here."
+        "how results get added here.\n\n"
+        "Also mirrored at: "
+        "[HF Space](https://huggingface.co/spaces/Aarav500/rhob-leaderboard) | "
+        "[AWS EC2](http://54.208.200.139/)"
     )
 
     with gr.Tab("Standings"):
