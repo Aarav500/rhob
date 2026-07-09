@@ -43,6 +43,31 @@ def test_leaderboard_standings_sorted_descending():
     assert standings[1].detector_name == "weak_det"
 
 
+def test_standings_handles_none_overall_auroc():
+    """A detector that errored during evaluation can be written through with
+    overall_auroc=None (seen in a real leaderboard.json entry, "Reward Skewness",
+    from an older population script). standings() must sort it last, not crash --
+    render_standings_md() must not crash formatting it either."""
+    board = Leaderboard()
+    board.submit(_fake_results(), author="a")
+    broken = LeaderboardEntry(
+        detector_name="broken_det",
+        access_level="L0",
+        author="c",
+        timestamp="",
+        overall_auroc=None,
+        n_cells=0,
+    )
+    board.add(broken)
+
+    standings = board.standings()
+    assert standings[-1].detector_name == "broken_det"
+
+    rendered = board.render_standings_md()
+    assert "broken_det" in rendered
+    assert "-" in rendered  # the None entry's AUROC column
+
+
 def test_leaderboard_save_and_load_roundtrip(tmp_path: Path):
     board = Leaderboard()
     board.submit(_fake_results(), author="tester")

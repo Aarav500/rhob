@@ -11,6 +11,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 from rhob.v3.benchmark import BenchmarkResults
 from rhob.v3.taxonomy import DifficultyTier
@@ -30,7 +31,7 @@ class LeaderboardEntry:
     access_level: str
     author: str
     timestamp: str
-    overall_auroc: float
+    overall_auroc: Optional[float]
     n_cells: int
     family_auroc: dict[str, float] = field(default_factory=dict)
     mechanism_auroc: dict[str, float] = field(default_factory=dict)
@@ -79,8 +80,19 @@ class Leaderboard:
         return entry
 
     def standings(self) -> list[LeaderboardEntry]:
-        """Entries sorted by overall AUROC, descending."""
-        return sorted(self.entries, key=lambda e: e.overall_auroc, reverse=True)
+        """Entries sorted by overall AUROC, descending.
+
+        Entries with ``overall_auroc is None`` (a detector that errored during
+        evaluation, e.g. a NaN-input failure, written through as ``null`` by an older
+        population script) sort last rather than crashing the comparison -- None isn't
+        orderable against None either, so it needs a real sentinel, not just a tuple
+        with a boolean flag.
+        """
+        return sorted(
+            self.entries,
+            key=lambda e: e.overall_auroc if e.overall_auroc is not None else float("-inf"),
+            reverse=True,
+        )
 
     # -------------------------------------------------------------- persistence
     @classmethod
@@ -101,7 +113,8 @@ class Leaderboard:
             "|---|---|---|---|---|---|",
         ]
         for i, e in enumerate(self.standings(), 1):
-            lines.append(f"| {i} | {e.detector_name} | {e.access_level} | {e.overall_auroc:.3f} | {e.n_cells} | {e.author} |")
+            auroc_str = f"{e.overall_auroc:.3f}" if e.overall_auroc is not None else "-"
+            lines.append(f"| {i} | {e.detector_name} | {e.access_level} | {auroc_str} | {e.n_cells} | {e.author} |")
         return "\n".join(lines)
 
     def render_by_mechanism_md(self) -> str:
