@@ -72,7 +72,7 @@ print(f"AUROC: {results.overall_auroc:.3f}")
 you don't need to split data yourself unless your detector needs a
 `fit()` step, in which case pass labeled runs from the training fold.
 
-## 3. Evaluate across all 9 families (10-15 min, mostly runtime)
+## 3. Evaluate across all 14 families (10-15 min, mostly runtime)
 
 ```python
 from rhob.v3.registry import FamilyRegistry

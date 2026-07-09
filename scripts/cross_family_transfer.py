@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-import rhob.v3.families  # noqa: F401  -- importing registers all 9 families
+import rhob.v3.families  # noqa: F401  -- importing registers every family
 from rhob.v3.access import restrict
 from rhob.v3.benchmark import Benchmark
 from rhob.v3.registry import FamilyRegistry

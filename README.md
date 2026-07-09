@@ -6,7 +6,7 @@
 A comprehensive benchmark for **detecting reward hacking across diverse mechanisms**.
 
 **RHOB** provides:
-- **9 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, etc.)
+- **14 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.)
 - **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
 - **Cross-family transfer analysis** measuring detector generalization to unseen mechanisms
@@ -95,7 +95,7 @@ This is not artificial—it's the case that matters most: reward hacking where d
 
 **Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
-## The 9 Families
+## The 14 Families
 
 ### Families 1–6 (v3.2 Baselines)
 
@@ -104,13 +104,21 @@ This is not artificial—it's the case that matters most: reward hacking where d
 3. **Proxy Correlation Gaming** — Exploit spurious feature correlation
 4. **Shortcut Exploitation** — Take forbidden direct path vs. scenic detour
 5. **Novelty Farming** — Revisit exploration frontier for novelty bonus
-6. **Orbit Chirality** — Angular pattern (deceptive-alignment analogue)
+6. **Orbit Chirality** — Commit to a proxy-satisfying orbit direction instead of the real task
 
-### Families 7–9 (v5 New, Held-out for Transfer)
+### Families 7–9 (v5, Held-out for Transfer)
 
 7. **Goal Misgeneralization** — Reach wrong goal (mechanistically distinct from 1–6)
 8. **Physics Exploitation** — Jump high but crash (physics safety vs. proxy metric)
 9. **Distributional Shift** — Overfit to train distribution, fail on test
+
+### Families 10–14 (v1.4, New Mechanisms)
+
+10. **Reward Channel Tampering** — Directly manipulate the reward-report channel instead of doing the task
+11. **Sensor Calibration Tampering** — Continuous-difficulty analogue: biased self-reported sensor readings
+12. **Monitored Sandbagging** — Behaves aligned while monitored, reverts to a shortcut once unmonitored
+13. **Eval-Probe Sandbagging** — Behaves aligned only when a recognizable "eval probe" is present, no single onset point
+14. **RLHF Reward-Model Overoptimization** — Toy preference-bandit exploiting a real (if tiny) fitted reward model's blind spot
 
 ## The 35 Detectors
 

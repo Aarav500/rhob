@@ -4,6 +4,43 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.4.0] — AdmissionGate, 5 New Families, Toy RLHF Setting, Leaderboard Infra
+
+Builds the next benchmark generation on top of v1.3's 9 families:
+
+- **`AdmissionGate` module** (`src/rhob/v3/admission_gate.py`): reusable,
+  family-agnostic implementation of the 5 admission criteria, replacing
+  bespoke per-family pytest. Running it against all shipped families caught a
+  real, previously undetected proxy leak in `goal_misgeneralization`
+  (asymmetric movement speed between variants; mean L0 AUROC ~0.73, not the
+  claimed ~0.5) — fixed.
+- **5 new families** (9 → 14), 3 new taxonomy mechanisms:
+  - `reward_channel_tampering`, `sensor_calibration_tampering` — first
+    `REWARD_TAMPERING` families
+  - `monitored_sandbagging`, `eval_probe_sandbagging` — first
+    `DECEPTIVE_ALIGNMENT` families
+  - `rlhf_reward_model_overopt` — toy preference-bandit RLHF setting; a real
+    (if tiny) fitted logistic-regression reward model, not a hand-waved
+    blind spot; new `HackingMechanism.RM_OVEROPTIMIZATION`
+- **Fixed a pre-existing mislabel**: `orbit_chirality` was tagged
+  `DECEPTIVE_ALIGNMENT` despite being a straightforward camping/commitment
+  mechanism (no appear-aligned-then-revert dynamic) — corrected to
+  `CAMPING_EXPLOIT`. Predates this release; found while auditing mechanism
+  counts for this changelog entry, not introduced by the new families.
+- **Leaderboard infrastructure**: JSON schema adapter reconciling the two
+  incompatible formats under `leaderboard/`, a read-only Gradio viewer
+  (`space/app.py`), CI validation for community submissions
+  (`.github/workflows/leaderboard_validate.yml`), and a documented (not yet
+  triggered — needs the maintainer's HF account) deploy path.
+- **Bugs found and fixed along the way**: a `None`-AUROC crash in
+  `Leaderboard.standings()`, an `rhob.v3` import chain that broke without
+  torch installed, unconditional torch-class definitions breaking CI, and a
+  `StateDivergenceDetector` NaN crash on sharp categorical distributions
+  (surfaced by the new tampering/RLHF families' confident 2-3-bin behavioral
+  signals).
+- Full 14-family leaderboard regenerated; access-level means: L0 0.497,
+  L1 0.541, L2 0.743, L3 0.990.
+
 ## [1.3.0] — Repository Scope: Benchmark Harness Only
 
 Restructured the repository to match the scope of comparable benchmark repos

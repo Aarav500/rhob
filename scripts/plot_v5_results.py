@@ -2,13 +2,13 @@
 
 Unlike ``scripts/plot_results.py`` (which plots the original 6-detector x
 4-variant-set Family 1-2 case study from ``results/detector_evaluation/``),
-this script plots the full v5 scope: 30 detectors x 9 families, from
+this script plots the full v5 scope: 30 detectors x all registered families, from
 ``leaderboard/v5_leaderboard.json``, plus the cross-family transfer results
 from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
 
 Outputs (written to ``docs/figures/``):
-  v5_heatmap.png        30 detectors x 9 families, per-family AUROC
-  v5_access_summary.png Mean AUROC by access level (L0/L1/L2/L3), across all 9 families
+  v5_heatmap.png        30 detectors x all registered families, per-family AUROC
+  v5_access_summary.png Mean AUROC by access level (L0/L1/L2/L3), across all registered families
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
                          if leaderboard/cross_family_transfer.json exists.
@@ -25,7 +25,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Family order matches Table tab:families-sigma in the paper (Family 1 .. Family 9).
+# Families 1-9 order matches Table tab:families-sigma in the paper; 10-14 are the
+# v1.4 additions (2x REWARD_TAMPERING, 2x DECEPTIVE_ALIGNMENT, 1x RM_OVEROPTIMIZATION).
 FAMILY_ORDER = [
     "gridworld_camping",
     "continuous_camping",
@@ -36,6 +37,11 @@ FAMILY_ORDER = [
     "goal_misgeneralization",
     "physics_exploitation",
     "distributional_shift",
+    "reward_channel_tampering",
+    "sensor_calibration_tampering",
+    "monitored_sandbagging",
+    "eval_probe_sandbagging",
+    "rlhf_reward_model_overopt",
 ]
 FAMILY_LABELS = [
     "1. Gridworld\nCamping",
@@ -47,6 +53,11 @@ FAMILY_LABELS = [
     "7. Goal\nMisgen.",
     "8. Physics\nExploit.",
     "9. Distrib.\nShift",
+    "10. Reward Chan.\nTampering",
+    "11. Sensor Calib.\nTampering",
+    "12. Monitored\nSandbagging",
+    "13. Eval-Probe\nSandbagging",
+    "14. RLHF RM\nOveropt.",
 ]
 
 # Detector order matches Section 5 (Detector Suite) of the paper: L0 (13), L1 (8), L2 (8), L3 (2).
@@ -118,7 +129,7 @@ def plot_access_summary(board: dict, out_path: Path) -> None:
             ax.text(i, m + 0.03, f"n={n}", ha="center", fontsize=9)
     ax.set_xticks(x)
     ax.set_xticklabels(levels)
-    ax.set_ylabel("Mean overall AUROC (across all 9 families)")
+    ax.set_ylabel("Mean overall AUROC (across all registered families)")
     ax.set_ylim(0.0, 1.05)
     ax.set_title("Access-Level Hierarchy Holds at Full v5 Scale")
     ax.legend()

@@ -115,7 +115,7 @@ class OrbitChiralityFamily(BaseFamily):
 
     @property
     def mechanism(self) -> HackingMechanism:
-        return HackingMechanism.DECEPTIVE_ALIGNMENT
+        return HackingMechanism.CAMPING_EXPLOIT
 
     @property
     def complexity(self) -> EnvironmentComplexity:
