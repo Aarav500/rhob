@@ -14,7 +14,6 @@ import math
 
 from scipy.special import ndtri  # inverse standard-normal CDF
 
-from rhob.agents.dqn import train_camper
 from rhob.environments.continuous.config import ContinuousConfig
 from rhob.evaluation.eval_rollout import generate_continuous_rundata
 from rhob.v3.base_family import BaseFamily
@@ -30,6 +29,8 @@ _camper = None  # cached shared policy (trained lazily on first rollout)
 def _get_camper():
     global _camper
     if _camper is None:
+        from rhob.agents.dqn import train_camper  # deferred: torch is optional (see rhob.agents.dqn)
+
         _camper = train_camper(seed=_CAMPER_SEED)
     return _camper
 

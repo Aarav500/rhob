@@ -18,8 +18,37 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,continuous]"
       - name: Test
         run: pytest tests/ -q
       - name: Lint
         run: ruff check src tests scripts
+
+  no-torch-import-check:
+    # Core dependencies (numpy, scipy, scikit-learn, pydantic, click) must be
+    # enough to import the package and use every tabular/gridworld family and
+    # every detector except the two torch-based ones (README's stated
+    # contract). This job installs only [dev] -- no torch -- and would have
+    # caught the regression where an eager `import torch` deep in the
+    # continuous-tier family chain made the entire rhob.v3 package
+    # unimportable without PyTorch.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (no torch)
+        run: pip install -e ".[dev]"
+      - name: Import without torch
+        run: |
+          python -c "
+          import rhob
+          import rhob.v3
+          import rhob.v3.families
+          from rhob.v3.registry import FamilyRegistry
+          from rhob.v3.benchmark import Benchmark
+          fams = FamilyRegistry.list_families()
+          assert 'gridworld_camping' in fams, fams
+          print('OK:', fams)
+          "
