@@ -17,21 +17,21 @@ except ImportError:
 
 FEATURE_DIM = 6
 
+if HAS_TORCH:
+    class TrajectoryMLPNet(nn.Module):
+        """MLP for trajectory feature classification."""
 
-class TrajectoryMLPNet(nn.Module):
-    """MLP for trajectory feature classification."""
+        def __init__(self, feature_dim: int = FEATURE_DIM, hidden: int = 128):
+            super().__init__()
+            self.fc1 = nn.Linear(feature_dim, hidden)
+            self.fc2 = nn.Linear(hidden, hidden)
+            self.fc3 = nn.Linear(hidden, 1)
 
-    def __init__(self, feature_dim: int = FEATURE_DIM, hidden: int = 128):
-        super().__init__()
-        self.fc1 = nn.Linear(feature_dim, hidden)
-        self.fc2 = nn.Linear(hidden, hidden)
-        self.fc3 = nn.Linear(hidden, 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = torch.sigmoid(self.fc3(x))
-        return x
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            x = torch.relu(self.fc1(x))
+            x = torch.relu(self.fc2(x))
+            x = torch.sigmoid(self.fc3(x))
+            return x
 
 
 class TrajectoryMLPDetector(PosthocDetector):

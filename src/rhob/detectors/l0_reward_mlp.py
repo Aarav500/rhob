@@ -15,22 +15,22 @@ try:
 except ImportError:
     HAS_TORCH = False
 
+if HAS_TORCH:
+    class RewardMLPNet(nn.Module):
+        """Small MLP for reward history classification."""
 
-class RewardMLPNet(nn.Module):
-    """Small MLP for reward history classification."""
+        def __init__(self, window_size: int = 50, hidden: int = 64):
+            super().__init__()
+            self.window_size = window_size
+            self.fc1 = nn.Linear(window_size, hidden)
+            self.fc2 = nn.Linear(hidden, hidden)
+            self.fc3 = nn.Linear(hidden, 1)
 
-    def __init__(self, window_size: int = 50, hidden: int = 64):
-        super().__init__()
-        self.window_size = window_size
-        self.fc1 = nn.Linear(window_size, hidden)
-        self.fc2 = nn.Linear(hidden, hidden)
-        self.fc3 = nn.Linear(hidden, 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = torch.sigmoid(self.fc3(x))
-        return x
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            x = torch.relu(self.fc1(x))
+            x = torch.relu(self.fc2(x))
+            x = torch.sigmoid(self.fc3(x))
+            return x
 
 
 class RewardMLPDetector(PosthocDetector):
