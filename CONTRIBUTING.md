@@ -463,9 +463,7 @@ git commit -m "Add Family: My Family
 - Feature: [describe]
 - Difficulty knob: [describe]
 
-Passes all tests and anti-symmetry screening.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+Passes all tests and anti-symmetry screening."
 ```
 
 ### 5. Push & Open PR
