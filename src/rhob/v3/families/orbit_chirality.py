@@ -83,10 +83,12 @@ def _run_orbit_episode(
         true_r = true_reward_value if ring_presence > 0.5 else 0.0
 
         # L2 feature: signed angular momentum L = x*v_y - y*v_x
-        # Anti-symmetric under reflection (x → -x, v_x → -v_x)
+        # Anti-symmetric under reflection (x → -x, v_x → -v_x). Negated so the
+        # sign matches the codebase-wide convention (positive = hacking/CW):
+        # raw L is positive for CCW (legit) and negative for CW (hacking).
         L = pos[0] * vel[1] - pos[1] * vel[0]
         # Normalize by ring properties
-        feature = L / (ring_radius ** 2) if ring_radius > 0 else 0.0
+        feature = -L / (ring_radius ** 2) if ring_radius > 0 else 0.0
 
         proxy_rewards.append(proxy_r)
         true_rewards.append(true_r)

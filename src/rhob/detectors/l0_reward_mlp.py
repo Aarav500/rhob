@@ -40,11 +40,12 @@ class RewardMLPDetector(PosthocDetector):
     the information barrier: reward alone is insufficient.
     """
 
-    def __init__(self, window_size: int = 50, hidden: int = 64):
+    def __init__(self, window_size: int = 50, hidden: int = 64, seed: int = 0):
         if not HAS_TORCH:
             raise ImportError("torch required for RewardMLPDetector")
         self.window_size = window_size
         self.hidden = hidden
+        self.seed = seed
         self.model: Optional[RewardMLPNet] = None
         self.is_trained = False
 
@@ -68,6 +69,7 @@ class RewardMLPDetector(PosthocDetector):
         by every trainable detector -- the caller passes ``RunData``, not raw arrays)."""
         if not HAS_TORCH:
             raise ImportError("torch required")
+        torch.manual_seed(self.seed)
         self.model = RewardMLPNet(self.window_size, self.hidden)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.BCELoss()

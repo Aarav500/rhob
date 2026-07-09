@@ -55,19 +55,19 @@ This is not artificial—it's the case that matters most: reward hacking where d
 
 ### What We Found
 
-| Access Level | Typical AUROC | Key Finding |
-|---|---|---|
-| **L0** (reward-only) | ~0.50 (chance) | Matched proxy = information barrier |
-| **L1** (state-visitation) | ~0.53 | Raw histograms fail due to representational incompatibility across families |
-| **L2** (behavioral) | ~0.69 (in-dist), 0.95 (transfer) | Compact features transfer excellently to unseen mechanisms |
-| **L3** (oracle) | ~0.87 | Ground-truth provides ceiling for measurement |
+| Access Level | Available Information | Expected Capability | Mean AUROC |
+|---|---|---|---|
+| **L0** (reward-only) | Proxy reward only | Detect reward-value changes only | 0.51 ± 0.03 (chance) |
+| **L1** (state-visitation) | + state-visitation | Detect visitation-frequency shifts | 0.53 ± 0.08 (marginal) |
+| **L2** (behavioral) | + behavioral traces | Detect the onset of hacking itself | 0.76 ± 0.18 |
+| **L3** (oracle) | Ground-truth true reward | Theoretical upper bound | 0.99 ± 0.01 |
 
-**Cross-family transfer (train on 6 families, test on 3 held-out):**
+**Cross-family transfer (train on 6 families, test on 3 held-out; neural-net detectors reported as mean ± std across 3 independently-seeded training runs — see caveat below):**
 - L0/L1 detectors: pinned at chance on every held-out family
-- L2 detectors: **0.95 average transfer AUROC**, exceeding in-distribution performance
-- L2 ensemble: **perfect 1.00 transfer** on all three held-out families
+- L2 single learned detector (Trajectory MLP): **0.77 ± 0.14 average transfer AUROC**, below its 0.93 training AUROC, with high seed-to-seed variance on one held-out family
+- L2 five-detector ensemble: **1.00 ± 0.00 transfer AUROC**, matching its 0.97 training AUROC — robust because 4 of its 5 members are deterministic
 
-**Key insight:** Transfer depends on **representation abstraction**, not access level. Raw state histograms are dimensioned per-family and structurally incompatible across mechanisms.
+**Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
 ## The 9 Families
 

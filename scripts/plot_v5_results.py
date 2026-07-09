@@ -129,25 +129,43 @@ def plot_access_summary(board: dict, out_path: Path) -> None:
 
 
 def plot_transfer(transfer_path: Path, out_path: Path) -> None:
+    """Plot train vs. transfer AUROC.
+
+    Neural-net detectors (Reward MLP, Trajectory MLP, Ensemble) are run across
+    multiple independently-seeded trials and stored under ``*_mean``/``*_std``
+    keys (see ``scripts/cross_family_transfer.py``); deterministic detectors
+    (State Divergence) keep the older single-run keys. Handle both.
+    """
     data = json.loads(transfer_path.read_text())
     results = data["results"]
     names = list(results.keys())
 
+    def get(n: str, key: str) -> float:
+        r = results[n]
+        return r.get(f"{key}_mean", r.get(key))
+
+    def get_std(n: str, key: str) -> float:
+        return results[n].get(f"{key}_std", 0.0)
+
     fig, ax = plt.subplots(figsize=(9, 5.5))
     x = np.arange(len(names))
     width = 0.35
-    train_vals = [results[n]["train_auroc"] for n in names]
-    transfer_vals = [results[n]["avg_transfer_auroc"] for n in names]
-    ax.bar(x - width / 2, train_vals, width, label="Train (Families 1-6, in-distribution)")
-    ax.bar(x + width / 2, transfer_vals, width, label="Transfer (Families 7-9, held-out)")
+    train_vals = [get(n, "train_auroc") for n in names]
+    train_errs = [get_std(n, "train_auroc") for n in names]
+    transfer_vals = [get(n, "avg_transfer_auroc") for n in names]
+    transfer_errs = [get_std(n, "avg_transfer_auroc") for n in names]
+    ax.bar(x - width / 2, train_vals, width, yerr=train_errs, capsize=3,
+           label="Train (Families 1-6, in-distribution)")
+    ax.bar(x + width / 2, transfer_vals, width, yerr=transfer_errs, capsize=3,
+           label="Transfer (Families 7-9, held-out)")
     ax.axhline(0.5, color="gray", ls=":", lw=1)
     for i, n in enumerate(names):
-        gap = results[n]["generalization_gap_pct"]
+        gap = results[n].get("generalization_gap_pct", results[n].get("generalization_gap_pct_mean"))
         # gap = (train - transfer) / train * 100, so a positive gap is a real
         # drop from train to transfer and a negative gap means transfer beat
         # train. Label as a signed "change" so it reads correctly either way
         # instead of always showing a leading minus sign.
-        ax.text(i, max(train_vals[i], transfer_vals[i]) + 0.03, f"{-gap:+.0f}%", ha="center", fontsize=9)
+        ax.text(i, max(train_vals[i], transfer_vals[i]) + 0.05, f"{-gap:+.0f}%", ha="center", fontsize=9)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=15, ha="right")
     ax.set_ylabel("AUROC")

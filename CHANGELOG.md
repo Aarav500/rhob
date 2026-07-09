@@ -4,6 +4,38 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.2.0] — Three More Bugs Found by Not Trusting a Surprising Result
+
+Triggered by external methodological review questioning why L2 cross-family transfer
+AUROC (0.95) exceeded in-distribution training AUROC (0.89) and why the L3 oracle
+wasn't near-ceiling. Investigating both instead of adjusting the numbers to look better
+surfaced three more real bugs:
+
+- **`orbit_chirality` sign inversion**: behavioral feature had the wrong sign convention,
+  scoring AUROC 0.000 (perfect inversion) on this family. Zero prior test coverage. Fixed;
+  added `tests/test_v3/test_family_orbit_chirality.py`.
+- **`proxy_correlation_gaming` item depletion + region/reward decorrelation**: one-time
+  consumable items ran out before the trailing evaluation window, and the hacking
+  strategy's movement target had no correlation with where reward actually was. True
+  Reward Oracle was scoring 0.608 on this family (should approach 1.0). Fixed with
+  persistent reward-terrain and region-linked placement, re-verified matched-proxy holds.
+- **Unseeded neural-net training**: `RewardMLPDetector` and `TrajectoryMLPDetector` never
+  seeded `torch`, so identical `fit()` calls on identical data produced held-out AUROC
+  ranging from 0.00 to 1.00 across repeated runs on one family. This is the leading
+  explanation for the original anomaly. Fixed with an explicit `seed` parameter;
+  `scripts/cross_family_transfer.py` now reports mean ± std across independently-seeded
+  trials instead of a single run.
+
+**Real, re-measured results after all fixes:**
+- Access-level means: L0 0.51±0.03, L1 0.53±0.08, L2 0.76±0.18, L3 0.99±0.01 (L3 was
+  0.87 before these fixes, dragged down by the two family bugs above)
+- Cross-family transfer: L2 single detector now trains (0.93) above transfer (0.77±0.14,
+  high-variance) — the expected direction. L2 five-detector ensemble transfers robustly
+  at 1.00±0.00, matching its 0.97 training AUROC; it is stable because 4 of its 5 members
+  are deterministic and absorb the one learned member's instability.
+
+See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) items 4-6 for full details and verification code.
+
 ## [1.1.0] — Usability & External Baselines
 
 **Phase 3 (usability):**

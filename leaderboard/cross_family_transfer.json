@@ -14,17 +14,31 @@
   ],
   "n_seeds_train": 15,
   "n_seeds_test": 20,
+  "n_trials": 3,
   "results": {
     "Reward MLP": {
       "access_level": "L0",
-      "train_auroc": 0.496,
-      "per_family_transfer": {
-        "goal_misgeneralization": 0.495,
+      "n_trials": 3,
+      "train_auroc_mean": 0.401,
+      "train_auroc_std": 0.014,
+      "per_family_transfer_mean": {
+        "goal_misgeneralization": 0.501,
         "physics_exploitation": 0.5,
         "distributional_shift": 0.5
       },
-      "avg_transfer_auroc": 0.498,
-      "generalization_gap_pct": -0.5
+      "per_family_transfer_std": {
+        "goal_misgeneralization": 0.033,
+        "physics_exploitation": 0.0,
+        "distributional_shift": 0.0
+      },
+      "avg_transfer_auroc_mean": 0.5,
+      "avg_transfer_auroc_std": 0.011,
+      "generalization_gap_pct_mean": -24.9,
+      "all_trial_transfer_aurocs": [
+        0.492,
+        0.516,
+        0.493
+      ]
     },
     "State Divergence": {
       "access_level": "L1",
@@ -39,25 +53,51 @@
     },
     "Trajectory MLP": {
       "access_level": "L2",
-      "train_auroc": 0.89,
-      "per_family_transfer": {
+      "n_trials": 3,
+      "train_auroc_mean": 0.933,
+      "train_auroc_std": 0.001,
+      "per_family_transfer_mean": {
         "goal_misgeneralization": 1.0,
         "physics_exploitation": 1.0,
-        "distributional_shift": 0.85
+        "distributional_shift": 0.317
       },
-      "avg_transfer_auroc": 0.95,
-      "generalization_gap_pct": -6.7
+      "per_family_transfer_std": {
+        "goal_misgeneralization": 0.0,
+        "physics_exploitation": 0.0,
+        "distributional_shift": 0.413
+      },
+      "avg_transfer_auroc_mean": 0.772,
+      "avg_transfer_auroc_std": 0.138,
+      "generalization_gap_pct_mean": 17.3,
+      "all_trial_transfer_aurocs": [
+        0.967,
+        0.683,
+        0.667
+      ]
     },
     "Ensemble (Top 5)": {
       "access_level": "L2",
-      "train_auroc": 0.932,
-      "per_family_transfer": {
+      "n_trials": 3,
+      "train_auroc_mean": 0.974,
+      "train_auroc_std": 0.0,
+      "per_family_transfer_mean": {
         "goal_misgeneralization": 1.0,
         "physics_exploitation": 1.0,
         "distributional_shift": 1.0
       },
-      "avg_transfer_auroc": 1.0,
-      "generalization_gap_pct": -7.3
+      "per_family_transfer_std": {
+        "goal_misgeneralization": 0.0,
+        "physics_exploitation": 0.0,
+        "distributional_shift": 0.0
+      },
+      "avg_transfer_auroc_mean": 1.0,
+      "avg_transfer_auroc_std": 0.0,
+      "generalization_gap_pct_mean": -2.6,
+      "all_trial_transfer_aurocs": [
+        1.0,
+        1.0,
+        1.0
+      ]
     }
   }
 }

@@ -44,11 +44,12 @@ class TrajectoryMLPDetector(PosthocDetector):
     by reading the answer instead of inferring it.
     """
 
-    def __init__(self, hidden: int = 128, window: int = 100):
+    def __init__(self, hidden: int = 128, window: int = 100, seed: int = 0):
         if not HAS_TORCH:
             raise ImportError("torch required for TrajectoryMLPDetector")
         self.hidden = hidden
         self.window = window
+        self.seed = seed
         self.model: Optional[TrajectoryMLPNet] = None
         self.is_trained = False
         self.feature_stats: Optional[dict] = None
@@ -69,7 +70,18 @@ class TrajectoryMLPDetector(PosthocDetector):
         batch_size: int = 16,
         lr: float = 0.001,
     ) -> None:
-        """Train on labeled runs."""
+        """Train on labeled runs.
+
+        Seeds torch's global RNG before constructing/training the model:
+        weight initialization and the per-epoch ``torch.randperm`` shuffle
+        both draw from it, so an unseeded fit() is a different, unreproducible
+        model every call. This was severe enough in practice that five
+        identical fit() calls on the same data produced held-out AUROCs
+        ranging from 0.00 to 1.00 on the same family -- any previously
+        reported single-run transfer number for this detector was not a
+        reproducible measurement.
+        """
+        torch.manual_seed(self.seed)
         self.model = TrajectoryMLPNet(FEATURE_DIM, self.hidden)
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.BCELoss()

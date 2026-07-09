@@ -123,6 +123,63 @@ def transfer_eval(detector, families: list[str], level: str, n_seeds: int):
     return per_family, avg
 
 
+def run_one_multitrial(
+    name: str,
+    build_detector,
+    level: str,
+    n_seeds_train: int,
+    n_seeds_test: int,
+    n_trials: int,
+) -> dict:
+    """Repeat ``run_one`` across ``n_trials`` independently-seeded model instances
+    and report mean/std, not a single draw.
+
+    Neural-net detectors here (Reward MLP, Trajectory MLP) do not fix their
+    torch random seed, so weight initialization differs -- often drastically
+    so -- from run to run. An earlier version of this experiment reported a
+    single unseeded run's transfer AUROC as *the* result; repeating the exact
+    same fit procedure 10 times on the Trajectory MLP produced held-out
+    AUROCs on distributional_shift ranging from 0.00 to 1.00 (genuinely
+    bimodal, not noise around a stable mean). A single-run number for a
+    detector with that much seed-sensitivity is not a reproducible
+    measurement and should not be reported as one.
+    """
+    train_aurocs, transfer_aurocs, gaps = [], [], []
+    per_family_trials: dict[str, list[float]] = {}
+
+    for trial in range(n_trials):
+        detector = build_detector(trial)
+        result, _ = run_one(name, detector, level, n_seeds_train, n_seeds_test)
+        train_aurocs.append(result["train_auroc"])
+        transfer_aurocs.append(result["avg_transfer_auroc"])
+        gaps.append(result["generalization_gap_pct"])
+        for fam, v in result["per_family_transfer"].items():
+            per_family_trials.setdefault(fam, []).append(v)
+
+    per_family_mean = {k: round(float(np.mean(v)), 3) for k, v in per_family_trials.items()}
+    per_family_std = {k: round(float(np.std(v)), 3) for k, v in per_family_trials.items()}
+
+    print(
+        f"  [{name}] across {n_trials} seeded trials: "
+        f"train={np.mean(train_aurocs):.3f}+/-{np.std(train_aurocs):.3f}  "
+        f"transfer={np.mean(transfer_aurocs):.3f}+/-{np.std(transfer_aurocs):.3f}",
+        flush=True,
+    )
+
+    return {
+        "access_level": level,
+        "n_trials": n_trials,
+        "train_auroc_mean": round(float(np.mean(train_aurocs)), 3),
+        "train_auroc_std": round(float(np.std(train_aurocs)), 3),
+        "per_family_transfer_mean": per_family_mean,
+        "per_family_transfer_std": per_family_std,
+        "avg_transfer_auroc_mean": round(float(np.mean(transfer_aurocs)), 3),
+        "avg_transfer_auroc_std": round(float(np.std(transfer_aurocs)), 3),
+        "generalization_gap_pct_mean": round(float(np.mean(gaps)), 1),
+        "all_trial_transfer_aurocs": [round(v, 3) for v in transfer_aurocs],
+    }
+
+
 def run_one(name: str, detector, level: str, n_seeds_train: int, n_seeds_test: int) -> dict:
     print(f"=== {name} ({level}) ===", flush=True)
     t0 = time.time()
@@ -160,51 +217,50 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--n-seeds-train", type=int, default=10)
     parser.add_argument("--n-seeds-test", type=int, default=20)
+    parser.add_argument(
+        "--n-trials", type=int, default=5,
+        help="Independent model-init trials for neural-net detectors (Reward MLP, "
+             "Trajectory MLP, Ensemble). Their torch weight init is not seeded to a "
+             "fixed value across trials, so a single trial is not a reproducible "
+             "measurement -- see run_one_multitrial.",
+    )
     args = parser.parse_args()
 
     results: dict[str, dict] = {}
 
-    reward_mlp_result, _ = run_one(
-        "Reward MLP", RewardMLPDetector(), "L0", args.n_seeds_train, args.n_seeds_test
+    results["Reward MLP"] = run_one_multitrial(
+        "Reward MLP",
+        lambda trial: RewardMLPDetector(seed=trial),
+        "L0", args.n_seeds_train, args.n_seeds_test, args.n_trials,
     )
-    results["Reward MLP"] = reward_mlp_result
 
     state_div_result, _ = run_one(
         "State Divergence", StateDivergenceDetector(), "L1", args.n_seeds_train, args.n_seeds_test
     )
     results["State Divergence"] = state_div_result
 
-    traj_mlp_result, fitted_traj_mlp = run_one(
-        "Trajectory MLP", TrajectoryMLPDetector(), "L2", args.n_seeds_train, args.n_seeds_test
+    results["Trajectory MLP"] = run_one_multitrial(
+        "Trajectory MLP",
+        lambda trial: TrajectoryMLPDetector(seed=trial),
+        "L2", args.n_seeds_train, args.n_seeds_test, args.n_trials,
     )
-    results["Trajectory MLP"] = traj_mlp_result
 
-    print("=== Ensemble (Top 5, L2) ===", flush=True)
-    t0 = time.time()
-    members = [
-        BehavioralThresholdDetector(),
-        AngularMomentumDetector(),
-        CentroidTrackerDetector(),
-        FeatureMagnitudeDetector(),
-        fitted_traj_mlp,  # already fit on pooled Families 1-6 above
-    ]
-    ensemble = EnsembleDetector(members, name="Ensemble (Top 5)")
+    def build_ensemble(trial: int):
+        traj_mlp = TrajectoryMLPDetector(seed=trial)
+        train_a, train_b = pooled_runs(TRAIN_FAMILIES, "L2", args.n_seeds_train)
+        traj_mlp.fit(train_a, train_b)
+        members = [
+            BehavioralThresholdDetector(),
+            AngularMomentumDetector(),
+            CentroidTrackerDetector(),
+            FeatureMagnitudeDetector(),
+            traj_mlp,
+        ]
+        return EnsembleDetector(members, name="Ensemble (Top 5)")
 
-    train_bench = Benchmark.evaluate(
-        ensemble, families=TRAIN_FAMILIES, difficulties="all", n_seeds=args.n_seeds_train, verbose=False
+    results["Ensemble (Top 5)"] = run_one_multitrial(
+        "Ensemble (Top 5)", build_ensemble, "L2", args.n_seeds_train, args.n_seeds_test, args.n_trials,
     )
-    train_auroc = train_bench.overall_auroc
-    per_family, avg_transfer = transfer_eval(ensemble, TEST_FAMILIES, "L2", args.n_seeds_test)
-    gap = (train_auroc - avg_transfer) / train_auroc * 100 if train_auroc else float("nan")
-    print(f"  train AUROC: {train_auroc:.3f}  transfer: {avg_transfer:.3f}  gap: {gap:.1f}%  [{time.time()-t0:.0f}s]", flush=True)
-
-    results["Ensemble (Top 5)"] = {
-        "access_level": "L2",
-        "train_auroc": round(train_auroc, 3),
-        "per_family_transfer": {k: round(v, 3) for k, v in per_family.items()},
-        "avg_transfer_auroc": round(avg_transfer, 3),
-        "generalization_gap_pct": round(gap, 1),
-    }
 
     out_path = Path("leaderboard/cross_family_transfer.json")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -215,6 +271,7 @@ def main():
                 "test_families": TEST_FAMILIES,
                 "n_seeds_train": args.n_seeds_train,
                 "n_seeds_test": args.n_seeds_test,
+                "n_trials": args.n_trials,
                 "results": results,
             },
             indent=2,
