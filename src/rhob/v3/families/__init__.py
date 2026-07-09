@@ -5,6 +5,7 @@ from rhob.v3.families import (  # noqa: F401
     distributional_shift,
     goal_misgeneralization,
     gridworld_camping,
+    monitored_sandbagging,
     novelty_farming,
     orbit_chirality,
     physics_exploitation,
@@ -26,4 +27,5 @@ __all__ = [
     "distributional_shift",
     "reward_channel_tampering",
     "sensor_calibration_tampering",
+    "monitored_sandbagging",
 ]
