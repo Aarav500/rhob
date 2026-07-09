@@ -3,6 +3,7 @@
 from rhob.v3.families import (  # noqa: F401
     continuous_camping,
     distributional_shift,
+    eval_probe_sandbagging,
     goal_misgeneralization,
     gridworld_camping,
     monitored_sandbagging,
@@ -28,4 +29,5 @@ __all__ = [
     "reward_channel_tampering",
     "sensor_calibration_tampering",
     "monitored_sandbagging",
+    "eval_probe_sandbagging",
 ]
