@@ -22,7 +22,7 @@ All experiments use:
 These are the baseline/case-study results already published in the paper.
 
 **Already fixed data in repo:**
-- `paper/main.tex` Section 5.1 references old Table `tab:main`
+- Detailed results appear in the accompanying paper (maintained separately from this codebase)
 - Expected workflow: Run `Benchmark.evaluate()` on Family 1–2 with 5-fold CV on 40 seeds per variant
 
 The detailed results appear in the paper; regenerating requires running the v3.2 baseline and is a reference measurement, not a new experiment.
@@ -30,11 +30,11 @@ The detailed results appear in the paper; regenerating requires running the v3.2
 ## Figure 1–5: Baseline Figures (Before v5 Regeneration)
 
 **Figures already in repo:**
-- `paper/figures/heatmap.png` — Family 1–2 case study (6 detectors × 4 variant sets)
-- `paper/figures/difficulty_spectrum.png` — Family 2 continuous difficulty
-- `paper/figures/difficulty_curve.png` — AUROC vs difficulty
-- `paper/figures/access_levels.png` — Access-level hierarchy on Families 1–2
-- `paper/figures/onset_timing.png` — Detection latency
+- `docs/figures/heatmap.png` — Family 1–2 case study (6 detectors × 4 variant sets)
+- `docs/figures/difficulty_spectrum.png` — Family 2 continuous difficulty
+- `docs/figures/difficulty_curve.png` — AUROC vs difficulty
+- `docs/figures/access_levels.png` — Access-level hierarchy on Families 1–2
+- `docs/figures/onset_timing.png` — Detection latency
 
 These remain unchanged (historical v3.2 baseline).
 
@@ -46,7 +46,7 @@ These show all 30 detectors × 9 families. To regenerate:
 
 ```bash
 python scripts/plot_v5_results.py
-# Outputs: paper/figures/v5_heatmap.png
+# Outputs: docs/figures/v5_heatmap.png
 ```
 
 **Data source:** `leaderboard/v5_leaderboard.json` (included in repo)
@@ -62,7 +62,7 @@ python scripts/plot_v5_results.py
 
 ```bash
 python scripts/plot_v5_results.py
-# Outputs: paper/figures/v5_access_summary.png
+# Outputs: docs/figures/v5_access_summary.png
 ```
 
 **Data source:** `leaderboard/v5_leaderboard.json`
@@ -78,7 +78,7 @@ python scripts/plot_v5_results.py
 
 ```bash
 python scripts/plot_v5_results.py
-# Outputs: paper/figures/v5_transfer.png
+# Outputs: docs/figures/v5_transfer.png
 ```
 
 **Data source:** `leaderboard/cross_family_transfer.json` (included in repo)

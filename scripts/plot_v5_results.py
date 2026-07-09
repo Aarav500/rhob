@@ -6,7 +6,7 @@ this script plots the full v5 scope: 30 detectors x 9 families, from
 ``leaderboard/v5_leaderboard.json``, plus the cross-family transfer results
 from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
 
-Outputs (written to ``paper/figures/``):
+Outputs (written to ``docs/figures/``):
   v5_heatmap.png        30 detectors x 9 families, per-family AUROC
   v5_access_summary.png Mean AUROC by access level (L0/L1/L2/L3), across all 9 families
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
@@ -179,7 +179,7 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
 
 
 def main() -> None:
-    figures_dir = Path("paper/figures")
+    figures_dir = Path("docs/figures")
     figures_dir.mkdir(parents=True, exist_ok=True)
 
     board = load_leaderboard(Path("leaderboard/v5_leaderboard.json"))

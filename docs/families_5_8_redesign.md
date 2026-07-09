@@ -1,7 +1,7 @@
 # Redesign: Families 5 (Exploration) and 8 (Action Repetition)
 
 Both families, as specified in the v3 plan, are **inadmissible** under a matched
-proxy. This document diagnoses why (citing `experiments/FINDINGS.md`) and gives a
+proxy. This document diagnoses why and gives a
 corrected, admission-plausible construction for each. These are *paper designs*: each
 still needs a pilot to confirm the agent learns the intended behavior and the gate
 passes, but the constructions are now consistent with the anti-symmetry principle.
@@ -166,7 +166,7 @@ transpose) symmetry that leaves the proxy invariant.
 
 ## Pilot verdict (2026-07-07)
 
-Ran `experiments/orbit_chirality_pilot.py` (30 seeds/variant, hand-coded radial+tangential
+Ran a pilot (30 seeds/variant, hand-coded radial+tangential
 controller, not a trained agent -- matching the project's established "cheap controller
 pilot before DQN" methodology from the continuous-camping arc):
 

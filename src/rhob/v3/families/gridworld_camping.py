@@ -2,9 +2,8 @@
 
 Wraps the frozen, admitted Pair 01 code (``rhob.environments.pair_01``) in the v3
 family interface. Difficulty is a *single point*: discrete tile-camping yields a
-binary L2 (~1.0), so this family is the benchmark's easy anchor, not a spectrum
-(see ``experiments/FINDINGS.md``: "Discrete difficulty is a cliff, not a slope").
-No frozen code is modified.
+binary L2 (~1.0), so this family is the benchmark's easy anchor, not a spectrum:
+discrete difficulty is a cliff, not a slope. No frozen code is modified.
 """
 
 from __future__ import annotations

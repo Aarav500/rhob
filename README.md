@@ -140,7 +140,7 @@ Runtime: ~1–2 hours.
 
 ```bash
 python scripts/plot_v5_results.py
-# Outputs: paper/figures/v5_heatmap.png, v5_access_summary.png, v5_transfer.png
+# Outputs: docs/figures/v5_heatmap.png, v5_access_summary.png, v5_transfer.png
 ```
 
 ## Adding a New Detector
@@ -235,8 +235,11 @@ See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for:
 
 ## Paper & Citation
 
-- **Paper (v1.0)**: `paper/main.tex` (PDF available in releases)
-- **Supplementary material**: `supplementary_material/`
+The accompanying paper is maintained separately from this codebase (see the link on
+the [benchmark website](docs/site/index.html) once published). This repository is
+the benchmark and evaluation harness; result figures referenced by the paper live in
+[`docs/figures/`](docs/figures/) and are fully reproducible from the scripts and
+leaderboard data committed here (see [REPRODUCIBILITY.md](REPRODUCIBILITY.md)).
 
 If you use RHOB, please cite:
 

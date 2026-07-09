@@ -11,7 +11,7 @@ separation `d`.
 > spread of the camping target — not an emergent artifact of how well the agent
 > learned.**
 
-This principle was established empirically (see `experiments/FINDINGS.md`). Two
+This principle was established empirically during development. Two
 observations forced it:
 
 1. **A well-trained agent on a *fixed* target gives *binary* difficulty.** If the

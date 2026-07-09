@@ -4,6 +4,31 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.3.0] — Repository Scope: Benchmark Harness Only
+
+Restructured the repository to match the scope of comparable benchmark repos
+(ImageNet devkit, SWE-bench): the codebase, tests, and docs stay; the academic
+paper source and internal development artifacts do not.
+
+- **Removed `paper/`** (LaTeX manuscript, `references.bib`, build `Makefile`) from
+  the repository and its history. The paper is maintained separately going forward.
+  Result figures used by the paper (`v5_heatmap.png`, `v5_access_summary.png`,
+  `v5_transfer.png`, and the Family 1–2 case-study figures) are genuine benchmark
+  artifacts, not paper-only content, and were moved to `docs/figures/` rather than
+  deleted; `scripts/plot_v5_results.py`, `scripts/plot_difficulty_overlay.py`, and
+  `scripts/validate_all_continuous.py` now write there.
+- **Removed `experiments/`** (pre-v3 pilot/exploration scripts) from the repository
+  and its history — superseded by `src/rhob/v3/families/`, not imported by any
+  shipped code, and not part of the product.
+- **Removed `docs/internal/`** (archived internal planning/spec/roadmap documents)
+  from the repository and its history.
+- Updated all in-repo references to these paths (README, REPRODUCIBILITY.md, a
+  handful of family/doc comments citing historical pilot findings).
+- All three removed trees were rewritten out of git history entirely (not just
+  untracked), so a fresh clone is smaller and the commit history no longer contains
+  this content. `RELEASE_NOTES_v1.0.md` is left as an accurate historical snapshot
+  of the repository layout at the v1.0 tag and was not retroactively edited.
+
 ## [1.2.0] — Three More Bugs Found by Not Trusting a Surprising Result
 
 Triggered by external methodological review questioning why L2 cross-family transfer

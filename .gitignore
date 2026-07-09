@@ -27,3 +27,10 @@ results/
 *.swp
 .idea/
 .vscode/
+
+# Paper source, internal planning docs, and dev/pilot scratch code are kept
+# out of this repo intentionally (see CHANGELOG.md v1.3.0). Result figures
+# used by the paper live in docs/figures/ and remain tracked.
+/paper/
+/experiments/
+/docs/internal/

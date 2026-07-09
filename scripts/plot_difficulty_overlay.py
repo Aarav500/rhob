@@ -1,9 +1,9 @@
 """Difficulty-spectrum figure with the theoretical sigmoid overlaid.
 
 Plots the three admitted continuous pairs (measured admission L2-AUROC) against the
-prediction L2 = Phi(d / (sqrt(2) * sigma_a)) from Equation (2) of the paper, showing
-that the three operating points fall on a single continuous curve. Uses the recorded
-admission numbers (no retraining); writes to docs/ and paper/figures/.
+prediction L2 = Phi(d / (sqrt(2) * sigma_a)), showing that the three operating points
+fall on a single continuous curve. Uses the recorded admission numbers (no retraining);
+writes to docs/figures/.
 """
 
 from __future__ import annotations
@@ -51,12 +51,10 @@ def main() -> None:
     ax.legend(loc="lower right")
     fig.tight_layout()
 
-    for out in [
-        Path(__file__).resolve().parents[1] / "docs" / "difficulty_spectrum.png",
-        Path(__file__).resolve().parents[1] / "paper" / "figures" / "difficulty_spectrum.png",
-    ]:
-        fig.savefig(out, dpi=120)
-        print(f"wrote {out}")
+    out = Path(__file__).resolve().parents[1] / "docs" / "figures" / "difficulty_spectrum.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=120)
+    print(f"wrote {out}")
     plt.close(fig)
 
 

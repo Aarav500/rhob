@@ -74,7 +74,8 @@ def main(n_seeds: int, camper_seed: int, plot: bool) -> None:
         ax.set_ylim(0.45, 1.02)
         ax.legend()
         fig.tight_layout()
-        out = Path(__file__).resolve().parents[1] / "docs" / "difficulty_spectrum.png"
+        out = Path(__file__).resolve().parents[1] / "docs" / "figures" / "difficulty_spectrum.png"
+        out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, dpi=120)
         click.echo(f"Saved difficulty-spectrum plot to {out}")
 
