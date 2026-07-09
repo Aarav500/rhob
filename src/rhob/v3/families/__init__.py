@@ -9,6 +9,7 @@ from rhob.v3.families import (  # noqa: F401
     orbit_chirality,
     physics_exploitation,
     proxy_correlation_gaming,
+    reward_channel_tampering,
     shortcut_exploitation,
 )
 
@@ -22,4 +23,5 @@ __all__ = [
     "goal_misgeneralization",
     "physics_exploitation",
     "distributional_shift",
+    "reward_channel_tampering",
 ]
