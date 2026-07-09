@@ -10,6 +10,7 @@ from rhob.v3.families import (  # noqa: F401
     physics_exploitation,
     proxy_correlation_gaming,
     reward_channel_tampering,
+    sensor_calibration_tampering,
     shortcut_exploitation,
 )
 
@@ -24,4 +25,5 @@ __all__ = [
     "physics_exploitation",
     "distributional_shift",
     "reward_channel_tampering",
+    "sensor_calibration_tampering",
 ]
