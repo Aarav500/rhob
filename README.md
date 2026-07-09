@@ -15,6 +15,32 @@ A comprehensive benchmark for **detecting reward hacking across diverse mechanis
 **Can a PhD student evaluate their detector in under 30 minutes?** That's the
 bar — see the [Detector Tutorial](docs/TUTORIAL_DETECTOR.md).
 
+## Research Feedback Program
+
+RHOB is an emerging benchmark, not a finished one, and it gets better with more
+detectors, more families, and more people trying to break it. We're looking for:
+
+- **Researchers to test detectors on RHOB.** Run your existing detector against
+  the suite and tell us where it does well, where it doesn't, and where the
+  benchmark itself seems wrong. Negative results (a family that doesn't
+  discriminate the way you expected, a detector that behaves inconsistently
+  across access levels) are exactly as valuable as positive ones — several of
+  the bugs documented in [REPRODUCIBILITY.md](REPRODUCIBILITY.md) were found
+  this way.
+- **New detectors, environment families, or benchmark extensions.** If you
+  have a detection approach, a hacking mechanism we don't cover, or an idea for
+  extending the matched-proxy methodology to a new setting (RLHF, multi-agent,
+  higher-dimensional control), we'd like to include it — see
+  [CONTRIBUTING.md](CONTRIBUTING.md) for the admission-gate requirements.
+
+Open an issue using the
+[Detector Submission](https://github.com/Aarav500/rhob/issues/new?template=detector_submission.md),
+[Family Proposal](https://github.com/Aarav500/rhob/issues/new?template=family_proposal.md), or
+[Benchmark Feedback](https://github.com/Aarav500/rhob/issues/new?template=benchmark_feedback.md) templates,
+or start a [Discussion](https://github.com/Aarav500/rhob/discussions) if you're not sure which fits. This
+is an invitation to help shape where the benchmark goes next, not a request to
+review finished work.
+
 ## Installation
 
 ```bash
