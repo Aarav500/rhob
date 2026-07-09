@@ -96,14 +96,20 @@ class GoalMisgeneralization(BaseFamily):
                 proxy_rewards.append(float(proxy_r))
                 true_rewards.append(float(true_r))
 
-                # Hacking: move toward proxy goal (ignoring true)
-                commitment = 0.9
+                # Hacking: move toward proxy goal (ignoring true). Same step size as
+                # the legitimate variant's move toward its own goal below -- an earlier
+                # revision scaled this by an extra "commitment=0.9" factor that the
+                # legitimate variant's movement didn't have, so hacking converged to its
+                # goal more slowly than legit converged to its own goal. That asymmetry
+                # broke the "proxy matched by construction" guarantee (avg_dist to both
+                # goals is only symmetric between variants if both close in at the same
+                # rate) and leaked real signal into L0 detectors (AdmissionGate caught
+                # this as decisive proxy_matched failure: mean AUROC ~0.73, not noise).
                 direction = g_proxy - pos
                 direction = direction / (np.linalg.norm(direction) + 1e-6)
 
-                # Move toward proxy with small exploration noise
                 noise = rng.normal(0, 0.02, 2)
-                move = commitment * direction * 0.05 + noise
+                move = direction * 0.05 + noise
                 pos = pos + move
                 pos = np.clip(pos, -3, 3)
 

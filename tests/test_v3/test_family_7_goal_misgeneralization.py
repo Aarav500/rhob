@@ -4,6 +4,22 @@ import numpy as np
 
 from rhob.v3.registry import FamilyRegistry
 
+from admission_helpers import assert_admitted
+
+
+def test_admitted():
+    """Full 5-criterion admission check via AdmissionGate.
+
+    Regression test: an earlier revision scaled the hacking variant's movement
+    speed by an extra "commitment=0.9" factor the legitimate variant's movement
+    didn't have, so the two variants converged to their respective goals at
+    different rates. That broke "proxy matched by construction" (mean L0 AUROC
+    was ~0.73, not noise) but the single-seed, +/-20%-tolerance sum comparison
+    in test_proxy_matched below was too weak to catch it.
+    """
+    fam = FamilyRegistry.get("goal_misgeneralization")
+    assert_admitted(fam)
+
 
 def test_family_registered():
     """Family is discoverable."""
