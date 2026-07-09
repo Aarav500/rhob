@@ -168,7 +168,7 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     ax.bar(x - width / 2, train_vals, width, yerr=train_errs, capsize=3,
            label="Train (Families 1-6, in-distribution)")
     ax.bar(x + width / 2, transfer_vals, width, yerr=transfer_errs, capsize=3,
-           label="Transfer (Families 7-9, held-out)")
+           label="Transfer (Families 7-14, held-out)")
     ax.axhline(0.5, color="gray", ls=":", lw=1)
     for i, n in enumerate(names):
         gap = results[n].get("generalization_gap_pct", results[n].get("generalization_gap_pct_mean"))
@@ -181,7 +181,7 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     ax.set_xticklabels(names, rotation=15, ha="right")
     ax.set_ylabel("AUROC")
     ax.set_ylim(0.0, 1.1)
-    ax.set_title("Cross-Family Transfer Gap (Train on 1-6, Test on 7-9)")
+    ax.set_title("Cross-Family Transfer Gap (Train on 1-6, Test on 7-14)")
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(out_path, dpi=130)

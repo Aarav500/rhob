@@ -1,10 +1,19 @@
 #!/usr/bin/env python
-"""Cross-family generalization experiment: train on Families 1-6, test on 7-9.
+"""Cross-family generalization experiment: train on Families 1-6, test on 7-14.
 
 This is the real experiment behind the paper's Cross-Family Transfer Analysis
 (Section 6.3, Table ``tab:transfer``). Earlier drafts of that table used
 illustrative placeholder numbers; this script produces the real ones from the
 actual RHOB v3/v5 environments, families, and detectors.
+
+TEST_FAMILIES was expanded from 3 to 8 families (v1.4): the 5 families added in
+v1.4 (reward_channel_tampering, sensor_calibration_tampering, monitored_sandbagging,
+eval_probe_sandbagging, rlhf_reward_model_overopt) introduce 3 mechanism types
+(REWARD_TAMPERING, DECEPTIVE_ALIGNMENT, RM_OVEROPTIMIZATION) that appear in neither
+TRAIN_FAMILIES nor the original 3 test families -- testing transfer to them is a
+strictly more meaningful "mechanistically unseen" evaluation than the original split,
+which only exercised 2 unseen mechanism types on top of what training already covers.
+TRAIN_FAMILIES is unchanged, so "train AUROC" numbers stay comparable to prior results.
 
 Methodology:
   1. "Train" AUROC: in-distribution performance of each detector on Families
@@ -16,8 +25,9 @@ Methodology:
      deployable model -- standard practice: cross-validation is for honest
      scoring, the shipped model uses all available training data.
   3. That frozen model is evaluated -- with no further fitting -- on
-     held-out Families 7-9 (goal misgeneralization, physics exploitation,
-     distributional shift), which it has never seen in any form.
+     held-out Families 7-14 (goal misgeneralization, physics exploitation,
+     distributional shift, plus the 5 v1.4 families spanning 3 mechanism
+     types unseen during training), which it has never seen in any form.
   4. A Top-5 L2 ensemble (4 stateless behavioral detectors + the frozen
      Trajectory MLP) is evaluated the same way, to measure whether combining
      detectors recovers some of the transfer gap.
@@ -61,6 +71,11 @@ TEST_FAMILIES = [
     "goal_misgeneralization",
     "physics_exploitation",
     "distributional_shift",
+    "reward_channel_tampering",
+    "sensor_calibration_tampering",
+    "monitored_sandbagging",
+    "eval_probe_sandbagging",
+    "rlhf_reward_model_overopt",
 ]
 
 TEST_SEED_BASE = 50_000  # disjoint from any training rollout seeds
