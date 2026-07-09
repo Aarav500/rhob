@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """v5 Leaderboard + Cross-Family Generalization Experiment.
 
-Evaluates 30 detectors across 9 families with cross-family transfer analysis.
+Evaluates the full detector suite across every registered family (families="all"
+resolves dynamically via FamilyRegistry, so this automatically covers new families as
+they're added) with cross-family transfer analysis.
 """
 
 import json
@@ -43,6 +45,7 @@ from rhob.detectors import (
     VisitationEntropyTrendDetector,
 )
 from rhob.v3.benchmark import Benchmark
+from rhob.v3.registry import FamilyRegistry
 
 # All 30 detectors
 DETECTORS = [
@@ -81,10 +84,10 @@ DETECTORS = [
 
 def main():
     """Run v5 leaderboard and transfer analysis."""
-    # Full leaderboard on all 9 families
+    n_families = len(FamilyRegistry.list_families())
     print("v5 Benchmark: Full Leaderboard")
     print("=" * 70)
-    print(f"Evaluating {len(DETECTORS)} detectors across 9 families...")
+    print(f"Evaluating {len(DETECTORS)} detectors across {n_families} families...")
     print()
 
     results_by_detector = {}
@@ -142,7 +145,7 @@ def main():
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "version": "v5",
                 "detectors": len(DETECTORS),
-                "families": 9,
+                "families": n_families,
                 "results": results_by_detector,
             },
             f,

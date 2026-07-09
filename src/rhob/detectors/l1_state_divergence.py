@@ -10,6 +10,21 @@ from scipy.spatial.distance import jensenshannon
 from rhob.detectors.posthoc import PosthocDetector, RunData
 
 
+def _safe_jensenshannon(p: np.ndarray, q: np.ndarray) -> float:
+    """Jensen-Shannon distance, robust to near-degenerate categorical distributions.
+
+    scipy's ``jensenshannon`` computes ``sqrt(js / 2)``; when two distributions are
+    nearly identical and sharply peaked (e.g. a family with a confident, near-binary
+    behavioral signal concentrated in one histogram bin), floating-point error can push
+    the pre-sqrt JS divergence to a tiny negative value, and ``sqrt`` of that is NaN --
+    not because the distributions are actually far apart, but because they're almost
+    exactly the same. Treat that specific failure mode as 0 distance (the correct
+    semantic answer), rather than letting a downstream AUROC computation choke on NaN.
+    """
+    d = float(jensenshannon(p, q))
+    return 0.0 if d != d else d  # d != d iff d is NaN
+
+
 class StateDivergenceDetector(PosthocDetector):
     """Nearest-centroid classifier over trailing-window visitation histograms.
 
@@ -64,8 +79,8 @@ class StateDivergenceDetector(PosthocDetector):
         h = self._steady_hist(run)
         if h is None:
             return 0.5
-        d_a = float(jensenshannon(h, self.centroid_a))
-        d_b = float(jensenshannon(h, self.centroid_b))
+        d_a = _safe_jensenshannon(h, self.centroid_a)
+        d_b = _safe_jensenshannon(h, self.centroid_b)
         total = d_a + d_b
         if total < 1e-12:
             return 0.5
@@ -107,7 +122,7 @@ class StateDivergenceDetector(PosthocDetector):
         for t in range(self.baseline_episodes, counts.shape[0]):
             window = counts[max(0, t - self.onset_window) : t + 1].sum(axis=0)
             dist = self._normalize(window)
-            trace.append((t, float(jensenshannon(baseline, dist))))
+            trace.append((t, _safe_jensenshannon(baseline, dist)))
         return trace
 
     @staticmethod

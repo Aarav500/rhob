@@ -60,3 +60,36 @@ def test_short_run_returns_neutral():
     run = _make_run(bin_a=2, bin_b=8, n_episodes=10)
     assert detector.classify(run) == 0.5
     assert detector.detect_onset(run) == -1
+
+
+def test_near_identical_sharp_distributions_does_not_nan():
+    """Regression test: scipy's jensenshannon can produce NaN (sqrt of a tiny
+    floating-point-negative pre-sqrt value) when comparing two nearly-identical,
+    sharply-peaked categorical distributions -- surfaced by a family whose
+    behavioral signal is a confident, near-binary 2-bin histogram. classify()
+    and detect_onset() must not propagate that NaN into a downstream AUROC
+    computation (roc_auc_score raises "Input contains NaN" on it)."""
+    n_bins = 2
+    n_episodes = 150
+    # Two runs concentrated almost entirely in bin 0, differing only by a few counts
+    # -- close enough that JS divergence should be ~0, exactly the regime that
+    # triggered the NaN.
+    counts_a = np.zeros((n_episodes, n_bins), dtype=np.int64)
+    counts_a[:, 0] = 1
+    counts_b = np.zeros((n_episodes, n_bins), dtype=np.int64)
+    counts_b[:, 0] = 1
+    counts_b[0, 0], counts_b[0, 1] = 0, 1  # one episode differs
+
+    run_a = RunData(np.ones(n_episodes), np.ones(n_episodes), counts_a, None)
+    run_b = RunData(np.ones(n_episodes), np.ones(n_episodes), counts_b, None)
+
+    detector = StateDivergenceDetector(baseline_episodes=20, steady_window=50)
+    detector.fit([run_a], [run_b])
+
+    score_a = detector.classify(run_a)
+    score_b = detector.classify(run_b)
+    assert score_a == score_a  # not NaN
+    assert score_b == score_b  # not NaN
+
+    onset = detector.detect_onset(run_a)
+    assert -1 <= onset < n_episodes
