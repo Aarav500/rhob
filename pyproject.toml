@@ -27,6 +27,9 @@ environments = ["gymnasium>=0.29", "stable-baselines3>=2.0"]
 # Continuous-control tier (Pairs 02-04): the DQN camping agent needs PyTorch.
 # The Tier 1 gridworld pairs and all core evaluation do NOT require it.
 continuous = ["torch>=2.0", "matplotlib>=3.5"]
+# MuJoCo-based high-dimensional continuous-control tier (cont_hd). Free/open-source
+# since 2021, no license key needed. The Tier 1/continuous tiers do NOT require it.
+mujoco = ["gymnasium[mujoco]>=1.0"]
 # Interactive leaderboard viewer (space/app.py). Not needed to use the benchmark itself.
 space = ["gradio>=4.0", "huggingface_hub>=0.20", "pandas>=2.0"]
 dev = [
