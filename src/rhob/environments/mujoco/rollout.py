@@ -40,6 +40,8 @@ def run_mujoco_episode(
     action_noise_std: float,
 ) -> tuple[float, float, float]:
     """Run one episode, returning (mean_proxy, mean_true, mean_behav) per-step averages."""
+    if horizon <= 0:
+        raise ValueError(f"horizon must be a positive integer, got {horizon!r}")
     env.reset(seed=int(rng.integers(0, 2**31 - 1)))
     proxy_sum = true_sum = behav_sum = 0.0
     for t in range(horizon):
@@ -106,6 +108,15 @@ def calibrate_scale(
     true for every calibration used in this module (control amplitude vs. mean proxy).
     Deterministic given a deterministic ``measure_fn`` (callers pass a fixed
     calibration seed). Returns the midpoint of the final bracket.
+
+    Raises:
+        ValueError: if the search does not converge to within ``tol`` of ``target``
+            -- either because ``target`` was outside the reachable range
+            ``[measure_fn(lo), measure_fn(hi)]`` from the start, or because
+            ``max_iters`` was exhausted without satisfying ``tol``. This surfaces a
+            family's miscalibrated proxy/true pair as a clear error at the
+            calibration site instead of a silent near-miss that only shows up as a
+            confusing downstream admission-gate failure.
     """
     lo_val = measure_fn(lo)
     hi_val = measure_fn(hi)
@@ -113,11 +124,14 @@ def calibrate_scale(
         return lo
     if abs(hi_val - target) <= tol:
         return hi
+    result = (lo + hi) / 2.0
+    result_val = None
     for _ in range(max_iters):
         mid = (lo + hi) / 2.0
         mid_val = measure_fn(mid)
         if abs(mid_val - target) <= tol:
             return mid
+        result, result_val = mid, mid_val
         # Assume increasing monotonicity; if that assumption is wrong for a given
         # family's measure_fn, the family's own calibration test (Task 3-5) will fail
         # loudly rather than silently returning a bad value.
@@ -125,4 +139,11 @@ def calibrate_scale(
             lo = mid
         else:
             hi = mid
-    return (lo + hi) / 2.0
+    if result_val is None:
+        result_val = measure_fn(result)
+    raise ValueError(
+        f"calibrate_scale did not converge: target={target!r}, "
+        f"achieved={result_val!r}, tol={tol!r} (reachable range at start was "
+        f"[{lo_val!r}, {hi_val!r}]). The family's proxy/true calibration is "
+        f"likely mismatched -- check the measure_fn and lo/hi bounds passed in."
+    )
