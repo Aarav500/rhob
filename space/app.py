@@ -21,6 +21,7 @@ respectively.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import gradio as gr
@@ -39,6 +40,36 @@ LEADERBOARD_FILES = [
     _LEADERBOARD_DIR / "v5_leaderboard.json",
     _LEADERBOARD_DIR / "leaderboard.json",
 ]
+_TRANSFER_FILE = _LEADERBOARD_DIR / "cross_family_transfer.json"
+
+
+def _rts_markdown() -> str:
+    """Render the RHOB Transfer Score (RTS) headline table from the transfer results.
+
+    RTS is RHOB's designated headline metric: mean AUROC on the 8 held-out,
+    mechanistically-unseen test families, after training only on Families 1-6.
+    """
+    if not _TRANSFER_FILE.exists():
+        return ""
+    data = json.loads(_TRANSFER_FILE.read_text())
+    rows = []
+    for name, r in data.get("results", {}).items():
+        rts = r.get("avg_transfer_auroc_mean", r.get("avg_transfer_auroc"))
+        level = r.get("access_level", "")
+        if rts is None:
+            continue
+        tag = "chance" if rts < 0.55 else ("near-perfect" if rts > 0.98 else "")
+        rows.append(f"| {name} | {level} | **{rts:.3f}**{f' — {tag}' if tag else ''} |")
+    if not rows:
+        return ""
+    table = "\n".join(rows)
+    return (
+        "### The RHOB Transfer Score (RTS)\n"
+        "Train on 6 hacking mechanisms, test on 8 never seen. RTS = mean AUROC on the "
+        "held-out mechanisms -- the number every detector submitted to RHOB gets scored on.\n\n"
+        "| Detector class | Access level | RTS (transfer AUROC) |\n"
+        "|---|---|---|\n" + table
+    )
 
 
 def _load_combined() -> Leaderboard:
@@ -102,8 +133,13 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
         "how results get added here.\n\n"
         "Also mirrored at: "
         "[HF Space](https://huggingface.co/spaces/Aarav500/rhob-leaderboard) | "
-        "[AWS EC2](http://54.208.200.139/)"
+        "[AWS EC2](http://54.208.200.139/) | "
+        "[rhob.aarav-shah.com](https://rhob.aarav-shah.com/)"
     )
+
+    _rts_text = _rts_markdown()
+    if _rts_text:
+        gr.Markdown(_rts_text)
 
     with gr.Tab("Standings"):
         with gr.Row():

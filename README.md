@@ -5,11 +5,32 @@
 
 A comprehensive benchmark for **detecting reward hacking across diverse mechanisms**.
 
+## The headline result: the RHOB Transfer Score (RTS)
+
+Train a detector on 6 hacking mechanisms. Test it on 8 it has never seen. That single
+number — the **RHOB Transfer Score**, mean AUROC on the held-out mechanisms — is the
+benchmark's core question: *does this detector generalize, or did it just memorize the
+training mechanisms?*
+
+| Detector class | Access level | RTS (transfer AUROC) |
+|---|---|---|
+| Reward MLP | L0 (reward-only) | **0.478** — chance |
+| State Divergence | L1 (+ state-visitation) | **0.500** — chance |
+| Trajectory MLP | L2 (+ behavioral traces) | **0.931** |
+| 5-detector Ensemble | L2 | **0.994** — near-perfect |
+
+Reward-only and state-visitation detectors are provably incapable of doing better than
+chance here — the matched-proxy construction makes it a tautology, not a bug. What's
+*not* guaranteed, and what actually separates detectors, is whether they generalize once
+you move past raw reward. **RTS is the number every new detector submitted to RHOB gets
+scored on** — see the [live leaderboard](https://rhob.aarav-shah.com) and
+[submission guide](docs/TUTORIAL_DETECTOR.md).
+
 **RHOB** provides:
 - **14 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.)
 - **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
-- **Cross-family transfer analysis** measuring detector generalization to unseen mechanisms
+- **Cross-family transfer analysis (RTS)** measuring detector generalization to unseen mechanisms
 - **Admission gate** certifying families measure hacking detection, not just change detection
 
 **Can a PhD student evaluate their detector in under 30 minutes?** That's the
