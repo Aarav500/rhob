@@ -6,6 +6,9 @@ import pytest
 
 pytest.importorskip("mujoco")
 
+import rhob.v3.families.mujoco_camping  # noqa: F401 -- triggers @FamilyRegistry.register;
+# not yet imported by families/__init__.py (that's Task 6's job), so each new family's
+# own test file must self-import until then.
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
