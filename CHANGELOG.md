@@ -4,6 +4,42 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.5.0] — MuJoCo Extension: 4 New High-Dimensional Continuous-Control Families
+
+Extends v1.4's 14 families to 18 by populating the taxonomy's `CONTINUOUS_COMPLEX`
+("cont_hd") tier for the first time, using real MuJoCo/Gymnasium environments instead
+of the hand-rolled low-dimensional continuous envs used elsewhere in the benchmark:
+
+- **New `rhob[mujoco]` optional extra** (`pyproject.toml`): pulls in
+  `gymnasium[mujoco]>=1.0`. Core install remains MuJoCo-free; every new family module
+  is guarded with `pytest.importorskip("mujoco")` in its tests and lazily imported, so
+  `import rhob.v3.families` still succeeds with mujoco uninstalled (verified).
+- **Shared MuJoCo infra** (`src/rhob/environments/mujoco/`): `MuJoCoConfig`,
+  `run_mujoco_episode`/`generate_mujoco_rundata`, and a `calibrate_scale` binary-search
+  helper used by all 4 families to tune each family's difficulty knob against a target
+  proxy-reward gap (raises `ValueError` on non-convergence rather than silently
+  returning a bad value).
+- **Family 15 — MuJoCo Camping** (HalfCheetah-v5, `CAMPING_EXPLOIT`): re-instantiates
+  the existing camping mechanism at real 17-dim/6-actuator dimensionality.
+- **Family 16 — MuJoCo Goal Misgeneralization** (Reacher-v5, `GOAL_MISGENERALIZATION`):
+  re-instantiates the existing goal-misgeneralization mechanism against a live
+  fingertip-to-target distance, with a custom per-step control loop (gain scheduled by
+  goal separation) rather than a fixed action sequence.
+- **Family 17 — MuJoCo Joint-Limit Gaming** (Ant-v5, `REWARD_SHAPING`): new
+  MuJoCo-native mechanism exploiting hip/ankle joint-limit proxy costs. Uncovered and
+  documented a real Ant-v5 quirk: actuator order does not match joint order, so the
+  family queries `model.actuator_trnid` rather than assuming a fixed slice.
+- **Family 18 — MuJoCo Sensor-Channel Decoupling** (Walker2d-v5, `REWARD_TAMPERING`):
+  new MuJoCo-native mechanism where a foot-joint velocity proxy is gamed independently
+  of true root-forward velocity, with a "leakage torque" difficulty control reusing the
+  legit gait's own offset shape on non-spun actuators.
+- All 4 families use `functools.lru_cache`-memoized pure calibration functions
+  (parametrized by the actual dependent physical quantity, not a rounded difficulty
+  float) — the pattern adopted after Task 2's code review found a rounding-collision
+  bug in an earlier hand-rolled dict-cache approach.
+- CI (`tests.yml`) now installs the `mujoco` extra in the main test job; README family
+  count, family list, and cross-family-transfer descriptions updated from 14 to 18.
+
 ## [1.4.0] — AdmissionGate, 5 New Families, Toy RLHF Setting, Leaderboard Infra
 
 Builds the next benchmark generation on top of v1.3's 9 families:

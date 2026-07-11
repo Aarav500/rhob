@@ -27,7 +27,7 @@ scored on** — see the [live leaderboard](https://rhob.aarav-shah.com) and
 [submission guide](docs/TUTORIAL_DETECTOR.md).
 
 **RHOB** provides:
-- **14 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.)
+- **18 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.), including 4 MuJoCo-based high-dimensional continuous-control families (HalfCheetah, Reacher, Ant, Walker2d)
 - **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
 - **Cross-family transfer analysis (RTS)** measuring detector generalization to unseen mechanisms
@@ -109,14 +109,14 @@ This is not artificial—it's the case that matters most: reward hacking where d
 | **L2** (behavioral) | + behavioral traces | Detect the onset of hacking itself | 0.76 ± 0.18 |
 | **L3** (oracle) | Ground-truth true reward | Theoretical upper bound | 0.99 ± 0.01 |
 
-**Cross-family transfer (train on 6 families, test on 3 held-out; neural-net detectors reported as mean ± std across 3 independently-seeded training runs — see caveat below):**
-- L0/L1 detectors: pinned at chance on every held-out family
-- L2 single learned detector (Trajectory MLP): **0.77 ± 0.14 average transfer AUROC**, below its 0.93 training AUROC, with high seed-to-seed variance on one held-out family
-- L2 five-detector ensemble: **1.00 ± 0.00 transfer AUROC**, matching its 0.97 training AUROC — robust because 4 of its 5 members are deterministic
+**Cross-family transfer / RTS (train on 6 families, test on 8 held-out; neural-net detectors reported as mean ± std across 5 independently-seeded training runs — see caveat below):**
+- L0/L1 detectors: pinned at chance on every held-out family (0.478 and 0.500 RTS respectively)
+- L2 single learned detector (Trajectory MLP): **0.931 ± 0.026 RTS**, *exceeding* its 0.879 ± 0.002 training AUROC — a broader, more diverse held-out set gives a more stable estimate than the earlier 3-family test did
+- L2 five-detector ensemble: **0.994 ± 0.002 RTS**, matching its 0.965 ± 0.001 training AUROC — robust because 4 of its 5 members are deterministic
 
 **Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
-## The 14 Families
+## The 18 Families
 
 ### Families 1–6 (v3.2 Baselines)
 
@@ -140,6 +140,15 @@ This is not artificial—it's the case that matters most: reward hacking where d
 12. **Monitored Sandbagging** — Behaves aligned while monitored, reverts to a shortcut once unmonitored
 13. **Eval-Probe Sandbagging** — Behaves aligned only when a recognizable "eval probe" is present, no single onset point
 14. **RLHF Reward-Model Overoptimization** — Toy preference-bandit exploiting a real (if tiny) fitted reward model's blind spot
+
+### Families 15–18 (v1.5, MuJoCo / High-Dimensional Continuous Control)
+
+Populate the taxonomy's `CONTINUOUS_COMPLEX` ("cont_hd") tier for the first time — 2 mechanisms re-instantiated from the existing taxonomy at real MuJoCo dimensionality (HalfCheetah, Reacher), plus 2 genuinely new MuJoCo-native mechanisms (Ant, Walker2d), all reusing existing `HackingMechanism` values rather than expanding the taxonomy.
+
+15. **MuJoCo Camping** (HalfCheetah-v5) — The classic flip-and-slide MuJoCo locomotion exploit: a genuine bounding gait vs. a wind-up/flip/calibrated-slide hack that games the same forward-velocity reward
+16. **MuJoCo Goal Misgeneralization** (Reacher-v5) — Direct port of Family 7's goal-swap construction onto a real 2-joint arm's fingertip position
+17. **MuJoCo Joint-Limit Gaming** (Ant-v5) — A gait that stays safely within each joint's real physical limit vs. one that games near the limit for the same measured reward
+18. **MuJoCo Sensor-Channel Decoupling** (Walker2d-v5) — The documented sim-to-real foot-slip exploit: a spoofable joint-velocity "sensor" reads high without real forward progress
 
 ## The 35 Detectors
 
@@ -171,7 +180,7 @@ See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_basel
 
 ## Running Experiments
 
-### Regenerate the full v5 leaderboard (30 × 9)
+### Regenerate the full v5 leaderboard (35 × 18)
 
 ```bash
 python scripts/v5_leaderboard_and_transfer.py
@@ -187,7 +196,7 @@ python scripts/cross_family_transfer.py --n-seeds-train 15 --n-seeds-test 20
 # Outputs: leaderboard/cross_family_transfer.json
 ```
 
-Trains Reward MLP, State Divergence, Trajectory MLP, and a Top-5 L2 ensemble on Families 1–6, evaluates on held-out Families 7–9.
+Trains Reward MLP, State Divergence, Trajectory MLP, and a Top-5 L2 ensemble on Families 1–6, evaluates on 8 held-out Families 7–14.
 
 Runtime: ~1–2 hours.
 
