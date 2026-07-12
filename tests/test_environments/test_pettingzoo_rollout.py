@@ -22,7 +22,7 @@ def _zero_action_fn(agent, t, horizon, obs, rng):
     return np.zeros(5, dtype=np.float32)
 
 
-def _sum_agent_rewards(env, obs, rewards, infos) -> float:
+def _sum_agent_rewards(env, obs, rewards, infos, t, horizon) -> float:
     return float(sum(rewards.values()))
 
 
