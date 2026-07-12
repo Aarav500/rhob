@@ -30,6 +30,11 @@ continuous = ["torch>=2.0", "matplotlib>=3.5"]
 # MuJoCo-based high-dimensional continuous-control tier (cont_hd). Free/open-source
 # since 2021, no license key needed. The Tier 1/continuous tiers do NOT require it.
 mujoco = ["gymnasium[mujoco]>=1.0"]
+# PettingZoo/mpe2-based multi-agent tier (MULTI_AGENT). MPE was split out of
+# PettingZoo core as of PettingZoo 1.26 -- mpe2 is the current Farama-maintained
+# package; pettingzoo[mpe] is NOT a valid extra. The Tier 1/continuous/mujoco tiers
+# do NOT require it.
+pettingzoo = ["pettingzoo>=1.24", "mpe2>=1.0"]
 # Interactive leaderboard viewer (space/app.py). Not needed to use the benchmark itself.
 space = ["gradio>=4.0", "huggingface_hub>=0.20", "pandas>=2.0"]
 dev = [
