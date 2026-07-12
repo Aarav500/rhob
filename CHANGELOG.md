@@ -4,6 +4,47 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.6.0] — RLHF-RM Extension: 5 New Synthetic Reward-Model-Overoptimization Families
+
+Extends v1.5's 18 families to 23 by populating the taxonomy's `SEQUENTIAL` tier for
+the first time, via a synthetic RLHF setting rather than a real LLM:
+
+- **Shared `calibrate_scale` extraction** (`src/rhob/environments/calibration.py`):
+  the generic binary-search calibration helper previously lived in
+  `src/rhob/environments/mujoco/rollout.py` despite having no MuJoCo-specific logic.
+  Extracted into its own module so both the MuJoCo and RLHF-RM families can share it;
+  `mujoco/rollout.py` now re-exports it, so no existing family's imports changed.
+- **New `src/rhob/environments/rlhf_rm/` module**: a synthetic response-feature space
+  (`x ∈ R^8`), a fixed nonlinear true reward `r*(x)` (oracle-only), a real preference-data
+  generator with per-family failure injection, genuine `LogisticRegression`-fit reward
+  models (not scripted), and a policy-gradient rollout loop (`N(μ, Σ)` over response
+  space, ascending the fitted reward model minus a KL penalty to a reference policy).
+  No new optional dependency — pure numpy/scikit-learn, unlike the MuJoCo extra.
+- **Family 19 — RM Sparse-Coverage Gaming** (`RM_OVEROPTIMIZATION`): preference data
+  undersamples part of response-space; the fitted model extrapolates optimistically
+  there.
+- **Family 20 — RM Label-Noise Exploitation** (`RM_OVEROPTIMIZATION`): preference
+  labels near the true decision boundary carry concentrated noise, biasing the fitted
+  model's boundary.
+- **Family 21 — RM Feature-Blindspot Gaming** (`GOAL_MISGENERALIZATION`): the reward
+  model is fit on a truncated feature subset, structurally freezing the policy on the
+  hidden dimensions.
+- **Family 22 — KL-Penalty Gaming** (`REWARD_SHAPING`): both variants share one reward
+  model; only the KL-penalty coefficient differs. Uncovered and fixed a real bug during
+  development: calibrating a compensator parameter that gets rounded to an integer
+  downstream creates a quantization floor `calibrate_scale` can never converge below,
+  regardless of tolerance or seed count — fixed by calibrating a genuinely continuous
+  quantity (`RLHFConfig.step_size`) instead.
+- **Family 23 — Preference-Population Bias** (`DECEPTIVE_ALIGNMENT`): the synthetic
+  labeler population over-weights one response dimension unrelated to true quality
+  (a sycophancy-style bias) that the fitted model faithfully learns.
+- All 5 families follow the established `functools.lru_cache`-memoized pure
+  calibration-function pattern and were independently re-verified via
+  `AdmissionGate.certify()` at every default difficulty tier, not just trusted from
+  self-reported test runs.
+- README family count, family list, and leaderboard-size references updated from 18
+  to 23.
+
 ## [1.5.0] — MuJoCo Extension: 4 New High-Dimensional Continuous-Control Families
 
 Extends v1.4's 14 families to 18 by populating the taxonomy's `CONTINUOUS_COMPLEX`
