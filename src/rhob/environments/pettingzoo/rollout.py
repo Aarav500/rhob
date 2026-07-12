@@ -20,10 +20,13 @@ from rhob.environments.pettingzoo.config import PettingZooConfig
 
 # (agent_id, t, horizon, obs, rng) -> action array for that agent
 ActionFn = Callable[[str, int, int, np.ndarray, np.random.Generator], np.ndarray]
-# (env, obs_dict, reward_dict, info_dict) -> per-step scalar contribution, aggregated
-# across all agents by the family (e.g. sum/mean of a specific agent's reward, or a
-# function of the full joint observation)
-StepMetricFn = Callable[[object, dict, dict, dict], float]
+# (env, obs_dict, reward_dict, info_dict, t, horizon) -> per-step scalar contribution,
+# aggregated across all agents by the family (e.g. sum/mean of a specific agent's
+# reward, or a function of the full joint observation). ``t``/``horizon`` let a family
+# with phase-based mechanisms (e.g. an initial individual-pursuit phase followed by a
+# collusion phase) compute metrics that are aware of which phase the current step
+# falls in, rather than only ever averaging uniformly over the whole episode.
+StepMetricFn = Callable[[object, dict, dict, dict, int, int], float]
 
 
 def run_pettingzoo_episode(
@@ -58,9 +61,9 @@ def run_pettingzoo_episode(
                 raw + noise, action_space.low, action_space.high
             ).astype(np.float32)
         obs, rewards, terms, truncs, infos = env.step(actions)
-        proxy_sum += proxy_fn(env, obs, rewards, infos)
-        true_sum += true_fn(env, obs, rewards, infos)
-        behav_sum += behav_fn(env, obs, rewards, infos)
+        proxy_sum += proxy_fn(env, obs, rewards, infos, t, horizon)
+        true_sum += true_fn(env, obs, rewards, infos, t, horizon)
+        behav_sum += behav_fn(env, obs, rewards, infos, t, horizon)
         if not env.agents or all(terms.values()) or all(truncs.values()):
             break
     n = t + 1
