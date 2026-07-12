@@ -17,8 +17,11 @@ in a setting only possible with multiple interacting agents.
 
 ## Infrastructure
 
-- New optional extra: `rhob[pettingzoo]` in `pyproject.toml`, pulling in
-  `pettingzoo[mpe]`. Mirrors the existing `rhob[mujoco]` pattern.
+- New optional extra: `rhob[pettingzoo]` in `pyproject.toml`, pulling in `pettingzoo`
+  and `mpe2` (verified against the actually-installed package: as of PettingZoo 1.26.1,
+  MPE has been split out of PettingZoo core into the separately-maintained `mpe2`
+  package — `pettingzoo[mpe]` is not a valid extra and `pettingzoo.mpe` does not exist
+  in current versions). Mirrors the existing `rhob[mujoco]` pattern.
 - New module: `src/rhob/environments/pettingzoo/`, alongside
   `src/rhob/environments/mujoco/` and `src/rhob/environments/rlhf_rm/`.
 - CI: family tests conditionally skip (not fail) when `pettingzoo` isn't installed,
