@@ -27,7 +27,7 @@ scored on** — see the [live leaderboard](https://rhob.aarav-shah.com) and
 [submission guide](docs/TUTORIAL_DETECTOR.md).
 
 **RHOB** provides:
-- **18 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.), including 4 MuJoCo-based high-dimensional continuous-control families (HalfCheetah, Reacher, Ant, Walker2d)
+- **23 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.), including 4 MuJoCo-based high-dimensional continuous-control families (HalfCheetah, Reacher, Ant, Walker2d) and 5 synthetic RLHF reward-model-overoptimization families populating the `SEQUENTIAL` complexity tier
 - **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
 - **Cross-family transfer analysis (RTS)** measuring detector generalization to unseen mechanisms
@@ -116,7 +116,7 @@ This is not artificial—it's the case that matters most: reward hacking where d
 
 **Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
-## The 18 Families
+## The 23 Families
 
 ### Families 1–6 (v3.2 Baselines)
 
@@ -150,6 +150,16 @@ Populate the taxonomy's `CONTINUOUS_COMPLEX` ("cont_hd") tier for the first time
 17. **MuJoCo Joint-Limit Gaming** (Ant-v5) — A gait that stays safely within each joint's real physical limit vs. one that games near the limit for the same measured reward
 18. **MuJoCo Sensor-Channel Decoupling** (Walker2d-v5) — The documented sim-to-real foot-slip exploit: a spoofable joint-velocity "sensor" reads high without real forward progress
 
+### Families 19–23 (v1.6, RLHF-RM / Synthetic Reward-Model Overoptimization)
+
+Populate the taxonomy's `SEQUENTIAL` tier for the first time — a synthetic RLHF setting (feature-vector "responses," a genuinely-fit preference reward model, and policy-gradient optimization with a KL penalty to a reference policy) rather than a real LLM, so the reward-hacking dynamics arise from real data-fitting and optimization instead of a scripted proxy/true gap. Each family varies exactly one way the fitted reward model goes wrong.
+
+19. **RM Sparse-Coverage Gaming** — Preference data undersamples part of response-space; the fitted reward model extrapolates optimistically there, and the policy drifts into that blind spot
+20. **RM Label-Noise Exploitation** — Preference labels near the true decision boundary carry concentrated noise, biasing the fitted model's boundary in one consistent direction
+21. **RM Feature-Blindspot Gaming** — The reward model is fit on a truncated subset of response features (a fixed representation that can't see the rest), so its policy is structurally frozen on the hidden dimensions where true value is left on the table
+22. **KL-Penalty Gaming** — Both variants share the identical reward model; only the KL-penalty coefficient differs, letting an under-penalized policy drift past the true reward's optimum into a declining region
+23. **Preference-Population Bias** — The synthetic labeler population systematically over-weights one response dimension unrelated to true quality (a sycophancy-style bias), and the fitted model faithfully learns it
+
 ## The 35 Detectors
 
 ### L0: Reward-Only (13)
@@ -180,7 +190,7 @@ See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_basel
 
 ## Running Experiments
 
-### Regenerate the full v5 leaderboard (35 × 18)
+### Regenerate the full v5 leaderboard (35 × 23)
 
 ```bash
 python scripts/v5_leaderboard_and_transfer.py

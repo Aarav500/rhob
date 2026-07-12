@@ -16,7 +16,12 @@ from rhob.v3.families import (  # noqa: F401
     physics_exploitation,
     proxy_correlation_gaming,
     reward_channel_tampering,
+    rlhf_feature_blindspot_gaming,
+    rlhf_kl_penalty_gaming,
+    rlhf_label_noise_exploitation,
+    rlhf_preference_population_bias,
     rlhf_reward_model_overopt,
+    rlhf_sparse_coverage_gaming,
     sensor_calibration_tampering,
     shortcut_exploitation,
 )
@@ -40,4 +45,9 @@ __all__ = [
     "mujoco_goal_misgeneralization",
     "mujoco_joint_limit_gaming",
     "mujoco_sensor_decoupling",
+    "rlhf_sparse_coverage_gaming",
+    "rlhf_label_noise_exploitation",
+    "rlhf_feature_blindspot_gaming",
+    "rlhf_kl_penalty_gaming",
+    "rlhf_preference_population_bias",
 ]
