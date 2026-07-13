@@ -161,6 +161,18 @@ def _evaluate_cell(
 class Benchmark:
     """Main evaluation entry point."""
 
+    # Rollout data depends only on (family, difficulty, n_seeds) -- each family's
+    # generate_pair(difficulty) is called with the same default seed=0, and
+    # MatchedPair.rollout(n_seeds) always draws the same deterministic seed sequence
+    # from it, so it is 100% reproducible across calls regardless of which detector
+    # is being scored. Without this cache, evaluating N detectors over the same
+    # families/difficulties re-simulates every environment from scratch N times --
+    # for PettingZoo's real multi-agent physics rollouts this made a 30-detector
+    # leaderboard run balloon from hours to an estimated multiple days. restrict()
+    # (called downstream in _evaluate_cell) returns a copy rather than mutating its
+    # input, so sharing these RunData objects across detectors is safe.
+    _rollout_cache: dict[tuple[str, float, int], tuple[list[RunData], list[RunData], list[int]]] = {}
+
     @staticmethod
     def evaluate(
         detector: PosthocDetector,
@@ -184,7 +196,12 @@ class Benchmark:
 
         pairs = FamilyRegistry.generate_suite(families, difficulties)
         for pair in pairs:
-            runs_a, runs_b, onsets_a = pair.rollout(n_seeds)
+            cache_key = (pair.family, pair.difficulty, n_seeds)
+            cached = Benchmark._rollout_cache.get(cache_key)
+            if cached is None:
+                cached = pair.rollout(n_seeds)
+                Benchmark._rollout_cache[cache_key] = cached
+            runs_a, runs_b, onsets_a = cached
             auroc, mae = _evaluate_cell(detector, runs_a, runs_b, onsets_a, level, pair.n_episodes)
             results.cells.append(
                 CellResult(
