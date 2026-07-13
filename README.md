@@ -116,7 +116,7 @@ This is not artificial—it's the case that matters most: reward hacking where d
 
 **Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
-## The 23 Families
+## The 28 Families
 
 ### Families 1–6 (v3.2 Baselines)
 
@@ -160,6 +160,16 @@ Populate the taxonomy's `SEQUENTIAL` tier for the first time — a synthetic RLH
 22. **KL-Penalty Gaming** — Both variants share the identical reward model; only the KL-penalty coefficient differs, letting an under-penalized policy drift past the true reward's optimum into a declining region
 23. **Preference-Population Bias** — The synthetic labeler population systematically over-weights one response dimension unrelated to true quality (a sycophancy-style bias), and the fitted model faithfully learns it
 
+### Families 24–28 (v1.7, PettingZoo / Multi-Agent)
+
+Populate the taxonomy's `MULTI_AGENT` complexity tier for the first time, using real `mpe2` (Multi-Particle Environments, split out of PettingZoo core) scenarios rather than a scripted single-agent proxy. Each family re-instantiates an existing `HackingMechanism` value at genuine multi-agent scale — no taxonomy expansion.
+
+24. **Tacit Collusion Gaming** (`simple_tag`) — Predators quietly agree to camp near the prey's spawn instead of genuinely pursuing it, gaming the team-summed proxy during a late-episode "collusion phase"
+25. **Communication-Channel Deception** (`simple_speaker_listener`) — A speaker's message is scripted to leak the true goal signal through a side channel while nominally still "communicating," inflating the listener's proxy without honestly conveying the goal
+26. **Free-Rider Exploitation** (`simple_spread`, team-averaged) — One of 3 agents abandons its assigned landmark while the other 2 compensate, gaming a team-averaged proxy that can't see which individual contributed
+27. **Fixed-Opponent Exploitation** (`simple_tag`) — Predators exploit a fixed, scripted prey's predictable corner-retreat pattern instead of genuinely tracking its live position
+28. **Population-Level Goodhart** (`simple_world_comm`) — One of 4 adversary-team agents free-rides while the lead and 2 others carry the team's aggregate proxy reward — population-scale free-riding, distinct from Family 26's 3-agent case
+
 ## The 35 Detectors
 
 ### L0: Reward-Only (13)
@@ -190,7 +200,7 @@ See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_basel
 
 ## Running Experiments
 
-### Regenerate the full v5 leaderboard (35 × 23)
+### Regenerate the full v5 leaderboard (35 × 28)
 
 ```bash
 python scripts/v5_leaderboard_and_transfer.py

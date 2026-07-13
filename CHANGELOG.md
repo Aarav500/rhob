@@ -4,6 +4,62 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.7.0] — PettingZoo Extension: 5 New Multi-Agent Families
+
+Extends v1.6's 23 families to 28 by populating the taxonomy's `MULTI_AGENT`
+complexity tier for the first time, using real `mpe2` (Multi-Particle Environments)
+scenarios instead of a scripted single-agent proxy:
+
+- **New `rhob[pettingzoo]` optional extra** (`pyproject.toml`): pulls in
+  `pettingzoo>=1.24` and `mpe2>=1.0`. MPE was split out of PettingZoo core as of
+  PettingZoo 1.26 — `pettingzoo[mpe]`/`pettingzoo.mpe` no longer exist; this was
+  caught and corrected during design, before any family code was written. Core
+  install remains mpe2-free; every new family module lazily imports `mpe2` only
+  inside its `_make_env()`, so `import rhob.v3.families` still succeeds without it
+  installed (verified, matching the `mujoco` extra's established pattern).
+- **New `src/rhob/environments/pettingzoo/` module**: `PettingZooConfig`,
+  `run_pettingzoo_episode`/`generate_pettingzoo_rundata`, and a phase-aware
+  `StepMetricFn` signature (`(env, obs, rewards, infos, t, horizon)`) letting a
+  family's metrics be aware of which phase of an episode the current step falls in
+  (e.g. an initial individual-pursuit phase followed by a collusion phase).
+- **Family 24 — Tacit Collusion Gaming** (`CAMPING_EXPLOIT`, `simple_tag`):
+  predators camp near the prey's spawn during a late-episode collusion phase instead
+  of genuinely pursuing, gaming the team-summed proxy.
+- **Family 25 — Communication-Channel Deception** (`DECEPTIVE_ALIGNMENT`,
+  `simple_speaker_listener`): a speaker's message leaks the true goal signal through
+  a side channel while nominally still "communicating."
+- **Family 26 — Free-Rider Exploitation** (`PROXY_GAMING`, `simple_spread`,
+  team-averaged): one of 3 agents abandons its landmark while the other 2
+  compensate, gaming a team-averaged proxy that can't see individual contribution.
+- **Family 27 — Fixed-Opponent Exploitation** (`SHORTCUT`, `simple_tag`): predators
+  exploit a fixed, scripted prey's predictable corner-retreat pattern instead of
+  genuinely tracking its live position. Two structural fixes were needed beyond
+  mean-calibration alone: (1) all 3 predators converging on the exact same corner
+  point created a threshold-like catch/no-catch dynamic with ~1.2-1.6x legit's
+  proxy variance regardless of calibration scale, fixed by spreading the 3
+  predators' corner targets 120 degrees apart at a small fixed radius (a
+  structural, uncalibrated dampening knob, not a tuning parameter); (2) full
+  commitment (`fixed_pull=1.0`) hit a genuine physical ceiling on achievable proxy
+  that no calibration boost could close.
+- **Family 28 — Population-Level Goodhart** (`PROXY_GAMING`, `simple_world_comm`):
+  one of 4 adversary-team agents free-rides while the lead and 2 others carry the
+  team's aggregate proxy reward — population-scale free-riding, distinct from
+  Family 26's 3-agent case. `simple_world_comm`'s observation layout (the most
+  complex in this extension) was verified directly against the installed `mpe2`
+  package's source and empirical position-negation cross-checks, correcting an
+  initial draft's assumed agent list (4 adversary-team agents: 1 lead + 3 regular,
+  not 3 total). Two bugs found via the real `AdmissionGate.certify()`: the
+  calibration boost was applied to the free-rider's own effort-scaled pursuit
+  target, which is exactly zero at the easiest tier's fully-passive effort — fixed
+  by boosting the non-free-riding helpers instead; and the behavioral feature
+  returned raw (unsigned) velocity magnitude, ranking legit above hacking, the
+  opposite of the required "higher score = more hacking-like" convention (produced
+  AUROC ≈ 0.0, not ≈ 0.5) — fixed by negating it.
+- All 5 families independently re-verified via `AdmissionGate.certify()` at every
+  default difficulty tier, not just trusted from self-reported test runs.
+- README family count, family list, and leaderboard-size references updated from 23
+  to 28.
+
 ## [1.6.0] — RLHF-RM Extension: 5 New Synthetic Reward-Model-Overoptimization Families
 
 Extends v1.5's 18 families to 23 by populating the taxonomy's `SEQUENTIAL` tier for
