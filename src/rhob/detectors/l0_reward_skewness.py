@@ -35,6 +35,15 @@ class RewardSkewnessDetector(PosthocDetector):
 
         baseline_skew = float(stats.skew(rewards[:self.baseline_window]))
         test_skew = float(stats.skew(rewards[-self.test_window:]))
+        # scipy's skew formula divides by variance^1.5; a near-constant window (e.g. a
+        # tightly-calibrated matched-proxy family) makes that denominator collapse to
+        # ~0, producing NaN via catastrophic cancellation rather than a real skew
+        # value. Treat "no measurable skew" as neutral (0.0) instead of propagating
+        # NaN into roc_auc_score, which rejects it outright.
+        if not np.isfinite(baseline_skew):
+            baseline_skew = 0.0
+        if not np.isfinite(test_skew):
+            test_skew = 0.0
 
         # Hacking has higher positive skew (occasional spikes)
         diff = test_skew - baseline_skew
@@ -48,10 +57,14 @@ class RewardSkewnessDetector(PosthocDetector):
             return -1
 
         baseline_skew = float(stats.skew(rewards[:self.baseline_window]))
+        if not np.isfinite(baseline_skew):
+            baseline_skew = 0.0
 
         for t in range(self.baseline_window, len(rewards)):
             window = rewards[max(0, t - self.test_window): t + 1]
             test_skew = float(stats.skew(window))
+            if not np.isfinite(test_skew):
+                test_skew = 0.0
             if test_skew - baseline_skew > 0.5:  # Significant jump
                 return t
 
