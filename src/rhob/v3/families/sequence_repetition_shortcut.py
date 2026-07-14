@@ -66,6 +66,11 @@ _CYCLE_TOKEN_POOL = (7, 14, 21, 3, 17, 9, 22, 1, 15, 6, 19, 10)
 _CYCLE_PERIOD_HARD = 12
 _CYCLE_PERIOD_EASY = 5  # _LOOKBACK_K + 1, the shortest period still invisible to the check
 
+# `_CYCLE_TOKEN_POOL[t % cycle_period]` requires a distinct pool value for every
+# index up to the largest configured period -- guard at import time rather than
+# let a future period bump surface as a mid-rollout IndexError.
+assert len(_CYCLE_TOKEN_POOL) >= _CYCLE_PERIOD_HARD, "cycle token pool must cover the longest configured cycle_period"
+
 # Calibration lever: on each step, emit the next cycle-pool token with
 # probability ``cycle_purity``, else fall back to a fixed 2-token alternating
 # "distractor" pair -- tunes mean proxy without changing cycle_period (which
