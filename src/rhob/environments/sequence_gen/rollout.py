@@ -29,10 +29,19 @@ ActionFn = Callable[[int, int, np.ndarray, np.random.Generator], int]
 StepMetricFn = Callable[[np.ndarray, int, int], float]
 
 # True-reward step functions have a different, fixed signature (grammar_log_prob_step
-# in grammar.py) since they need the *pre-emission* array indexed at t, not a
-# growing slice -- kept as a distinct type so a family can't accidentally pass a
-# StepMetricFn where a true-reward function is expected.
+# in grammar.py) since they receive the full, fixed-size token array (already
+# includes the token just chosen at step t; indices beyond t are still
+# zero-filled placeholders) plus the index t, not a growing slice -- kept as a
+# distinct type so a family can't accidentally pass a StepMetricFn where a
+# true-reward function is expected.
 TrueStepFn = Callable[[np.ndarray, int], float]
+
+# Note: ``run_sequence_episode``/``generate_sequence_rundata`` intentionally do
+# not thread ``config.vocab_size``/``config.calibration_seed`` through to
+# ``action_fn``/``proxy_fn``/``true_fn``/``behav_fn``. By design, each family
+# is expected to close over ``config`` when constructing its own step
+# functions, rather than relying on this shared primitive to pass those fields
+# automatically.
 
 
 def run_sequence_episode(
