@@ -55,11 +55,15 @@ class TransitionEntropyDetector(PosthocDetector):
             return entropy(flat_counts)
 
         # Reconstruct state sequences from counts
+        # np.repeat requires integer repeat counts; state_counts sums to float64 for
+        # families using soft/interpolated binning rather than raw integer histogram
+        # counts (continuous state spaces). Round rather than truncate so fractional
+        # bin weights aren't systematically biased toward zero.
         baseline_seq = np.repeat(
-            np.arange(len(counts[0])), counts[: self.baseline_window].sum(axis=0)
+            np.arange(len(counts[0])), np.round(counts[: self.baseline_window].sum(axis=0)).astype(np.int64)
         )
         test_seq = np.repeat(
-            np.arange(len(counts[0])), counts[-self.test_window :].sum(axis=0)
+            np.arange(len(counts[0])), np.round(counts[-self.test_window :].sum(axis=0)).astype(np.int64)
         )
 
         baseline_ent = transition_entropy(baseline_seq)
@@ -90,13 +94,13 @@ class TransitionEntropyDetector(PosthocDetector):
             return entropy(flat_counts) if len(flat_counts) > 0 else 0.0
 
         baseline_seq = np.repeat(
-            np.arange(len(counts[0])), counts[: self.baseline_window].sum(axis=0)
+            np.arange(len(counts[0])), np.round(counts[: self.baseline_window].sum(axis=0)).astype(np.int64)
         )
         baseline_ent = transition_entropy(baseline_seq)
 
         for t in range(self.baseline_window, len(counts)):
             window_counts = counts[max(0, t - self.test_window) : t + 1]
-            window_seq = np.repeat(np.arange(len(counts[0])), window_counts.sum(axis=0))
+            window_seq = np.repeat(np.arange(len(counts[0])), np.round(window_counts.sum(axis=0)).astype(np.int64))
             window_ent = transition_entropy(window_seq)
             if baseline_ent - window_ent > 0.5:
                 return t
