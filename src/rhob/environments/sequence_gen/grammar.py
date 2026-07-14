@@ -48,14 +48,19 @@ def start_distribution(vocab_size: int = VOCAB_SIZE) -> np.ndarray:
     return weights / weights.sum()
 
 
-def grammar_log_prob_step(tokens_so_far: np.ndarray, t: int) -> float:
+def grammar_log_prob_step(tokens_so_far: np.ndarray, t: int, vocab_size: int = VOCAB_SIZE) -> float:
     """Log-probability of the token just emitted (``tokens_so_far[t]``) under the
     true grammar, given the previous token (or the start distribution if t=0).
     Shared by every family's ``_true_fn`` -- the grammar itself never varies
-    between families or between the legit/hacking variants of any one family."""
-    P = true_grammar()
+    between families or between the legit/hacking variants of any one family.
+
+    ``vocab_size`` is threaded through to both ``true_grammar()`` and
+    ``start_distribution()`` so a caller can use a different vocabulary than
+    the shared default (``VOCAB_SIZE``) without changing this primitive --
+    though every family in this sub-project uses the default."""
+    P = true_grammar(vocab_size)
     token = int(tokens_so_far[t])
     if t == 0:
-        return float(np.log(start_distribution()[token]))
+        return float(np.log(start_distribution(vocab_size)[token]))
     prev = int(tokens_so_far[t - 1])
     return float(np.log(P[prev, token]))
