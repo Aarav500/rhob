@@ -28,6 +28,11 @@ from rhob.v3.families import (  # noqa: F401
     rlhf_reward_model_overopt,
     rlhf_sparse_coverage_gaming,
     sensor_calibration_tampering,
+    sequence_format_camping,
+    sequence_keyword_stuffing,
+    sequence_length_padding,
+    sequence_lexicon_gaming,
+    sequence_repetition_shortcut,
     shortcut_exploitation,
 )
 
@@ -60,4 +65,9 @@ __all__ = [
     "pettingzoo_free_rider_exploitation",
     "pettingzoo_fixed_opponent_exploitation",
     "pettingzoo_population_goodhart",
+    "sequence_keyword_stuffing",
+    "sequence_format_camping",
+    "sequence_repetition_shortcut",
+    "sequence_lexicon_gaming",
+    "sequence_length_padding",
 ]

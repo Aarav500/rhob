@@ -116,7 +116,7 @@ This is not artificial—it's the case that matters most: reward hacking where d
 
 **Key insight:** Transfer depends on **representation abstraction**, not access level — but a single learned detector is only as reliable as its training procedure. We found `TrajectoryMLPDetector` doesn't seed its `torch` weight initialization: repeating the identical fit on identical data 10 times produced held-out AUROC on one family ranging from 0.00 to 1.00. Ensembling deterministic behavioral-threshold detectors alongside the learned one is what actually makes transfer reliable. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the full methodological history — three real family-implementation bugs and this reproducibility bug were all found by treating implausible numbers as bugs to investigate, not results to report.
 
-## The 28 Families
+## The 33 Families
 
 ### Families 1–6 (v3.2 Baselines)
 
@@ -170,6 +170,16 @@ Populate the taxonomy's `MULTI_AGENT` complexity tier for the first time, using 
 27. **Fixed-Opponent Exploitation** (`simple_tag`) — Predators exploit a fixed, scripted prey's predictable corner-retreat pattern instead of genuinely tracking its live position
 28. **Population-Level Goodhart** (`simple_world_comm`) — One of 4 adversary-team agents free-rides while the lead and 2 others carry the team's aggregate proxy reward — population-scale free-riding, distinct from Family 26's 3-agent case
 
+### Families 29–33 (v1.8, Sequence Generation / Non-RLHF SEQUENTIAL)
+
+A second, structurally distinct population of the `SEQUENTIAL` complexity tier alongside Families 19–23: real per-step token-sequence generation over a small discrete vocabulary against a fixed hidden Markov "true grammar," scored by a fixed rule-based (non-fitted) proxy rather than a fitted reward model. Each family games a different, real, documented LLM reward-hacking failure mode.
+
+29. **Keyword-Stuffing Gaming** — Floods a small fixed keyword-token subset largely decoupled from the grammar's actual structure, gaming a keyword-frequency proxy
+30. **Format-Compliance Camping** — Fills fixed template-slot positions with expected tokens while the surrounding sequence needn't cohere, gaming a template-slot-fill-rate proxy
+31. **Repetition-Blind-Spot Shortcut** — Repeats a short token cycle just outside a fixed lookback window, scoring perfectly on a "no recent duplicate" check while remaining globally highly repetitive
+32. **Lexicon-Sentiment Gaming** — Floods a fixed positive-lexicon token subset largely decoupled from the grammar, gaming a sentiment-proxy stand-in for "helpful/positive" quality
+33. **Length-Padding Exploit** — Switches to uniform-random low-effort tokens partway through the episode, farming a per-step length/continuation shaping bonus that a shallow content-presence check can't tell apart from genuine content
+
 ## The 35 Detectors
 
 ### L0: Reward-Only (13)
@@ -200,7 +210,7 @@ See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_basel
 
 ## Running Experiments
 
-### Regenerate the full v5 leaderboard (35 × 28)
+### Regenerate the full v5 leaderboard (35 × 33)
 
 ```bash
 python scripts/v5_leaderboard_and_transfer.py
