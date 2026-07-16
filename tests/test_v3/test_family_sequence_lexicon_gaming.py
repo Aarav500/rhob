@@ -24,6 +24,9 @@ def test_true_reward_diverges():
 
 
 def test_behav_trace_ranks_hacking_above_legit():
+    """Regression check: verifies the sign convention directly rather than
+    assuming it, after this project's pettingzoo_population_goodhart bug
+    where an unsigned behavioral signal silently ranked legit above hacking."""
     fam = FamilyRegistry.get("sequence_lexicon_gaming")
     pair = fam.generate_pair(fam.difficulty_range()[1], seed=1)
     run_a, _ = pair.rollout_hacking(0)
