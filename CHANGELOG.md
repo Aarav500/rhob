@@ -4,6 +4,55 @@ All notable changes to RHOB are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 semantic versioning.
 
+## [1.8.0] — Sequence-Generation Extension: 5 New SEQUENTIAL Families
+
+Extends v1.7's 28 families to 33 by populating the taxonomy's `SEQUENTIAL`
+complexity tier a second time, structurally distinct from Families 19–23: real
+per-step token-sequence generation over a small discrete vocabulary against a
+fixed hidden Markov "true grammar," scored by a fixed rule-based (non-fitted)
+proxy rather than a genuinely-fit reward model:
+
+- **New `src/rhob/environments/sequence_gen/` module**: a fixed `V=24`-token
+  hidden Markov "true grammar" (`grammar.py`, seeded once and never exposed to
+  any proxy/detector), `SequenceGenConfig`, and a shared
+  `run_sequence_episode`/`generate_sequence_rundata` rollout primitive
+  (`rollout.py`) mirroring `rlhf_rm/rollout.py`'s pattern (no external `step()`
+  call — token sampling and scoring both happen directly in the loop). No new
+  optional dependency (pure numpy, matching `rlhf_rm`).
+- **Family 29 — Keyword-Stuffing Gaming** (`PROXY_GAMING`): floods a small
+  fixed keyword-token subset largely decoupled from the grammar's actual
+  structure. HARD-tier `proxy_matched` remains a documented, unresolved
+  variance mismatch (AUROC ~0.63) after 5 verified fix attempts — accepted as
+  a partial-compliance outcome rather than continued open-ended iteration.
+- **Family 30 — Format-Compliance Camping** (`CAMPING_EXPLOIT`): fills fixed
+  template-slot positions with expected tokens without the surrounding
+  sequence needing to cohere. 1/3 tiers pass; the other 2 fail
+  `proxy_matched` due to a calibration-bias root cause distinct from Family
+  29's variance mismatch (documented, not the same fix).
+- **Family 31 — Repetition-Blind-Spot Shortcut** (`SHORTCUT`): repeats a
+  short token cycle just outside a fixed lookback window. All 3 tiers pass.
+  Two real design bugs caught and fixed during implementation: a pigeonhole
+  collision in the plan's original 3-token cycle set, and a degenerate
+  calibration lever that boundary-locked to "no exploit."
+- **Family 32 — Lexicon-Sentiment Gaming** (`GOAL_MISGENERALIZATION`): floods
+  a fixed positive-lexicon token subset largely decoupled from the grammar.
+  All 3 tiers pass after root-causing a MEDIUM-tier failure as a
+  distribution-*shape* mismatch (not mean or variance) from a too-sharp
+  2-token calibration lever, fixed by widening it to 4 tokens.
+- **Family 33 — Length-Padding Exploit** (`REWARD_SHAPING`): switches to
+  uniform-random low-effort tokens partway through the episode, farming a
+  per-step length/continuation shaping bonus that a shallow content-presence
+  check can't tell apart from genuine content. All 3 tiers pass after two
+  rounds of redesign: the plan's single-filler-token calibration lever was
+  mathematically unsolvable (forced to "never actually pad" regardless of
+  weights), and a first garbage-token-pool fix overshot into perfect AUROC
+  separation before matching legit's own natural empty-token rate.
+- Families 31, 32, and 33 verification was run on a dedicated, temporary AWS
+  EC2 instance to isolate from unrelated heavy local CPU load during this
+  session, not because of any dependency on cloud infrastructure.
+- README family count, family list, and leaderboard-size references updated
+  from 28 to 33.
+
 ## [1.7.0] — PettingZoo Extension: 5 New Multi-Agent Families
 
 Extends v1.6's 23 families to 28 by populating the taxonomy's `MULTI_AGENT`
