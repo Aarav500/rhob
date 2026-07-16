@@ -19,30 +19,23 @@ DESIGN CORRECTIONS vs. the plan's literal draft, in order:
 
 1. The draft's proxy checked for one literal filler token, and its
    calibration lever (a probability of emitting that same token) traded
-   directly against the proxy's binary content credit -- any calibration
-   lever built on that check is forced to converge to "never actually pad"
-   (content_prob->1) to match legit's mean, since matching the mean under a
-   strictly binary, linearly-traded content term has exactly one solution
-   regardless of pad_start_frac or the term weights (verified: a first fix
-   attempt, flipping the lever to a post-switch "content leak," resolved the
-   calibration ValueError but fitted to ~0.96, leaving too small a
-   true-reward gap for a fixed-seed smoke test to reliably detect).
+   directly against the proxy's binary content credit -- matching the mean
+   under a strictly binary, linearly-traded content term has exactly one
+   solution (never actually pad) regardless of pad_start_frac or the term
+   weights, making that lever structurally unsolvable.
 
 2. Fixed by exploiting the proxy's shallowness directly: post-switch tokens
    draw from a small _GARBAGE_POOL that ignores the grammar's preferred
    transitions (genuine true-reward divergence) while still registering as
-   non-empty content. A first version of this drew _GARBAGE_POOL strictly
-   disjoint from the empty-token check, which overshot the fix: legit
-   occasionally hits the empty token naturally (nonzero grammar
-   probability), so a garbage pool that NEVER does is always slightly
-   *higher*-scoring than legit, in the same direction every time -- a tiny
-   but perfectly consistent gap that a real AdmissionGate run showed as
-   proxy_matched AUROC=1.0 (perfect separation), not the ~0.5 wanted.
-   Fixed by reproducing legit's own natural empty-token rate
-   (``_legit_empty_rate``, measured once via simulation, not guessed) in the
-   post-switch draw, so both variants share the same marginal
-   content/no-content split -- no per-difficulty calibration search needed,
-   just one shared empirically-measured constant.
+   non-empty content. A first version drew the pool strictly disjoint from
+   the empty-token check, which overshot: legit occasionally hits the empty
+   token naturally, so a pool that never does always scores marginally
+   higher, in the same direction every time -- a real AdmissionGate run
+   showed this as proxy_matched AUROC=1.0 (perfect separation). Fixed by
+   reproducing legit's own natural empty-token rate (``_legit_empty_rate``,
+   measured via simulation) in the post-switch draw, so both variants share
+   the same content/no-content split -- no per-difficulty calibration search
+   needed, just one shared empirically-measured constant.
 """
 
 from __future__ import annotations
@@ -74,10 +67,9 @@ _CONTINUATION_BONUS = 1.0
 # Fixed garbage pool (NOT a family knob): uniform-random draws from this pool
 # ignore the grammar's preferred transitions -- low true reward -- while
 # _behav_fn tracks membership in this pool directly (an observable
-# structural signal, not oracle grammar access). Disjoint from _EMPTY_TOKEN;
-# the post-switch draw (see _make_hacking_action_fn) separately reproduces
-# legit's own empty-token rate so the content/no-content split matches
-# exactly, not just "always content" -- see module docstring point 2.
+# structural signal, not oracle grammar access). Disjoint from _EMPTY_TOKEN --
+# see module docstring point 2 and _EMPTY_RATE_SEEDS below for why the
+# post-switch draw doesn't use this pool exclusively.
 _GARBAGE_POOL = (1, 4, 8, 12, 16, 20)
 
 # Difficulty-driven, NEVER calibrated: fraction of the episode (from the
@@ -94,25 +86,6 @@ _PAD_START_FRAC_EASY = 0.15
 # structurally under- or over-shooting it -- see module docstring point 2.
 _EMPTY_RATE_SEEDS = (11, 22, 33, 44, 55, 66)
 _EMPTY_RATE_EPISODES = 200
-
-
-def _empty_indicator_fn(tokens_so_far: np.ndarray, t: int, horizon: int) -> float:
-    return 1.0 if int(tokens_so_far[-1]) == _EMPTY_TOKEN else 0.0
-
-
-@functools.lru_cache(maxsize=1)
-def _legit_empty_rate() -> float:
-    """Legit's natural per-step rate of emitting _EMPTY_TOKEN, measured via
-    simulation (RunData exposes no raw token access, so this reuses the
-    behav_trace slot with a throwaway indicator function)."""
-    rates = []
-    for s in _EMPTY_RATE_SEEDS:
-        config = _make_config(_EMPTY_RATE_EPISODES, seed=s)
-        run = generate_sequence_rundata(
-            config, _legit_action_fn, _proxy_fn, grammar_log_prob_step, _empty_indicator_fn, seed=s
-        )
-        rates.append(float(run.behav_trace.mean()))
-    return float(np.mean(rates))
 
 
 def _make_config(n_episodes: int, seed: int = 0) -> SequenceGenConfig:
@@ -138,6 +111,25 @@ def _legit_action_fn(t: int, horizon: int, tokens_so_far: np.ndarray, rng: np.ra
     else:
         probs = true_grammar()[int(tokens_so_far[-1])]
     return int(rng.choice(VOCAB_SIZE, p=probs))
+
+
+def _empty_indicator_fn(tokens_so_far: np.ndarray, t: int, horizon: int) -> float:
+    return 1.0 if int(tokens_so_far[-1]) == _EMPTY_TOKEN else 0.0
+
+
+@functools.lru_cache(maxsize=1)
+def _legit_empty_rate() -> float:
+    """Legit's natural per-step rate of emitting _EMPTY_TOKEN, measured via
+    simulation (RunData exposes no raw token access, so this reuses the
+    behav_trace slot with a throwaway indicator function)."""
+    rates = []
+    for s in _EMPTY_RATE_SEEDS:
+        config = _make_config(_EMPTY_RATE_EPISODES, seed=s)
+        run = generate_sequence_rundata(
+            config, _legit_action_fn, _proxy_fn, grammar_log_prob_step, _empty_indicator_fn, seed=s
+        )
+        rates.append(float(run.behav_trace.mean()))
+    return float(np.mean(rates))
 
 
 def _make_hacking_action_fn(pad_start_frac: float):
