@@ -50,8 +50,16 @@ LEADERBOARD_FILES = [
 ]
 _TRANSFER_FILE = _LEADERBOARD_DIR / "cross_family_transfer.json"
 
-_N_FAMILIES = 28
-_N_DETECTORS = 30
+def _n_families_and_detectors() -> tuple[int, int]:
+    """Compute the live family/detector counts from the committed leaderboard data,
+    rather than hardcoding them -- a hardcoded pair silently goes stale every time a
+    new family sub-project ships (caught after the sequence-gen extension shipped:
+    the deployed Space kept showing "28" after a regen to 33)."""
+    board = _load_combined()
+    families: set[str] = set()
+    for e in board.entries:
+        families.update(e.family_auroc.keys())
+    return len(families), len(board.entries)
 
 _CSS = """
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
@@ -391,9 +399,10 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
         """
     )
 
+    n_families, n_detectors = _n_families_and_detectors()
     with gr.Row(elem_id="rhob-stats"):
-        gr.HTML(_stat_card("Families", str(_N_FAMILIES), "matched proxy/legit pairs"))
-        gr.HTML(_stat_card("Detectors", str(_N_DETECTORS), "L0 reward-only → L3 oracle"))
+        gr.HTML(_stat_card("Families", str(n_families), "matched proxy/legit pairs"))
+        gr.HTML(_stat_card("Detectors", str(n_detectors), "L0 reward-only → L3 oracle"))
         gr.HTML(_stat_card("Best RTS", best_rts_str, "transfer AUROC, held-out mechanisms", "teal"))
         gr.HTML(_stat_card("Complexity tiers", "5", "tabular → multi-agent", "amber"))
 
