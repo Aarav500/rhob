@@ -65,7 +65,6 @@ def test_policy_ascent_increases_mean_proxy_over_episodes():
     rm_weights = fit_reward_model(x, y)
     config = RLHFConfig(n_episodes=1, n_steps=60, step_size=0.1, beta=0.0)
     mu_0 = np.zeros(config.response_dim)
-    early_scores, late_scores = [], []
 
     def proxy_fn(mu, batch, w):
         return float((batch @ w).mean())
@@ -74,7 +73,6 @@ def test_policy_ascent_increases_mean_proxy_over_episodes():
     # since generate_rlhf_rundata only returns the episode mean.
     from rhob.environments.rlhf_rm.rollout import run_rlhf_episode
 
-    mu = mu_0.copy()
     p_first, _, _ = run_rlhf_episode(
         RLHFConfig(n_episodes=1, n_steps=5, step_size=0.1, beta=0.0),
         rm_weights, mu_0, proxy_fn, proxy_fn, proxy_fn, np.random.default_rng(1),

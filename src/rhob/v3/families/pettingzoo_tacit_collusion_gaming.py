@@ -194,7 +194,7 @@ def _true_fn(env, obs, rewards, infos, t, horizon) -> float:
     if t < _COLLUDE_START_FRAC * horizon:
         return 0.0
     positions = np.array([a.state.p_pos for a in env.unwrapped.world.agents])
-    landmarks = np.array([l.state.p_pos for l in env.unwrapped.world.landmarks])
+    landmarks = np.array([lm.state.p_pos for lm in env.unwrapped.world.landmarks])
     dists = np.linalg.norm(landmarks[:, None, :] - positions[None, :, :], axis=-1)
     worst_case = dists.min(axis=1).max()
     return -float(worst_case) / (1.0 - _COLLUDE_START_FRAC)
