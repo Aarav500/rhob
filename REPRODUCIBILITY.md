@@ -8,12 +8,22 @@ This document explains how to reproduce all results from the RHOB v1.0 paper.
 git clone https://github.com/Aarav500/rhob.git
 cd rhob
 git checkout v1.0  # or main
-pip install -e ".[dev]"
+pip install -r requirements-lock.txt   # exact verified versions
+pip install -e ".[dev]" --no-deps
 python -m pytest tests/  # verify all tests pass (207+ tests, ~5 min)
 ```
 
+To install without pinning (development, not reproduction), use
+`pip install -e ".[dev]"` alone and accept whatever the ranges resolve to.
+
 All experiments use:
-- **Python 3.10+**
+- **Python 3.11+ for the verified stack.** `pyproject.toml` still declares
+  `requires-python = ">=3.10"` and CI tests 3.10, but numpy 2.4.3, scipy 1.17.1
+  and scikit-learn 1.8.0 each require Python >= 3.11, so the locked stack cannot
+  be installed on 3.10. A green CI run on 3.10 resolves older numeric libraries
+  than the ones used here and is **not** evidence that these numbers reproduce.
+  Reconciling the declared support surface with reality is an open decision — see
+  the header of `requirements-lock.txt`.
 - **Seed strategy**: Deterministic global RNG seeding via `numpy.random.default_rng(seed)` per run
 - **Reproducibility**: All experiments are fully deterministic given a seed
 
@@ -365,12 +375,33 @@ All 9 families in v1.0 pass the gate.
    export CUDA_DETERMINISTIC=1
    ```
 
-2. **Pin versions**: Check `setup.py` for exact versions of `numpy`, `scipy`, `scikit-learn`
+2. **Pin versions**: Install the exact verified stack from `requirements-lock.txt`:
+
+   ```bash
+   pip install -r requirements-lock.txt
+   pip install -e ".[dev]" --no-deps
+   ```
+
+   `pyproject.toml` declares only ranges (floors plus major-version caps). Ranges
+   make RHOB *installable*; they do not pin a run to the stack these results were
+   computed against. `requirements-lock.txt` does.
+
+   Two limits of that file, stated so they are not discovered mid-reproduction:
+   - It records the versions **verified present on 2026-07-29**, not a certified
+     provenance chain. `leaderboard/*.json` carry no environment metadata, so the
+     versions behind the committed numbers were never captured.
+   - It locks direct dependencies only. For a full transitive lock, run
+     `pip freeze` inside a clean virtualenv built from it.
+
+   (This item previously pointed at `setup.py` for exact versions. There is no
+   `setup.py` in this repository — the build is configured entirely in
+   `pyproject.toml`, which carried no exact versions. The instruction could not
+   be followed as written.)
 
 3. **Run on CPU**: While RHOB has no GPU dependencies, CPU ensures exact floating-point reproducibility (GPU arithmetic may vary slightly)
 
 4. **Report metadata**: When publishing results, include:
-   - Python version (3.10+)
+   - Python version (3.11+ for the locked stack; see Environment Setup)
    - Git commit hash (`git rev-parse HEAD`)
    - `pip freeze` output
    - Exact command used (with seed/sample-size arguments)
