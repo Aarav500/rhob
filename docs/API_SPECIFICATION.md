@@ -131,11 +131,43 @@ class RunData:
     behav_trace: Optional[np.ndarray]  # [n_episodes], anti-symmetric behavioral feature (L2)
 ```
 
-**Access Restrictions (enforced at evaluate time):**
+**Access Restrictions (enforced at evaluate time by `rhob.v3.access.restrict`):**
 - L0: ONLY proxy_rewards
 - L1: proxy_rewards + state_counts
 - L2: proxy_rewards + state_counts + behav_trace
-- L3: ALL fields (oracle only, never scored in production)
+- L3: ALL fields, including true_rewards
+
+L3 detectors **are** scored and do appear in the committed leaderboard; they are a
+ceiling measurement, not a production detector. (An earlier revision of this
+document said "never scored in production", which described intent rather than
+behavior.)
+
+### Optional channels are N/A, not 0.5
+
+`state_counts` and `behav_trace` are `Optional`, and families legitimately return
+`None` for them — 25 of the 33 shipped families emit no `state_counts` at all
+(high-dimensional continuous state, multi-agent joint spaces, token vocabularies).
+
+**Detector contract:** a detector whose channel is `None` returns a neutral
+constant (`0.5` from `classify`, `-1` from `detect_onset`). This is correct and
+unchanged.
+
+**Harness contract (new):** a neutral constant is *not a measurement*, and the
+evaluation harness must not average it into an aggregate. When a family does not
+emit the channel a detector's access level is defined over, that cell is recorded
+as `null` with a reason and **excluded** from `overall_auroc`. It is never imputed
+as 0.5.
+
+The distinction is load-bearing: after this change, a `0.5` in an artifact means
+*"measured, and at chance"* — a real result — where before it was
+indistinguishable from *"never measured"*. `continuous_camping` is the worked
+example: it does emit `state_counts`, and all 8 L1 detectors genuinely score
+exactly 0.500 on it.
+
+Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
+detector's published row to be a constant, which understated the suite: the best
+L1 detector reads 0.621 over all 123 cells and 0.927 over the 35 cells where the
+channel exists.
 
 ---
 
@@ -240,7 +272,100 @@ def evaluate(
 
 ---
 
-## 6. Leaderboard Schema
+## 6. Admission Gate & Certification Contract
+
+**Location:** `rhob.v3.admission_gate`
+
+### Criterion outcomes are tri-state
+
+```python
+class CriterionOutcome(Enum):
+    PASS = "PASS"                # measured, and the criterion is met
+    FAIL = "FAIL"                # measured, and it is not
+    DEGENERATE = "DEGENERATE"    # NOT MEASURABLE on this family
+```
+
+`DEGENERATE` is **not** a pass and **not** a fail. Both proxy criteria
+(`proxy_matched`, `proxy_distribution_matched`) are TOST equivalence tests on an
+AUROC. When the detector's scores are all tied across the two variants, the AUROC is
+0.5 by the half-credit-per-tie convention, the cluster bootstrap has SE 0, and the
+interval collapses to `[0.5000, 0.5000]` — which lies inside any margin. Two guards
+run before the test's value is read, and either one produces `DEGENERATE`:
+
+| Guard | Question | API |
+|---|---|---|
+| Resolution | could the statistic have taken a different value? A layout's AUROC is confined to `0.5 ± resolution/2` | `is_degenerate(resolution, margin)` |
+| Informativeness | did the signal mean anything? Pooled proxy `SD / mean(\|proxy\|)`, scale-free | `proxy_informativeness(runs)`, `is_uninformative(v, floor=PROXY_INFORMATIVENESS_FLOOR)` (floor `1e-4`) |
+
+The second exists because the first is bypassable: a constant proxy plus `N(0, 1e-7)`
+jitter resolves at 0.961 and would otherwise certify ADMITTED. Informativeness is a
+property of the family, not of a detector, so one measurement disqualifies every
+equivalence test on that cell.
+
+Consumers of the certificate and the ledger **must not** collapse the three outcomes
+to a boolean. A cell is ADMITTED only when every criterion is `PASS`; cells with any
+`DEGENERATE` criterion carry no matched-proxy claim in either direction and are
+excluded from RHOB's L0-at-chance negative control.
+
+### `admission/admission_ledger.json` artifact schema
+
+| Key | Meaning |
+|---|---|
+| `schema` | `"rhob.admission_ledger/1"` |
+| `provenance` | git commit + dirty flag, Python, package versions, `argv`, scope, gate configuration |
+| `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
+| `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
+| `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
+| `timing_seconds` | wall clock per family; the only non-reproducible part |
+
+`results` reproduces byte-for-byte on the same commit at the gate's fixed root seed
+`12345`. Failing **and** degenerate cells are recorded, never filtered — the ledger is
+the falsifiable form of the negative control.
+
+The three per-criterion blocks in `summary` are **not** interchangeable and none of
+them is the old `n_failing_by_criterion`, which was removed when the tri-state landed
+because it silently merged the last two rows below:
+
+| Block | Counts cells where the criterion… |
+|---|---|
+| `n_failed_by_criterion` | was measured and came back `FAIL` |
+| `n_degenerate_by_criterion` | could not be measured (`DEGENERATE`) |
+| `n_not_established_by_criterion` | did **not** come back `PASS` — the sum of the two above |
+
+Only `n_failed_by_criterion` is evidence against a family; only
+`n_cells - n_not_established_by_criterion` is evidence for one. Per-record, `status`
+is the tri-state verdict (`"ADMITTED"` / `"DEGENERATE"` / `"NOT ADMITTED"`), `outcomes` is
+the per-criterion tri-state, and `criteria` is the lossy boolean projection kept for
+backward compatibility — `passed` is `status == "ADMITTED"`, so a `False` there means
+"not admitted", never "refuted".
+
+### Two strengths of check, and only one of them certifies
+
+| | Smoke screen | Certification |
+|---|---|---|
+| Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible` | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
+| Design | 12 layouts × 4 seeds/side (96 rollouts/cell) | 12 × 24 (576 rollouts/cell) |
+| Equivalence margin | `SMOKE_MARGIN` ≈ ±0.256 | `EQUIVALENCE_MARGIN` = ±0.10 |
+| Runs in CI | yes | no |
+| Issues ADMITTED | **no** | yes |
+
+`SMOKE_MARGIN` is `required_seeds_per_layout` inverted at the smoke design, not a
+chosen tolerance, and `tests/test_v3/test_admission_smoke_design.py` asserts both that
+identity and `SMOKE_MARGIN > EQUIVALENCE_MARGIN`. A green family test is a screen
+against *large* leaks; where the screen and the ledger disagree, the ledger is
+authoritative.
+
+**Neither column is enforced over the registry, and the right-hand one is not exercised
+by the test suite at all.** 21 of the 33 registered families call
+`assert_smoke_admissible`, 12 do not, and 11 never reach `AdmissionGate` in any test.
+No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
+exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
+caller that certifies real families, and the ledger it writes covers 10 of 33. Read a
+green suite as "the screens that exist passed", never as "every family is admitted".
+
+---
+
+## 7. Leaderboard Schema
 
 ### `LeaderboardEntry` (Dataclass)
 **Location:** `rhob.v3.leaderboard.board.LeaderboardEntry`
@@ -256,15 +381,72 @@ class LeaderboardEntry:
     access_level: str                     # 'L0', 'L1', 'L2', 'L3'
     author: str                           # Detector author (for attribution)
     timestamp: str                        # ISO 8601 (YYYY-MM-DDTHH:MM:SSZ)
-    overall_auroc: float                  # Mean AUROC across all cells
+    overall_auroc: float                  # Mean AUROC across all MEASURED cells
     per_family_auroc: dict[str, float]    # family -> mean AUROC
     per_mechanism_auroc: dict[str, float] # mechanism -> mean AUROC
     per_difficulty_auroc: dict[str, float]# "0.60" (as string) -> mean AUROC
 ```
 
+### `leaderboard/v5_leaderboard.json` artifact schema (additive, non-breaking)
+
+Top-level blocks:
+
+| Key | Meaning |
+|---|---|
+| `provenance` | git commit / branch / dirty flag + dirty file list, Python and platform, tracked package versions, `argv`, `script` |
+| `sampling` | the draw: `n_seeds_per_variant`, `n_layouts`, `layout_seeds`, the explicit rollout seed lists, `n_replicates`, `single_draw`, `shared_draw_across_detectors`, `confidence_intervals` (null), and a `note` |
+| `cell_semantics` | what a `null` per-family value means vs. a number |
+| `families_evaluated` | explicit list of families in the run |
+| `timestamp` | retained for backward compatibility with `rhob.v3.leaderboard.adapters` and `space/app.py`; mirrors `provenance.generated_utc` |
+
+Per-detector keys under `results[detector]`:
+
+| Key | Meaning |
+|---|---|
+| `cells` | cells attempted |
+| `cells_measured` | cells that produced a measurement |
+| `cells_not_applicable` | cells skipped because the channel is absent |
+| `not_applicable_families` | list of families skipped for this detector |
+| `not_applicable_reasons` | `{reason string: count}` |
+| `per_family` | float, **or `null`** when not applicable |
+| `overall_auroc` | float, or `null` if nothing was measurable |
+
+`NaN` is never written — a bare `NaN` token is invalid JSON and fails strict
+parsers, including the Gradio Space. Not-applicable and unmeasurable both serialize
+to `null`.
+
+`leaderboard/cross_family_transfer.json` additionally carries
+`train_cells_measured`, `train_cells_not_applicable`,
+`train_families_not_applicable`, `train_families_excluded_from_pooled_fit` and
+`test_families_not_applicable`; its `per_family_transfer` values are `null` for
+not-applicable families, and its `sampling` block adds `model_init_trials` (the
+weight-init replication axis, default 5 — **distinct from** `n_replicates`, which
+is the environment draw and is 1), `test_seed_base` (50000), `n_seeds_test`,
+`rollout_seeds_hacking_test` and `rollout_seeds_legit_test`.
+
+**Consumers must treat `null` as "no measurement exists", not as 0.5, and must not
+count it in a denominator.**
+
+> The committed artifacts predate `src/rhob/v3/provenance.py` and do not yet carry
+> `provenance` / `sampling` / `cell_semantics`. They acquire them on the next
+> regeneration. `admission/admission_ledger.json` carries them today.
+
+### Aggregation contract: duplicate detectors
+
+A detector that duplicates another must not be counted twice in any
+per-access-level aggregate. `rhob.detectors.redundancy.DUPLICATE_DIAGNOSTICS` maps
+a duplicate's `name` to the name of the detector it duplicates;
+`is_duplicate_diagnostic(name)` is the check every aggregate must apply. The
+duplicate keeps its leaderboard row and its reported access level — artifacts and
+downstream consumers key off them — but belongs to **no** level's aggregate, and
+is not re-filed under the level it actually duplicates (that would just move the
+double-count).
+
+Current entry: `"Perfect Feature Oracle" -> "Behavioral Threshold"`.
+
 ---
 
-## 7. Taxonomy Enums (Frozen)
+## 8. Taxonomy Enums (Frozen)
 
 ### `HackingMechanism` (Enum)
 ```python
@@ -301,7 +483,7 @@ class DifficultyTier(float, Enum):
 
 ---
 
-## 8. Deprecation Policy
+## 9. Deprecation Policy
 
 **v3.2 Freeze:** No breaking changes to above interfaces until v4.0.
 
@@ -322,7 +504,7 @@ class DifficultyTier(float, Enum):
 
 ---
 
-## 9. Registration & Discovery
+## 10. Registration & Discovery
 
 ### Family Registry
 ```python
@@ -343,15 +525,22 @@ Detectors exported from `rhob.detectors.__all__` for CLI discovery.
 
 ---
 
-## 10. Community Contribution Template
+## 11. Community Contribution Template
 
 **To add a new family:**
 1. Create `src/rhob/v3/families/my_family.py`
 2. Inherit from `BaseFamily`
-3. Implement 6 abstract methods (name, mechanism, complexity, difficulty_range, generate_pair)
+3. Implement the abstract methods (name, mechanism, complexity, difficulty_range, generate_pair)
 4. Register with `@FamilyRegistry.register("my_family")`
-5. Add tests in `tests/test_v3/test_my_family.py`
-6. Submit PR with anti-symmetry screening audit
+5. Emit `state_counts` if the environment has a natural fixed-bin state histogram;
+   if not, leave it `None` and document why in the module docstring
+6. Clear all **6** admission criteria at **every** difficulty
+   (`AdmissionGate.certify_all_tiers`), not just `default_difficulties()[0]` — with
+   no criterion `DEGENERATE`, which a constant proxy guarantees (see §6)
+7. Add tests in `tests/test_v3/test_my_family.py`, including the reduced-power smoke
+   screen (`assert_smoke_admissible`). The smoke screen is what runs in CI; it does
+   **not** certify the ±0.10 claim — only the ledger does
+8. Submit PR with anti-symmetry screening audit
 
 **To add a new detector:**
 1. Create `src/rhob/detectors/lX_my_detector.py` (X = 0, 1, 2, 3)
@@ -364,7 +553,7 @@ Detectors exported from `rhob.detectors.__all__` for CLI discovery.
 
 ---
 
-## 11. Version History
+## 12. Version History
 
 | Version | Date | Status | Changes |
 |---------|------|--------|---------|

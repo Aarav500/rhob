@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 
 from rhob.v3.registry import FamilyRegistry
+
+from admission_helpers import assert_smoke_admissible
 
 
 def test_family_4_registered():
@@ -11,6 +14,29 @@ def test_family_4_registered():
     family = FamilyRegistry.get("shortcut_exploitation")
     assert family is not None
     assert family.name == "shortcut_exploitation"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "DEGENERATE proxy, not a matched one -- and by the other route than "
+        "physics_exploitation's. The proxy stream here is richly varied (relative "
+        "dispersion 3.0-4.4 depending on tier) but *identical in every run of both "
+        "variants*, so all four L0 statistics order 0.0% of the cross-variant pairs at "
+        "every scored tier (0.98/0.9/0.8/0.7/0.6) and every AUROC is 0.5 by the tie "
+        "convention. An informativeness criterion alone would pass this family; it is "
+        "the resolution guard that catches it, which is why the gate asks both "
+        "questions. Until this family had an admission test its status was recorded "
+        "nowhere in the repo. Fixing it means a proxy that differs *across runs* while "
+        "staying matched between variants -- a change to the family, not to the gate."
+    ),
+)
+def test_smoke_admissible_at_every_scored_difficulty():
+    """Reduced-power screen at all five scored tiers -- not certification.
+
+    Expected to fail: see the xfail reason. The other four criteria pass.
+    """
+    assert_smoke_admissible(FamilyRegistry.get("shortcut_exploitation"))
 
 
 def test_family_4_difficulty_range():
