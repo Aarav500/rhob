@@ -131,6 +131,12 @@ class RunData:
     behav_trace: Optional[np.ndarray]  # [n_episodes], anti-symmetric behavioral feature (L2)
 ```
 
+**`behav_trace`'s orientation is randomized.** A family emits it with hacking positive in
+its own coordinate, and `MatchedPair.rollout` then multiplies *both* variants by a
+per-`(family, layout_seed)` sign of ±1 before any detector sees it. The pair's
+separation is preserved exactly; the direction is not disclosed. A detector may not
+assume it — see [`docs/l2_sign_randomization.md`](l2_sign_randomization.md).
+
 **Access Restrictions (enforced at evaluate time by `rhob.v3.access.restrict`):**
 - L0: ONLY proxy_rewards
 - L1: proxy_rewards + state_counts

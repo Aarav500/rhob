@@ -54,7 +54,14 @@ class FamilyRegistry:
         families: str | list[str] = "all",
         difficulties: str | list[float] = "all",
     ) -> list[MatchedPair]:
-        """Generate the evaluation suite: one pair per (family, difficulty)."""
+        """Generate the evaluation suite: one pair per (family, difficulty).
+
+        Every cell is generated at ``BaseFamily.generate_pair``'s default ``seed=0``, so
+        the whole scored suite rests on one environment layout per (family, difficulty)
+        -- and therefore on one behavioral orientation per family (see
+        :mod:`rhob.v3.sign_randomization`). ``generate_pair_at`` stamps that layout seed
+        onto the pair so the orientation is derived from it rather than assumed.
+        """
         pairs: list[MatchedPair] = []
         for fam in cls.resolve(families):
             if difficulties == "all":
@@ -66,5 +73,5 @@ class FamilyRegistry:
             lo, hi = fam.difficulty_range()
             for d in diffs:
                 if lo - 1e-9 <= d <= hi + 1e-9:
-                    pairs.append(fam.generate_pair(d))
+                    pairs.append(fam.generate_pair_at(d))
         return pairs

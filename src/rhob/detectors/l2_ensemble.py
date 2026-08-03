@@ -32,6 +32,17 @@ class EnsembleDetector(PosthocDetector):
     def name(self) -> str:
         return self._name
 
+    def observe_cell(self, runs: list[RunData]) -> None:
+        """Forward the cell's unlabeled runs to every member that wants them.
+
+        Without this, a member that orients itself from the population (see
+        :meth:`~rhob.detectors.posthoc.PosthocDetector.observe_cell`) would silently
+        keep its default orientation inside an ensemble and contribute a
+        sign-scrambled score to the average -- worse than the same detector alone.
+        """
+        for member in self.members:
+            member.observe_cell(runs)
+
     def classify(self, run: RunData) -> float:
         """Score: mean of member scores (members are pre-fit if they need fitting)."""
         return float(sum(m.classify(run) for m in self.members) / len(self.members))

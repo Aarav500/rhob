@@ -109,7 +109,18 @@ def test_access_restriction_nulls_disallowed_fields():
 
 
 def test_benchmark_evaluate_on_mock_family_reproduces_separation():
-    res = Benchmark.evaluate(_L2Feature(), families="mock_camping", n_seeds=10, verbose=False)
+    """The evaluation path carries the pair's separation through to the cell AUROC.
+
+    Scored with the behavioral sign randomization off, because ``_L2Feature`` is a
+    deliberately naive detector that reads the raw signed feature and never orients
+    itself: it measures the pair's separation *in the family's own coordinate*, which is
+    what this test is about. See ``test_sign_randomization.py`` for the complementary
+    assertion -- that with randomization on, this same detector loses the direction.
+    """
+    res = Benchmark.evaluate(
+        _L2Feature(), families="mock_camping", n_seeds=10, verbose=False,
+        randomize_behav_sign=False,
+    )
     assert len(res.cells) >= 1
     assert res.overall_auroc > 0.9  # L2 feature separates the matched-proxy variants
 

@@ -32,7 +32,10 @@ checks, so getting them right up front saves iteration:
 4. **What is the discriminating behavioral feature?** A scalar, computable
    per-episode, that is ~0 pre-onset and takes *opposite signs* between the
    hacking and legitimate variant post-onset. This anti-symmetry is what
-   makes L2 detection possible without reading true reward.
+   makes L2 detection possible without reading true reward. Emit it with
+   hacking positive in your family's own coordinate; the benchmark randomizes
+   that orientation before detectors see it, so a detector cannot read the
+   label off the sign ([`docs/l2_sign_randomization.md`](l2_sign_randomization.md)).
 
 If you can't answer all four cleanly, the family will likely fail the
 admission gate — revisit the design before coding.

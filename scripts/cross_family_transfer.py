@@ -56,7 +56,7 @@ from sklearn.metrics import roc_auc_score
 
 import rhob.v3.families  # noqa: F401  -- importing registers every family
 from rhob.v3.access import restrict
-from rhob.v3.benchmark import Benchmark, missing_channels, required_channels
+from rhob.v3.benchmark import Benchmark, missing_channels, offer_population, required_channels
 from rhob.v3.provenance import provenance_block, sampling_block
 from rhob.v3.registry import FamilyRegistry
 
@@ -116,7 +116,7 @@ def pooled_runs(families: list[str], level: str, n_seeds: int, required: tuple[s
         fam = FamilyRegistry.get(fam_name)
         fam_a, fam_b = [], []
         for d in fam.default_difficulties():
-            pair = fam.generate_pair(d)
+            pair = fam.generate_pair_at(d)
             runs_a, runs_b, _ = pair.rollout(n_seeds)
             fam_a.extend(restrict(r, level) for r in runs_a)
             fam_b.extend(restrict(r, level) for r in runs_b)
@@ -156,13 +156,20 @@ def transfer_eval(detector, families: list[str], level: str, n_seeds: int):
         cell_aurocs = []
         family_na = False
         for d in fam.default_difficulties():
-            pair = fam.generate_pair(d)
+            pair = fam.generate_pair_at(d)
             runs_a, runs_b, _ = pair.rollout(n_seeds, seed_base=TEST_SEED_BASE)
             restricted_a = [restrict(r, level) for r in runs_a]
             restricted_b = [restrict(r, level) for r in runs_b]
             if missing_channels(restricted_a + restricted_b, required):
                 family_na = True
                 continue
+            # Same unlabeled-population hook Benchmark._evaluate_cell offers, so a
+            # detector that orients itself from the cell can do so on a held-out family
+            # too. Without it the transfer number would penalize an L2 detector for a
+            # coin flip (the family's drawn behavioral sign) rather than for failing to
+            # generalize -- and the frozen model's own training families give it no way
+            # to know this one's orientation.
+            offer_population(detector, restricted_a + restricted_b)
             labels = np.array([1] * len(restricted_a) + [0] * len(restricted_b))
             scores = []
             for r in restricted_a + restricted_b:
