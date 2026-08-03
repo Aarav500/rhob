@@ -50,6 +50,40 @@ LEADERBOARD_FILES = [
 ]
 _TRANSFER_FILE = _LEADERBOARD_DIR / "cross_family_transfer.json"
 
+# Shown above the standings while an internal audit's corrections land. Every claim
+# listed here is one the audit verified by re-running code, not a hypothetical. The
+# table below is still the committed data -- this banner exists so nobody reads it as
+# final while the corrections are in flight. DELETE this constant and its gr.HTML call
+# once the corrected leaderboard is regenerated and redeployed.
+_REVISION_NOTICE = """
+<div id="rhob-revision">
+  <div class="rhob-revision-tag">&#9888; Numbers under revision</div>
+  <div class="rhob-revision-body">
+    An internal audit found that several figures below overstate what RHOB measures. They
+    are being corrected; the table is the previously-committed data and has not yet been
+    regenerated. Specifically:
+    <ul style="margin:8px 0 4px 0; padding-left:20px;">
+      <li><b>L1 (state-visitation)</b> averaged a hard-coded <code>0.500</code> fallback for the
+          20 of 33 families that ship no state data, so the reported L1 row is mostly not a
+          measurement.</li>
+      <li><b>L3 (oracle)</b> includes a detector that is a duplicate of the best L2 detector,
+          so the apparent oracle headroom over L2 is largely an artifact.</li>
+      <li><b>RTS / L2 transfer</b> is inflated: the behavioural channel's <i>sign</i> encodes the
+          hacking/legit label by construction, so "transfer" partly measures a house convention
+          rather than generalisation.</li>
+      <li><b>L0 at chance</b> is a construction check (the proxy is matched on purpose), not a
+          discovery, and is being reported as such.</li>
+      <li>Every cell is a <b>single 5-vs-5 draw</b> with standard error &#8776;0.16 near AUROC 0.5,
+          and carries no confidence interval.</li>
+    </ul>
+    Corrections are landing on
+    <a href="https://github.com/Aarav500/rhob/commits/feature/audit-remediation" target="_blank">the audit-remediation branch</a>;
+    a full threat model and scope statement ship with them.
+  </div>
+</div>
+"""
+
+
 def _n_families_and_detectors() -> tuple[int, int]:
     """Compute the live family/detector counts from the committed leaderboard data,
     rather than hardcoding them -- a hardcoded pair silently goes stale every time a
@@ -153,6 +187,38 @@ _CSS = """
     font-size: 11.5px;
     color: var(--rhob-text-dim);
     letter-spacing: 0.02em;
+}
+
+/* ---- Under-revision notice ----
+   Shown while an internal audit's corrections are landing. The numbers below are
+   known to be affected (see _REVISION_NOTICE); this banner exists so nobody reads
+   the table as final while that work is in flight. Remove it, and the
+   _REVISION_NOTICE constant, once the corrected leaderboard is regenerated. */
+#rhob-revision {
+    border: 1px solid var(--rhob-amber-dim);
+    border-left: 3px solid var(--rhob-amber);
+    background: rgba(255, 169, 63, 0.07);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+}
+.rhob-revision-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--rhob-amber);
+    margin-bottom: 6px;
+}
+.rhob-revision-body { font-size: 14px; line-height: 1.6; color: var(--rhob-text); }
+.rhob-revision-body a { color: var(--rhob-teal); text-decoration: none; border-bottom: 1px dotted var(--rhob-teal-dim); }
+.rhob-revision-body code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--rhob-amber);
+    background: rgba(255, 169, 63, 0.10);
+    padding: 1px 5px;
+    border-radius: 4px;
 }
 .rhob-mirrors a { color: var(--rhob-text-dim); text-decoration: none; border-bottom: 1px dotted var(--rhob-border); }
 .rhob-mirrors a:hover { color: var(--rhob-amber); border-color: var(--rhob-amber); }
@@ -380,7 +446,7 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
     best_rts_str = f"{best_rts:.3f}" if best_rts is not None else "—"
 
     gr.HTML(
-        f"""
+        """
         <div id="rhob-hero">
           <div class="rhob-eyebrow"><span class="dot"></span>LIVE · REWARD-HACKING ONSET BENCHMARK</div>
           <div class="rhob-title">RHOB <span class="accent">/</span> Leaderboard</div>
@@ -398,6 +464,8 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
         </div>
         """
     )
+
+    gr.HTML(_REVISION_NOTICE)
 
     n_families, n_detectors = _n_families_and_detectors()
     with gr.Row(elem_id="rhob-stats"):
