@@ -64,7 +64,7 @@ _REVISION_NOTICE = """
     regenerated. Specifically:
     <ul style="margin:8px 0 4px 0; padding-left:20px;">
       <li><b>L1 (state-visitation)</b> averaged a hard-coded <code>0.500</code> fallback for the
-          20 of 33 families that ship no state data, so the reported L1 row is mostly not a
+          25 of 33 families that ship no state data, so the reported L1 row is mostly not a
           measurement.</li>
       <li><b>L3 (oracle)</b> includes a detector that is a duplicate of the best L2 detector,
           so the apparent oracle headroom over L2 is largely an artifact.</li>
