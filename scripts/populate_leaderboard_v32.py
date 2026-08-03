@@ -4,8 +4,15 @@
 import json
 from datetime import datetime
 from pathlib import Path
+import sys
 
-from rhob.detectors import (
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.detectors import(  # noqa: E402
     AngularMomentumDetector,
     BehavioralThresholdDetector,
     BimodalOccupancyDetector,
@@ -37,7 +44,7 @@ from rhob.detectors import (
     VarianceWindowDetector,
     VisitationEntropyTrendDetector,
 )
-from rhob.v3.benchmark import Benchmark
+from rhob.v3.benchmark import Benchmark  # noqa: E402
 
 # All 29 detectors (excluding Ensemble which needs special init)
 DETECTORS = [

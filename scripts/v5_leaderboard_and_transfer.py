@@ -28,11 +28,18 @@ Run: python scripts/v5_leaderboard_and_transfer.py [--families ...] [--detectors
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from rhob.detectors import (
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.detectors import (  # noqa: E402
     AngularMomentumDetector,
     BehavioralThresholdDetector,
     BimodalOccupancyDetector,
@@ -64,14 +71,14 @@ from rhob.detectors import (
     VarianceWindowDetector,
     VisitationEntropyTrendDetector,
 )
-from rhob.v3.benchmark import Benchmark
-from rhob.v3.leaderboard.access_summary import (
+from rhob.v3.benchmark import Benchmark  # noqa: E402
+from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     degenerate_families_from_ledger,
     render_access_summary_md,
     summarize_access_levels,
 )
-from rhob.v3.provenance import provenance_block, sampling_block
-from rhob.v3.registry import FamilyRegistry
+from rhob.v3.provenance import provenance_block, sampling_block  # noqa: E402
+from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 # All 30 detectors. 29 of them are independent measurements; PerfectFeatureOracleDetector
 # is a relabelled duplicate of BehavioralThresholdDetector (it inherits classify/detect_onset
