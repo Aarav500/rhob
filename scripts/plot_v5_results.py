@@ -19,16 +19,23 @@ Outputs (written to ``docs/figures/``):
 from __future__ import annotations
 
 import json
+import sys
 import textwrap
 from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
-from rhob.v3.leaderboard.access_summary import (
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     ACCESS_LEVELS,
     degenerate_families_from_ledger,
     render_access_summary_md,

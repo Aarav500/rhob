@@ -10,19 +10,26 @@ to ``.npz`` files under ``results/detector_evaluation/eval_data/``.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
-from rhob.agents.dqn import DQNCamper, train_camper
-from rhob.detectors.posthoc import RunData
-from rhob.environments import pair_02, pair_03, pair_04
-from rhob.environments.pair_01.config import DEFAULT as PAIR01_DEFAULT
-from rhob.environments.pair_01.env_hacking import make_hacking_env
-from rhob.environments.pair_01.env_legitimate import make_legitimate_env
-from rhob.evaluation.eval_rollout import generate_continuous_rundata, generate_gridworld_rundata
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.agents.dqn import DQNCamper, train_camper  # noqa: E402
+from rhob.detectors.posthoc import RunData  # noqa: E402
+from rhob.environments import pair_02, pair_03, pair_04  # noqa: E402
+from rhob.environments.pair_01.config import DEFAULT as PAIR01_DEFAULT  # noqa: E402
+from rhob.environments.pair_01.env_hacking import make_hacking_env  # noqa: E402
+from rhob.environments.pair_01.env_legitimate import make_legitimate_env  # noqa: E402
+from rhob.evaluation.eval_rollout import generate_continuous_rundata, generate_gridworld_rundata  # noqa: E402
 
 GRIDWORLD_PAIR_ID = "tier1/pair_01_gridworld"
 CONTINUOUS_PAIRS = [pair_04, pair_03, pair_02]  # hard -> easy, matches validate_all_continuous.py

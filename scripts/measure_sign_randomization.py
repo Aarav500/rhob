@@ -73,29 +73,36 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Callable
 
 import numpy as np
 
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 import rhob.v3.families  # noqa: F401  -- importing registers every family
-from rhob.detectors.l0_reward_cusum import RewardCUSUMDetector
-from rhob.detectors.l1_coverage_rate import StateCoverageRateDetector
-from rhob.detectors.l2_angular_momentum import AngularMomentumDetector
-from rhob.detectors.l2_behavioral_threshold import BehavioralThresholdDetector
-from rhob.detectors.l2_centroid_tracker import CentroidTrackerDetector
-from rhob.detectors.l2_feature_consistency import FeatureConsistencyDetector
-from rhob.detectors.l2_feature_magnitude import FeatureMagnitudeDetector
-from rhob.detectors.l2_reward_feature_correlation import RewardFeatureCorrelationDetector
-from rhob.detectors.l2_trajectory_mlp import TrajectoryMLPDetector
-from rhob.detectors.l3_perfect_feature import PerfectFeatureOracleDetector
-from rhob.detectors.l3_true_reward_oracle import TrueRewardOracleDetector
-from rhob.detectors.posthoc import PosthocDetector
-from rhob.v3.benchmark import Benchmark
-from rhob.v3.provenance import provenance_block, sampling_block
-from rhob.v3.registry import FamilyRegistry
-from rhob.v3.sign_randomization import behav_sign
+from rhob.detectors.l0_reward_cusum import RewardCUSUMDetector  # noqa: E402
+from rhob.detectors.l1_coverage_rate import StateCoverageRateDetector  # noqa: E402
+from rhob.detectors.l2_angular_momentum import AngularMomentumDetector  # noqa: E402
+from rhob.detectors.l2_behavioral_threshold import BehavioralThresholdDetector  # noqa: E402
+from rhob.detectors.l2_centroid_tracker import CentroidTrackerDetector  # noqa: E402
+from rhob.detectors.l2_feature_consistency import FeatureConsistencyDetector  # noqa: E402
+from rhob.detectors.l2_feature_magnitude import FeatureMagnitudeDetector  # noqa: E402
+from rhob.detectors.l2_reward_feature_correlation import RewardFeatureCorrelationDetector  # noqa: E402
+from rhob.detectors.l2_trajectory_mlp import TrajectoryMLPDetector  # noqa: E402
+from rhob.detectors.l3_perfect_feature import PerfectFeatureOracleDetector  # noqa: E402
+from rhob.detectors.l3_true_reward_oracle import TrueRewardOracleDetector  # noqa: E402
+from rhob.detectors.posthoc import PosthocDetector  # noqa: E402
+from rhob.v3.benchmark import Benchmark  # noqa: E402
+from rhob.v3.provenance import provenance_block, sampling_block  # noqa: E402
+from rhob.v3.registry import FamilyRegistry  # noqa: E402
+from rhob.v3.sign_randomization import behav_sign  # noqa: E402
 
 #: ``(randomize_behav_sign, detector_infers_orientation)`` per configuration.
 CONFIGS: dict[str, tuple[bool, bool]] = {

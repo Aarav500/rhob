@@ -48,17 +48,29 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-import rhob.v3.families  # noqa: F401  -- importing registers every family
-from rhob.v3.access import restrict
-from rhob.v3.benchmark import Benchmark, missing_channels, offer_population, required_channels
-from rhob.v3.provenance import provenance_block, sampling_block
-from rhob.v3.registry import FamilyRegistry
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import rhob.v3.families  # noqa: F401,E402  -- importing registers every family
+from rhob.v3.access import restrict  # noqa: E402
+from rhob.v3.benchmark import (  # noqa: E402
+    Benchmark,
+    missing_channels,
+    offer_population,
+    required_channels,
+)
+from rhob.v3.provenance import provenance_block, sampling_block  # noqa: E402
+from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 from rhob.detectors.l0_reward_mlp import RewardMLPDetector
 from rhob.detectors.l1_state_divergence import StateDivergenceDetector

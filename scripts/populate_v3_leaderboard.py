@@ -10,8 +10,15 @@ machine-readable ``leaderboard.json``.
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
-from rhob.detectors import (
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.detectors import(  # noqa: E402
     BehavioralThresholdDetector,
     EnsembleDetector,
     PerfectFeatureOracleDetector,
@@ -27,9 +34,9 @@ from rhob.detectors import (
     TrueRewardOracleDetector,
     VisitationEntropyTrendDetector,
 )
-from rhob.v3.benchmark import BenchmarkResults, CellResult, _evaluate_cell
-from rhob.v3.leaderboard.board import Leaderboard
-from rhob.v3.registry import FamilyRegistry
+from rhob.v3.benchmark import BenchmarkResults, CellResult, _evaluate_cell  # noqa: E402
+from rhob.v3.leaderboard.board import Leaderboard  # noqa: E402
+from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 import os
 
