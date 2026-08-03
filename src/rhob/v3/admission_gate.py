@@ -880,10 +880,20 @@ class AdmissionGate:
 
         for _layout_idx in range(self.n_layouts):
             layout_seed = int(rng.integers(0, 1_000_000))
-            pair = family.generate_pair(difficulty, seed=layout_seed)
+            pair = family.generate_pair_at(difficulty, seed=layout_seed)
             n_episodes = pair.n_episodes
             seed_base = int(rng.integers(0, 1_000_000))
-            runs_a, runs_b, onsets_a = pair.rollout(seeds_per_layout, seed_base=seed_base)
+            # Un-randomized behavioral sign, deliberately. This gate certifies the
+            # *family*: whether its two variants separate along the axis it was built
+            # on, in that family's own coordinate. Which of the two directions the
+            # benchmark later shows to detectors (rhob.v3.sign_randomization) is a
+            # property of the evaluation, not of the pair, and letting it in here would
+            # make `behavioral_separated` measure BehavioralThresholdDetector's ability
+            # to orient itself instead of the family's separability -- and would make a
+            # certificate depend on a coin flip the family has no control over.
+            runs_a, runs_b, onsets_a = pair.rollout(
+                seeds_per_layout, seed_base=seed_base, randomize_sign=False
+            )
 
             labels = [1] * len(runs_a) + [0] * len(runs_b)
             proxy_scores = [reward_det.classify(r) for r in runs_a + runs_b]

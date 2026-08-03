@@ -15,6 +15,12 @@ never scored on runs it was fit on.
 
 A cell whose family does not emit the channel the detector reads is scored **N/A**
 (NaN), not 0.5 -- see :data:`_ACCESS_LEVEL_CHANNEL` and :func:`missing_channels`.
+
+Every cell's L2 behavioral feature arrives in a per-family orientation the benchmark
+draws and withholds (:mod:`rhob.v3.sign_randomization`), so a detector cannot read the
+label off ``behav_trace``'s sign. What a detector *is* offered instead is the cell's
+runs, pooled and unlabeled, through :func:`offer_population`; recovering the direction
+from that is the detector's job, not the harness's.
 """
 
 from __future__ import annotations
@@ -197,6 +203,38 @@ def _stratified_folds(n_a: int, n_b: int, k: int, seed: int = 0) -> list[tuple[n
     return splits
 
 
+#: Seed for the permutation that hides the label-implied ordering of a cell's runs
+#: before they are shown to :meth:`~rhob.detectors.posthoc.PosthocDetector.observe_cell`.
+#:
+#: The cell is assembled as ``[all hacking runs] + [all legitimate runs]``, so passing
+#: it unshuffled would leak the labels through the index -- the population hook is meant
+#: to be unlabeled, and "the first half are the positives" is a label. Fixed rather than
+#: drawn, because a detector that reorders or re-weights by position must produce the
+#: same leaderboard cell on every run (``REPRODUCIBILITY.md``).
+#:
+#: This removes the *incidental* leak, not a determined one: the permutation is a
+#: deterministic function of a constant in this file, so a detector could reconstruct it
+#: the same way it could import ``true_rewards``. That is the standing rule, not a hole
+#: this constant can close -- reading the label by any route disqualifies a detector.
+_POPULATION_SHUFFLE_SEED = 20_260_803
+
+
+def offer_population(detector: PosthocDetector, runs: list[RunData]) -> None:
+    """Show ``detector`` the cell's runs, unlabeled and in a label-free order.
+
+    Public because any evaluation path that scores a cell outside
+    :func:`_evaluate_cell` must offer the same thing -- ``scripts/cross_family_transfer.py``
+    scores frozen models on held-out families by hand, and a detector denied the
+    population there would be penalized for the family's drawn sign rather than for
+    failing to generalize. A detector with no ``observe_cell`` is left untouched.
+    """
+    observe = getattr(detector, "observe_cell", None)
+    if observe is None:
+        return
+    order = np.random.default_rng(_POPULATION_SHUFFLE_SEED).permutation(len(runs))
+    observe([runs[i] for i in order])
+
+
 def _onset_mae(preds: list[int], onsets_true: list[int], n_episodes: int) -> float:
     errors = []
     for pred, true_onset in zip(preds, onsets_true):
@@ -240,6 +278,13 @@ def _evaluate_cell(
             f"detector requires; not scored"
         )
         return float("nan"), float("nan"), reason
+
+    # Unlabeled population, before any scoring. This is what makes a detector able to
+    # orient itself under sign randomization without the harness handing it a direction
+    # (see PosthocDetector.observe_cell). It runs before the deepcopy below, so every
+    # cross-validation fold inherits the same cell-level view -- which is sound because
+    # nothing in it is a label.
+    offer_population(detector, all_runs)
 
     if not hasattr(detector, "fit"):
         scores = [detector.classify(r) for r in all_runs]
@@ -288,7 +333,14 @@ class Benchmark:
     # leaderboard run balloon from hours to an estimated multiple days. restrict()
     # (called downstream in _evaluate_cell) returns a copy rather than mutating its
     # input, so sharing these RunData objects across detectors is safe.
-    _rollout_cache: dict[tuple[str, float, int], tuple[list[RunData], list[RunData], list[int]]] = {}
+    #
+    # ``randomize_behav_sign`` is part of the key because it changes the cached arrays
+    # themselves, not just how they are read: a cell rolled out un-randomized and then
+    # served to a randomized evaluation would silently reinstate the sign convention
+    # this benchmark now withholds.
+    _rollout_cache: dict[
+        tuple[str, float, int, bool], tuple[list[RunData], list[RunData], list[int]]
+    ] = {}
 
     @staticmethod
     def evaluate(
@@ -297,6 +349,7 @@ class Benchmark:
         difficulties: str | list[float] = "all",
         n_seeds: int = 20,
         verbose: bool = True,
+        randomize_behav_sign: bool = True,
     ) -> BenchmarkResults:
         """Evaluate a detector across the benchmark suite.
 
@@ -306,6 +359,16 @@ class Benchmark:
             difficulties: ``"all"`` or a target-L2 / list of target-L2 values.
             n_seeds: Runs per variant per pair.
             verbose: Print per-cell progress.
+            randomize_behav_sign: Randomize the orientation of ``behav_trace`` per
+                ``(family, layout_seed)`` before the detector sees it, so an L2
+                detector cannot read the label off the feature's sign
+                (:mod:`rhob.v3.sign_randomization`). Default ``True``, and any L2 number
+                reported as a RHOB result must be measured with it on. Set ``False``
+                only to reproduce the pre-audit convention for a before/after
+                comparison -- an L2 result obtained with it off is a measurement of
+                ``CONTRIBUTING.md``, not of the detector. (The leaderboard artifacts
+                committed before the 2026-08 audit predate this flag and were produced
+                under the old convention; they have not been regenerated.)
         """
         level = detector.access_level
         name = getattr(detector, "name", type(detector).__name__)
@@ -313,10 +376,10 @@ class Benchmark:
 
         pairs = FamilyRegistry.generate_suite(families, difficulties)
         for pair in pairs:
-            cache_key = (pair.family, pair.difficulty, n_seeds)
+            cache_key = (pair.family, pair.difficulty, n_seeds, randomize_behav_sign)
             cached = Benchmark._rollout_cache.get(cache_key)
             if cached is None:
-                cached = pair.rollout(n_seeds)
+                cached = pair.rollout(n_seeds, randomize_sign=randomize_behav_sign)
                 Benchmark._rollout_cache[cache_key] = cached
             runs_a, runs_b, onsets_a = cached
             auroc, mae, na_reason = _evaluate_cell(
