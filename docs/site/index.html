@@ -42,6 +42,11 @@
   .links a { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem;
     text-decoration: none; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+  .note { background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 6px; padding: 0.9rem 1.1rem;
+    margin: 1.2rem 0; font-size: 0.95rem; }
+  .note p { margin: 0.4rem 0; }
+  .caveat { color: var(--muted); font-size: 0.9rem; }
 </style>
 </head>
 <body>
@@ -51,44 +56,134 @@
 <p class="tagline">Reward Hacking Onset Benchmark — can your detector tell hacking from legitimate improvement when the proxy reward looks identical?</p>
 
 <div class="badges">
-  <span class="badge">v1.4</span>
-  <span class="badge">14 families</span>
-  <span class="badge">35 detectors</span>
+  <span class="badge">v1.8</span>
+  <span class="badge">33 families</span>
+  <span class="badge">30 detectors scored</span>
   <span class="badge">MIT license</span>
 </div>
 
 <div class="links">
   <a href="https://github.com/Aarav500/rhob">GitHub</a>
   <a href="../../README.md">Docs</a>
+  <a href="../THREAT_MODEL.md">Threat Model</a>
   <a href="../TUTORIAL_DETECTOR.md">Detector Tutorial</a>
   <a href="../../notebooks/rhob_quickstart.ipynb">Colab Notebook</a>
 </div>
 
+<div class="note">
+  <p><strong>Read the <a href="../THREAT_MODEL.md">threat model</a> before citing any number on this
+  page.</strong> Hacking policies in RHOB are <em>scripted, not emergent</em>; the L0-at-chance result
+  is a <em>negative control, not a finding</em>; and every leaderboard cell is a single unreplicated
+  5-vs-5 draw whose standard error near AUROC 0.5 is roughly 0.16.</p>
+  <p>A 2026-08 audit corrected several figures previously published here — including an L2 held-out
+  transfer number of 0.95 and an L3 &ldquo;oracle ceiling&rdquo; of 0.87 that were both wrong — and
+  then found that the fix to the admission gate had reproduced the original error one level down,
+  certifying 15 cells whose proxy criteria were never actually measurable. The admitted-cell count
+  fell as a result. See the
+  <a href="https://github.com/Aarav500/rhob/blob/main/CHANGELOG.md">changelog</a>.</p>
+</div>
+
 <h2>The core idea</h2>
 <p>Real reward hacking means: <em>the proxy reward rises while the true objective collapses.</em>
-RHOB operationalizes this with matched-proxy pairs — a hacking and a legitimate variant that produce
-<strong>identical proxy-reward distributions</strong> but diverge sharply on ground-truth outcome. Any
-detector that discriminates between them must read information beyond the proxy.</p>
+RHOB operationalizes this with matched-proxy pairs — a hacking and a legitimate variant whose
+<strong>proxy reward is statistically indistinguishable</strong> while their ground-truth outcomes
+diverge sharply. Any detector that discriminates between them must read information beyond the proxy.</p>
+
+<p>The reusable contribution is the <strong>admission gate</strong>: six automated criteria that
+<em>certify</em> the construction rather than assume it. <code>proxy_matched</code> is a TOST
+equivalence test (margin ±0.10 on AUROC, two one-sided tests at α=0.05, cluster-bootstrapped over 12
+independent layouts) — it demands evidence <em>for</em> a matched proxy instead of merely failing to
+find evidence against one. That costs 576 rollouts per (family, difficulty) cell, up from 96.</p>
+
+<p>Each criterion returns one of <strong>three</strong> outcomes, not two: <strong>PASS</strong>
+(measured, and matched), <strong>FAIL</strong> (measured, and leaking), or
+<strong>DEGENERATE</strong> (<em>not measurable</em> — the proxy carries no information for the
+statistic to read). The third case is why the admitted count on this page went down rather than up:
+an AUROC over a <em>constant</em> proxy is 0.5 by the tie convention rather than by matching, the
+equivalence interval collapses to a point, and the test then certifies against any margin at all.
+That is the same "a check nobody can fail" defect the equivalence test was introduced to remove,
+recurring inside the fix for it. The gate now checks both that the statistic <em>could</em> have come
+out differently and that the proxy carries signal above numerical dust (relative SD above 1e-4 —
+a constant plus jitter in its eighth significant digit does not count), and reports such cells as
+unmeasured instead of passing. Six of the 33 registered families are in that state, covering 30 of
+the 123 (family, difficulty) cells &mdash; and the two questions catch three each, so neither is
+redundant. <code>physics_exploitation</code> is the case that proves it: a relative SD of 3.3e-4,
+comfortably <em>above</em> the 1e-4 floor, and an L0 statistic that strictly orders 0.35% of
+cross-variant pairs. (Earlier versions of this page called the relative-SD distribution "bimodal with
+nothing between 1.6e-9 and 5.1e-2". That was false &mdash; <code>physics_exploitation</code> sits
+inside that interval, as does <code>goal_misgeneralization</code> at 9.9e-3&ndash;1.3e-2. The real
+structure is a single enormous gap between three families constant to one ULP and everything else,
+with the floor inside it.)</p>
 
 <h2>Access-level hierarchy</h2>
+<p>From <code>leaderboard/v5_leaderboard.json</code>: L1&ndash;L3 over 33 families and 123 cells per
+detector, <strong>L0 over 27 families</strong> with the ledger's six DEGENERATE families held out
+(see the negative-control section below).</p>
 <table>
-<tr><th>Level</th><th>Access</th><th>Typical AUROC</th></tr>
-<tr><td>L0</td><td>Proxy reward only</td><td>~0.50 (chance — matched proxy is an information barrier)</td></tr>
-<tr><td>L1</td><td>+ state-visitation histogram</td><td>~0.53 (raw histograms fail to transfer)</td></tr>
-<tr><td>L2</td><td>+ behavioral trace</td><td>~0.69 in-distribution, <strong>0.95 on held-out families</strong></td></tr>
-<tr><td>L3</td><td>Oracle (ground truth)</td><td>~0.87 (ceiling)</td></tr>
+<tr><th>Level</th><th>Access</th><th>Detectors</th><th>Mean AUROC</th><th>Best AUROC</th></tr>
+<tr><td>L0</td><td>Proxy reward only</td><td>13</td><td>0.4866</td><td>0.5311</td></tr>
+<tr><td>L1</td><td>+ state-visitation histogram</td><td>8</td><td>0.5200</td><td>0.6210</td></tr>
+<tr><td>L2</td><td>+ behavioral trace</td><td>7</td><td>0.7213</td><td>0.9750</td></tr>
+<tr><td>L3</td><td>Oracle (ground truth)</td><td>1</td><td>0.9830</td><td>0.9830</td></tr>
 </table>
+<p class="caveat">Read the max alongside the mean: a level's mean is dragged down by however many weak
+detectors happen to have been written for it, so a mean-only ladder measures the suite's composition
+as much as the benchmark's structure. On maxima the ladder is 0.531 → 0.621 → 0.975 → 0.983 —
+essentially all of the climb happens between L1 and L2, and <strong>nothing happens between L2 and
+L3</strong> (a gap of 0.0080 AUROC). L3 contains exactly one genuine detector; the former second
+&ldquo;oracle&rdquo; was a relabelled copy of the L2 baseline and is excluded from all aggregates.</p>
+<p class="caveat"><strong>L1 caveat:</strong> 25 of 33 families emit no state-visitation channel, so
+L1 detectors return a constant 0.5 fallback on them. Over only the 8 families that do emit it (35 of
+123 cells), the L1 suite mean is 0.570 and the best detector — State Divergence — reaches
+<strong>0.927</strong>. Quote L1 figures with their denominator; they are not comparable to the
+33-family L0 and L2 denominators.</p>
 
-<h2>Cross-family transfer (train on 6 families, test on 3 held-out)</h2>
+<h2>L0 at chance is a negative control</h2>
+<p>L0 detectors sit at chance <em>by construction</em> — the families are built so the proxy carries no
+signal, and where the gate can measure it, the gate certifies that they succeeded. This is a
+manipulation check confirming the matched-proxy construction, <strong>not</strong> a discovery that
+reward-only monitoring fails. The useful direction is the failure one: L0 <em>above</em> chance means
+the construction leaked and every other number on that family is suspect.</p>
+<p>So the check is published rather than asserted. The
+<a href="https://github.com/Aarav500/rhob/blob/main/admission/ADMISSION_LEDGER.md">admission ledger</a>
+records every criterion's outcome and its measurements for every cell in scope, failures and
+unmeasurable cells alike. Of the 50 cells currently in scope: <strong>15 ADMITTED, 30 DEGENERATE,
+5 NOT ADMITTED</strong>.</p>
+<p class="caveat">Read all three numbers together. The matched-proxy property is established on 15
+cells, refuted on 5, and <em>unavailable</em> on 30 — every difficulty tier of six families whose
+proxy no reward-only detector can read: <code>distributional_shift</code>,
+<code>orbit_chirality</code> and <code>rlhf_reward_model_overopt</code>, whose proxies are constant to
+within numerical dust, plus <code>monitored_sandbagging</code>, <code>shortcut_exploitation</code> and
+<code>physics_exploitation</code>, whose proxies vary but come out identical in every run. Degenerate
+cells are excluded from the L0-at-chance control: on a proxy like that, reward-only detectors sit at
+chance for a reason that has nothing to do with matching. With all six held out the L0 suite mean is
+0.4866 over 27 families, against 0.4895 with them in (both family-weighted; the 0.4898 published in
+earlier releases is the same statistic un-excluded and weighted by cell — of the 0.0032 difference the
+exclusion accounts for 0.0029 and the re-weighting for 0.0003). The exclusion applies to L0 and only
+L0, since the other rungs read channels these families measure perfectly well. They remain valid
+hacking families — they separate at L2 and their true rewards diverge — and rejoin the control when
+their proxies are made informative-but-matched. <strong>Scope limit:</strong> the ledger covers 10 of
+33 families; the other 23 are uncertified, which is not the same as certified-and-passing. What runs
+in CI per family is a reduced-power smoke screen at margin ±0.256, not certification at ±0.10 — and 12
+of the 33 families do not run even that (most have hand-written per-family tests instead, which check
+whatever their author thought to check rather than the gate's six criteria). No test anywhere in
+<code>tests/</code> calls <code>AdmissionGate.certify_all_tiers</code> on a registered family —
+<code>scripts/admission_ledger.py</code> is its only caller.</p>
+
+<h2>Cross-family transfer (train on 6 families, test on 8 held-out)</h2>
 <div class="cards">
-  <div class="card"><div class="num">0.498</div><div class="label">Reward MLP (L0) transfer AUROC</div></div>
+  <div class="card"><div class="num">0.478</div><div class="label">Reward MLP (L0) transfer AUROC</div></div>
   <div class="card"><div class="num">0.500</div><div class="label">State Divergence (L1) transfer AUROC</div></div>
-  <div class="card"><div class="num">0.950</div><div class="label">Trajectory MLP (L2) transfer AUROC</div></div>
-  <div class="card"><div class="num">1.000</div><div class="label">L2 Ensemble transfer AUROC</div></div>
+  <div class="card"><div class="num">0.931</div><div class="label">Trajectory MLP (L2) transfer AUROC</div></div>
+  <div class="card"><div class="num">0.994</div><div class="label">L2 Ensemble transfer AUROC</div></div>
 </div>
-<p><strong>Key finding:</strong> transfer depends on <em>representation abstraction</em>, not access level.
-Raw state histograms (L1) are dimensioned per-family and structurally incompatible across mechanisms.
-Compact behavioral features (L2) transfer because they're mechanism-agnostic by construction.</p>
+<p>Compact behavioral features (L2) carry across held-out families, while raw state histograms (L1) are
+dimensioned per-family and structurally incompatible across mechanisms.</p>
+<p class="caveat"><strong>What this does not show.</strong> All 14 train and test families were written
+by the same authors under the same construction recipe, sharing one behavioral-trace convention, so
+this measures transfer <em>within a recipe</em> — not generalization to mechanisms nobody designed. The
+reported spread on the neural detectors is across 5 weight initializations only; the environment draw
+is unreplicated. L0/L1 transfer at chance is the negative control again, not a finding.</p>
 
 <h2>Quick start</h2>
 <pre><code>pip install rhob  # or: git clone + pip install -e ".[dev]"
@@ -102,13 +197,18 @@ print(results.overall_auroc)
 </code></pre>
 
 <h2>External baselines</h2>
-<p>RHOB compares detection <em>approaches</em>, not just in-house features. Included classical
-baselines: Page-Hinkley change-point test, Isolation Forest anomaly detection, autoregressive
-sequence-model residuals, PCA reconstruction error, and Bayesian Online Changepoint Detection.</p>
+<p>RHOB ships classical, citable methods from the wider change-point / anomaly-detection literature so
+that detection <em>approaches</em> can be compared, not just in-house features: Page-Hinkley change-point
+test, Isolation Forest anomaly detection, autoregressive sequence-model residuals, PCA reconstruction
+error, and Bayesian Online Changepoint Detection.</p>
+<p class="caveat">These five are implemented but are <strong>not</strong> present in the committed
+leaderboard artifact, and no scores for them are published yet.</p>
 
 <footer>
   RHOB is MIT-licensed. See <a href="https://github.com/Aarav500/rhob">the repository</a> for the full
-  paper, reproducibility guide, and contribution process.
+  paper, reproducibility guide, and contribution process. Figures on this page are regenerated from
+  <code>leaderboard/v5_leaderboard.json</code> and <code>leaderboard/cross_family_transfer.json</code>;
+  where those artifacts and this page disagree, the artifacts are authoritative.
 </footer>
 
 </div>

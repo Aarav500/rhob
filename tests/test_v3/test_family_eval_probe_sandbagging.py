@@ -7,7 +7,7 @@ import numpy as np
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_admitted
+from admission_helpers import assert_smoke_admissible
 
 
 def test_registered():
@@ -16,10 +16,13 @@ def test_registered():
     assert fam.mechanism == HackingMechanism.DECEPTIVE_ALIGNMENT
 
 
-def test_admitted_across_difficulty_range():
-    fam = FamilyRegistry.get("eval_probe_sandbagging")
-    for d in fam.default_difficulties():
-        assert_admitted(fam, difficulty=d, n_seeds_per_variant=24)
+def test_smoke_admissible_at_every_scored_difficulty():
+    """Reduced-power screen at all five scored tiers -- not certification.
+
+    See ``admission_helpers``: this is a TOST at the smoke margin (+/-0.256), not the
+    shipped +/-0.10. The +/-0.10 claim for this family is the admission ledger's.
+    """
+    assert_smoke_admissible(FamilyRegistry.get("eval_probe_sandbagging"))
 
 
 def test_onset_from_start():

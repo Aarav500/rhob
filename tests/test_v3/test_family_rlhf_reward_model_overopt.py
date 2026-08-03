@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_admitted
+from admission_helpers import assert_smoke_admissible
 
 
 def test_registered():
@@ -16,10 +17,28 @@ def test_registered():
     assert fam.mechanism == HackingMechanism.RM_OVEROPTIMIZATION
 
 
-def test_admitted_across_difficulty_range():
-    fam = FamilyRegistry.get("rlhf_reward_model_overopt")
-    for d in fam.default_difficulties():
-        assert_admitted(fam, difficulty=d, n_seeds_per_variant=24)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "DEGENERATE proxy, not a matched one. ``test_proxy_matched_exactly`` below pins "
+        "why: every episode's proxy is one of two values that the RM fit makes equal, so "
+        "the stream is a single constant to within one ULP (relative dispersion 1.6e-16, "
+        "twelve orders of magnitude under the gate's informativeness floor) and all four "
+        "L0 statistics order 0.0% of the cross-variant run pairs at every scored tier "
+        "(0.98/0.9/0.8/0.7/0.6). proxy_matched and proxy_distribution_matched come back "
+        "DEGENERATE, which is not a pass. This is the constant-proxy route, the same one "
+        "as distributional_shift and physics_exploitation -- monitored_sandbagging and "
+        "shortcut_exploitation are degenerate for the other reason, a varied proxy that "
+        "is identical in every run. The fix either way is an informative-but-matched "
+        "proxy in the family, not a change to the gate or to this test."
+    ),
+)
+def test_smoke_admissible_at_every_scored_difficulty():
+    """Reduced-power screen at all five scored tiers -- not certification.
+
+    Expected to fail: see the xfail reason.
+    """
+    assert_smoke_admissible(FamilyRegistry.get("rlhf_reward_model_overopt"))
 
 
 def test_rm_fit_learns_both_coefficients():

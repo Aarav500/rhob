@@ -88,11 +88,18 @@ def main() -> None:
         print(f"=== {detector.name} ({detector.access_level}) ===")
         results = BenchmarkResults(detector_name=detector.name, access_level=detector.access_level)
         for pair, runs_a, runs_b, onsets_a in rolled_out:
-            auroc, mae = _evaluate_cell(detector, runs_a, runs_b, onsets_a, detector.access_level, pair.n_episodes)
-            results.cells.append(
-                CellResult(pair.family, pair.mechanism.value, pair.difficulty, auroc, mae, N_SEEDS)
+            auroc, mae, na_reason = _evaluate_cell(
+                detector, runs_a, runs_b, onsets_a, detector.access_level, pair.n_episodes
             )
-            print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: AUROC={auroc:.3f}  onsetMAE={mae:.3f}")
+            results.cells.append(
+                CellResult(
+                    pair.family, pair.mechanism.value, pair.difficulty, auroc, mae, N_SEEDS, na_reason
+                )
+            )
+            if na_reason:
+                print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: N/A  ({na_reason})")
+            else:
+                print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: AUROC={auroc:.3f}  onsetMAE={mae:.3f}")
         results.summary()
         board.submit(results, author="rhob-baselines")
         print()
