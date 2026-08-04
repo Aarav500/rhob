@@ -246,9 +246,11 @@
       "n_replicates": 20,
       "min": 0.35059259259259257,
       "max": 0.4263703703703703,
+      "statistic": "max",
       "excludes_zero": true,
       "replicates_with_hi_above_lo": 20,
-      "n_paired": 20
+      "n_paired": 20,
+      "denominators_equal": false
     },
     "L2_minus_L1_max": {
       "mean": 0.001400000000000029,
@@ -258,9 +260,11 @@
       "n_replicates": 20,
       "min": -0.02499999999999991,
       "max": 0.020000000000000018,
+      "statistic": "max",
       "excludes_zero": false,
       "replicates_with_hi_above_lo": 13,
-      "n_paired": 20
+      "n_paired": 20,
+      "denominators_equal": false
     },
     "L3_minus_L2_max": {
       "mean": 0.03165,
@@ -270,10 +274,60 @@
       "n_replicates": 20,
       "min": 0.009000000000000008,
       "max": 0.05899999999999994,
+      "statistic": "max",
       "excludes_zero": true,
       "replicates_with_hi_above_lo": 20,
-      "n_paired": 20
+      "n_paired": 20,
+      "denominators_equal": false
+    },
+    "L1_minus_L0_mean": {
+      "mean": 0.06230320512820513,
+      "sd": 0.02441362430311974,
+      "ci_lo": 0.05149982060185187,
+      "ci_hi": 0.07257636306980055,
+      "n_replicates": 20,
+      "min": 0.009692663817663816,
+      "max": 0.09525320512820512,
+      "statistic": "mean",
+      "excludes_zero": true,
+      "replicates_with_hi_above_lo": 20,
+      "n_paired": 20,
+      "denominators_equal": false
+    },
+    "L2_minus_L1_mean": {
+      "mean": 0.015039285714285724,
+      "sd": 0.024221795445367116,
+      "ci_lo": 0.004974955357142892,
+      "ci_hi": 0.025481696428571433,
+      "n_replicates": 20,
+      "min": -0.028142857142857136,
+      "max": 0.06626785714285716,
+      "statistic": "mean",
+      "excludes_zero": true,
+      "replicates_with_hi_above_lo": 13,
+      "n_paired": 20,
+      "denominators_equal": false
+    },
+    "L3_minus_L2_mean": {
+      "mean": 0.4006857142857143,
+      "sd": 0.013624124051701617,
+      "ci_lo": 0.3948785714285714,
+      "ci_hi": 0.40656446428571424,
+      "n_replicates": 20,
+      "min": 0.379142857142857,
+      "max": 0.4234285714285714,
+      "statistic": "mean",
+      "excludes_zero": true,
+      "replicates_with_hi_above_lo": 20,
+      "n_paired": 20,
+      "denominators_equal": false
     }
+  },
+  "statistic_disagreement": {
+    "rungs_where_max_and_mean_disagree_on_separation": [
+      "L2_minus_L1"
+    ],
+    "note": "A rung listed here separates under one statistic and not the other. Reporting either alone would present a statistic-dependent result as a settled one. Quote both."
   },
   "detectors": {
     "Angular Momentum": {

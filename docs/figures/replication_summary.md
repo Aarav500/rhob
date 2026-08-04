@@ -13,11 +13,21 @@
 
 ## Do adjacent rungs separate?
 
-| Comparison | difference | 95% CI | excludes 0? | draws favouring higher |
-|---|---|---|---|---|
-| L1 minus L0 max | +0.394 | [0.384, 0.403] | yes | 20/20 |
-| L2 minus L1 max | +0.001 | [-0.004, 0.006] | NO | 13/20 |
-| L3 minus L2 max | +0.032 | [0.027, 0.037] | yes | 20/20 |
+Paired within each draw, under BOTH statistics. Where the two disagree, the rung's
+status depends on the statistic and neither answer may be quoted alone. Pairing does
+not equalise denominators: L1 aggregates 35 cells over 8 families, L0 93 over 27,
+L2/L3 123 over 33.
+
+| Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |
+|---|---|---|---|---|---|
+| L1 minus L0 | max | +0.3939 | [+0.3843, +0.4035] | yes | 20/20 |
+| L2 minus L1 | max | +0.0014 | [-0.0039, +0.0063] | **NO** | 13/20 |
+| L3 minus L2 | max | +0.0316 | [+0.0268, +0.0367] | yes | 20/20 |
+| L1 minus L0 | mean | +0.0623 | [+0.0515, +0.0726] | yes | 20/20 |
+| L2 minus L1 | mean | +0.0150 | [+0.0050, +0.0255] | yes | 13/20 |
+| L3 minus L2 | mean | +0.4007 | [+0.3949, +0.4066] | yes | 20/20 |
+
+**Statistic-dependent: L2_minus_L1.** Separates under one statistic and not the other.
 
 ## Zero-variance detectors
 
