@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import numpy as np
 from sklearn.metrics import roc_auc_score
@@ -320,26 +320,52 @@ def _evaluate_cell(
     return auroc, _onset_mae(onset_preds, onsets_a, n_episodes), None
 
 
+class RolloutCacheKey(NamedTuple):
+    """Everything that changes a cell's rollout arrays, named rather than positional.
+
+    A plain tuple invites two mistakes that this type makes impossible. Adding a field
+    silently breaks any reader indexing from the end -- when ``layout_seed`` and
+    ``seed_base`` were appended in 2026-08, a test asserting ``key[-1]`` was the
+    randomize flag started reading ``seed_base`` and comparing ``0 == False``, which is
+    true in Python and would have passed had the values lined up differently. And a
+    field omitted here is a field the cache ignores, which is how a replication study
+    ends up serving one draw to every replicate.
+    """
+
+    family: str
+    difficulty: float
+    n_seeds: int
+    randomize_behav_sign: bool
+    layout_seed: int
+    seed_base: int
+
+
 class Benchmark:
     """Main evaluation entry point."""
 
-    # Rollout data depends only on (family, difficulty, n_seeds) -- each family's
-    # generate_pair(difficulty) is called with the same default seed=0, and
-    # MatchedPair.rollout(n_seeds) always draws the same deterministic seed sequence
-    # from it, so it is 100% reproducible across calls regardless of which detector
-    # is being scored. Without this cache, evaluating N detectors over the same
-    # families/difficulties re-simulates every environment from scratch N times --
-    # for PettingZoo's real multi-agent physics rollouts this made a 30-detector
-    # leaderboard run balloon from hours to an estimated multiple days. restrict()
-    # (called downstream in _evaluate_cell) returns a copy rather than mutating its
-    # input, so sharing these RunData objects across detectors is safe.
+    # Rollout data is a deterministic function of the full key below, so evaluating N
+    # detectors over the same cells re-uses one simulation instead of repeating it N
+    # times -- for PettingZoo's real multi-agent physics rollouts that difference made a
+    # 30-detector leaderboard run go from an estimated multiple days to hours.
+    # restrict() (called downstream in _evaluate_cell) returns a copy rather than
+    # mutating its input, so sharing these RunData objects across detectors is safe.
     #
-    # ``randomize_behav_sign`` is part of the key because it changes the cached arrays
-    # themselves, not just how they are read: a cell rolled out un-randomized and then
-    # served to a randomized evaluation would silently reinstate the sign convention
-    # this benchmark now withholds.
+    # EVERY input that changes the cached arrays must appear in the key, or the cache
+    # silently serves one draw's data to a caller that asked for another:
+    #
+    #   randomize_behav_sign -- a cell rolled out un-randomized and then served to a
+    #     randomized evaluation would reinstate the sign convention this benchmark now
+    #     withholds.
+    #   layout_seed, seed_base -- these are what make a *replicate* a replicate. They
+    #     were absent until 2026-08, when the leaderboard was still a single draw and
+    #     both were pinned at 0, so nothing could observe the omission. The moment
+    #     replication was attempted it became load-bearing: R replicates run in one
+    #     process would all hit the layout-0/seed-0 entry, return bit-identical AUROCs,
+    #     and yield a zero-width confidence interval that looks like a rigorous result
+    #     and measures nothing. tests/test_v3/test_replication_draws_differ.py fails if
+    #     either field is dropped from this key.
     _rollout_cache: dict[
-        tuple[str, float, int, bool], tuple[list[RunData], list[RunData], list[int]]
+        "RolloutCacheKey", tuple[list[RunData], list[RunData], list[int]]
     ] = {}
 
     @staticmethod
@@ -350,6 +376,8 @@ class Benchmark:
         n_seeds: int = 20,
         verbose: bool = True,
         randomize_behav_sign: bool = True,
+        layout_seed: int = 0,
+        seed_base: int = 0,
     ) -> BenchmarkResults:
         """Evaluate a detector across the benchmark suite.
 
@@ -369,17 +397,35 @@ class Benchmark:
                 ``CONTRIBUTING.md``, not of the detector. (The leaderboard artifacts
                 committed before the 2026-08 audit predate this flag and were produced
                 under the old convention; they have not been regenerated.)
+            layout_seed: Environment layout every cell is generated at. Also selects
+                each family's behavioral orientation under sign randomization.
+            seed_base: Offset of the per-run seed sequence drawn from each pair.
+
+        ``(layout_seed, seed_base)`` together identify one *draw* of the benchmark. The
+        defaults ``(0, 0)`` reproduce the historical single-draw suite; a published
+        AUROC from a single draw carries that draw's sampling error (SE 0.19 at chance
+        for ``n_seeds=5``) and should not be reported without an interval. Vary the pair
+        to obtain independent replicates -- see ``scripts/replicate_leaderboard.py``.
         """
         level = detector.access_level
         name = getattr(detector, "name", type(detector).__name__)
         results = BenchmarkResults(detector_name=name, access_level=level)
 
-        pairs = FamilyRegistry.generate_suite(families, difficulties)
+        pairs = FamilyRegistry.generate_suite(families, difficulties, layout_seed=layout_seed)
         for pair in pairs:
-            cache_key = (pair.family, pair.difficulty, n_seeds, randomize_behav_sign)
+            cache_key = RolloutCacheKey(
+                family=pair.family,
+                difficulty=pair.difficulty,
+                n_seeds=n_seeds,
+                randomize_behav_sign=randomize_behav_sign,
+                layout_seed=layout_seed,
+                seed_base=seed_base,
+            )
             cached = Benchmark._rollout_cache.get(cache_key)
             if cached is None:
-                cached = pair.rollout(n_seeds, randomize_sign=randomize_behav_sign)
+                cached = pair.rollout(
+                    n_seeds, seed_base=seed_base, randomize_sign=randomize_behav_sign
+                )
                 Benchmark._rollout_cache[cache_key] = cached
             runs_a, runs_b, onsets_a = cached
             auroc, mae, na_reason = _evaluate_cell(

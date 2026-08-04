@@ -306,9 +306,13 @@ def test_benchmark_caches_randomized_and_unrandomized_rollouts_separately():
             n_seeds=10, verbose=False, randomize_behav_sign=randomize,
         )
     keys = [k for k in Benchmark._rollout_cache if k[0] == MOCK_FAMILY]
-    assert sorted(k[-1] for k in keys) == [False, True]
-    plain = Benchmark._rollout_cache[(MOCK_FAMILY, 0.9, 10, False)][0][0]
-    randomized = Benchmark._rollout_cache[(MOCK_FAMILY, 0.9, 10, True)][0][0]
+    # Named access, not positional: this assertion previously read k[-1] and broke
+    # silently when the key gained replication seeds (0 == False in Python).
+    assert sorted(k.randomize_behav_sign for k in keys) == [False, True]
+    by_flag = {k.randomize_behav_sign: v for k, v in Benchmark._rollout_cache.items()
+               if k.family == MOCK_FAMILY}
+    plain = by_flag[False][0][0]
+    randomized = by_flag[True][0][0]
     assert np.allclose(randomized.behav_trace, -plain.behav_trace)
 
 
