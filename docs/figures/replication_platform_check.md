@@ -5,15 +5,37 @@ pinned `requirements-lock.txt`, once on Amazon Linux where that lock does not in
 (it was generated on win32) so pip resolved the declared version *ranges* instead.
 Same code, same seeds, same draw -- only the library build differs.
 
-**23 of 30 detectors agree to within rounding (<=0.001). 7 differ, maximum |difference| 0.0140.**
+**23 of 30 detectors agree to within rounding (<=0.001). 7 differ, maximum |difference| 0.0140** (Behavioral Threshold and its registered duplicate
+Perfect Feature Oracle, which tie at exactly 0.500 -> 0.514).
 
-This is small but not zero, and it means RHOB's published AUROCs are reproducible to
-about +-0.015 across dependency stacks, not bit-identical. For comparison, the
-draw-to-draw standard deviation of a single detector reaches 0.071 and its range across
-20 draws reaches 0.24 -- so platform variation is roughly an order of magnitude smaller
-than the sampling variation the replication study exists to quantify, and does not
-affect any conclusion drawn from the intervals. It does mean a reader reproducing a
-single number should expect the third decimal to move.
+## How large is that, honestly
+
+The comparison must be **like for like, per detector**. Behavioral Threshold moves 0.0140
+across platforms and has a draw-to-draw standard deviation of 0.0686
+across the 20 replicates, so for that detector platform variation is about **4.9x**
+smaller than sampling variation -- not an order of magnitude.
+
+An earlier version of this file claimed "roughly an order of magnitude". It reached that
+figure by setting the 0.0140 from Behavioral Threshold against a 0.0713 standard deviation
+belonging to *Occupancy Polarization*, a different detector whose own cross-platform
+difference is only 0.0010. Comparing one detector's platform sensitivity to another
+detector's sampling noise flatters the result, and the ratio it produces is not about any
+single measurement. The number is corrected here; the conclusion it supported is unchanged.
+
+Against the *range* across draws (0.407-0.646 for Behavioral Threshold, width 0.239) the
+platform difference is ~17x smaller, but a range is not a standard deviation and the two
+should not be swapped to reach a rounder multiplier.
+
+## What this means
+
+RHOB's published AUROCs are reproducible to about **+-0.015 across dependency stacks**, not
+bit-identical. That moves no conclusion in the replication -- the rung orderings and the
+identity of the best detector at L1, L2 and L3 are all among the 23 invariant detectors --
+but a reader reproducing a single number should expect the third decimal to move.
+
+**All 20 committed replicates are the Amazon Linux range-resolved runs.** The ledger, the
+committed board and the sign-randomization artifacts are the pinned Windows stack. That is a
+third measurement basis in this repository, alongside seed count and draw count.
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|
