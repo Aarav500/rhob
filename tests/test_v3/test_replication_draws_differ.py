@@ -19,6 +19,11 @@ replicates vary -- that is the experiment's output and must be free to be small.
 tests only that variation is *possible*: that the seeds reach the simulation and that
 the cache does not collapse distinct draws onto one entry.
 
+All but the structural check roll out a real family four times and cost minutes, so
+they carry ``@pytest.mark.slow`` and run in CI's ``admission-slow`` job rather than the
+default suite. ``test_cache_key_carries_both_seed_coordinates`` is the fast counterpart
+and stays in the default run.
+
 Mutation-checked against three ways to reintroduce the bug:
   * drop ``layout_seed`` from the cache key  -> test_distinct_draws_are_not_cache_hits
   * drop ``seed_base`` from the cache key    -> test_distinct_draws_are_not_cache_hits
@@ -32,11 +37,14 @@ import pytest
 
 import rhob.v3.families  # noqa: F401  -- registers the families with FamilyRegistry
 from rhob.detectors.l2_behavioral_threshold import BehavioralThresholdDetector
-from rhob.v3.benchmark import Benchmark
+from rhob.v3.benchmark import Benchmark, RolloutCacheKey
 from rhob.v3.registry import FamilyRegistry
 
-# A cheap tabular family, so this runs in seconds. The property under test is a property
-# of the caching/seed plumbing, which is family-independent.
+# A real tabular family. Four draws x 10 runs costs ~200s per test, which is why the
+# tests using it are marked slow -- the "cheap tabular family" it was chosen for is only
+# cheap relative to MuJoCo. The property under test (cache keying, seed forwarding) is
+# family-independent, so a synthetic family would be faster; a real one is used anyway
+# because the bug being guarded against lives in the path real evaluations take.
 _FAMILY = "gridworld_camping"
 _DIFFICULTY = 1.0  # gridworld_camping has a single-point difficulty range
 _N_SEEDS = 5
@@ -60,6 +68,31 @@ def _rollout_for(draw: tuple[int, int]):
     return pair.rollout(_N_SEEDS, seed_base=seed_base, randomize_sign=True)
 
 
+def test_cache_key_carries_both_seed_coordinates():
+    """The structural guard, and the only one of these that is fast.
+
+    The three tests below roll out a real family four times and cost minutes each, so
+    they are marked ``slow`` and deselected from the default suite (see pyproject.toml).
+    That is the right home for them -- but it would leave the regression they exist to
+    catch invisible to anyone running ``pytest`` locally, which is precisely the
+    situation that produced the bug in the first place.
+
+    This one costs microseconds. Dropping either field from the key is the whole bug:
+    with them absent, R replicates collapse onto one cached draw and the study reports
+    zero-width intervals. Asserting on the field names catches that in the default run;
+    the slow tests below prove the seeds also reach the simulation, which a field-name
+    check cannot.
+    """
+    fields = set(RolloutCacheKey._fields)
+    assert {"layout_seed", "seed_base"} <= fields, (
+        f"RolloutCacheKey lost a seed coordinate: {sorted(fields)}. Without both, "
+        f"Benchmark.evaluate serves one draw's rollouts to every replicate and any "
+        f"replication study built on it reports intervals of zero width."
+    )
+    assert {"family", "difficulty", "n_seeds", "randomize_behav_sign"} <= fields
+
+
+@pytest.mark.slow
 def test_distinct_draws_are_not_cache_hits():
     """R distinct draws must occupy R distinct cache entries, not one."""
     for layout_seed, seed_base in _DRAWS:
@@ -81,6 +114,7 @@ def test_distinct_draws_are_not_cache_hits():
     )
 
 
+@pytest.mark.slow
 def test_draws_produce_different_rollout_data():
     """The seeds must reach the simulation, not merely the cache key.
 
@@ -103,6 +137,7 @@ def test_draws_produce_different_rollout_data():
     )
 
 
+@pytest.mark.slow
 def test_replicate_aurocs_are_not_all_equal():
     """End-to-end: the number a replication study actually bootstraps must vary.
 
