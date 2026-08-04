@@ -20,6 +20,17 @@ confidence interval on the level's mean and not a measurement uncertainty: each 
 contributes one number from a single shared evaluation draw, so these values are not
 independent replicates and cannot be read as error bars.
 
+Where the error bars actually are
+---------------------------------
+Sampling uncertainty on these figures is estimated separately, by re-running the whole
+suite at independent ``(layout_seed, seed_base)`` draws and bootstrapping over the
+replicates -- ``scripts/replicate_leaderboard.py`` and ``scripts/aggregate_replication.py``,
+published to ``leaderboard/v5_replicated.json``. That aggregation calls **this** function
+once per replicate rather than reimplementing the ladder, so the interval and the point
+estimate it decorates are computed under identical rules (duplicates held out, degenerate
+families held out of L0 and only L0). Quote a level's number from here; quote its
+uncertainty from there. A single draw's ``std_auroc`` is not a substitute.
+
 Degenerate families are held out of L0, and only L0
 -----------------------------------------------------
 RHOB's L0 rung is a *negative control*: "reward-only detectors sit at chance on a
