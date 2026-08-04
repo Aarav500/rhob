@@ -1,0 +1,580 @@
+{
+  "n_replicates": 20,
+  "draws": [
+    {
+      "replicate_id": 0,
+      "layout_seed": 0,
+      "seed_base": 0,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 1,
+      "layout_seed": 1,
+      "seed_base": 1000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 2,
+      "layout_seed": 2,
+      "seed_base": 2000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 3,
+      "layout_seed": 3,
+      "seed_base": 3000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 4,
+      "layout_seed": 4,
+      "seed_base": 4000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 5,
+      "layout_seed": 5,
+      "seed_base": 5000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 6,
+      "layout_seed": 6,
+      "seed_base": 6000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 7,
+      "layout_seed": 7,
+      "seed_base": 7000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 8,
+      "layout_seed": 8,
+      "seed_base": 8000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 9,
+      "layout_seed": 9,
+      "seed_base": 9000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 10,
+      "layout_seed": 10,
+      "seed_base": 10000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 11,
+      "layout_seed": 11,
+      "seed_base": 11000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 12,
+      "layout_seed": 12,
+      "seed_base": 12000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 13,
+      "layout_seed": 13,
+      "seed_base": 13000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 14,
+      "layout_seed": 14,
+      "seed_base": 14000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 15,
+      "layout_seed": 15,
+      "seed_base": 15000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 16,
+      "layout_seed": 16,
+      "seed_base": 16000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 17,
+      "layout_seed": 17,
+      "seed_base": 17000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 18,
+      "layout_seed": 18,
+      "seed_base": 18000000,
+      "n_seeds": 5
+    },
+    {
+      "replicate_id": 19,
+      "layout_seed": 19,
+      "seed_base": 19000000,
+      "n_seeds": 5
+    }
+  ],
+  "method": {
+    "resampling_unit": "replicate",
+    "bootstrap_resamples": 10000,
+    "ci_level": 0.95,
+    "bootstrap_seed": 20260804,
+    "interval_type": "percentile bootstrap of the mean over replicates"
+  },
+  "degeneracy": {
+    "detectors_with_zero_variance": [],
+    "n_detectors_with_zero_variance": 0,
+    "note": "Zero variance across replicates means the detector returned the same score on every independent draw -- saturation (typically 1.000 or 0.500), not measurement precision. Its interval is a point by construction and must not be read as a tight estimate."
+  },
+  "access_levels": {
+    "L0": {
+      "mean_auroc": {
+        "mean": 0.4966217948717948,
+        "sd": 0.007722907922995647,
+        "ci_lo": 0.4933662998575499,
+        "ci_hi": 0.49994959045584053,
+        "n_replicates": 20,
+        "min": 0.4831823361823362,
+        "max": 0.509051282051282
+      },
+      "max_auroc": {
+        "mean": 0.5476833333333334,
+        "sd": 0.022061460330428113,
+        "ci_lo": 0.5384110648148149,
+        "ci_hi": 0.5570560185185184,
+        "n_replicates": 20,
+        "min": 0.5156296296296297,
+        "max": 0.5924074074074074
+      },
+      "best_detector_frequency": {
+        "Spectral Reward": 5,
+        "Reward MLP": 4,
+        "Reward Variance Ratio": 3,
+        "Gradient Reversal": 2,
+        "Reward CUSUM": 1,
+        "Reward Threshold": 1,
+        "Reward Skewness": 1,
+        "Max Plateau": 1,
+        "Reward Trend": 1,
+        "Reward KDE": 1
+      }
+    },
+    "L1": {
+      "mean_auroc": {
+        "mean": 0.558925,
+        "sd": 0.027081547174569266,
+        "ci_lo": 0.5470182812500001,
+        "ci_hi": 0.57001875,
+        "n_replicates": 20,
+        "min": 0.492875,
+        "max": 0.603125
+      },
+      "max_auroc": {
+        "mean": 0.9416000000000002,
+        "sd": 0.0035747653585124863,
+        "ci_lo": 0.9398487499999999,
+        "ci_hi": 0.9426500000000002,
+        "n_replicates": 20,
+        "min": 0.927,
+        "max": 0.943
+      },
+      "best_detector_frequency": {
+        "State Divergence": 20
+      }
+    },
+    "L2": {
+      "mean_auroc": {
+        "mean": 0.5739642857142856,
+        "sd": 0.012365267440816688,
+        "ci_lo": 0.5685357142857143,
+        "ci_hi": 0.5791642857142857,
+        "n_replicates": 20,
+        "min": 0.5454285714285715,
+        "max": 0.5978571428571428
+      },
+      "max_auroc": {
+        "mean": 0.9430000000000002,
+        "sd": 0.011621214720456147,
+        "ci_lo": 0.9380999999999998,
+        "ci_hi": 0.9478499999999999,
+        "n_replicates": 20,
+        "min": 0.917,
+        "max": 0.961
+      },
+      "best_detector_frequency": {
+        "Trajectory MLP": 20
+      }
+    },
+    "L3": {
+      "mean_auroc": {
+        "mean": 0.9746499999999999,
+        "sd": 0.0077884867795862366,
+        "ci_lo": 0.9710999999999999,
+        "ci_hi": 0.9777500000000001,
+        "n_replicates": 20,
+        "min": 0.953,
+        "max": 0.983
+      },
+      "max_auroc": {
+        "mean": 0.9746499999999999,
+        "sd": 0.0077884867795862366,
+        "ci_lo": 0.9711000000000001,
+        "ci_hi": 0.9777499999999998,
+        "n_replicates": 20,
+        "min": 0.953,
+        "max": 0.983
+      },
+      "best_detector_frequency": {
+        "True Reward Oracle": 20
+      }
+    }
+  },
+  "adjacent_level_separation": {
+    "L1_minus_L0_max": {
+      "mean": 0.3939166666666666,
+      "sd": 0.022039996443218773,
+      "ci_lo": 0.3843073611111111,
+      "ci_hi": 0.40348717592592587,
+      "n_replicates": 20,
+      "min": 0.35059259259259257,
+      "max": 0.4263703703703703,
+      "excludes_zero": true,
+      "replicates_with_hi_above_lo": 20,
+      "n_paired": 20
+    },
+    "L2_minus_L1_max": {
+      "mean": 0.001400000000000029,
+      "sd": 0.011904886214889785,
+      "ci_lo": -0.0038999999999999478,
+      "ci_hi": 0.006300000000000011,
+      "n_replicates": 20,
+      "min": -0.02499999999999991,
+      "max": 0.020000000000000018,
+      "excludes_zero": false,
+      "replicates_with_hi_above_lo": 13,
+      "n_paired": 20
+    },
+    "L3_minus_L2_max": {
+      "mean": 0.03165,
+      "sd": 0.011788821645502707,
+      "ci_lo": 0.026750000000000006,
+      "ci_hi": 0.036749999999999984,
+      "n_replicates": 20,
+      "min": 0.009000000000000008,
+      "max": 0.05899999999999994,
+      "excludes_zero": true,
+      "replicates_with_hi_above_lo": 20,
+      "n_paired": 20
+    }
+  },
+  "detectors": {
+    "Angular Momentum": {
+      "mean": 0.5457500000000001,
+      "sd": 0.019891481911400624,
+      "ci_lo": 0.53725,
+      "ci_hi": 0.5542499999999999,
+      "n_replicates": 20,
+      "min": 0.507,
+      "max": 0.583,
+      "access_level": "L2"
+    },
+    "Behavioral Threshold": {
+      "mean": 0.5445,
+      "sd": 0.06864055882486296,
+      "ci_lo": 0.51484875,
+      "ci_hi": 0.5733012499999999,
+      "n_replicates": 20,
+      "min": 0.407,
+      "max": 0.646,
+      "access_level": "L2"
+    },
+    "Bimodal Occupancy": {
+      "mean": 0.5014000000000001,
+      "sd": 0.034136567829204725,
+      "ci_lo": 0.48665,
+      "ci_hi": 0.51590125,
+      "n_replicates": 20,
+      "min": 0.443,
+      "max": 0.567,
+      "access_level": "L1"
+    },
+    "Centroid Drift": {
+      "mean": 0.46275000000000005,
+      "sd": 0.03645021839512943,
+      "ci_lo": 0.4472487499999999,
+      "ci_hi": 0.47865000000000013,
+      "n_replicates": 20,
+      "min": 0.387,
+      "max": 0.526,
+      "access_level": "L1"
+    },
+    "Centroid Tracker": {
+      "mean": 0.35605000000000003,
+      "sd": 0.006176994670379336,
+      "ci_lo": 0.35344999999999993,
+      "ci_hi": 0.3588,
+      "n_replicates": 20,
+      "min": 0.342,
+      "max": 0.371,
+      "access_level": "L2"
+    },
+    "Feature Consistency": {
+      "mean": 0.5038499999999999,
+      "sd": 0.023090838921643018,
+      "ci_lo": 0.49429999999999996,
+      "ci_hi": 0.514,
+      "n_replicates": 20,
+      "min": 0.474,
+      "max": 0.552,
+      "access_level": "L2"
+    },
+    "Feature Magnitude": {
+      "mean": 0.55525,
+      "sd": 0.011629703349612988,
+      "ci_lo": 0.5502000000000001,
+      "ci_hi": 0.56005,
+      "n_replicates": 20,
+      "min": 0.526,
+      "max": 0.579,
+      "access_level": "L2"
+    },
+    "Gradient Reversal": {
+      "mean": 0.5022,
+      "sd": 0.01887800167836685,
+      "ci_lo": 0.49435,
+      "ci_hi": 0.5104999999999998,
+      "n_replicates": 20,
+      "min": 0.471,
+      "max": 0.549,
+      "access_level": "L0"
+    },
+    "Max Plateau": {
+      "mean": 0.4949,
+      "sd": 0.018168509483226895,
+      "ci_lo": 0.48749999999999993,
+      "ci_hi": 0.5027,
+      "n_replicates": 20,
+      "min": 0.462,
+      "max": 0.536,
+      "access_level": "L0"
+    },
+    "Occupancy Polarization": {
+      "mean": 0.4937,
+      "sd": 0.0713376699780329,
+      "ci_lo": 0.46284874999999986,
+      "ci_hi": 0.52265125,
+      "n_replicates": 20,
+      "min": 0.313,
+      "max": 0.625,
+      "access_level": "L1"
+    },
+    "Perfect Feature Oracle": {
+      "mean": 0.5445,
+      "sd": 0.06864055882486296,
+      "ci_lo": 0.51504875,
+      "ci_hi": 0.5735,
+      "n_replicates": 20,
+      "min": 0.407,
+      "max": 0.646,
+      "access_level": "L3"
+    },
+    "Reward Autocorrelation": {
+      "mean": 0.49515000000000003,
+      "sd": 0.020267357732908466,
+      "ci_lo": 0.48585,
+      "ci_hi": 0.5031000000000001,
+      "n_replicates": 20,
+      "min": 0.435,
+      "max": 0.521,
+      "access_level": "L0"
+    },
+    "Reward CUSUM": {
+      "mean": 0.49870000000000003,
+      "sd": 0.016338846187440612,
+      "ci_lo": 0.49189999999999995,
+      "ci_hi": 0.5059012500000001,
+      "n_replicates": 20,
+      "min": 0.474,
+      "max": 0.536,
+      "access_level": "L0"
+    },
+    "Reward KDE": {
+      "mean": 0.49275,
+      "sd": 0.021744630311146276,
+      "ci_lo": 0.48319999999999996,
+      "ci_hi": 0.50205,
+      "n_replicates": 20,
+      "min": 0.44,
+      "max": 0.54,
+      "access_level": "L0"
+    },
+    "Reward MLP": {
+      "mean": 0.5029,
+      "sd": 0.025233436464133736,
+      "ci_lo": 0.49210000000000004,
+      "ci_hi": 0.5134,
+      "n_replicates": 20,
+      "min": 0.452,
+      "max": 0.548,
+      "access_level": "L0"
+    },
+    "Reward Peak": {
+      "mean": 0.49775,
+      "sd": 0.01418626095911112,
+      "ci_lo": 0.49174999999999996,
+      "ci_hi": 0.50375,
+      "n_replicates": 20,
+      "min": 0.477,
+      "max": 0.522,
+      "access_level": "L0"
+    },
+    "Reward Skewness": {
+      "mean": 0.5019499999999999,
+      "sd": 0.012398960058259566,
+      "ci_lo": 0.4967,
+      "ci_hi": 0.50725,
+      "n_replicates": 20,
+      "min": 0.482,
+      "max": 0.524,
+      "access_level": "L0"
+    },
+    "Reward Threshold": {
+      "mean": 0.49115000000000003,
+      "sd": 0.028284782964845614,
+      "ci_lo": 0.4797500000000001,
+      "ci_hi": 0.5037,
+      "n_replicates": 20,
+      "min": 0.451,
+      "max": 0.576,
+      "access_level": "L0"
+    },
+    "Reward Trend": {
+      "mean": 0.4945000000000001,
+      "sd": 0.017215354223850055,
+      "ci_lo": 0.48715,
+      "ci_hi": 0.5019500000000001,
+      "n_replicates": 20,
+      "min": 0.468,
+      "max": 0.524,
+      "access_level": "L0"
+    },
+    "Reward Variance Ratio": {
+      "mean": 0.48785000000000006,
+      "sd": 0.031698040782888855,
+      "ci_lo": 0.47459874999999996,
+      "ci_hi": 0.5018499999999999,
+      "n_replicates": 20,
+      "min": 0.43,
+      "max": 0.556,
+      "access_level": "L0"
+    },
+    "Reward-Feature Correlation": {
+      "mean": 0.5693499999999999,
+      "sd": 0.018290851898090852,
+      "ci_lo": 0.5617487499999999,
+      "ci_hi": 0.5774999999999999,
+      "n_replicates": 20,
+      "min": 0.542,
+      "max": 0.615,
+      "access_level": "L2"
+    },
+    "Spectral Reward": {
+      "mean": 0.5061,
+      "sd": 0.02511216941308695,
+      "ci_lo": 0.4955987499999999,
+      "ci_hi": 0.5167499999999999,
+      "n_replicates": 20,
+      "min": 0.458,
+      "max": 0.561,
+      "access_level": "L0"
+    },
+    "State Coverage Rate": {
+      "mean": 0.5674999999999999,
+      "sd": 0.011348545002960063,
+      "ci_lo": 0.56295,
+      "ci_hi": 0.5725,
+      "n_replicates": 20,
+      "min": 0.549,
+      "max": 0.597,
+      "access_level": "L1"
+    },
+    "State Divergence": {
+      "mean": 0.9416000000000002,
+      "sd": 0.0035747653585124863,
+      "ci_lo": 0.9398499999999999,
+      "ci_hi": 0.9426500000000002,
+      "n_replicates": 20,
+      "min": 0.927,
+      "max": 0.943,
+      "access_level": "L1"
+    },
+    "State Frequency Anomaly": {
+      "mean": 0.5027499999999999,
+      "sd": 0.06545619266268651,
+      "ci_lo": 0.47450000000000003,
+      "ci_hi": 0.52950125,
+      "n_replicates": 20,
+      "min": 0.342,
+      "max": 0.609,
+      "access_level": "L1"
+    },
+    "Trajectory MLP": {
+      "mean": 0.9430000000000002,
+      "sd": 0.011621214720456147,
+      "ci_lo": 0.9379499999999998,
+      "ci_hi": 0.9477499999999999,
+      "n_replicates": 20,
+      "min": 0.917,
+      "max": 0.961,
+      "access_level": "L2"
+    },
+    "Transition Entropy": {
+      "mean": 0.5044500000000002,
+      "sd": 0.06742284089004416,
+      "ci_lo": 0.475,
+      "ci_hi": 0.53235,
+      "n_replicates": 20,
+      "min": 0.341,
+      "max": 0.606,
+      "access_level": "L1"
+    },
+    "True Reward Oracle": {
+      "mean": 0.9746499999999999,
+      "sd": 0.0077884867795862366,
+      "ci_lo": 0.9711000000000001,
+      "ci_hi": 0.97775,
+      "n_replicates": 20,
+      "min": 0.953,
+      "max": 0.983,
+      "access_level": "L3"
+    },
+    "Variance Window": {
+      "mean": 0.50125,
+      "sd": 0.010098853504495613,
+      "ci_lo": 0.49705000000000005,
+      "ci_hi": 0.5056999999999999,
+      "n_replicates": 20,
+      "min": 0.483,
+      "max": 0.522,
+      "access_level": "L0"
+    },
+    "Visitation Entropy Trend": {
+      "mean": 0.4972499999999999,
+      "sd": 0.005599577051697279,
+      "ci_lo": 0.4949,
+      "ci_hi": 0.4996999999999999,
+      "n_replicates": 20,
+      "min": 0.486,
+      "max": 0.509,
+      "access_level": "L1"
+    }
+  }
+}
