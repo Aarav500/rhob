@@ -23,10 +23,13 @@ import pytest
 _REPO = Path(__file__).resolve().parents[2]
 _AGG = _REPO / "scripts" / "aggregate_replication.py"
 
-# Two detectors at different access levels, so the ladder has something to aggregate.
+# One detector per access level, so the ladder and the adjacent-rung comparisons have
+# something to aggregate.
 _DETECTORS = {
     "Reward Threshold": "L0",
+    "State Divergence": "L1",
     "Behavioral Threshold": "L2",
+    "True Reward Oracle": "L3",
 }
 _FAMILIES = ["gridworld_camping", "continuous_camping"]
 
@@ -134,6 +137,46 @@ def test_zero_variance_detector_is_reported_not_fatal(tmp_path: Path):
     out = json.loads((tmp_path / "agg.json").read_text())
     assert "Behavioral Threshold" in out["degeneracy"]["detectors_with_zero_variance"]
     assert "Reward Threshold" not in out["degeneracy"]["detectors_with_zero_variance"]
+
+
+def test_adjacent_level_comparison_pairs_by_replicate_not_by_position(tmp_path: Path):
+    """A gap in one rung must not shift the other rung's values onto the wrong draws.
+
+    The comparison between two access levels is paired: each draw scores both rungs, and
+    the difference is taken within a draw. Collecting each rung into a flat list and
+    zipping breaks that the moment either rung is unscoreable on any replicate -- and
+    breaks it *silently*, because when the gaps are equal in number the lists are still
+    the same length and a length check still passes.
+
+    Here L1 is unscoreable on replicate 1 and L2 on replicate 3. Correct pairing uses
+    replicates {0, 2, 4} and gives a mean difference of 0.3933. Position-zipping would
+    pair L1@rep2 with L2@rep1 and L1@rep4 with L2@rep4, giving 0.3875 off four
+    "pairs", two of which compare different draws.
+    """
+    in_dir = tmp_path / "reps"
+    in_dir.mkdir()
+    l1 = {0: 0.50, 1: None, 2: 0.52, 3: 0.54, 4: 0.56}
+    l2 = {0: 0.90, 1: 0.91, 2: 0.92, 3: None, 4: 0.94}
+    for rep in range(5):
+        _write_replicate(in_dir, rep, {
+            "Reward Threshold": 0.50 + 0.01 * rep,
+            "State Divergence": l1[rep],
+            "Behavioral Threshold": l2[rep],
+            "True Reward Oracle": 0.99,
+        })
+
+    proc = _run_aggregator(in_dir, tmp_path)
+    assert proc.returncode == 0, proc.stderr
+    sep = json.loads((tmp_path / "agg.json").read_text())["adjacent_level_separation"]
+    l2_l1 = sep["L2_minus_L1_max"]
+
+    assert l2_l1["n_paired"] == 3, (
+        f"expected the 3 replicates scoring both rungs, got n_paired={l2_l1['n_paired']}"
+    )
+    assert l2_l1["mean"] == pytest.approx(0.39333, abs=1e-4), (
+        f"mean difference {l2_l1['mean']} != 0.39333; 0.3875 means the rungs were "
+        f"zipped by position and compared across different draws"
+    )
 
 
 @pytest.mark.parametrize("n", [1])

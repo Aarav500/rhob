@@ -140,24 +140,34 @@ def main() -> None:
 
     # ---- access-level ladder, recomputed per replicate under the published rules ----
     degenerate = degenerate_families_from_ledger()
-    ladder_vals: dict[str, dict[str, list[float]]] = {
-        lv: {"mean": [], "max": []} for lv in ACCESS_LEVELS
+    # Keyed by replicate id, NOT appended to flat lists. Flat lists lose the pairing the
+    # moment any level is unscoreable on any replicate: if L1 is None on replicate 3 and
+    # L2 is None on replicate 7, both lists still have length R-1, a length check still
+    # passes, and element i of one no longer refers to the same draw as element i of the
+    # other -- so the paired difference below would silently subtract across draws.
+    ladder_by_rep: dict[str, dict[str, dict[int, float]]] = {
+        lv: {"mean": {}, "max": {}} for lv in ACCESS_LEVELS
     }
     best_counts: dict[str, dict[str, int]] = {lv: {} for lv in ACCESS_LEVELS}
     for r in reps:
+        rid = r["replicate_id"]
         summaries = summarize_access_levels(r["results"], degenerate_families=degenerate)
         for lv, s in summaries.items():
             if s.mean_auroc is not None:
-                ladder_vals[lv]["mean"].append(s.mean_auroc)
+                ladder_by_rep[lv]["mean"][rid] = s.mean_auroc
             if s.max_auroc is not None:
-                ladder_vals[lv]["max"].append(s.max_auroc)
+                ladder_by_rep[lv]["max"][rid] = s.max_auroc
             if s.best_detector:
                 best_counts[lv][s.best_detector] = best_counts[lv].get(s.best_detector, 0) + 1
 
+    def _vals(lv: str, stat: str) -> list[float]:
+        """Values ordered by replicate id, for the unpaired per-level intervals."""
+        return [ladder_by_rep[lv][stat][k] for k in sorted(ladder_by_rep[lv][stat])]
+
     ladder = {
         lv: {
-            "mean_auroc": bootstrap_ci(ladder_vals[lv]["mean"], rng),
-            "max_auroc": bootstrap_ci(ladder_vals[lv]["max"], rng),
+            "mean_auroc": bootstrap_ci(_vals(lv, "mean"), rng),
+            "max_auroc": bootstrap_ci(_vals(lv, "max"), rng),
             # How often each detector was the best at its level. A level whose "best
             # detector" changes between draws does not have a stable best detector, and
             # the published single-draw winner was a coin flip.
@@ -174,10 +184,11 @@ def main() -> None:
     # confounded by between-draw variation shared by both rungs.
     separations = {}
     for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:]):
-        a, b = ladder_vals[lo]["max"], ladder_vals[hi]["max"]
-        if len(a) != len(b) or not a:
+        lo_by_rep, hi_by_rep = ladder_by_rep[lo]["max"], ladder_by_rep[hi]["max"]
+        shared = sorted(set(lo_by_rep) & set(hi_by_rep))
+        if not shared:
             continue
-        diffs = np.asarray(b, dtype=float) - np.asarray(a, dtype=float)
+        diffs = np.array([hi_by_rep[k] - lo_by_rep[k] for k in shared], dtype=float)
         d_ci = bootstrap_ci(diffs.tolist(), rng)
         separations[f"{hi}_minus_{lo}_max"] = {
             **d_ci,
@@ -185,6 +196,10 @@ def main() -> None:
                 d_ci["ci_lo"] is not None and (d_ci["ci_lo"] > 0 or d_ci["ci_hi"] < 0)
             ),
             "replicates_with_hi_above_lo": int((diffs > 0).sum()),
+            # Replicates where BOTH rungs were scoreable. Reported because it can be
+            # smaller than n_replicates, and a paired comparison over a subset of draws
+            # is a different claim than one over all of them.
+            "n_paired": len(shared),
         }
 
     out = {
