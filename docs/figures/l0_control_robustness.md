@@ -6,17 +6,33 @@ control as **all 13 L0 detectors have a 95% interval containing 0.500**.
 
 ## The objection
 
-That claim is computed over all 33 families. Six of them are marked DEGENERATE in the
-admission ledger because their proxy reward is *constant*, and on a constant proxy every
-L0 detector returns exactly 0.500 -- verified: all six score 0.500 for every L0 detector,
-in every draw. Those 30 cells cannot come out any other way, so including them pulls each
-detector's mean toward 0.500 by construction. A control padded with cells that are forced
-to agree with it is the failure mode this project keeps finding.
+That claim is computed over all 33 families -- each detector's `overall_auroc` is the
+cell-weighted mean over all 123 cells, and `scripts/aggregate_replication.py` applies the
+ledger exclusion only inside `summarize_access_levels`, i.e. only to the level aggregate.
+Six families are marked DEGENERATE in the admission ledger because their proxy reward is
+*constant*, and on a constant proxy an L0 detector returns 0.500 for a reason that has
+nothing to do with proxy matching. Those 30 cells cannot say anything else, so including
+them pulls each detector's mean toward 0.500 by construction. A control padded with cells
+that are forced to agree with it is the failure mode this project keeps finding.
+
+Verified, 13 detectors x 20 draws = 260 values per family: **four of the six return
+exactly 0.500 every time** (`distributional_shift`, `monitored_sandbagging`,
+`rlhf_reward_model_overopt`, `shortcut_exploitation`; 0 of 260 depart). The other two are
+constant only to numerical dust -- `orbit_chirality` has relative dispersion 1.36e-16 and
+`physics_exploitation` strictly orders 0.35% of cross-variant pairs -- so a detector does
+occasionally order a pair on rounding error: 27 of 260 and 37 of 260 respectively. That is
+degeneracy of the second kind rather than a measurement, so the argument for holding all
+six out is unchanged. An earlier version of this file said all six were exactly 0.500 in
+every draw; that was wrong and is corrected here. The check below is unaffected -- it
+removes all six families whichever way their cells came out.
 
 ## The check
 
 Recomputed over the **27 non-degenerate families only**, family-weighted, bootstrapped over
-the 20 replicates exactly as the headline is.
+the 20 replicates exactly as the headline is. Both columns are family-weighted so the
+comparison is like for like; the published per-detector figure is the cell-weighted one and
+differs from the 33-family column below by at most 0.0024 (Reward Variance Ratio), which is
+not what this check is about.
 
 | L0 detector | all 33 families | 95% CI | contains 0.5 | 27 families | 95% CI | contains 0.5 |
 |---|---|---|---|---|---|---|
@@ -44,10 +60,17 @@ It licenses: the L0 control is not an artifact of averaging in cells that could 
 come out otherwise.
 
 It does not license: any statement about the *suite mean*. That statistic's interval endpoint
-sits within the Monte-Carlo resolution of its own bootstrap (across 300 alternative bootstrap
-seeds at 10,000 resamples, its upper bound falls above 0.500 in 18 and below in 282), so no
-direction may be read from it. The control is carried detector by detector, which is where it
-is robust.
+sits within the Monte-Carlo resolution of its own bootstrap. Replaying the published
+procedure (10,000 resamples of the same 20 draws) at seeds 0..299 instead of the script's
+fixed `BOOTSTRAP_SEED = 20260804` moves the upper endpoint over **[0.499823, 0.500060]** and
+puts it at or above 0.500 in **18 of 300**. The scatter is ~2.4e-04 wide against a published
+shortfall of 5.0e-05, so the sign of that shortfall is a property of the seed, not of the
+data, and no direction may be read from it.
+
+The per-detector verdicts are not seed-sensitive in that way. Over the same 300 seeds, all
+13 L0 intervals contain 0.500 at every seed; the narrowest margin from 0.500 at any seed is
+0.0011 (Reward Variance Ratio), about five times the scatter that decides the suite mean's
+endpoint. The control is carried detector by detector, which is where it is robust.
 
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set.
