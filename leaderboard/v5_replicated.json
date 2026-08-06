@@ -134,13 +134,218 @@
     "n_detectors_with_zero_variance": 0,
     "note": "Zero variance across replicates means the detector returned the same score on every independent draw -- saturation (typically 1.000 or 0.500), not measurement precision. Its interval is a point by construction and must not be read as a tight estimate."
   },
+  "supervision": {
+    "label_fitted_detectors": [
+      "Reward MLP",
+      "State Coverage Rate",
+      "State Divergence",
+      "Trajectory MLP",
+      "Visitation Entropy Trend"
+    ],
+    "why_it_matters": "A detector exposing fit() is handed the hacking/legitimate labels for each cross-validation training fold. That is a legitimate measurement but a different question from an unsupervised post-hoc detector's: 'is the difference learnable from labelled examples?' rather than 'does this fixed statistic separate the variants?'. A per-level maximum over both reports whichever question produced the larger number.",
+    "access_levels_unsupervised_only": {
+      "L0": {
+        "mean_auroc": {
+          "mean": 0.49608749999999996,
+          "sd": 0.008803787507828063,
+          "ci_lo": 0.49237298225308646,
+          "ci_hi": 0.49985138888888886,
+          "n_replicates": 20,
+          "min": 0.4804783950617284,
+          "max": 0.5102716049382716
+        },
+        "max_auroc": {
+          "mean": 0.5436555555555557,
+          "sd": 0.02426692913290739,
+          "ci_lo": 0.5335536111111112,
+          "ci_hi": 0.554066712962963,
+          "n_replicates": 20,
+          "min": 0.5052962962962964,
+          "max": 0.5924074074074074
+        },
+        "best_detector_frequency": {
+          "Spectral Reward": 6,
+          "Reward Variance Ratio": 3,
+          "Reward CUSUM": 2,
+          "Reward Skewness": 2,
+          "Max Plateau": 2,
+          "Gradient Reversal": 2,
+          "Reward Threshold": 1,
+          "Reward Trend": 1,
+          "Reward KDE": 1
+        }
+      },
+      "L1": {
+        "mean_auroc": {
+          "mean": 0.49300999999999995,
+          "sd": 0.042683435712352495,
+          "ci_lo": 0.47411925,
+          "ci_hi": 0.5103699999999999,
+          "n_replicates": 20,
+          "min": 0.38639999999999997,
+          "max": 0.5612
+        },
+        "max_auroc": {
+          "mean": 0.534,
+          "sd": 0.045653154615160924,
+          "ci_lo": 0.5144,
+          "ci_hi": 0.55420125,
+          "n_replicates": 20,
+          "min": 0.462,
+          "max": 0.625
+        },
+        "best_detector_frequency": {
+          "Bimodal Occupancy": 7,
+          "Occupancy Polarization": 6,
+          "Transition Entropy": 5,
+          "Centroid Drift": 1,
+          "State Frequency Anomaly": 1
+        }
+      },
+      "L2": {
+        "mean_auroc": {
+          "mean": 0.5124583333333333,
+          "sd": 0.01404565186302543,
+          "ci_lo": 0.5063747916666667,
+          "ci_hi": 0.5183752083333334,
+          "n_replicates": 20,
+          "min": 0.4828333333333334,
+          "max": 0.5373333333333333
+        },
+        "max_auroc": {
+          "mean": 0.5871999999999999,
+          "sd": 0.02824442189921848,
+          "ci_lo": 0.57554875,
+          "ci_hi": 0.59955125,
+          "n_replicates": 20,
+          "min": 0.547,
+          "max": 0.646
+        },
+        "best_detector_frequency": {
+          "Reward-Feature Correlation": 8,
+          "Behavioral Threshold": 6,
+          "Feature Magnitude": 5,
+          "Angular Momentum": 1
+        }
+      },
+      "L3": {
+        "mean_auroc": {
+          "mean": 0.9746499999999999,
+          "sd": 0.0077884867795862366,
+          "ci_lo": 0.9710999999999999,
+          "ci_hi": 0.9777500000000001,
+          "n_replicates": 20,
+          "min": 0.953,
+          "max": 0.983
+        },
+        "max_auroc": {
+          "mean": 0.9746499999999999,
+          "sd": 0.0077884867795862366,
+          "ci_lo": 0.9711000000000001,
+          "ci_hi": 0.9777499999999998,
+          "n_replicates": 20,
+          "min": 0.953,
+          "max": 0.983
+        },
+        "best_detector_frequency": {
+          "True Reward Oracle": 20
+        }
+      }
+    },
+    "adjacent_level_separation_unsupervised_only": {
+      "L1_minus_L0_max": {
+        "mean": -0.009655555555555539,
+        "sd": 0.04292273794141694,
+        "ci_lo": -0.028020462962962938,
+        "ci_hi": 0.008850092592592593,
+        "n_replicates": 20,
+        "min": -0.12140740740740741,
+        "max": 0.08751851851851855,
+        "statistic": "max",
+        "excludes_zero": false,
+        "replicates_with_hi_above_lo": 5,
+        "n_paired": 20,
+        "denominators_equal": false
+      },
+      "L2_minus_L1_max": {
+        "mean": 0.05319999999999998,
+        "sd": 0.0595063906342486,
+        "ci_lo": 0.028998749999999972,
+        "ci_hi": 0.07939999999999997,
+        "n_replicates": 20,
+        "min": -0.03500000000000003,
+        "max": 0.182,
+        "statistic": "max",
+        "excludes_zero": true,
+        "replicates_with_hi_above_lo": 17,
+        "n_paired": 20,
+        "denominators_equal": false
+      },
+      "L3_minus_L2_max": {
+        "mean": 0.38744999999999996,
+        "sd": 0.030476004365816448,
+        "ci_lo": 0.37404874999999993,
+        "ci_hi": 0.4002,
+        "n_replicates": 20,
+        "min": 0.32999999999999996,
+        "max": 0.43099999999999994,
+        "statistic": "max",
+        "excludes_zero": true,
+        "replicates_with_hi_above_lo": 20,
+        "n_paired": 20,
+        "denominators_equal": false
+      },
+      "L1_minus_L0_mean": {
+        "mean": -0.0030774999999999856,
+        "sd": 0.039651370460001584,
+        "ci_lo": -0.020666885802469125,
+        "ci_hi": 0.013160134259259274,
+        "n_replicates": 20,
+        "min": -0.09407839506172844,
+        "max": 0.05416913580246918,
+        "statistic": "mean",
+        "excludes_zero": false,
+        "replicates_with_hi_above_lo": 11,
+        "n_paired": 20,
+        "denominators_equal": false
+      },
+      "L2_minus_L1_mean": {
+        "mean": 0.01944833333333334,
+        "sd": 0.03875352687213438,
+        "ci_lo": 0.003203291666666658,
+        "ci_hi": 0.03643545833333335,
+        "n_replicates": 20,
+        "min": -0.04149999999999998,
+        "max": 0.10676666666666673,
+        "statistic": "mean",
+        "excludes_zero": true,
+        "replicates_with_hi_above_lo": 13,
+        "n_paired": 20,
+        "denominators_equal": false
+      },
+      "L3_minus_L2_mean": {
+        "mean": 0.46219166666666656,
+        "sd": 0.015323058628452546,
+        "ci_lo": 0.4556579166666665,
+        "ci_hi": 0.4688585416666666,
+        "n_replicates": 20,
+        "min": 0.4364999999999999,
+        "max": 0.488,
+        "statistic": "mean",
+        "excludes_zero": true,
+        "replicates_with_hi_above_lo": 20,
+        "n_paired": 20,
+        "denominators_equal": false
+      }
+    }
+  },
   "access_levels": {
     "L0": {
       "mean_auroc": {
         "mean": 0.4966217948717948,
         "sd": 0.007722907922995647,
-        "ci_lo": 0.4933662998575499,
-        "ci_hi": 0.49994959045584053,
+        "ci_lo": 0.493327037037037,
+        "ci_hi": 0.4998890918803418,
         "n_replicates": 20,
         "min": 0.4831823361823362,
         "max": 0.509051282051282
@@ -148,8 +353,8 @@
       "max_auroc": {
         "mean": 0.5476833333333334,
         "sd": 0.022061460330428113,
-        "ci_lo": 0.5384110648148149,
-        "ci_hi": 0.5570560185185184,
+        "ci_lo": 0.5381997685185186,
+        "ci_hi": 0.5574112499999999,
         "n_replicates": 20,
         "min": 0.5156296296296297,
         "max": 0.5924074074074074
@@ -171,8 +376,8 @@
       "mean_auroc": {
         "mean": 0.558925,
         "sd": 0.027081547174569266,
-        "ci_lo": 0.5470182812500001,
-        "ci_hi": 0.57001875,
+        "ci_lo": 0.5471,
+        "ci_hi": 0.5700756249999999,
         "n_replicates": 20,
         "min": 0.492875,
         "max": 0.603125
@@ -180,8 +385,8 @@
       "max_auroc": {
         "mean": 0.9416000000000002,
         "sd": 0.0035747653585124863,
-        "ci_lo": 0.9398487499999999,
-        "ci_hi": 0.9426500000000002,
+        "ci_lo": 0.9399,
+        "ci_hi": 0.9427,
         "n_replicates": 20,
         "min": 0.927,
         "max": 0.943
@@ -194,8 +399,8 @@
       "mean_auroc": {
         "mean": 0.5739642857142856,
         "sd": 0.012365267440816688,
-        "ci_lo": 0.5685357142857143,
-        "ci_hi": 0.5791642857142857,
+        "ci_lo": 0.5686214285714287,
+        "ci_hi": 0.5791857142857143,
         "n_replicates": 20,
         "min": 0.5454285714285715,
         "max": 0.5978571428571428
@@ -203,8 +408,8 @@
       "max_auroc": {
         "mean": 0.9430000000000002,
         "sd": 0.011621214720456147,
-        "ci_lo": 0.9380999999999998,
-        "ci_hi": 0.9478499999999999,
+        "ci_lo": 0.9379500000000001,
+        "ci_hi": 0.9478,
         "n_replicates": 20,
         "min": 0.917,
         "max": 0.961
@@ -217,8 +422,8 @@
       "mean_auroc": {
         "mean": 0.9746499999999999,
         "sd": 0.0077884867795862366,
-        "ci_lo": 0.9710999999999999,
-        "ci_hi": 0.9777500000000001,
+        "ci_lo": 0.97115,
+        "ci_hi": 0.97775,
         "n_replicates": 20,
         "min": 0.953,
         "max": 0.983
@@ -226,8 +431,8 @@
       "max_auroc": {
         "mean": 0.9746499999999999,
         "sd": 0.0077884867795862366,
-        "ci_lo": 0.9711000000000001,
-        "ci_hi": 0.9777499999999998,
+        "ci_lo": 0.97115,
+        "ci_hi": 0.9777999999999999,
         "n_replicates": 20,
         "min": 0.953,
         "max": 0.983
@@ -241,8 +446,8 @@
     "L1_minus_L0_max": {
       "mean": 0.3939166666666666,
       "sd": 0.022039996443218773,
-      "ci_lo": 0.3843073611111111,
-      "ci_hi": 0.40348717592592587,
+      "ci_lo": 0.3843755555555555,
+      "ci_hi": 0.4032353703703703,
       "n_replicates": 20,
       "min": 0.35059259259259257,
       "max": 0.4263703703703703,
@@ -255,8 +460,8 @@
     "L2_minus_L1_max": {
       "mean": 0.001400000000000029,
       "sd": 0.011904886214889785,
-      "ci_lo": -0.0038999999999999478,
-      "ci_hi": 0.006300000000000011,
+      "ci_lo": -0.0038999999999999534,
+      "ci_hi": 0.0063000000000000165,
       "n_replicates": 20,
       "min": -0.02499999999999991,
       "max": 0.020000000000000018,
@@ -270,7 +475,7 @@
       "mean": 0.03165,
       "sd": 0.011788821645502707,
       "ci_lo": 0.026750000000000006,
-      "ci_hi": 0.036749999999999984,
+      "ci_hi": 0.036649999999999974,
       "n_replicates": 20,
       "min": 0.009000000000000008,
       "max": 0.05899999999999994,
@@ -283,8 +488,8 @@
     "L1_minus_L0_mean": {
       "mean": 0.06230320512820513,
       "sd": 0.02441362430311974,
-      "ci_lo": 0.05149982060185187,
-      "ci_hi": 0.07257636306980055,
+      "ci_lo": 0.0516019221866097,
+      "ci_hi": 0.07227955395299143,
       "n_replicates": 20,
       "min": 0.009692663817663816,
       "max": 0.09525320512820512,
@@ -297,8 +502,8 @@
     "L2_minus_L1_mean": {
       "mean": 0.015039285714285724,
       "sd": 0.024221795445367116,
-      "ci_lo": 0.004974955357142892,
-      "ci_hi": 0.025481696428571433,
+      "ci_lo": 0.005278370535714283,
+      "ci_hi": 0.025825491071428553,
       "n_replicates": 20,
       "min": -0.028142857142857136,
       "max": 0.06626785714285716,
@@ -311,8 +516,8 @@
     "L3_minus_L2_mean": {
       "mean": 0.4006857142857143,
       "sd": 0.013624124051701617,
-      "ci_lo": 0.3948785714285714,
-      "ci_hi": 0.40656446428571424,
+      "ci_lo": 0.39499285714285715,
+      "ci_hi": 0.40655749999999985,
       "n_replicates": 20,
       "min": 0.379142857142857,
       "max": 0.4234285714285714,

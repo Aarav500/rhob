@@ -42,6 +42,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from rhob.detectors.supervision import partition_by_supervision  # noqa: E402
 from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     ACCESS_LEVELS,
     degenerate_families_from_ledger,
@@ -145,24 +146,53 @@ def main() -> None:
     # L2 is None on replicate 7, both lists still have length R-1, a length check still
     # passes, and element i of one no longer refers to the same draw as element i of the
     # other -- so the paired difference below would silently subtract across draws.
-    ladder_by_rep: dict[str, dict[str, dict[int, float]]] = {
-        lv: {"mean": {}, "max": {}} for lv in ACCESS_LEVELS
-    }
-    best_counts: dict[str, dict[str, int]] = {lv: {} for lv in ACCESS_LEVELS}
-    for r in reps:
-        rid = r["replicate_id"]
-        summaries = summarize_access_levels(r["results"], degenerate_families=degenerate)
-        for lv, s in summaries.items():
-            if s.mean_auroc is not None:
-                ladder_by_rep[lv]["mean"][rid] = s.mean_auroc
-            if s.max_auroc is not None:
-                ladder_by_rep[lv]["max"][rid] = s.max_auroc
-            if s.best_detector:
-                best_counts[lv][s.best_detector] = best_counts[lv].get(s.best_detector, 0) + 1
+    def build_ladder(drop: frozenset[str] = frozenset()):
+        """Per-replicate ladder, optionally excluding a set of detectors by name."""
+        by_rep: dict[str, dict[str, dict[int, float]]] = {
+            lv: {"mean": {}, "max": {}} for lv in ACCESS_LEVELS
+        }
+        counts: dict[str, dict[str, int]] = {lv: {} for lv in ACCESS_LEVELS}
+        for r in reps:
+            rid = r["replicate_id"]
+            res = {k: v for k, v in r["results"].items() if k not in drop}
+            for lv, s in summarize_access_levels(res, degenerate_families=degenerate).items():
+                if s.mean_auroc is not None:
+                    by_rep[lv]["mean"][rid] = s.mean_auroc
+                if s.max_auroc is not None:
+                    by_rep[lv]["max"][rid] = s.max_auroc
+                if s.best_detector:
+                    counts[lv][s.best_detector] = counts[lv].get(s.best_detector, 0) + 1
+        return by_rep, counts
+
+    # A detector exposing fit() is handed the labels for each CV training fold
+    # (rhob.v3.benchmark._evaluate_cell). Cross-validation keeps that honest, but it
+    # answers "is the difference learnable from labelled examples?" rather than "does
+    # this fixed statistic separate the variants?". Mixing both into one per-level
+    # maximum reports whichever question produced the larger number. On this board that
+    # is decisive: the entire published L0->L1 step is one label-fitted detector, and
+    # the step reverses sign without it. See rhob.detectors.supervision.
+    _unsup, _fitted = partition_by_supervision(sorted({n for r in reps for n in r["results"]}))
+    FITTED = frozenset(_fitted)
+    ladder_by_rep, best_counts = build_ladder()
+    unsup_by_rep, unsup_counts = build_ladder(FITTED)
 
     def _vals(lv: str, stat: str) -> list[float]:
         """Values ordered by replicate id, for the unpaired per-level intervals."""
         return [ladder_by_rep[lv][stat][k] for k in sorted(ladder_by_rep[lv][stat])]
+
+    def _uvals(lv: str, stat: str) -> list[float]:
+        return [unsup_by_rep[lv][stat][k] for k in sorted(unsup_by_rep[lv][stat])]
+
+    ladder_unsup = {
+        lv: {
+            "mean_auroc": bootstrap_ci(_uvals(lv, "mean"), rng),
+            "max_auroc": bootstrap_ci(_uvals(lv, "max"), rng),
+            "best_detector_frequency": dict(
+                sorted(unsup_counts[lv].items(), key=lambda kv: -kv[1])
+            ),
+        }
+        for lv in ACCESS_LEVELS
+    }
 
     ladder = {
         lv: {
@@ -190,33 +220,39 @@ def main() -> None:
     # The max is additionally a selection statistic -- the maximum over a level's
     # detectors exceeds the truth by construction -- and at L0, where every detector is
     # at chance, the argmax is a coin flip (see best_detector_frequency).
-    separations = {}
-    for stat in ("max", "mean"):
-        for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:]):
-            lo_by_rep, hi_by_rep = ladder_by_rep[lo][stat], ladder_by_rep[hi][stat]
-            shared = sorted(set(lo_by_rep) & set(hi_by_rep))
-            if not shared:
-                continue
-            diffs = np.array([hi_by_rep[k] - lo_by_rep[k] for k in shared], dtype=float)
-            d_ci = bootstrap_ci(diffs.tolist(), rng)
-            separations[f"{hi}_minus_{lo}_{stat}"] = {
-                **d_ci,
-                "statistic": stat,
-                "excludes_zero": bool(
-                    d_ci["ci_lo"] is not None and (d_ci["ci_lo"] > 0 or d_ci["ci_hi"] < 0)
-                ),
-                "replicates_with_hi_above_lo": int((diffs > 0).sum()),
-                # Replicates where BOTH rungs were scoreable. Reported because it can be
-                # smaller than n_replicates, and a paired comparison over a subset of
-                # draws is a different claim than one over all of them.
-                "n_paired": len(shared),
-                # Pairing removes the between-draw variation the two rungs share. It does
-                # NOT equalise denominators: within one replicate L1 aggregates 35 cells
-                # over 8 families while L0 aggregates 93 over 27 and L2/L3 aggregate 123
-                # over 33. No amount of resampling fixes that, so any rung difference
-                # involving L1 is across populations as well as across levels.
-                "denominators_equal": False,
-            }
+    def compute_separations(by_rep):
+        seps = {}
+        for stat in ("max", "mean"):
+            for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:]):
+                lo_by_rep, hi_by_rep = by_rep[lo][stat], by_rep[hi][stat]
+                shared = sorted(set(lo_by_rep) & set(hi_by_rep))
+                if not shared:
+                    continue
+                diffs = np.array([hi_by_rep[k] - lo_by_rep[k] for k in shared], dtype=float)
+                d_ci = bootstrap_ci(diffs.tolist(), rng)
+                seps[f"{hi}_minus_{lo}_{stat}"] = {
+                    **d_ci,
+                    "statistic": stat,
+                    "excludes_zero": bool(
+                        d_ci["ci_lo"] is not None and (d_ci["ci_lo"] > 0 or d_ci["ci_hi"] < 0)
+                    ),
+                    "replicates_with_hi_above_lo": int((diffs > 0).sum()),
+                    # Replicates where BOTH rungs were scoreable. Reported because it
+                    # can be smaller than n_replicates, and a paired comparison over a
+                    # subset of draws is a different claim than one over all of them.
+                    "n_paired": len(shared),
+                    # Pairing removes the between-draw variation the two rungs share.
+                    # It does NOT equalise denominators: within one replicate L1
+                    # aggregates 35 cells over 8 families while L0 aggregates 93 over 27
+                    # and L2/L3 aggregate 123 over 33. No resampling fixes that, so any
+                    # rung difference involving L1 is across populations as well as
+                    # across access levels.
+                    "denominators_equal": False,
+                }
+        return seps
+
+    separations = compute_separations(ladder_by_rep)
+    separations_unsup = compute_separations(unsup_by_rep)
     disagree = [
         f"{hi}_minus_{lo}"
         for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:])
@@ -246,6 +282,19 @@ def main() -> None:
                 "0.500), not measurement precision. Its interval is a point by "
                 "construction and must not be read as a tight estimate."
             ),
+        },
+        "supervision": {
+            "label_fitted_detectors": sorted(FITTED),
+            "why_it_matters": (
+                "A detector exposing fit() is handed the hacking/legitimate labels for "
+                "each cross-validation training fold. That is a legitimate measurement "
+                "but a different question from an unsupervised post-hoc detector's: "
+                "'is the difference learnable from labelled examples?' rather than 'does "
+                "this fixed statistic separate the variants?'. A per-level maximum over "
+                "both reports whichever question produced the larger number."
+            ),
+            "access_levels_unsupervised_only": ladder_unsup,
+            "adjacent_level_separation_unsupervised_only": separations_unsup,
         },
         "access_levels": ladder,
         "adjacent_level_separation": separations,
@@ -298,6 +347,32 @@ def _write_markdown(out: dict, path: Path) -> None:
             f"| {lv} | {mx['mean']:.3f} | {f(mx)} | "
             f"{mn['mean']:.3f} | {f(mn)} |"
         )
+    L += ["", "## Supervised vs unsupervised", "",
+          "Five detectors expose `fit()` and are scored by 5-fold cross-validation on labels: "
+          + ", ".join(f"`{n}`" for n in out["supervision"]["label_fitted_detectors"]) + ".",
+          "Removing them and re-deriving the ladder from the same draws:", "",
+          "| Level | best AUROC (all) | 95% CI | best AUROC (unsupervised) | 95% CI | best unsupervised detector |",
+          "|---|---|---|---|---|---|"]
+    for lv in ACCESS_LEVELS:
+        a = out["access_levels"][lv]["max_auroc"]
+        b = out["supervision"]["access_levels_unsupervised_only"][lv]["max_auroc"]
+        if a["mean"] is None:
+            continue
+        f = lambda c: (f"[{c['ci_lo']:.4f}, {c['ci_hi']:.4f}]" if c.get("ci_lo") is not None else "n/a")  # noqa: E731
+        bd = next(iter(out["supervision"]["access_levels_unsupervised_only"][lv]["best_detector_frequency"]), "--")
+        bv = f"{b['mean']:.4f}" if b["mean"] is not None else "--"
+        L.append(f"| {lv} | {a['mean']:.4f} | {f(a)} | {bv} | {f(b)} | {bd} |")
+    us = out["supervision"]["adjacent_level_separation_unsupervised_only"]
+    if "L1_minus_L0_max" in us:
+        v = us["L1_minus_L0_max"]
+        L += ["", f"Unsupervised L1 minus L0 (max, paired): **{v['mean']:+.4f} "
+                  f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]**, "
+                  f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring L1 "
+                  f"-- {'separates' if v['excludes_zero'] else 'does NOT separate'}.",
+              "",
+              "The published L0->L1 climb is carried by a single label-fitted detector",
+              "(`State Divergence`). Without the label-fitted detectors the step reverses sign",
+              "and stops separating. Quote the partition alongside any rung difference."]
     L += ["", "## Do adjacent rungs separate?", "",
           "Paired within each draw, under BOTH statistics. Where the two disagree, the rung's",
           "status depends on the statistic and neither answer may be quoted alone. Pairing does",
