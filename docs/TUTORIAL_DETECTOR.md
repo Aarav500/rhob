@@ -44,12 +44,24 @@ to see:
 |---|---|---|
 | `proxy_rewards` | L0+ | Per-episode proxy reward (what the agent optimizes) |
 | `state_counts` | L1+ | Per-episode state-visitation histogram |
-| `behav_trace` | L2+ | Anti-symmetric behavioral feature (mean at 0 pre-onset, flips sign post-onset per variant) |
+| `behav_trace` | L2+ | Anti-symmetric behavioral feature — the two variants take opposite signs along it post-onset. **Which sign is the hacking one is randomized per family and not disclosed** |
 | `true_rewards` | oracle-only | **Never read this in a real detector** — it's the ground truth used to grade you |
+
+`behav_trace` is a magnitude with an unknown sign, not a hacking score:
+`behav_trace[-100:].mean() > 0` used to mean "hacking" and no longer does, because the
+benchmark reorients each family's behavioral axis before you see it
+([`docs/l2_sign_randomization.md`](l2_sign_randomization.md)). Either score something
+the flip cannot change (`abs`, a variance ratio, `|corr|`), or infer the direction in
+`observe_cell(runs)` — see below.
 
 If your detector needs training data (most L1/L2 detectors do), add an
 optional `fit(runs_a, runs_b)` method — `runs_a` is the hacking variant,
 `runs_b` is legitimate.
+
+There is also an optional, **unlabeled** hook: `observe_cell(runs)` is called once per
+(family, difficulty) cell with every run in it — both variants pooled and shuffled, no
+labels — before `classify`. It is how a detector may calibrate itself to a cell it knows
+nothing about, including recovering `behav_trace`'s direction.
 
 **Don't know where to start?** Copy the smallest existing detector at your
 access level and modify it:

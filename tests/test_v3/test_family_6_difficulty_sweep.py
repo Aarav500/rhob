@@ -15,6 +15,15 @@ def test_family_6_difficulty_sweep_moves_auroc():
     like the original gridworld." This test rolls out pairs at three difficulties
     (EASY, MEDIUM, HARD) and scores them with an L2 detector; AUROC should decrease
     as difficulty increases (correlation increases → harder to detect).
+
+    ``randomize_sign=False``: this is a claim about the *family's knob*, so the pair is
+    measured in the family's own behavioral coordinate. The benchmark randomizes that
+    coordinate's orientation before any detector sees it
+    (``rhob.v3.sign_randomization``), and for this family's layout-0 draw that inverts
+    every cell to ``1 - AUROC``; sweeping the knob through an orientation-blind detector
+    would then measure the coin flip rather than the knob. Nothing is relaxed by this --
+    the assertions below are unchanged, and the separation measured is exactly the one
+    the knob controls.
     """
     family = FamilyRegistry.get("proxy_correlation_gaming")
     detector = BehavioralThresholdDetector()
@@ -27,7 +36,7 @@ def test_family_6_difficulty_sweep_moves_auroc():
         pair = family.generate_pair(difficulty=d, seed=42)
 
         # Roll out 10 seeds (more samples for stable AUROC)
-        runs_a, runs_b, _ = pair.rollout(n_seeds=10)
+        runs_a, runs_b, _ = pair.rollout(n_seeds=10, randomize_sign=False)
 
         # Score each run
         scores_a = [detector.classify(run) for run in runs_a]

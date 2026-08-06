@@ -54,7 +54,16 @@ dev = [
 testpaths = ["tests"]
 python_files = "test_*.py"
 pythonpath = ["src"]
-addopts = "-q --tb=short"
+# `-m "not slow"` is a split, not a skip: the deselected tests run in the
+# `admission-slow` job in .github/workflows/tests.yml, and pytest prints the
+# deselected count on every run so the split is visible rather than silent.
+# Without it the default suite cannot finish -- one `mujoco_joint_limit_gaming`
+# admission-smoke tier alone costs ~230s of proxy calibration before its first
+# rollout. Run everything locally with `pytest tests/ -m ""`.
+addopts = "-q --tb=short -m 'not slow'"
+markers = [
+    "slow: costs minutes or more (MuJoCo/PettingZoo/RLHF-RM/sequence rollouts and their per-difficulty proxy calibrations). Deselected by default; run with `-m slow` or `-m ''`.",
+]
 
 [tool.mypy]
 python_version = "3.10"

@@ -20,7 +20,20 @@ env/
 
 # Generated data (regenerate with scripts/generate_gridworld_data.py)
 data/*.h5
-results/
+results/*
+
+# ...except the difficulty-calibration artifact, which is a published *measurement*
+# rather than an intermediate: it is what the repo now cites for "does the difficulty
+# knob do anything", and tests/test_v3/test_difficulty_calibration_artifact.py pins its
+# headline numbers so they cannot drift out of the docs. Re-including it needs
+# `results/*` above rather than `results/` -- git cannot re-include a path whose parent
+# directory is itself excluded.
+!results/difficulty_calibration/
+
+# ...and the replication draws, for the same reason: leaderboard/v5_replicated.json
+# reports intervals, and an interval whose underlying draws are not published is not
+# checkable. These 20 files ARE the evidence that the intervals are non-degenerate.
+!results/replication/
 
 # OS / editor
 .DS_Store
