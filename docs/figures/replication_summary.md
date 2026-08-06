@@ -18,12 +18,12 @@ Removing them and re-deriving the ladder from the same draws:
 
 | Level | best AUROC (all) | 95% CI | best AUROC (unsupervised) | 95% CI | best unsupervised detector |
 |---|---|---|---|---|---|
-| L0 | 0.5477 | [0.5382, 0.5574] | 0.5437 | [0.5336, 0.5541] | Spectral Reward |
-| L1 | 0.9416 | [0.9399, 0.9427] | 0.5340 | [0.5144, 0.5542] | Bimodal Occupancy |
-| L2 | 0.9430 | [0.9380, 0.9478] | 0.5872 | [0.5755, 0.5996] | Reward-Feature Correlation |
-| L3 | 0.9746 | [0.9711, 0.9778] | 0.9746 | [0.9711, 0.9777] | True Reward Oracle |
+| L0 | 0.5477 | [0.5385, 0.5574] | 0.5437 | [0.5332, 0.5543] | Spectral Reward |
+| L1 | 0.9416 | [0.9399, 0.9427] | 0.5340 | [0.5147, 0.5543] | Bimodal Occupancy |
+| L2 | 0.9430 | [0.9380, 0.9478] | 0.5872 | [0.5757, 0.5999] | Reward-Feature Correlation |
+| L3 | 0.9746 | [0.9712, 0.9778] | 0.9746 | [0.9711, 0.9778] | True Reward Oracle |
 
-Unsupervised L1 minus L0 (max, paired): **-0.0097 [-0.0280, +0.0089]**, 5/20 draws favouring L1 -- does NOT separate.
+Unsupervised L1 minus L0 (max, paired): **-0.0097 [-0.0283, +0.0084]**, 5/20 draws favouring L1 -- does NOT separate.
 
 The published L0->L1 climb is carried by a single label-fitted detector
 (`State Divergence`). Without the label-fitted detectors the step reverses sign
@@ -38,12 +38,12 @@ L2/L3 123 over 33.
 
 | Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |
 |---|---|---|---|---|---|
-| L1 minus L0 | max | +0.3939 | [+0.3844, +0.4032] | yes | 20/20 |
+| L1 minus L0 | max | +0.3939 | [+0.3844, +0.4033] | yes | 20/20 |
 | L2 minus L1 | max | +0.0014 | [-0.0039, +0.0063] | **NO** | 13/20 |
-| L3 minus L2 | max | +0.0316 | [+0.0268, +0.0366] | yes | 20/20 |
-| L1 minus L0 | mean | +0.0623 | [+0.0516, +0.0723] | yes | 20/20 |
-| L2 minus L1 | mean | +0.0150 | [+0.0053, +0.0258] | yes | 13/20 |
-| L3 minus L2 | mean | +0.4007 | [+0.3950, +0.4066] | yes | 20/20 |
+| L3 minus L2 | max | +0.0316 | [+0.0266, +0.0366] | yes | 20/20 |
+| L1 minus L0 | mean | +0.0623 | [+0.0517, +0.0722] | yes | 20/20 |
+| L2 minus L1 | mean | +0.0150 | [+0.0049, +0.0257] | yes | 13/20 |
+| L3 minus L2 | mean | +0.4007 | [+0.3951, +0.4066] | yes | 20/20 |
 
 **Statistic-dependent: L2_minus_L1.** Separates under one statistic and not the other.
 

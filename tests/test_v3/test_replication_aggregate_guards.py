@@ -192,3 +192,43 @@ def test_single_replicate_gets_no_interval(tmp_path: Path, n: int):
     bt = out["detectors"]["Behavioral Threshold"]
     assert bt["ci_lo"] is None and bt["ci_hi"] is None
     assert "single replicate" in bt.get("note", "")
+
+
+def test_intervals_do_not_move_when_another_quantity_is_added():
+    """A published interval must not shift because an unrelated statistic was added.
+
+    Threading one shared Generator through every bootstrap makes each interval depend on
+    how many calls preceded it. That is invisible until someone adds a reported quantity,
+    at which point every interval after it in the call order moves while the underlying
+    data is untouched. It happened here: adding the mean-column and unsupervised-partition
+    ladders shifted L0's suite-mean interval from [0.493366, 0.499950] to
+    [0.493327, 0.499889], and a paper citing the artifact printed the superseded pair.
+
+    Seeding each call from its own name makes an interval a function of (its values, its
+    name) alone, so this test can assert exact equality across a changed call sequence.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_agg", _AGG)
+    agg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(agg)
+
+    values = [0.48, 0.52, 0.50, 0.55, 0.47, 0.61, 0.49]
+
+    before = agg.bootstrap_ci(values, "ladder::L0::mean")
+    # Simulate a later revision adding several unrelated reported quantities first.
+    for k in ("unsup::L0::max", "unsup::L1::mean", "detector::Something", "all::L2_minus_L1::max"):
+        agg.bootstrap_ci([0.1, 0.2, 0.3, 0.4], k)
+    after = agg.bootstrap_ci(values, "ladder::L0::mean")
+
+    assert before == after, (
+        "the interval moved when other quantities were bootstrapped first; each call must "
+        "seed from its own key, not from a shared generator"
+    )
+
+    # ...and distinct quantities must still get distinct resamples, or the keying is inert.
+    other = agg.bootstrap_ci(values, "ladder::L1::mean")
+    assert (other["ci_lo"], other["ci_hi"]) != (before["ci_lo"], before["ci_hi"]), (
+        "two differently-named quantities produced identical intervals from identical "
+        "values -- the per-key seeding is not actually varying the resample"
+    )
