@@ -133,13 +133,24 @@ def main() -> None:
     saturated: list[str] = []
     for name in detector_names:
         vals, level = [], None
+        cell_counts: set[int] = set()
         for r in reps:
             rec = r["results"].get(name)
             if rec and rec.get("overall_auroc") is not None:
                 vals.append(float(rec["overall_auroc"]))
                 level = rec.get("access_level", level)
+                if rec.get("cells_measured") is not None:
+                    cell_counts.add(int(rec["cells_measured"]))
         ci = bootstrap_ci(vals, f"detector::{name}")
         ci["access_level"] = level
+        # The denominator, carried through from the replicates so a consumer can print
+        # it next to the interval. Without it a board-wide detector (123 cells over 33
+        # families) and one whose channel most families do not ship (35 over 8) render
+        # as if they had answered the same question -- which is exactly the reading the
+        # L1 imputation finding came from. Constant across draws by construction (every
+        # draw runs the same suite), so a disagreement means the draws are not
+        # comparable and this reports None rather than a figure true of only some.
+        ci["cells_measured"] = next(iter(cell_counts)) if len(cell_counts) == 1 else None
         # Per-family intervals, so a consumer can show a cell's uncertainty rather than
         # only the detector's board-wide figure. The leaderboard UI is the reason: it
         # filters by family, and a per-family point estimate with no interval is exactly
