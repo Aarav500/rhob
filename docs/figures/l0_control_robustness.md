@@ -59,13 +59,27 @@ control does not depend on the forced cells; removing them moves individual mean
 It licenses: the L0 control is not an artifact of averaging in cells that could not have
 come out otherwise.
 
-It does not license: any statement about the *suite mean*. That statistic's interval endpoint
-sits within the Monte-Carlo resolution of its own bootstrap. Replaying the published
-procedure (10,000 resamples of the same 20 draws) at seeds 0..299 instead of the script's
-fixed `BOOTSTRAP_SEED = 20260804` moves the upper endpoint over **[0.499823, 0.500060]** and
-puts it at or above 0.500 in **18 of 300**. The scatter is ~2.4e-04 wide against a published
-shortfall of 5.0e-05, so the sign of that shortfall is a property of the seed, not of the
-data, and no direction may be read from it.
+It does not license: any statement about which side of chance the **suite mean** sits on.
+The published interval is `access_levels.L0.mean_auroc` = 0.4966217948717948,
+[0.4933695869, 0.4999211859], and its upper endpoint is not resolvable from 0.500 by the
+bootstrap that produced it. Replaying the published procedure (10,000 resamples of the same
+20 draws) at generator seeds 0..299 instead of the script's fixed `BOOTSTRAP_SEED = 20260804`
+moves that endpoint over **[0.499823, 0.500060]**: it lands at or above 0.500 in **18 of the
+300** and below it in the other **282**. The endpoint's own Monte-Carlo scatter straddles
+0.500, so the interval places the suite mean on neither side of chance and no direction may
+be read from it. Subtracting the published endpoint from 0.500 and reporting the remainder is
+the false-precision error itself, not a smaller version of it; earlier versions of this file
+did exactly that, and the arithmetic is deliberately not repeated here.
+
+The endpoint has also moved twice across regenerations, with no measurement changed and no
+replicate re-run. `aggregate_replication.py` used to draw every interval from one
+`default_rng(BOOTSTRAP_SEED)` stream, so a bootstrap inserted *ahead* of a published one
+advanced the stream underneath it: `access_levels.L0.mean_auroc.ci_hi` went 0.4999495905 ->
+0.4998890919 as the suite-mean column and then the unsupervised ladder were added, and ->
+0.4999211859 when the mechanism was repaired. `mean` is 0.4966217948717948 at all three.
+The script now seeds each interval from a digest of its own name (commit 3f080de), so adding
+a reported quantity can no longer move a published one. That closes one source of movement;
+it does not make this endpoint resolvable, which is what the 300-seed replay above measures.
 
 The per-detector verdicts are not seed-sensitive in that way. Over the same 300 seeds, all
 13 L0 intervals contain 0.500 at every seed; the narrowest margin from 0.500 at any seed is
@@ -74,3 +88,6 @@ endpoint. The control is carried detector by detector, which is where it is robu
 
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set.
+The seed replay re-runs `bootstrap_ci`'s body -- 10,000 resamples of the 20 per-replicate
+values -- under `default_rng(s)` for s in 0..299, on the L0 suite mean and on each of the 13
+L0 detectors.
