@@ -413,7 +413,9 @@ machine-readable as such**. The leaderboard evaluates `n_layouts: 1`,
 `layout_seeds: [0]`, 5 seeds per variant, `n_replicates: 1` — because
 `FamilyRegistry.generate_suite` calls `generate_pair(d)` with
 `BaseFamily.generate_pair`'s default `seed=0`. Near AUROC 0.5 the standard error of
-a single cell is **≈ 0.16**, and every detector is scored on the identical rollouts
+a single cell is **≈ 0.19** (corrected 2026-08; this entry originally said 0.16, which
+was wrong — the Mann–Whitney null is `sqrt((n+m+1)/(12nm))` = 0.191 at n=m=5), and
+every detector is scored on the identical rollouts
 so their differences are not independent measurements. The block says so in a
 `note` field rather than leaving it to be reconstructed from script source.
 

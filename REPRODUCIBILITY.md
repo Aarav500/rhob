@@ -308,9 +308,11 @@ number, and it is now recorded in the artifact itself:
   (`FamilyRegistry.generate_suite` calls `generate_pair(d)` with
   `BaseFamily.generate_pair`'s default `seed=0`). `n_replicates: 1`,
   `n_layouts: 1`, `layout_seeds: [0]`.
-- **The standard error of a single-cell AUROC near 0.5 is roughly 0.16.** A
-  three-decimal cell value carries about one meaningful digit. There are no
-  confidence intervals anywhere in the leaderboard.
+- **The standard error of a single-cell AUROC near 0.5 is 0.19** —
+  `sqrt((n+m+1)/(12nm))` at n=m=5, the Mann–Whitney null. A three-decimal cell value
+  carries about one meaningful digit. This single-draw board carries no confidence
+  intervals; `leaderboard/v5_replicated.json` does, over 20 independent draws, for
+  every detector and 790 (detector, family) cells.
 - **All 30 detectors are scored on the identical rolled-out runs**, so their cell
   values are correlated and the difference between two detectors is not a
   comparison of independent measurements.
@@ -1038,9 +1040,12 @@ Stated so they are not discovered mid-reproduction. None of these are fixed; eac
 is a real remaining limit.
 
 **Statistical**
-- **The leaderboard is unreplicated.** 5 vs 5 seeds, one layout seed, no
-  confidence intervals, SE ≈ 0.16 near AUROC 0.5. Replicating it is the single
-  highest-value statistical fix and has not been done.
+- **~~The leaderboard is unreplicated.~~ Done (2026-08).** The suite was replicated
+  over 20 independent `(layout_seed, seed_base)` draws;
+  `leaderboard/v5_replicated.json` carries bootstrap intervals and
+  `docs/figures/replication_summary.md` the summary. The superseded single-draw board
+  had SE ≈ 0.19 near AUROC 0.5 (`sqrt((n+m+1)/(12nm))` at n=m=5), not the 0.16
+  previously stated here. Per-*cell* replication is still outstanding.
 - **The gate certifies a distribution the leaderboard does not score.** 12 layout
   seeds vs layout seed 0.
 - **73 of 123 leaderboard cells are certified by nothing** (23 of 33 families are
