@@ -33,6 +33,7 @@ it does not have:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import statistics
 import sys
@@ -55,12 +56,24 @@ CI_LEVEL = 0.95
 BOOTSTRAP_SEED = 20260804
 
 
-def bootstrap_ci(values: list[float], rng: np.random.Generator) -> dict:
+def bootstrap_ci(values: list[float], key: str) -> dict:
     """Percentile bootstrap of the mean of ``values``, resampling replicates.
 
     With R replicates the bootstrap can only resolve the interval to ~1/R granularity;
     it does not manufacture information that R draws do not contain. ``n_replicates`` is
     reported alongside every interval so that limit stays visible.
+
+    ``key`` names the quantity, and its hash seeds this call's generator. Every interval
+    is therefore a deterministic function of (its own values, its own name) and nothing
+    else. The obvious alternative -- one shared ``Generator`` threaded through every call
+    -- makes each interval depend on how many bootstraps ran *before* it, so adding a new
+    reported quantity silently moves every previously published one. That happened here:
+    adding the mean-column and unsupervised-partition ladders shifted L0's suite-mean
+    interval from [0.493366, 0.499950] to [0.493327, 0.499889] while the underlying 20
+    draws were untouched, and a paper citing the file printed the superseded pair.
+    Nothing was wrong with either number; they were answers to "what does the 10,000-draw
+    resample say" at two different points in one RNG stream. A published interval must not
+    move because an unrelated statistic was added next to it.
     """
     arr = np.asarray(values, dtype=float)
     n = len(arr)
@@ -74,6 +87,8 @@ def bootstrap_ci(values: list[float], rng: np.random.Generator) -> dict:
             "n_replicates": 1,
             "note": "single replicate -- no interval is estimable from one draw",
         }
+    seed = (BOOTSTRAP_SEED + int(hashlib.blake2b(key.encode(), digest_size=8).hexdigest(), 16)) % (2**63)
+    rng = np.random.default_rng(seed)
     idx = rng.integers(0, n, size=(BOOTSTRAP_RESAMPLES, n))
     means = arr[idx].mean(axis=1)
     lo_q = (1 - CI_LEVEL) / 2 * 100
@@ -110,7 +125,6 @@ def main() -> None:
     args = parser.parse_args()
 
     reps = load_replicates(args.in_dir)
-    rng = np.random.default_rng(BOOTSTRAP_SEED)
     print(f"loaded {len(reps)} replicates from {args.in_dir}")
 
     # ---- per-detector overall AUROC ------------------------------------------------
@@ -124,7 +138,7 @@ def main() -> None:
             if rec and rec.get("overall_auroc") is not None:
                 vals.append(float(rec["overall_auroc"]))
                 level = rec.get("access_level", level)
-        ci = bootstrap_ci(vals, rng)
+        ci = bootstrap_ci(vals, f"detector::{name}")
         ci["access_level"] = level
         per_detector[name] = ci
         if ci.get("sd") == 0.0:
@@ -185,8 +199,8 @@ def main() -> None:
 
     ladder_unsup = {
         lv: {
-            "mean_auroc": bootstrap_ci(_uvals(lv, "mean"), rng),
-            "max_auroc": bootstrap_ci(_uvals(lv, "max"), rng),
+            "mean_auroc": bootstrap_ci(_uvals(lv, "mean"), f"unsup::{lv}::mean"),
+            "max_auroc": bootstrap_ci(_uvals(lv, "max"),  f"unsup::{lv}::max"),
             "best_detector_frequency": dict(
                 sorted(unsup_counts[lv].items(), key=lambda kv: -kv[1])
             ),
@@ -196,8 +210,8 @@ def main() -> None:
 
     ladder = {
         lv: {
-            "mean_auroc": bootstrap_ci(_vals(lv, "mean"), rng),
-            "max_auroc": bootstrap_ci(_vals(lv, "max"), rng),
+            "mean_auroc": bootstrap_ci(_vals(lv, "mean"), f"ladder::{lv}::mean"),
+            "max_auroc": bootstrap_ci(_vals(lv, "max"),  f"ladder::{lv}::max"),
             # How often each detector was the best at its level. A level whose "best
             # detector" changes between draws does not have a stable best detector, and
             # the published single-draw winner was a coin flip.
@@ -220,7 +234,7 @@ def main() -> None:
     # The max is additionally a selection statistic -- the maximum over a level's
     # detectors exceeds the truth by construction -- and at L0, where every detector is
     # at chance, the argmax is a coin flip (see best_detector_frequency).
-    def compute_separations(by_rep):
+    def compute_separations(by_rep, tag: str):
         seps = {}
         for stat in ("max", "mean"):
             for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:]):
@@ -229,7 +243,7 @@ def main() -> None:
                 if not shared:
                     continue
                 diffs = np.array([hi_by_rep[k] - lo_by_rep[k] for k in shared], dtype=float)
-                d_ci = bootstrap_ci(diffs.tolist(), rng)
+                d_ci = bootstrap_ci(diffs.tolist(), f"{tag}::{hi}_minus_{lo}::{stat}")
                 seps[f"{hi}_minus_{lo}_{stat}"] = {
                     **d_ci,
                     "statistic": stat,
@@ -251,8 +265,8 @@ def main() -> None:
                 }
         return seps
 
-    separations = compute_separations(ladder_by_rep)
-    separations_unsup = compute_separations(unsup_by_rep)
+    separations = compute_separations(ladder_by_rep, "all")
+    separations_unsup = compute_separations(unsup_by_rep, "unsup")
     disagree = [
         f"{hi}_minus_{lo}"
         for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:])
