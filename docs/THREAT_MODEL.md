@@ -214,9 +214,11 @@ puts a real family through full certification.
 - **The leaderboard is one draw.** Every cell in `leaderboard/v5_leaderboard.json`
   comes from a single unreplicated 5-seeds-vs-5-seeds comparison, at one layout
   seed (`layout_seeds: [0]`). The standard error of a single-cell AUROC near 0.5
-  is roughly **0.16**. There are no confidence intervals anywhere in the
-  leaderboard. Do not read the third decimal, and do not treat a gap of 0.02
-  between two detectors as a result.
+  is **0.19** (`sqrt((n+m+1)/(12nm))` at n=m=5, the Mann–Whitney null). That board
+  carries no confidence intervals; the 20-draw replication in
+  `leaderboard/v5_replicated.json` does, for aggregates. Do not read the third decimal
+  of a single-draw cell, and do not treat a gap of 0.02 between two detectors as a
+  result unless an interval says so.
 - **All 30 detectors share that one draw.** They are scored on the identical
   rolled-out runs, so their cell values are correlated and their differences are
   not independent measurements.

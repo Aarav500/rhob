@@ -143,8 +143,10 @@ def sampling_block(
     ``n_replicates == 1`` means every number in the artifact comes from ONE draw of
     the rollout seeds, shared across every detector scored -- not an average over
     independent repetitions. At the leaderboard's ``n_seeds=5`` per variant, the
-    standard error of a single-cell AUROC near 0.5 is roughly 0.16, so a
-    three-decimal cell value carries about one meaningful digit. This block is
+    standard error of a single-cell AUROC near 0.5 is 0.19 -- the Mann-Whitney null
+    ``sqrt((n+m+1)/(12nm))`` at n=m=5 -- so a three-decimal cell value carries about
+    one meaningful digit. (This constant read 0.16 until 2026-08, which was simply
+    wrong and was stamped into every artifact generated before then.) This block is
     emitted so that fact is machine-readable from the artifact itself instead of
     having to be reconstructed from the script's source.
 
@@ -174,7 +176,9 @@ def sampling_block(
             "Single unreplicated draw: all detectors are scored on the identical "
             "rolled-out runs, so their cell values are correlated and their "
             "differences are not independent measurements. No confidence intervals "
-            "are computed; do not read the third decimal of any AUROC as resolved."
+            "are computed for this artifact; see leaderboard/v5_replicated.json for "
+            "the 20-draw replication that does. Do not read the third decimal of any "
+            "AUROC here as resolved: the null SE at n=m=5 is 0.19."
         )
         if n_replicates == 1
         else None,

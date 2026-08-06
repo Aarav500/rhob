@@ -273,9 +273,13 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
   designed. This means RHOB establishes what is detectable **in principle** from each
   channel, not what real learned agents leave behind.
 - **The leaderboard is one draw.** Every cell is a single unreplicated 5-vs-5
-  comparison at layout seed 0. **SE near AUROC 0.5 is ≈ 0.16.** There are no
-  confidence intervals. Do not read the third decimal; do not rank two detectors that
-  differ by less than ~0.2.
+  comparison at layout seed 0. **SE near AUROC 0.5 is ≈ 0.19** — the Mann–Whitney
+  null, `sqrt((n+m+1)/(12nm))` at n=m=5. That board carries no confidence intervals;
+  do not read its third decimal, and do not rank two of its detectors that differ by
+  less than ~0.2. **This limitation is closed for the aggregates**: the suite has been
+  replicated over 20 independent `(layout_seed, seed_base)` draws and
+  `leaderboard/v5_replicated.json` publishes bootstrap intervals per detector and per
+  family. Individual cells remain single-draw.
 - **All 30 detectors share that draw**, so their cell values are correlated and their
   differences are not independent measurements.
 - **The certified distribution is not the scored distribution.** The gate averages

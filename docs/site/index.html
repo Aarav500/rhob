@@ -74,7 +74,10 @@
   <p><strong>Read the <a href="../THREAT_MODEL.md">threat model</a> before citing any number on this
   page.</strong> Hacking policies in RHOB are <em>scripted, not emergent</em>; the L0-at-chance result
   is a <em>negative control, not a finding</em>; and every leaderboard cell is a single unreplicated
-  5-vs-5 draw whose standard error near AUROC 0.5 is roughly 0.16.</p>
+  5-vs-5 draw whose standard error near AUROC 0.5 is <strong>0.19</strong>
+  (the Mann&ndash;Whitney null, &radic;((n+m+1)/12nm) at n=m=5). The board has since been
+  replicated over 20 independent draws with bootstrap confidence intervals; the
+  leaderboard now serves those.</p>
   <p>A 2026-08 audit corrected several figures previously published here — including an L2 held-out
   transfer number of 0.95 and an L3 &ldquo;oracle ceiling&rdquo; of 0.87 that were both wrong — and
   then found that the fix to the admission gate had reproduced the original error one level down,

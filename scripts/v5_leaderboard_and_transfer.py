@@ -18,8 +18,11 @@ Two properties of the emitted JSON are load-bearing and easy to miss:
    interesting result -- and is now distinguishable from "never measured".
 2. **The whole file is one draw.** Every detector is scored on the identical rolled-out
    runs from a single layout seed and a single set of rollout seeds; there is no
-   replication and there are no confidence intervals. The ``sampling`` block records
-   exactly that, so a reader does not have to infer it from this script's source.
+   replication and there are no confidence intervals; the null SE near AUROC 0.5 is
+   0.19 at n=m=5. The ``sampling`` block records exactly that, so a reader does not
+   have to infer it from this script's source. For intervals, run
+   ``scripts/replicate_leaderboard.py`` over several draws and aggregate with
+   ``scripts/aggregate_replication.py``.
 
 Run: python scripts/v5_leaderboard_and_transfer.py [--families ...] [--detectors ...]
      [--n-seeds N] [--out PATH]
