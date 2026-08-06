@@ -140,6 +140,23 @@ def main() -> None:
                 level = rec.get("access_level", level)
         ci = bootstrap_ci(vals, f"detector::{name}")
         ci["access_level"] = level
+        # Per-family intervals, so a consumer can show a cell's uncertainty rather than
+        # only the detector's board-wide figure. The leaderboard UI is the reason: it
+        # filters by family, and a per-family point estimate with no interval is exactly
+        # the single-draw presentation this study exists to replace.
+        # A family is included only where the detector actually measured it -- a family
+        # whose channel the detector cannot read contributes no cells and must not appear
+        # as a number (see the L1 imputation finding).
+        fam_vals: dict[str, list[float]] = {}
+        for r in reps:
+            rec = r["results"].get(name) or {}
+            for fam, v in (rec.get("per_family") or {}).items():
+                if v is not None:
+                    fam_vals.setdefault(fam, []).append(float(v))
+        ci["per_family"] = {
+            fam: bootstrap_ci(vs, f"detector::{name}::family::{fam}")
+            for fam, vs in sorted(fam_vals.items())
+        }
         per_detector[name] = ci
         if ci.get("sd") == 0.0:
             saturated.append(name)
