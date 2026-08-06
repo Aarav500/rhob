@@ -544,6 +544,7 @@
       "min": 0.507,
       "max": 0.583,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5355,
@@ -853,6 +854,7 @@
       "min": 0.407,
       "max": 0.646,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5000000000000001,
@@ -1162,6 +1164,7 @@
       "min": 0.443,
       "max": 0.567,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -1246,6 +1249,7 @@
       "min": 0.387,
       "max": 0.526,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -1330,6 +1334,7 @@
       "min": 0.342,
       "max": 0.371,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.8714999999999999,
@@ -1639,6 +1644,7 @@
       "min": 0.474,
       "max": 0.552,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -1948,6 +1954,7 @@
       "min": 0.526,
       "max": 0.579,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -2257,6 +2264,7 @@
       "min": 0.471,
       "max": 0.549,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -2566,6 +2574,7 @@
       "min": 0.462,
       "max": 0.536,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -2875,6 +2884,7 @@
       "min": 0.313,
       "max": 0.625,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -2959,6 +2969,7 @@
       "min": 0.407,
       "max": 0.646,
       "access_level": "L3",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5000000000000001,
@@ -3268,6 +3279,7 @@
       "min": 0.435,
       "max": 0.521,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -3577,6 +3589,7 @@
       "min": 0.474,
       "max": 0.536,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -3886,6 +3899,7 @@
       "min": 0.44,
       "max": 0.54,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.46349999999999997,
@@ -4195,6 +4209,7 @@
       "min": 0.452,
       "max": 0.548,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -4504,6 +4519,7 @@
       "min": 0.477,
       "max": 0.522,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -4813,6 +4829,7 @@
       "min": 0.482,
       "max": 0.524,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -5122,6 +5139,7 @@
       "min": 0.451,
       "max": 0.576,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.461,
@@ -5431,6 +5449,7 @@
       "min": 0.468,
       "max": 0.524,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -5740,6 +5759,7 @@
       "min": 0.43,
       "max": 0.556,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5155000000000001,
@@ -6049,6 +6069,7 @@
       "min": 0.542,
       "max": 0.615,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -6358,6 +6379,7 @@
       "min": 0.458,
       "max": 0.561,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.48550000000000004,
@@ -6667,6 +6689,7 @@
       "min": 0.549,
       "max": 0.597,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -6751,6 +6774,7 @@
       "min": 0.927,
       "max": 0.943,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -6835,6 +6859,7 @@
       "min": 0.342,
       "max": 0.609,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -6919,6 +6944,7 @@
       "min": 0.917,
       "max": 0.961,
       "access_level": "L2",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.752,
@@ -7228,6 +7254,7 @@
       "min": 0.341,
       "max": 0.606,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -7312,6 +7339,7 @@
       "min": 0.953,
       "max": 0.983,
       "access_level": "L3",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.9625,
@@ -7621,6 +7649,7 @@
       "min": 0.483,
       "max": 0.522,
       "access_level": "L0",
+      "cells_measured": 123,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
@@ -7930,6 +7959,7 @@
       "min": 0.486,
       "max": 0.509,
       "access_level": "L1",
+      "cells_measured": 35,
       "per_family": {
         "continuous_camping": {
           "mean": 0.5,
