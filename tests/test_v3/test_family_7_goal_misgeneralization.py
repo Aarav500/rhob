@@ -4,21 +4,27 @@ import numpy as np
 
 from rhob.v3.registry import FamilyRegistry
 
-from admission_helpers import assert_admitted
+from admission_helpers import assert_smoke_admissible
 
 
-def test_admitted():
-    """Full 5-criterion admission check via AdmissionGate.
+def test_smoke_admissible_at_every_scored_difficulty():
+    """Reduced-power 6-criterion screen at all five scored tiers -- not certification.
 
     Regression test: an earlier revision scaled the hacking variant's movement
     speed by an extra "commitment=0.9" factor the legitimate variant's movement
     didn't have, so the two variants converged to their respective goals at
     different rates. That broke "proxy matched by construction" (mean L0 AUROC
     was ~0.73, not noise) but the single-seed, +/-20%-tolerance sum comparison
-    in test_proxy_matched below was too weak to catch it.
+    in test_proxy_matched below was too weak to catch it. A 0.73 leak is still
+    caught at the smoke margin (+/-0.256): the TOST needs the whole interval
+    inside the band, and 0.73 +/- 0.117 is not.
+
+    What this does *not* do is establish the shipped +/-0.10 claim -- see
+    ``admission_helpers``; that is the admission ledger's job. And it previously
+    ran at ``default_difficulties()[0]`` only, i.e. 0.98, saying nothing about the
+    four other tiers the benchmark scores.
     """
-    fam = FamilyRegistry.get("goal_misgeneralization")
-    assert_admitted(fam)
+    assert_smoke_admissible(FamilyRegistry.get("goal_misgeneralization"))
 
 
 def test_family_registered():

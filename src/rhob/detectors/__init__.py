@@ -7,6 +7,9 @@ This module contains:
 - l1_* : state-visitation detectors
 - l2_* : full-trajectory detectors
 - l3_* : oracle ceiling detectors (never a practical access level; for bounding results)
+
+One detector in the suite duplicates another and must not be counted twice in any
+per-access-level aggregate; :mod:`rhob.detectors.redundancy` is the authoritative list.
 """
 
 from rhob.detectors.base import AbstractDetector, OverheadEstimate
@@ -49,6 +52,11 @@ from rhob.detectors.l2_reward_feature_correlation import RewardFeatureCorrelatio
 from rhob.detectors.l3_perfect_feature import PerfectFeatureOracleDetector
 from rhob.detectors.l3_true_reward_oracle import TrueRewardOracleDetector
 from rhob.detectors.posthoc import PosthocDetector, RunData
+from rhob.detectors.redundancy import (
+    DUPLICATE_DIAGNOSTICS,
+    duplicate_source,
+    is_duplicate_diagnostic,
+)
 
 __all__ = [
     "AbstractDetector",
@@ -87,9 +95,15 @@ __all__ = [
     "FeatureMagnitudeDetector",
     "FeatureConsistencyDetector",
     "RewardFeatureCorrelationDetector",
-    # L3 (oracle ceiling)
+    # L3 (oracle ceiling). Only TrueRewardOracleDetector is a genuine oracle;
+    # PerfectFeatureOracleDetector is a labelled duplicate of BehavioralThresholdDetector
+    # and is excluded from access-level aggregates (see rhob.detectors.redundancy).
     "TrueRewardOracleDetector",
     "PerfectFeatureOracleDetector",
+    # Duplicate-detector registry, used by every access-level aggregation.
+    "DUPLICATE_DIAGNOSTICS",
+    "duplicate_source",
+    "is_duplicate_diagnostic",
     # External baselines (classical/non-RHOB-specific methods, for fair comparison)
     "PageHinkleyDetector",
     "IsolationForestDetector",

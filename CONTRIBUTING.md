@@ -28,10 +28,52 @@ full reference guide.
 
 ### Key Principles
 1. **Matched proxy by construction** — Not by fine-tuning
-2. **Anti-symmetric features** — Must flip sign under pair's symmetry `σ`
+2. **Anti-symmetric features** — Must flip sign under pair's symmetry `σ`, in *your
+   family's own coordinate*. The benchmark randomizes that coordinate's orientation
+   before any detector sees it — see [The sign is not the label](#the-sign-is-not-the-label)
 3. **Deterministic** — Same seed = same rollout, always
 4. **Testable** — <60s per pair, handles small sample sizes
 5. **Documented** — Clear parameter semantics
+
+### The sign is not the label
+
+**Emit a signed, anti-symmetric `behav_trace`, with hacking positive.** Your pair needs
+one consistent coordinate — that is what makes the two variants a *pair* rather than two
+unrelated runs, and every family-level check (your own tests, the admission gate's
+`behavioral_separated` and `camping_quality`) reads the feature in it.
+
+**But the benchmark does not show detectors your orientation.** Before any detector
+scores anything, `MatchedPair.rollout` multiplies *both* variants' traces by a
+per-`(family, layout_seed)` sign of +1 or -1 that is deterministic, reproducible, and
+not disclosed through the detector interface
+([`src/rhob/v3/sign_randomization.py`](src/rhob/v3/sign_randomization.py),
+[`docs/l2_sign_randomization.md`](docs/l2_sign_randomization.md)).
+
+Why: under the old fixed convention the sign of `behav_trace` *was* the label. An L2
+detector that thresholded it at zero scored AUROC 1.000 on any family, at any
+difficulty, including families it had never seen — which reads as excellent
+generalization and is actually a restatement of this guide. Randomizing the sign
+removes that; the pair's separation is preserved exactly, only the direction moves.
+
+What this means for you:
+
+- **Family authors** — nothing changes in what you emit. Do keep asserting your own
+  anti-symmetry: use `pair.rollout_hacking(s)` / `pair.rollout_legit(s)`, which are
+  always in your coordinate, or `pair.rollout(n, randomize_sign=False)`. What you may
+  *not* do is write a test that assumes the benchmark's evaluation path preserves your
+  sign — it does not.
+- **Detector authors** — you may not assume the direction. A detector needing one must
+  infer it from `observe_cell(runs)`, the unlabeled set of runs in the cell (see
+  [Contributing a Detector](#contributing-a-detector)). Importing `behav_sign` to divide
+  the flip back out is reading the label, exactly like reading `true_rewards`, and is
+  disqualifying.
+
+**What this does *not* fix.** `behav_trace` is still a feature hand-authored by someone
+who knew which variant was the hacking one, and it is still the single axis the family
+was built to separate on. Sign randomization removes the *direction* freebie and only
+that; an L2 score measured under it means "this detector did not need the sign
+convention", not "the L2 channel is label-blind". Rebuilding that channel from
+label-blind raw trajectory summaries is tracked as separate work.
 
 ---
 
@@ -54,6 +96,8 @@ Before coding, complete a design audit:
 - What distinguishes hacking from legitimate
 - Why it's anti-symmetric under σ
 - NOT a magnitude (count, rate, convergence)
+- Signed with hacking positive *in your family's coordinate* — the benchmark reorients
+  it at evaluation time (see [The sign is not the label](#the-sign-is-not-the-label))
 - Example: "(red_count - blue_count) / total → flips sign under σ"
 
 **4. State your difficulty knob**
@@ -233,7 +277,11 @@ def test_difficulty_sweep():
     aurocs = []
     for d in [0.98, 0.80, 0.60]:
         pair = fam.generate_pair(d, seed=0)
-        runs_a, runs_b, _ = pair.rollout(n_seeds=5)
+        # randomize_sign=False: this asserts a property of YOUR knob, so measure in
+        # your family's own coordinate. With the default (randomized) orientation an
+        # un-oriented detector may report 1 - AUROC and the sweep would test the coin
+        # flip instead of the knob.
+        runs_a, runs_b, _ = pair.rollout(n_seeds=5, randomize_sign=False)
         
         scores_a = [detector.classify(r) for r in runs_a]
         scores_b = [detector.classify(r) for r in runs_b]
@@ -257,6 +305,23 @@ def test_difficulty_sweep():
 - **L1** (State-visitation): Use `proxy_rewards` + `state_counts`
 - **L2** (Behavioral): Use `proxy_rewards` + `behav_trace` + `state_counts`
 - **L3** (Oracle): Use `true_rewards` (never scored in production)
+
+**L2 detectors: you do not get the feature's direction.** `behav_trace` arrives in a
+per-family orientation the benchmark draws and withholds
+([The sign is not the label](#the-sign-is-not-the-label)), so `behav_trace[-100:].mean()`
+is a magnitude with an unknown sign, not a hacking score. Two legitimate options:
+
+1. **Be direction-free** — score something the flip cannot change (`abs`, a variance
+   ratio, `|corr|`). Most shipped L2 detectors already are.
+2. **Infer the direction** — implement `observe_cell(runs)`. The benchmark calls it once
+   per (family, difficulty) cell with every run in that cell, pooled, shuffled, and
+   **unlabeled**, before calling `classify`. Whatever you conclude from that population
+   is yours to use. `BehavioralThresholdDetector.observe_cell` is a worked example, and
+   its docstring is explicit about how well the inference actually does.
+
+What is not allowed: importing `rhob.v3.sign_randomization.behav_sign`, reconstructing
+the shuffle, or otherwise recovering the orientation from anything but the data. That is
+reading the label by a longer route, the same rule that bars `true_rewards`.
 
 ### Step 2: Implement
 
@@ -420,10 +485,15 @@ pytest tests/ -v --tb=short
 - [ ] Family generates deterministic pairs (same seed = same run)
 - [ ] Proxy totals are similar between variants (±20%)
 - [ ] True rewards diverge (hacking < legitimate)
-- [ ] Behavioral feature has correct sign (anti-symmetric)
+- [ ] Behavioral feature is anti-symmetric across the pair, hacking positive, asserted
+      through `rollout_hacking`/`rollout_legit` or `rollout(..., randomize_sign=False)`
+- [ ] No test assumes the evaluation path preserves that sign (it does not — see
+      [The sign is not the label](#the-sign-is-not-the-label))
 - [ ] Difficulty knob moves L2 smoothly
 - [ ] Detector imports without errors
 - [ ] Detector classify() returns [0, 1]
+- [ ] Detector does not assume `behav_trace`'s direction (is direction-free, or infers
+      it in `observe_cell`)
 - [ ] Detector handles short runs gracefully
 - [ ] All tests pass
 

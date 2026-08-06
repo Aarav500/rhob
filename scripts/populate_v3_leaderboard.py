@@ -10,8 +10,15 @@ machine-readable ``leaderboard.json``.
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
-from rhob.detectors import (
+# Run the checkout this file lives in, not whatever the editable install points at.
+# In a git worktree those differ, and the failure is silent: the script imports a
+# same-named module from the OTHER tree and publishes results attributed to this one.
+# Enforced for every script by tests/test_scripts_run_their_own_checkout.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from rhob.detectors import(  # noqa: E402
     BehavioralThresholdDetector,
     EnsembleDetector,
     PerfectFeatureOracleDetector,
@@ -27,9 +34,9 @@ from rhob.detectors import (
     TrueRewardOracleDetector,
     VisitationEntropyTrendDetector,
 )
-from rhob.v3.benchmark import BenchmarkResults, CellResult, _evaluate_cell
-from rhob.v3.leaderboard.board import Leaderboard
-from rhob.v3.registry import FamilyRegistry
+from rhob.v3.benchmark import BenchmarkResults, CellResult, _evaluate_cell  # noqa: E402
+from rhob.v3.leaderboard.board import Leaderboard  # noqa: E402
+from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 import os
 
@@ -88,11 +95,18 @@ def main() -> None:
         print(f"=== {detector.name} ({detector.access_level}) ===")
         results = BenchmarkResults(detector_name=detector.name, access_level=detector.access_level)
         for pair, runs_a, runs_b, onsets_a in rolled_out:
-            auroc, mae = _evaluate_cell(detector, runs_a, runs_b, onsets_a, detector.access_level, pair.n_episodes)
-            results.cells.append(
-                CellResult(pair.family, pair.mechanism.value, pair.difficulty, auroc, mae, N_SEEDS)
+            auroc, mae, na_reason = _evaluate_cell(
+                detector, runs_a, runs_b, onsets_a, detector.access_level, pair.n_episodes
             )
-            print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: AUROC={auroc:.3f}  onsetMAE={mae:.3f}")
+            results.cells.append(
+                CellResult(
+                    pair.family, pair.mechanism.value, pair.difficulty, auroc, mae, N_SEEDS, na_reason
+                )
+            )
+            if na_reason:
+                print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: N/A  ({na_reason})")
+            else:
+                print(f"  {pair.family} @ L2*={pair.difficulty:.2f}: AUROC={auroc:.3f}  onsetMAE={mae:.3f}")
         results.summary()
         board.submit(results, author="rhob-baselines")
         print()
