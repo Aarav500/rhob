@@ -18,6 +18,7 @@ being invisible in an artifact that reports three-decimal AUROCs.
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 import sys
@@ -75,12 +76,39 @@ def git_provenance() -> dict[str, Any]:
     """
     commit = _git("rev-parse", "HEAD")
     if commit is None:
+        # No git here, which is not exotic: the 2026-08 replication ran on a remote host
+        # from a source tarball packed WITHOUT .git, so all twenty of its artifacts
+        # recorded commit=null and no draw could be tied to a revision -- in a repository
+        # whose seventh catalogued defect is scripts resolving to the wrong source tree.
+        #
+        # A deploy that strips .git must pass the revision explicitly. Where the answer
+        # came from is recorded next to it, because "the operator asserted this" and "git
+        # reported this" are different evidence and a reader must not have to guess which.
+        declared = (os.environ.get("RHOB_SOURCE_COMMIT") or "").strip()
+        if declared:
+            return {
+                "commit": declared,
+                "short_commit": declared[:12],
+                "branch": (os.environ.get("RHOB_SOURCE_BRANCH") or "").strip() or None,
+                "dirty": None,
+                "dirty_files": None,
+                "source": "env:RHOB_SOURCE_COMMIT",
+                "note": (
+                    "No git repository at generation time; the revision was declared by "
+                    "the caller and is unverified. dirty is unknown, not clean."
+                ),
+            }
         return {
             "commit": None,
             "short_commit": None,
             "branch": None,
             "dirty": None,
             "dirty_files": None,
+            "source": None,
+            "note": (
+                "No git repository at generation time and RHOB_SOURCE_COMMIT was unset, "
+                "so this artifact cannot be tied to a source revision."
+            ),
         }
     commit = commit.strip()
     status = _git("status", "--porcelain")
@@ -93,6 +121,7 @@ def git_provenance() -> dict[str, Any]:
         "branch": branch.strip() if branch else None,
         "dirty": bool(dirty_files),
         "dirty_files": sorted(dirty_files),
+        "source": "git",
     }
 
 
