@@ -3,6 +3,41 @@
 [![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+> ## 🔴 CORRECTION — 2026-08-12
+>
+> **The headline transfer score below (0.994) does not survive a control that should have
+> been run before it was published.**
+>
+> A repository style rule required each family's behavioural feature to be anti-symmetric
+> with *positive = hacking*, and the L2 detector thresholded at zero. **The sign of the
+> observation was the label.** Randomizing that sign per family collapses the headline
+> cross-family transfer score from **0.994 to 0.508** — chance. The pre-randomization
+> 0.994 reproduces exactly with randomization off, so the comparison is like-for-like.
+> The L2 suite mean falls **0.7229 → 0.5629** on the same basis.
+>
+> Two further defects found in the same audit: the published L1 row **imputed a constant
+> 0.5 over the 25 of 33 families that emit no state-visitation channel** (88 of 123 cells),
+> and the L3 "oracle ceiling" was **a relabelled duplicate of the pre-correction best L2
+> detector**, byte-identical on 33/33 families.
+>
+> A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
+> the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
+> labels**, one of them the L1 champion. Removing them makes the L1−L0 gap **reverse sign**,
+> from +0.394 [+0.384, +0.403] to **−0.010 [−0.028, +0.008]**. Among unsupervised post-hoc
+> detectors the rungs read **L0 0.544 · L1 0.534 · L2 0.587**, against **0.975** for the L3
+> oracle — all three sub-oracle rungs within 0.09 of chance.
+>
+> **Everything below this banner predates that audit and has not yet been regenerated.**
+> Treat every number in this README as superseded by the paper until the leaderboard is
+> rebuilt. The paper reports the corrected figures, the admission gate that produced them,
+> and the seven claims RHOB contained that no observation could have contradicted.
+>
+> The paper's thesis, which is the claim this project now stands on:
+>
+> > *A criterion is not a check until it is accompanied by a demonstration that it can
+> > fail — a power curve, or an adversarial probe that passes it — and a negative control
+> > is decorative unless the failures are published alongside the passes.*
+
 A comprehensive benchmark for **detecting reward hacking across diverse mechanisms**.
 
 ## The headline result: the RHOB Transfer Score (RTS)
@@ -16,19 +51,21 @@ training mechanisms?*
 |---|---|---|
 | Reward MLP | L0 (reward-only) | **0.478** — chance |
 | State Divergence | L1 (+ state-visitation) | **0.500** — chance |
-| Trajectory MLP | L2 (+ behavioral traces) | **0.931** |
-| 5-detector Ensemble | L2 | **0.994** — near-perfect |
+| Trajectory MLP | L2 (+ behavioral traces) | ~~**0.931**~~ — superseded; see correction |
+| 5-detector Ensemble | L2 | ~~**0.994**~~ → **0.508** after sign randomization (see correction above) |
 
-Reward-only and state-visitation detectors are provably incapable of doing better than
-chance here — the matched-proxy construction makes it a tautology, not a bug. What's
+⚠ **This paragraph is retracted.** It read that reward-only and state-visitation detectors
+are "provably incapable of doing better than chance — a tautology, not a bug." The 20-draw
+replication shows the L0→L1 step was one label-fitted detector, and the published L1 row
+imputed 0.5 across 25 of 33 families. The claim was not tested; it was assumed. What's
 *not* guaranteed, and what actually separates detectors, is whether they generalize once
 you move past raw reward. **RTS is the number every new detector submitted to RHOB gets
 scored on** — see the [live leaderboard](https://rhob.aarav-shah.com) and
 [submission guide](docs/TUTORIAL_DETECTOR.md).
 
 **RHOB** provides:
-- **23 environment families** spanning 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.), including 4 MuJoCo-based high-dimensional continuous-control families (HalfCheetah, Reacher, Ant, Walker2d) and 5 synthetic RLHF reward-model-overoptimization families populating the `SEQUENTIAL` complexity tier
-- **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.)
+- **33 environment families** spanning 123 (family, difficulty) cells and 9 distinct hacking mechanisms (camping exploits, goal misgeneralization, distributional shift, reward tampering, deceptive alignment/sandbagging, RLHF reward-model overoptimization, etc.), including 4 MuJoCo-based high-dimensional continuous-control families (HalfCheetah, Reacher, Ant, Walker2d) and 5 synthetic RLHF reward-model-overoptimization families populating the `SEQUENTIAL` complexity tier
+- **35 detectors** across 4 access levels (reward-only to oracle), including 5 classical external baselines (Bayesian changepoint, isolation forest, PCA, etc.). **The paper's audit scores 30 post-hoc detectors; 5 of those expose `fit()` and are cross-validated on labels.**
 - **Matched-proxy construction** ensuring hacking/legitimate improvement produce identical proxy rewards
 - **Cross-family transfer analysis (RTS)** measuring detector generalization to unseen mechanisms
 - **Admission gate** certifying families measure hacking detection, not just change detection
