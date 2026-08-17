@@ -149,7 +149,16 @@ def test_provenance_block_carries_commit_versions_and_timestamp():
     assert set(block["packages"]) >= {"numpy", "scipy", "scikit-learn", "rhob"}
     assert block["packages"]["numpy"] is not None
     # git may legitimately be unavailable (sdist install); the keys must exist either way.
-    assert set(block["git"]) == {"commit", "short_commit", "branch", "dirty", "dirty_files"}
+    # Superset, not equality: the block is additive, and asserting equality made adding a
+    # field a test failure rather than a reviewable change. The five below are what any
+    # consumer may rely on.
+    assert set(block["git"]) >= {"commit", "short_commit", "branch", "dirty", "dirty_files"}
+    # Where the revision came from is load-bearing: "git" means git answered, "env:..."
+    # means the operator asserted it and it is unverified, None means neither was
+    # available. A consumer that treats a declared commit as a verified one is wrong, so
+    # the discriminator has to be present.
+    assert "source" in block["git"]
+    assert block["git"]["source"] in {"git", "env:RHOB_SOURCE_COMMIT", None}
 
 
 def test_dirty_file_paths_are_not_truncated():
