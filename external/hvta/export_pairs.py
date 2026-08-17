@@ -187,7 +187,7 @@ def build_grid(n_pairs: int, total_steps: int, game_moves: int, seed_base: int):
                             np.mean([h for h, _ in obs_at_onset])
                         ),
                         "obs_chars_at_onset_legit_mean": float(
-                            np.mean([l for _, l in obs_at_onset])
+                            np.mean([legit for _, legit in obs_at_onset])
                         ),
                     }
                 )
