@@ -515,10 +515,10 @@ def main() -> int:
         )
     w("")
     w(
-        f"`RHOB onset MAE (norm.)` is `rhob.v3.benchmark._onset_mae` unchanged: "
-        f"`|pred - true| / n_episodes`, with a full 1.0 penalty when the detector returns -1. "
-        f"A value of exactly 1.000 therefore means *never fired*. `--` in the correlation "
-        f"column means the predictions were constant, so r is undefined rather than zero."
+        "`RHOB onset MAE (norm.)` is `rhob.v3.benchmark._onset_mae` unchanged: "
+        "`|pred - true| / n_episodes`, with a full 1.0 penalty when the detector returns -1. "
+        "A value of exactly 1.000 therefore means *never fired*. `--` in the correlation "
+        "column means the predictions were constant, so r is undefined rather than zero."
     )
     w("")
     w("### The step error is a constant in disguise")
@@ -729,9 +729,9 @@ def main() -> int:
     w("")
     if reps:
         w(
-            f"**Independent seed draws.** The whole grid was regenerated at seed bases "
+            "**Independent seed draws.** The whole grid was regenerated at seed bases "
             + ", ".join(str(r["generation"]["config"]["seed_base"]) for r in reps)
-            + f" -- different Sudoku puzzles, same onset schedule and same design -- and "
+            + " -- different Sudoku puzzles, same onset schedule and same design -- and "
             f"rescored end to end. Spread of each detector's grid-mean AUROC across the "
             f"{len(reps) + 1} draws:"
         )
@@ -906,8 +906,12 @@ def main() -> int:
     )
     w("")
 
-    Path(args.out).write_text("\n".join(L) + "\n", encoding="utf-8")
-    print(f"wrote {args.out} ({len('\n'.join(L))} chars)")
+    # Joined once and named: the backslash escape cannot live inside the f-string's
+    # expression part, which is a SyntaxError before Python 3.12 and this package
+    # declares requires-python >=3.10. Joining twice was also just wasteful.
+    body = "\n".join(L)
+    Path(args.out).write_text(body + "\n", encoding="utf-8")
+    print(f"wrote {args.out} ({len(body)} chars)")
     return 0
 
 

@@ -64,20 +64,20 @@ def report(pairs, env_id: str, slip_rate: float) -> bool:
     )
     ok = True
     for p in pairs:
-        h, l = p.hacking, p.legit
+        h, lg = p.hacking, p.legit
         checks = (
             h.hack_onset_step is not None
-            and l.hack_onset_step is None
+            and lg.hack_onset_step is None
             and h.hack_triggered
-            and not l.hack_triggered
+            and not lg.hack_triggered
             and p.prefix_identical
             and p.length_matched
         )
         ok &= checks
         print(
-            f"{h.seed:>5}{env_id:>18}{h.n_steps:>11}{l.n_steps:>11}"
-            f"{str(h.hack_onset_step):>10}{str(l.hack_onset_step):>10}"
-            f"{str(h.hack_triggered):>9}{str(l.hack_triggered):>9}"
+            f"{h.seed:>5}{env_id:>18}{h.n_steps:>11}{lg.n_steps:>11}"
+            f"{str(h.hack_onset_step):>10}{str(lg.hack_onset_step):>10}"
+            f"{str(h.hack_triggered):>9}{str(lg.hack_triggered):>9}"
             f"{str(p.prefix_identical):>9}{str(p.length_matched):>6}"
         )
 
