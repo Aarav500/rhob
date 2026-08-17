@@ -3,6 +3,47 @@
 [![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+> ## 🔴 CORRECTION — 2026-08-12
+>
+> **The headline transfer score below (0.994) does not survive a control that should have
+> been run before it was published.**
+>
+> A repository style rule required each family's behavioural feature to be anti-symmetric
+> with *positive = hacking*, and the L2 detector thresholded at zero. **The sign of the
+> observation was the label.** Randomizing that sign per family collapses the headline
+> cross-family transfer score from **0.994 to 0.508** — chance. The pre-randomization
+> 0.994 reproduces exactly with randomization off, so the comparison is like-for-like.
+> The L2 suite mean falls **0.7229 → 0.5629** on the same basis.
+>
+> Two further defects found in the same audit: the published L1 row **imputed a constant
+> 0.5 over the 25 of 33 families that emit no state-visitation channel** (88 of 123 cells),
+> and the L3 "oracle ceiling" was **a relabelled duplicate of the pre-correction best L2
+> detector**, byte-identical on 33/33 families.
+>
+> A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
+> the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
+> labels**, one of them the L1 champion. Removing them makes the L1−L0 gap **reverse sign**,
+> from +0.394 [+0.384, +0.403] to **−0.010 [−0.028, +0.008]**. Among unsupervised post-hoc
+> detectors the rungs read **L0 0.544 · L1 0.534 · L2 0.587**, against **0.975** for the L3
+> oracle — all three sub-oracle rungs within 0.09 of chance.
+>
+> **Everything below this banner predates that audit and has not yet been regenerated.**
+> Treat every number in this README as superseded by the paper until the leaderboard is
+> rebuilt. The paper reports the corrected figures, the admission gate that produced them,
+> and the seven claims RHOB contained that no observation could have contradicted.
+>
+> The paper's thesis, which is the claim this project now stands on:
+>
+> > *A criterion is not a check until it is accompanied by a demonstration that it can
+> > fail — a power curve, or an adversarial probe that passes it — and a negative control
+> > is decorative unless the failures are published alongside the passes.*
+>
+> **Status (2026-08-15):** the replication these corrections called for is done.
+> `leaderboard/v5_replicated.json` carries 20 independent draws with bootstrap
+> intervals, and the figures below are drawn from it. The null SE quoted in earlier
+> revisions of this file as 0.16 was wrong; it is 0.19.
+
+
 **A method for building evaluation environments whose properties are certified and
 falsifiable — plus 33 environment families built with it, and a leaderboard of 30
 detectors scored on them.**
