@@ -45,6 +45,23 @@ results/*
 # out of this repo intentionally (see CHANGELOG.md v1.3.0). Result figures
 # used by the paper live in docs/figures/ and remain tracked.
 /paper/
+
+# The NeurIPS Evaluations & Datasets submission, held out for the same reason as /paper/
+# plus one of its own: the track is DOUBLE-BLIND, and this repository is public and
+# attributable. A submission sitting in an authored public repo during review is an
+# anonymity problem that is far easier to avoid than to undo. It lives in the local
+# archive alongside the extended version.
+/paper_neurips/
+
+# The Croissant metadata for that submission, for the same reason and then one more.
+# The submission is anonymized: the dataset and its authors carry review pseudonyms.
+# Those pseudonyms are only protective while they appear nowhere alongside the real
+# name, so the file that defines them must not be committed to the repo that carries
+# the real name -- and neither must anything quoting them, this comment included. Same
+# hazard as /paper_neurips/, running the other direction. The deposit archive itself is
+# already covered by dist/ above.
+/croissant.json
+
 /experiments/
 /docs/internal/
 /.worktrees/

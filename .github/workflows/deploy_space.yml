@@ -24,11 +24,18 @@ jobs:
           python-version: "3.12"
       - name: Install huggingface_hub
         run: pip install huggingface_hub
-      - name: Stage deploy bundle (app + leaderboard data)
+      - name: Stage deploy bundle (app + leaderboard data + measured figures)
         run: |
           mkdir -p deploy_bundle
           cp -r space/. deploy_bundle/
           cp -r leaderboard deploy_bundle/leaderboard
+          # The transfer panel's numbers are the post-sign-randomization measurement, not
+          # leaderboard/cross_family_transfer.json (which predates the randomization and
+          # whose L2 figures score the old orientation convention). Without this file the
+          # app renders no transfer numbers at all -- see space/app.py -- so it has to
+          # ship, and it must stay in step with the copy in docs/figures/.
+          mkdir -p deploy_bundle/figures
+          cp docs/figures/sign_randomization_impact.json deploy_bundle/figures/
       - name: Push to the Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
