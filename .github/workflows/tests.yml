@@ -79,14 +79,22 @@ jobs:
           key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
       # Serial, and NOT cheap on a cold cache -- generate_pair derives the calibration and
       # returns closures without rolling anything out, so this costs the calibrations
-      # exactly, and some of those are minutes on their own
-      # (sequence_length_padding._legit_empty_rate: 300s, 6 seeds x 200 episodes). It is
-      # here because that work has to happen regardless, and doing it once serially is
-      # strictly better than several workers racing for the same entry: a family's tiers are
-      # separate test cases now, so without this the same 300s would be paid up to three
-      # times per run. On a restored cache this step is seconds.
+      # exactly, and some are minutes each: sequence_length_padding._legit_empty_rate is
+      # 300s, mujoco_joint_limit_gaming is 38 MINUTES. It is here because that work has to
+      # happen regardless, and doing it once serially beats several workers racing for the
+      # same entry -- a family's tiers are separate test cases now, so without this the
+      # same 38 minutes could be paid up to three times. On a restored cache: seconds.
+      #
+      # Budgeted at 45 min, and non-fatal. Warming is an optimisation, and an optimisation
+      # must never be the reason a job reports nothing: measured cold, the full sweep can
+      # approach this job's whole 180-minute timeout, which would kill it in a step that
+      # produces no test results at all -- strictly worse than having no warm step. Past
+      # the budget the script names what it left cold and the tests derive those
+      # themselves, less efficiently but correctly.
       - name: Warm the calibration cache
-        run: python scripts/warm_calibration_cache.py
+        timeout-minutes: 50
+        continue-on-error: true
+        run: python scripts/warm_calibration_cache.py --budget-seconds 2700
       - name: Slow admission smoke screens
         # The calibrations are already on disk by now, so the default per-test
         # distribution can spread a family's tiers freely. Pinning tiers to one worker
