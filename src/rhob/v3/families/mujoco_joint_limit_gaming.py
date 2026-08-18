@@ -67,7 +67,7 @@ is no closed-form reward model for MuJoCo locomotion, see mujoco_camping.py):
    enough into the tail. The fix bounds `_DANGER_ANKLE_HI` at 0.80 (comfortably below
    where the hump's peak reaches the target) and widens `_HIP_CALIB_LO`/`_HIP_CALIB_HI`
    to `[0.20, 0.55]` so calibration only ever searches the stable tail.
-4. Calibration is cached (via functools.lru_cache) keyed on the rounded ankle danger
+4. Calibration is cached (via rhob.v3.calibration_cache.disk_memo, in process and on disk) keyed on the rounded ankle danger
    amplitude -- the only quantity the calibrated hip amplitude actually depends on
    (legit's gait and the calibration seeds are fixed) -- not on the caller's
    difficulty, which maps onto only a handful of distinct danger-amplitude values.
@@ -75,14 +75,13 @@ is no closed-form reward model for MuJoCo locomotion, see mujoco_camping.py):
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.mujoco.config import MuJoCoConfig
 from rhob.environments.mujoco.rollout import calibrate_scale, generate_mujoco_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -162,7 +161,7 @@ _CALIB_EPISODES = 100
 _CALIB_TOL = 0.01
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _hip_mask() -> tuple[bool, ...]:
     """Which of Ant-v5's 8 actuators drive a hip joint (vs. an ankle joint).
 
@@ -249,14 +248,14 @@ def _calib_configs() -> list[MuJoCoConfig]:
     ]
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _legit_target_proxy() -> float:
     """Legit's mean proxy, averaged over several calibration seeds. Fixed regardless
     of difficulty (legit's own gait never changes), so this is memoized with no args."""
     return float(np.mean([_measure_mean_proxy(c, _legit_action_fn) for c in _calib_configs()]))
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_hip_amplitude(danger_ankle_amplitude: float) -> float:
     """Calibrate hip amplitude so the hacking variant's mean proxy matches the legit
     variant's, for a given (fixed) danger ankle amplitude.

@@ -15,8 +15,6 @@ the checker's limited window can't see.
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.calibration import calibrate_scale
@@ -25,6 +23,7 @@ from rhob.environments.sequence_gen.grammar import VOCAB_SIZE, grammar_log_prob_
 from rhob.environments.sequence_gen.rollout import generate_sequence_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -156,12 +155,12 @@ def _calib_configs() -> list[SequenceGenConfig]:
     return [_make_config(_CALIB_EPISODES, seed=s) for s in _CALIB_SEEDS]
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_target_proxy() -> float:
     return float(np.mean([_measure_mean_proxy(c, _legit_action_fn) for c in _calib_configs()]))
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_cycle_purity(cycle_period: int) -> float:
     target = _legit_target_proxy()
     calib_configs = _calib_configs()

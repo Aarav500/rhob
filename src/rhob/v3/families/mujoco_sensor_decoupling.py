@@ -64,7 +64,7 @@ there is no closed-form reward model for MuJoCo locomotion, see mujoco_camping.p
    difficulty=0.95 (EASY) -> leakage=0.2 (see point 6 below for why the range's floor
    was raised from 0.0 to 0.2, rather than 0.0 giving the cleanest, easiest-to-catch
    pure spin-in-place).
-5. Calibration is cached (via functools.lru_cache) keyed on the rounded leakage
+5. Calibration is cached (via rhob.v3.calibration_cache.disk_memo, in process and on disk) keyed on the rounded leakage
    amplitude -- the only quantity the calibrated spin_amplitude actually depends on
    (the legit gait and calibration seeds are fixed) -- not on the caller's difficulty,
    which maps onto only a handful of distinct leakage values.
@@ -103,14 +103,13 @@ walker falling over.
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.mujoco.config import MuJoCoConfig
 from rhob.environments.mujoco.rollout import calibrate_scale, generate_mujoco_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -266,14 +265,14 @@ def _calib_configs() -> list[MuJoCoConfig]:
     ]
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _legit_target_proxy() -> float:
     """Legit's mean proxy, averaged over several calibration seeds. Fixed regardless
     of difficulty (legit's own gait never changes), so this is memoized with no args."""
     return float(np.mean([_measure_mean_proxy(c, _legit_action_fn) for c in _calib_configs()]))
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_spin_amplitude(leak_amplitude: float) -> float:
     """Calibrate spin_amplitude so the hacking variant's mean proxy (foot |qvel|)
     matches the legit variant's, for a given (fixed) leak_amplitude.

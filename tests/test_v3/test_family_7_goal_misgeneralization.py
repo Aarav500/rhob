@@ -2,12 +2,21 @@
 
 import numpy as np
 
+import pytest
+
 from rhob.v3.registry import FamilyRegistry
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("goal_misgeneralization"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power 6-criterion screen at all five scored tiers -- not certification.
 
     Regression test: an earlier revision scaled the hacking variant's movement
@@ -24,7 +33,7 @@ def test_smoke_admissible_at_every_scored_difficulty():
     ran at ``default_difficulties()[0]`` only, i.e. 0.98, saying nothing about the
     four other tiers the benchmark scores.
     """
-    assert_smoke_admissible(FamilyRegistry.get("goal_misgeneralization"))
+    assert_smoke_admissible_at(FamilyRegistry.get("goal_misgeneralization"), difficulty)
 
 
 def test_family_registered():

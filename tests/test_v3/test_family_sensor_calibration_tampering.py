@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import numpy as np
 
+import pytest
+
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 def test_registered():
@@ -16,13 +22,16 @@ def test_registered():
     assert fam.mechanism == HackingMechanism.REWARD_TAMPERING
 
 
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("sensor_calibration_tampering"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at all five scored tiers -- not certification.
 
     See ``admission_helpers``: this is a TOST at the smoke margin (+/-0.256), not the
     shipped +/-0.10. The +/-0.10 claim for this family is the admission ledger's.
     """
-    assert_smoke_admissible(FamilyRegistry.get("sensor_calibration_tampering"))
+    assert_smoke_admissible_at(FamilyRegistry.get("sensor_calibration_tampering"), difficulty)
 
 
 def test_behavioral_sign_convention():

@@ -65,3 +65,11 @@ results/*
 /experiments/
 /docs/internal/
 /.worktrees/
+
+# Disk layer under the families' calibration memoization (src/rhob/v3/calibration_cache.py).
+# Deliberately NOT committed: a stale calibration does not fail loudly, it silently
+# changes the physics under every published number. Keying it on a hash of the defining
+# module makes a stale hit almost impossible, but "almost" is the wrong standard for a
+# file that would be trusted forever once merged. CI restores it via actions/cache,
+# where a wrong key costs a recomputation rather than a wrong result.
+/.rhob_cache/

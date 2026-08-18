@@ -33,8 +33,6 @@ does not touch the actual proxy/true-goal semantics being ported.
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.detectors.posthoc import RunData
@@ -42,6 +40,7 @@ from rhob.environments.mujoco.config import MuJoCoConfig
 from rhob.environments.mujoco.rollout import calibrate_scale
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -131,7 +130,7 @@ def _measure_mean_proxy(goal_sep: float, goal_target: np.ndarray, gain: float, c
     return float(run.proxy_rewards.mean())
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_legit_gain(goal_sep: float) -> float:
     """Calibrate the legit variant's controller gain so its mean proxy matches the
     hacking variant's (fixed-gain) mean proxy, for a given goal separation.

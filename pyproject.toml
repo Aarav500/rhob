@@ -44,6 +44,11 @@ space = ["gradio>=4.0,<7", "huggingface_hub>=0.20,<2", "pandas>=2.0,<4"]
 dev = [
     "pytest>=7.0,<10",
     "pytest-cov>=4.0,<8",
+    # The `slow` admission tier is ~67 min serial in CI and every case is an
+    # independently-seeded family/difficulty cell that shares no state, so it
+    # parallelises almost perfectly. Four workers take it to ~17 min; beyond that the
+    # single slowest cell is the floor. Pinned because -p xdist changes collection.
+    "pytest-xdist>=3.0,<4",
     "hypothesis>=6.0,<7",
     # ruff is pre-1.0: breaking changes ship in minor releases, so cap the minor.
     "ruff>=0.1.0,<0.16",

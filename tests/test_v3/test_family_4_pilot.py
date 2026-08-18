@@ -6,7 +6,11 @@ import pytest
 
 from rhob.v3.registry import FamilyRegistry
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 def test_family_4_registered():
@@ -31,12 +35,15 @@ def test_family_4_registered():
         "staying matched between variants -- a change to the family, not to the gate."
     ),
 )
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("shortcut_exploitation"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at all five scored tiers -- not certification.
 
     Expected to fail: see the xfail reason. The other four criteria pass.
     """
-    assert_smoke_admissible(FamilyRegistry.get("shortcut_exploitation"))
+    assert_smoke_admissible_at(FamilyRegistry.get("shortcut_exploitation"), difficulty)
 
 
 def test_family_4_difficulty_range():

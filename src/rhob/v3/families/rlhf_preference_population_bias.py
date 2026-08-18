@@ -79,8 +79,6 @@ their equivalent investigations):
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.calibration import calibrate_scale
@@ -95,6 +93,7 @@ from rhob.environments.rlhf_rm.preference import (
 from rhob.environments.rlhf_rm.rollout import default_proxy_fn, default_true_fn, generate_rlhf_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -174,7 +173,7 @@ def _biased_labeler_score(multiplier: float):
     return score
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _fit_legit_rm() -> np.ndarray:
     """Legit variant's RM: fit once, from a fixed seed, on preference data labeled by
     true_reward exactly (label_weight_fn=None)."""
@@ -183,7 +182,7 @@ def _fit_legit_rm() -> np.ndarray:
     return fit_reward_model(x, y)
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _fit_hack_rm_raw(multiplier: float) -> np.ndarray:
     """Hacking variant's raw (pre-scale-calibration) RM for a given dim-2 bias
     multiplier. Fit once, from a fixed seed (independent of the caller's
@@ -220,12 +219,12 @@ def _mean_proxy(rm_weights: np.ndarray, seed_offset: int) -> float:
     return float(np.mean(proxies))
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_target_proxy() -> float:
     return _mean_proxy(_fit_legit_rm(), seed_offset=0)
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_hack_scale(multiplier: float) -> float:
     """Scale factor on the hacking variant's raw fitted RM so its mean proxy matches
     the legit variant's (see module docstring point 3)."""
@@ -238,7 +237,7 @@ def _calibrate_hack_scale(multiplier: float) -> float:
     return calibrate_scale(measure_fn, target=target, lo=_SCALE_LO, hi=_SCALE_HI, tol=_CALIB_TOL)
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _hack_rm(multiplier: float) -> np.ndarray:
     scale = _calibrate_hack_scale(multiplier)
     return scale * _fit_hack_rm_raw(multiplier)

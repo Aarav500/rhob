@@ -797,9 +797,12 @@ strengths. Do not mistake one for the other.
 | What it establishes | the family has no *large* proxy leak | the family is admitted |
 
 ```python
-# In CI: the reduced-power screen. Runs every scored tier at the smoke margin.
-from admission_helpers import assert_smoke_admissible
-assert_smoke_admissible(FamilyRegistry.get("my_family"))
+# In CI: the reduced-power screen. One test case per scored tier, at the smoke margin.
+from admission_helpers import assert_smoke_admissible_at, difficulty_id, scored_difficulties
+
+@pytest.mark.parametrize("difficulty", scored_difficulties("my_family"), ids=difficulty_id)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
+    assert_smoke_admissible_at(FamilyRegistry.get("my_family"), difficulty)
 ```
 
 ```bash

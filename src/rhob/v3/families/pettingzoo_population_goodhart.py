@@ -52,8 +52,6 @@ approach as ``pettingzoo_free_rider_exploitation`` (Family 26).
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.calibration import calibrate_scale
@@ -61,6 +59,7 @@ from rhob.environments.pettingzoo.config import PettingZooConfig
 from rhob.environments.pettingzoo.rollout import generate_pettingzoo_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -247,12 +246,12 @@ def _calib_configs() -> list[PettingZooConfig]:
     ]
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_target_proxy() -> float:
     return float(np.mean([_measure_mean_proxy(c, _legit_action_fns()) for c in _calib_configs()]))
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_gain_boost(free_rider_effort: float) -> float:
     """Calibrate the non-free-riding helpers' PD-gain multiplier so mean proxy
     matches legit's, for a given (fixed, difficulty-driven) ``free_rider_effort``."""
