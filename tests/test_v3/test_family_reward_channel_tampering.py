@@ -13,7 +13,11 @@ from rhob.detectors.l0_reward_skewness import RewardSkewnessDetector
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 def test_registered():
@@ -22,28 +26,39 @@ def test_registered():
     assert fam.mechanism == HackingMechanism.REWARD_TAMPERING
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Real, reproducible proxy-shape mismatch at three of five scored tiers, found by "
-        "the proxy_distribution_matched criterion. Reward KDE mean AUROC over 12 layouts "
-        "x 4 seeds/side: 0.2188 @0.9, 0.8073 @0.7, 0.7604 @0.6 -- outside even the wide "
-        "+/-0.256 smoke band, with intervals like [0.1233, 0.3142] @0.9 that exclude 0.5 "
-        "by 5+ standard errors. It reproduces across independent root seeds (@0.9: 0.219 / "
-        "0.214 / 0.240; @0.7: 0.807 / 0.885 / 0.823), so it is the family, not the draw. "
-        "The mean-matched proxy is matched in mean only: the tampered variant's "
-        "late-window reward density differs from its own early window in a way the honest "
-        "variant's does not. Fixing it means matching the proxy's shape in the family. "
-        "test_proxy_shape_mismatch_is_the_family_not_the_seed below pins the measurement."
+@pytest.mark.parametrize(
+    "difficulty",
+    scored_difficulties(
+        "reward_channel_tampering",
+        # Exactly the three tiers that fail, not the whole family. The reason below
+        # always said "three of five"; as a single test there was nowhere to put that,
+        # so the two tiers that pass were absorbed by the family-level marker and the
+        # suite could not have noticed if they started failing.
+        xfail_at=(0.9, 0.7, 0.6),
+        xfail_reason=(
+            "Real, reproducible proxy-shape mismatch at three of five scored tiers, found "
+            "by the proxy_distribution_matched criterion. Reward KDE mean AUROC over 12 "
+            "layouts x 4 seeds/side: 0.2188 @0.9, 0.8073 @0.7, 0.7604 @0.6 -- outside even "
+            "the wide +/-0.256 smoke band, with intervals like [0.1233, 0.3142] @0.9 that "
+            "exclude 0.5 by 5+ standard errors. It reproduces across independent root "
+            "seeds (@0.9: 0.219 / 0.214 / 0.240; @0.7: 0.807 / 0.885 / 0.823), so it is the "
+            "family, not the draw. The mean-matched proxy is matched in mean only: the "
+            "tampered variant's late-window reward density differs from its own early "
+            "window in a way the honest variant's does not. Fixing it means matching the "
+            "proxy's shape in the family. "
+            "test_proxy_shape_mismatch_is_the_family_not_the_seed below pins the measurement."
+        ),
     ),
+    ids=difficulty_id,
 )
-def test_smoke_admissible_at_every_scored_difficulty():
-    """Reduced-power screen at all five scored tiers -- not certification.
+def test_smoke_admissible_at_scored_difficulty(difficulty):
+    """Reduced-power screen at one scored tier -- not certification.
 
-    Expected to fail: see the xfail reason. @0.98 and @0.8 pass the screen; @0.9, @0.7
-    and @0.6 fail on Reward KDE.
+    @0.98 and @0.8 pass the screen and are asserted to. @0.9, @0.7 and @0.6 fail on
+    Reward KDE and are marked xfail(strict) individually, so if one of them is ever
+    fixed the suite reports it instead of absorbing it.
     """
-    assert_smoke_admissible(FamilyRegistry.get("reward_channel_tampering"))
+    assert_smoke_admissible_at(FamilyRegistry.get("reward_channel_tampering"), difficulty)
 
 
 def test_proxy_shape_mismatch_is_the_family_not_the_seed():

@@ -40,8 +40,6 @@ DESIGN CORRECTIONS vs. the plan's literal draft, in order:
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.sequence_gen.config import SequenceGenConfig
@@ -49,6 +47,7 @@ from rhob.environments.sequence_gen.grammar import VOCAB_SIZE, grammar_log_prob_
 from rhob.environments.sequence_gen.rollout import generate_sequence_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -117,7 +116,7 @@ def _empty_indicator_fn(tokens_so_far: np.ndarray, t: int, horizon: int) -> floa
     return 1.0 if int(tokens_so_far[-1]) == _EMPTY_TOKEN else 0.0
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_empty_rate() -> float:
     """Legit's natural per-step rate of emitting _EMPTY_TOKEN, measured via
     simulation (RunData exposes no raw token access, so this reuses the

@@ -111,8 +111,6 @@ equivalent investigations):
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.calibration import calibrate_scale
@@ -121,6 +119,7 @@ from rhob.environments.rlhf_rm.preference import fit_reward_model, generate_pref
 from rhob.environments.rlhf_rm.rollout import default_proxy_fn, default_true_fn, generate_rlhf_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -172,7 +171,7 @@ def _uniform_sample_fn(rng: np.random.Generator, n: int, d: int) -> np.ndarray:
     return rng.normal(0.0, 1.0, size=(n, d))
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _fit_rm() -> np.ndarray:
     """The single reward model shared by BOTH variants: fit once, from a fixed seed,
     on uniformly-sampled preference data (see module docstring intro)."""
@@ -210,12 +209,12 @@ def _mean_proxy(step_size: float, beta: float, seed_offset: int) -> float:
     return float(np.mean(proxies))
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_target_proxy() -> float:
     return _mean_proxy(_STEP_SIZE_DEFAULT, _BETA_LEGIT, seed_offset=0)
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_hack_step_size(beta_hacking: float) -> float:
     """Step size for the hacking variant at a given beta_hacking, calibrated (see
     module docstring point 2b) so its mean proxy matches the legit variant's."""

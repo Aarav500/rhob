@@ -61,6 +61,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from scipy.stats import norm as _normal
 
 from rhob.v3.admission_gate import (
@@ -73,6 +75,7 @@ from rhob.v3.admission_gate import (
     mann_whitney_null_sd,
 )
 from rhob.v3.base_family import BaseFamily
+from rhob.v3.registry import FamilyRegistry
 
 #: Layouts and seeds/side/layout the smoke screen runs. 96 rollouts per cell.
 SMOKE_LAYOUTS = 12
@@ -125,44 +128,82 @@ def smoke_gate(**overrides) -> AdmissionGate:
     return AdmissionGate(**kwargs)
 
 
-def assert_smoke_admissible(
-    family: BaseFamily,
-    difficulties: list[float] | None = None,
-    **gate_overrides,
-) -> list[AdmissionCertificate]:
-    """Run the smoke screen at **every** difficulty the benchmark scores.
+def scored_difficulties(
+    family_name: str,
+    *,
+    xfail_at: tuple[float, ...] = (),
+    xfail_reason: str | None = None,
+) -> list:
+    """Every difficulty the benchmark scores for ``family_name``, for ``parametrize``.
 
-    ``difficulties`` defaults to ``family.default_difficulties()`` -- the same list
-    ``Benchmark`` evaluates and ``AdmissionGate.certify_all_tiers`` iterates. Passing
-    anything else is only for families whose scored tiers are not what they should be,
-    and the caller has to say why: certifying a difficulty the benchmark never scores
-    (``rlhf_sparse_coverage_gaming`` was screened at 0.95 while being evaluated at
-    0.9/0.8/0.7) is the exact defect this signature exists to prevent.
+    Called at collection time, so the parametrization is derived from the family's own
+    ``default_difficulties()`` rather than restated in each test file. Restating them
+    is the defect this exists to prevent: ``rlhf_sparse_coverage_gaming`` was once
+    screened at 0.95 while being evaluated at 0.9/0.8/0.7, so the tiers the benchmark
+    actually scores were covered by nothing.
 
-    Raises an ``AssertionError`` carrying the failing tier's own certificate summary,
-    so the message names the criterion, the measured numbers and the design.
+    ``xfail_at`` marks individual tiers as known failures instead of marking the whole
+    family. A family-level ``xfail`` cannot distinguish "fails everywhere" from "fails
+    at three of five tiers", and it silently absorbs the tiers that pass:
+    ``reward_channel_tampering`` was marked ``xfail(strict=True)`` as a single test with
+    a reason that itself said three of five, and the two tiers that pass were invisible
+    to the suite. Per-tier and strict, an unexpected pass is a failure, so a tier that
+    starts passing has to be acknowledged rather than absorbed.
     """
-    if difficulties is None:
-        difficulties = family.default_difficulties()
-    assert difficulties, f"{family.name} scores no difficulties"
+    if xfail_at and not xfail_reason:
+        raise ValueError("xfail_at requires xfail_reason: a bare xfail records nothing")
+    out = []
+    for difficulty in FamilyRegistry.get(family_name).default_difficulties():
+        expected_fail = any(abs(difficulty - x) < 1e-9 for x in xfail_at)
+        marks = (
+            [pytest.mark.xfail(strict=True, reason=xfail_reason)] if expected_fail else []
+        )
+        out.append(pytest.param(difficulty, marks=marks))
+    return out
+
+
+def difficulty_id(difficulty: float) -> str:
+    """Readable pytest id, so a failure names the tier: ``...[d0.90]``."""
+    return f"d{difficulty:.2f}"
+
+
+def assert_smoke_admissible_at(
+    family: BaseFamily,
+    difficulty: float,
+    **gate_overrides,
+) -> AdmissionCertificate:
+    """Run the smoke screen at ONE scored difficulty.
+
+    One tier per test case, rather than a loop with the assertion inside it. The loop
+    stopped at the first failing tier, so when twelve families failed at 0.900 on the
+    first nightly run that ever executed, nothing had evaluated 0.800 or 0.700 and the
+    depth of the failure was unknown. Parametrizing also lets the tiers run on separate
+    xdist workers, which is what makes the nightly job fit in its timeout.
+
+    ``difficulty`` must be one the benchmark actually scores; screening a tier that is
+    never evaluated certifies nothing.
+    """
+    scored = list(family.default_difficulties())
+    assert scored, f"{family.name} scores no difficulties"
+    assert any(abs(difficulty - d) < 1e-9 for d in scored), (
+        f"{family.name} is not scored at difficulty {difficulty!r} (scored tiers are "
+        f"{scored}). Screening a tier the benchmark never evaluates certifies nothing."
+    )
 
     gate = smoke_gate(**gate_overrides)
-    certs = []
-    for difficulty in difficulties:
-        cert = gate.certify(family, difficulty=difficulty)
-        certs.append(cert)
-        # Guard the design as well as the result: if a future default made `certify`
-        # quietly fall back to the 576-rollout certification design, this suite would
-        # go from minutes to hours and nobody would know why.
-        assert cert.design["seeds_per_layout"] == SMOKE_SEEDS_PER_LAYOUT, (
-            f"smoke design drifted: got {cert.design['seeds_per_layout']} seeds/layout, "
-            f"expected {SMOKE_SEEDS_PER_LAYOUT}"
-        )
-        assert cert.passed, (
-            f"\n{family.name} failed the reduced-power admission SMOKE screen at "
-            f"difficulty {difficulty:.3f} (of {list(difficulties)}).\n"
-            f"This screen certifies proxy equivalence only to +/-{SMOKE_MARGIN:.3f}; "
-            f"the shipped +/-0.10 claim is the ledger's. Failing *here* means the leak "
-            f"is large.\n" + cert.summary()
-        )
-    return certs
+    cert = gate.certify(family, difficulty=difficulty)
+    # Guard the design as well as the result: if a future default made `certify`
+    # quietly fall back to the 576-rollout certification design, this suite would
+    # go from minutes to hours and nobody would know why.
+    assert cert.design["seeds_per_layout"] == SMOKE_SEEDS_PER_LAYOUT, (
+        f"smoke design drifted: got {cert.design['seeds_per_layout']} seeds/layout, "
+        f"expected {SMOKE_SEEDS_PER_LAYOUT}"
+    )
+    assert cert.passed, (
+        f"\n{family.name} failed the reduced-power admission SMOKE screen at "
+        f"difficulty {difficulty:.3f} (scored tiers: {scored}).\n"
+        f"This screen certifies proxy equivalence only to +/-{SMOKE_MARGIN:.3f}; "
+        f"the shipped +/-0.10 claim is the ledger's. Failing *here* means the leak "
+        f"is large.\n" + cert.summary()
+    )
+    return cert

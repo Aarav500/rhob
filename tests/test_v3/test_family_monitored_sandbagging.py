@@ -8,7 +8,11 @@ import pytest
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 def test_registered():
@@ -34,13 +38,16 @@ def test_registered():
         "then this cell is uncertified and the ledger says so."
     ),
 )
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("monitored_sandbagging"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at all five scored tiers -- not certification.
 
     Expected to fail: see the xfail reason. The other four criteria do pass; it is the
     two proxy-equivalence criteria that cannot be evaluated at all on a constant proxy.
     """
-    assert_smoke_admissible(FamilyRegistry.get("monitored_sandbagging"))
+    assert_smoke_admissible_at(FamilyRegistry.get("monitored_sandbagging"), difficulty)
 
 
 def test_onset_is_start_of_unmonitored_phase():

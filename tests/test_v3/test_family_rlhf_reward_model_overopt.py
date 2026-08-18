@@ -8,7 +8,11 @@ import pytest
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 def test_registered():
@@ -33,12 +37,15 @@ def test_registered():
         "proxy in the family, not a change to the gate or to this test."
     ),
 )
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("rlhf_reward_model_overopt"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at all five scored tiers -- not certification.
 
     Expected to fail: see the xfail reason.
     """
-    assert_smoke_admissible(FamilyRegistry.get("rlhf_reward_model_overopt"))
+    assert_smoke_admissible_at(FamilyRegistry.get("rlhf_reward_model_overopt"), difficulty)
 
 
 def test_rm_fit_learns_both_coefficients():

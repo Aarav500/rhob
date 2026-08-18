@@ -99,8 +99,6 @@ hard-won lessons:
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.calibration import calibrate_scale
@@ -108,6 +106,7 @@ from rhob.environments.pettingzoo.config import PettingZooConfig
 from rhob.environments.pettingzoo.rollout import generate_pettingzoo_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -283,13 +282,13 @@ def _calib_configs() -> list[PettingZooConfig]:
     ]
 
 
-@functools.lru_cache(maxsize=1)
+@disk_memo
 def _legit_target_proxy() -> float:
     action_fns = {"speaker_0": _legit_speaker_fn, "listener_0": _legit_listener_fn}
     return float(np.mean([_measure_mean_proxy(c, action_fns) for c in _calib_configs()]))
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate_leak(honesty_retained: float) -> float:
     """Calibrate ``calib_leak`` so mean proxy matches legit's, for a given (fixed,
     difficulty-driven) ``honesty_retained``. Verified empirically (module docstring

@@ -481,6 +481,43 @@ pytest tests/test_detectors/test_lX_my_detector.py -v
 pytest tests/ -v --tb=short
 ```
 
+### The slow admission tier
+`-m 'not slow'` is on by default (see `[tool.pytest.ini_options]`), so `pytest tests/`
+does **not** run the per-family admission smoke screens for the MuJoCo, PettingZoo,
+RLHF-RM and sequence families. Those run nightly in CI, and you rarely need them
+locally — but if you touch a family, its own tier is worth running.
+
+One case is one `(family, difficulty)` cell, so you can ask for exactly the one you
+changed rather than the whole family:
+
+```bash
+pytest "tests/test_v3/test_family_mujoco_camping.py::test_smoke_admissible_at_scored_difficulty[d0.90]"
+```
+
+To run the whole tier, warm the calibrations first and then distribute. The warm pass is
+serial on purpose: `generate_pair` derives the calibration and returns closures without
+rolling anything out, so this costs the calibrations only, and it stops four workers
+deriving the same amplitude at the same moment.
+
+```bash
+python scripts/warm_calibration_cache.py
+```
+
+```bash
+pytest tests/ -m slow -n 4 --durations=15
+```
+
+Cap the BLAS threads when you do — one thread per core *per process* is the default, and
+with `-n 4` that oversubscribes badly:
+
+```bash
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 pytest tests/ -m slow -n 4
+```
+
+Calibrations are cached under `.rhob_cache/` (gitignored), keyed on a hash of the
+defining family module, so editing a family invalidates its entries automatically. If a
+calibration is ever suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
+
 ### Manual Validation Checklist
 - [ ] Family generates deterministic pairs (same seed = same run)
 - [ ] Proxy totals are similar between variants (±20%)

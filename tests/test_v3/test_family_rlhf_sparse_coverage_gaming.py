@@ -8,7 +8,11 @@ import rhob.v3.families.rlhf_sparse_coverage_gaming  # noqa: F401 -- self-import
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 # `slow` module: deselected from the default `pytest tests/` run and executed
@@ -26,7 +30,10 @@ def test_registered():
     assert fam.complexity == EnvironmentComplexity.SEQUENTIAL
 
 
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("rlhf_sparse_coverage_gaming"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at every difficulty the benchmark scores -- not certification.
 
     Two separate things were wrong with the test this replaces. It screened
@@ -36,7 +43,7 @@ def test_smoke_admissible_at_every_scored_difficulty():
     design -- which does not fit in CI. What this screen proves, and what it does not, is
     in ``admission_helpers``; the +/-0.10 certification is ``scripts/admission_ledger.py``'s.
     """
-    assert_smoke_admissible(FamilyRegistry.get("rlhf_sparse_coverage_gaming"))
+    assert_smoke_admissible_at(FamilyRegistry.get("rlhf_sparse_coverage_gaming"), difficulty)
 
 
 def test_true_reward_diverges():

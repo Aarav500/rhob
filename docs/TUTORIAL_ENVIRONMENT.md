@@ -215,14 +215,29 @@ Every family needs an admission test, and the test is a *screen*. Copy the patte
 from `tests/test_v3/test_family_*.py` for an existing family and swap in yours:
 
 ```python
-from admission_helpers import assert_smoke_admissible
+import pytest
+from admission_helpers import assert_smoke_admissible_at, difficulty_id, scored_difficulties
 
-def test_smoke_admissible_at_every_scored_difficulty():
-    """Reduced-power screen at every scored tier -- not certification."""
-    assert_smoke_admissible(FamilyRegistry.get("my_family"))
+@pytest.mark.parametrize("difficulty", scored_difficulties("my_family"), ids=difficulty_id)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
+    """Reduced-power screen at ONE scored tier -- not certification."""
+    assert_smoke_admissible_at(FamilyRegistry.get("my_family"), difficulty)
 ```
 
-`assert_smoke_admissible` runs the same gate, the same six criteria and the same TOST
+One case per tier rather than one loop over all of them, because a loop with the
+assertion inside stops at the first failing tier and leaves the rest unmeasured. That
+is not hypothetical: when the nightly job first ran, twelve families failed at 0.900
+and nothing had evaluated 0.800 or 0.700. It also lets the tiers run on separate
+`pytest-xdist` workers.
+
+If some tiers are known to fail, mark **those tiers**, not the family — a family-level
+`xfail` silently absorbs the tiers that pass:
+
+```python
+scored_difficulties("my_family", xfail_at=(0.9, 0.7), xfail_reason="...why, with numbers...")
+```
+
+`assert_smoke_admissible_at` runs the same gate, the same six criteria and the same TOST
 as Step 3, at a smaller design — so it certifies a **much looser** claim:
 
 | | Smoke screen (your test) | Certification (the ledger) |
@@ -257,9 +272,10 @@ pre-audit test certified `rlhf_sparse_coverage_gaming` at difficulty 0.95, which
 `default_difficulties()` never returns — so the three difficulties the benchmark
 scored (0.9 / 0.8 / 0.7) were certified by nothing, and the shipped pair at 0.95
 measured L0 AUROC 0.1075 against the gate's 0.4531 PASS at that same difficulty.
-`assert_smoke_admissible` defaults to `family.default_difficulties()` precisely so
-that this defect cannot be reintroduced silently; passing an explicit list is for
-families whose scored tiers are wrong, and the caller has to say why.
+`scored_difficulties()` reads `family.default_difficulties()` at collection time,
+precisely so that this defect cannot be reintroduced silently -- the parametrization
+is derived from the family rather than restated in the test file, and
+`assert_smoke_admissible_at` refuses a difficulty the family does not score.
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
 worth:** 21 of the 33 registered families have a smoke test and 12 have none; 11 never

@@ -36,7 +36,7 @@ calibration. Only the scalar slide amplitude is calibrated per difficulty (via
 rhob.environments.mujoco.rollout.calibrate_scale) so the hacking variant's mean proxy
 matches the legit variant's -- the honest numerical equivalent of
 reward_channel_tampering's algebraic _solve_bonus. Calibration is cached (via
-functools.lru_cache) keyed by wind_up_end -- the only quantity the calibrated
+rhob.v3.calibration_cache.disk_memo) keyed by wind_up_end -- the only quantity the calibrated
 slide_amplitude actually depends on -- not by difficulty itself, which maps onto only 7
 distinct wind_up_end values and would otherwise let two difficulties that round to the
 same key silently share a calibration computed for a different wind_up_end.
@@ -44,14 +44,13 @@ same key silently share a calibration computed for a different wind_up_end.
 
 from __future__ import annotations
 
-import functools
-
 import numpy as np
 
 from rhob.environments.mujoco.config import MuJoCoConfig
 from rhob.environments.mujoco.rollout import calibrate_scale, generate_mujoco_rundata
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair, RolloutResult
+from rhob.v3.calibration_cache import disk_memo
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -129,7 +128,7 @@ def _measure_mean_proxy(config: MuJoCoConfig, action_fn) -> float:
     return float(run.proxy_rewards.mean())
 
 
-@functools.lru_cache(maxsize=None)
+@disk_memo
 def _calibrate(wind_up_end: int) -> float:
     """Calibrate slide_amplitude so the hacking variant's mean proxy matches the
     legit variant's, for a given wind_up_end.

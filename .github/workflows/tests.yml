@@ -25,8 +25,16 @@ jobs:
         run: pip install -e ".[dev,continuous,mujoco,pettingzoo]"
       # Deselects `-m slow` (see [tool.pytest.ini_options] in pyproject.toml). Those
       # tests are not skipped -- they run in the `admission-slow` job below.
+      #
+      # -n auto because the smoke screens became one case per (family, difficulty). Six
+      # families are marked xfail(strict) and used to stop at their first failing tier;
+      # now every tier runs, which is the point -- it is how the two tiers of
+      # reward_channel_tampering that actually pass became visible -- but it took this
+      # job from 215s to 587s measured locally. Distributing gives 235s with, verified,
+      # an identical outcome for all 650 tests. `auto` rather than a fixed count: the
+      # runner's core count is GitHub's to change, not ours to hardcode.
       - name: Test
-        run: pytest tests/ -q
+        run: pytest tests/ -q -n auto
       - name: Lint
         run: ruff check src tests scripts
 
@@ -34,10 +42,17 @@ jobs:
     # The reduced-power admission smoke screens for the MuJoCo, PettingZoo, RLHF-RM and
     # sequence families, which the per-push job deselects. They are slow for a structural
     # reason, not an incidental one: each family calibrates its proxy once per difficulty
-    # (~78s for mujoco_camping, ~230s for mujoco_joint_limit_gaming) before any rollout
-    # happens, and the screen covers every difficulty the benchmark scores. Nightly plus
-    # on-demand rather than per-push, because a >30-minute job on every PR gets ignored,
-    # and an ignored check is the same as no check.
+    # (~74s for mujoco_camping) and then rolls out 12 layouts x 4 seeds x 2 variants for
+    # every difficulty the benchmark scores. Measured on mujoco_camping at one tier:
+    # 74s calibration, 229s rollouts -- so rollouts dominate, and they are what
+    # parallelises. Nightly plus on-demand rather than per-push, because a >30-minute
+    # job on every PR gets ignored, and an ignored check is the same as no check.
+    #
+    # Distributed. Every case is one (family, difficulty) cell with explicit seeds and no
+    # shared state, so spreading them changes nothing but wall clock: ~67 min serial,
+    # against a floor set by the slowest single cell. Extra workers past that buy
+    # nothing. The calibration cache below is what stops each worker re-deriving the
+    # same amplitudes, which would otherwise eat most of the win.
     #
     # This is the *screen*, not certification: the +/-0.10 matched-proxy claim comes from
     # `python scripts/admission_ledger.py`, which is run by hand and committed to
@@ -52,8 +67,32 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev,continuous,mujoco,pettingzoo]"
+      # The calibrations are pure functions of the family modules' source, and
+      # src/rhob/v3/calibration_cache.py keys entries on a hash of exactly that. Keying
+      # the restore on the same source means a stale entry is unreachable rather than
+      # merely unlikely: edit a family, get a new cache key, recompute. A miss costs a
+      # recomputation, never a wrong number.
+      - name: Restore calibration cache
+        uses: actions/cache@v4
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
+      # Serial, and NOT cheap on a cold cache -- generate_pair derives the calibration and
+      # returns closures without rolling anything out, so this costs the calibrations
+      # exactly, and some of those are minutes on their own
+      # (sequence_length_padding._legit_empty_rate: 300s, 6 seeds x 200 episodes). It is
+      # here because that work has to happen regardless, and doing it once serially is
+      # strictly better than several workers racing for the same entry: a family's tiers are
+      # separate test cases now, so without this the same 300s would be paid up to three
+      # times per run. On a restored cache this step is seconds.
+      - name: Warm the calibration cache
+        run: python scripts/warm_calibration_cache.py
       - name: Slow admission smoke screens
-        run: pytest tests/ -q -m slow
+        # The calibrations are already on disk by now, so the default per-test
+        # distribution can spread a family's tiers freely. Pinning tiers to one worker
+        # (--dist loadfile) would make the critical path three times the slowest cell for
+        # no benefit once the cache is shared.
+        run: pytest tests/ -q -m slow -n auto --durations=15
 
   no-torch-import-check:
     # Core dependencies (numpy, scipy, scikit-learn, pydantic, click) must be

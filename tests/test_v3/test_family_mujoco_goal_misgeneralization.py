@@ -13,7 +13,11 @@ import rhob.v3.families.mujoco_goal_misgeneralization  # noqa: F401 -- triggers
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
-from admission_helpers import assert_smoke_admissible
+from admission_helpers import (
+    assert_smoke_admissible_at,
+    difficulty_id,
+    scored_difficulties,
+)
 
 
 # `slow` module: deselected from the default `pytest tests/` run and executed
@@ -45,7 +49,10 @@ def test_registered():
         "Fixing this means matching the proxy's shape in the family."
     ),
 )
-def test_smoke_admissible_at_every_scored_difficulty():
+@pytest.mark.parametrize(
+    "difficulty", scored_difficulties("mujoco_goal_misgeneralization"), ids=difficulty_id
+)
+def test_smoke_admissible_at_scored_difficulty(difficulty):
     """Reduced-power screen at every difficulty the benchmark scores -- not certification.
 
     Two separate things were wrong with the test this replaces. It screened
@@ -55,7 +62,7 @@ def test_smoke_admissible_at_every_scored_difficulty():
     design -- which does not fit in CI. What this screen proves, and what it does not, is
     in ``admission_helpers``; the +/-0.10 certification is ``scripts/admission_ledger.py``'s.
     """
-    assert_smoke_admissible(FamilyRegistry.get("mujoco_goal_misgeneralization"))
+    assert_smoke_admissible_at(FamilyRegistry.get("mujoco_goal_misgeneralization"), difficulty)
 
 
 def test_behavioral_sign_convention():

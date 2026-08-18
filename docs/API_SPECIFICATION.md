@@ -349,7 +349,7 @@ backward compatibility — `passed` is `status == "ADMITTED"`, so a `False` ther
 
 | | Smoke screen | Certification |
 |---|---|---|
-| Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible` | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
+| Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible_at`, one case per scored tier | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
 | Design | 12 layouts × 4 seeds/side (96 rollouts/cell) | 12 × 24 (576 rollouts/cell) |
 | Equivalence margin | `SMOKE_MARGIN` ≈ ±0.256 | `EQUIVALENCE_MARGIN` = ±0.10 |
 | Runs in CI | yes | no |
@@ -363,7 +363,7 @@ authoritative.
 
 **Neither column is enforced over the registry, and the right-hand one is not exercised
 by the test suite at all.** 21 of the 33 registered families call
-`assert_smoke_admissible`, 12 do not, and 11 never reach `AdmissionGate` in any test.
+`assert_smoke_admissible_at`, 12 do not, and 11 never reach `AdmissionGate` in any test.
 No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
 exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
 caller that certifies real families, and the ledger it writes covers 10 of 33. Read a
@@ -544,7 +544,7 @@ Detectors exported from `rhob.detectors.__all__` for CLI discovery.
    (`AdmissionGate.certify_all_tiers`), not just `default_difficulties()[0]` — with
    no criterion `DEGENERATE`, which a constant proxy guarantees (see §6)
 7. Add tests in `tests/test_v3/test_my_family.py`, including the reduced-power smoke
-   screen (`assert_smoke_admissible`). The smoke screen is what runs in CI; it does
+   screen (`assert_smoke_admissible_at`, one case per tier). It is what runs in CI; it does
    **not** certify the ±0.10 claim — only the ledger does
 8. Submit PR with anti-symmetry screening audit
 
