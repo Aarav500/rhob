@@ -49,6 +49,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Stop at the first family that raises instead of reporting and continuing.",
     )
+    parser.add_argument(
+        "--budget-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Stop starting new families once this much wall clock has elapsed, and name "
+            "the ones left cold. Warming is an optimisation and must never be the reason "
+            "a run produces no results: mujoco_joint_limit_gaming alone costs 38 minutes "
+            "to derive, so an unbounded cold warm can consume a CI job's entire budget "
+            "before a single test executes. Anything left cold is derived by the tests "
+            "themselves, just less efficiently."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not enabled():
@@ -60,8 +73,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"warming {len(names)} families\n")
 
     failures: list[tuple[str, float, str]] = []
+    skipped: list[str] = []
     total = 0.0
-    for name in names:
+    started_all = time.perf_counter()
+    for index, name in enumerate(names):
+        if (
+            args.budget_seconds is not None
+            and time.perf_counter() - started_all >= args.budget_seconds
+        ):
+            skipped = list(names[index:])
+            print(
+                f"\n  budget of {args.budget_seconds:.0f}s reached; "
+                f"leaving {len(skipped)} families cold"
+            )
+            break
         try:
             family = FamilyRegistry.get(name)
             difficulties = family.default_difficulties()
@@ -92,7 +117,12 @@ def main(argv: list[str] | None = None) -> int:
         state = "already warm" if elapsed < 1.0 else "derived"
         print(f"  {name}: {state} ({len(difficulties)} tiers, {elapsed:.1f}s)")
 
-    print(f"\ntotal {total:.1f}s across {len(names) - len(failures)} families")
+    warmed = len(names) - len(failures) - len(skipped)
+    print(f"\ntotal {total:.1f}s across {warmed} families")
+    if skipped:
+        # Named, not merely counted: comparing two runs, a reader needs to know which
+        # families the test phase had to derive for itself.
+        print(f"left cold by the budget ({len(skipped)}): {', '.join(skipped)}")
     if failures:
         print(f"{len(failures)} family/families could not be warmed:")
         for name, _, why in failures:
