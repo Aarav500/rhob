@@ -141,6 +141,11 @@ cd "$HVTA" && PYTHONUTF8=1 .venv/bin/python -m pytest tests/test_onset_logging.p
 | `test_matched_pairs.py` | 19 invariants on the pair construction |
 | `replicates/*.json` | the 3 additional independent seed draws |
 | `RESULTS.md`, `hvta_results.json` | the report and the machine-readable artifact behind it |
+| `hvta_policies_wordle.py`, `hvta_adapter_wordle.py` | `logical_bug` pair set (Wordle) |
+| `hvta_policies_ipd.py`, `hvta_adapter_ipd.py` | `write_hack` pair set (IteratedPrisonersDilemma) |
+| `hvta_policies_opr.py`, `hvta_adapter_opr.py` | `opponent_prompt_read` pair set (IPD) |
+| `export_channels.py`, `score_channels.py` | the other-three-channels pipeline (generate, then score) |
+| `CHANNELS.md`, `channels_results.json` | their report and the artifact behind it |
 
 ## Upstream dependency
 
