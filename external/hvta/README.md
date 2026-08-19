@@ -49,7 +49,7 @@ Three different subsets of size 9 appear above and in RESULTS.md — *never fire
 **It does not establish:**
 
 * **That these detectors work on emergent hacking by real agents.** The policies here are *scripted*. They hack on a schedule we chose, at a step we chose. Nothing here observes a model deciding to cheat. That is the single largest gap between this experiment and the claim a reader might want it to support, and no amount of additional seeds closes it.
-* **Generalization**, from one external family. This is **one** environment family, **one** hack channel (`hidden_solution`), **one** game (Sudoku). HVTA's other channels — `opponent_prompt_read`, `write_hack`, `logical_bug` — are untouched, as are LLM-driven episodes.
+* **Generalization**, from one external family. All four HVTA hack channels are now ported — `logical_bug` on Wordle and `write_hack` / `opponent_prompt_read` on IteratedPrisonersDilemma, reported in [CHANNELS.md](CHANNELS.md) — but that is still **one** environment family and three games, and LLM-driven episodes remain untouched. The two IPD channels carry an extra limit the Sudoku set does not: HVTA decides the trigger, but the opponent is our scripted policy, so we decide the *effect*. Read their AUROCs as "detectable against an opponent we configured", never as "detectable in general".
 * **Anything about L1.** The access level is unmeasured here, not measured and found wanting.
 * **An oracle ceiling.** The L3 `true_rewards` channel is derived from the onset label on this adapter, so its number is a tautology. The degenerate cells prove it: with zero observable difference between variants the oracle still scores 1.000.
 
