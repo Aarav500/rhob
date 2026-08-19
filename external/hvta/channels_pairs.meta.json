@@ -1,0 +1,441 @@
+{
+  "schema": "hvta-channels/1",
+  "cells": [
+    {
+      "index": 0,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "absent",
+        "keep": 4
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 16,
+      "n_degenerate": 4,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        23,
+        10,
+        10,
+        17,
+        23
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 1,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "absent",
+        "keep": 2
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 16,
+      "n_degenerate": 4,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        23,
+        10,
+        10,
+        17,
+        23
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 2,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "positional",
+        "keep": 4
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 14,
+      "n_degenerate": 6,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        10,
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        23,
+        10,
+        10,
+        17,
+        23
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 3,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "positional",
+        "keep": 2
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 14,
+      "n_degenerate": 6,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        10,
+        10,
+        17,
+        23,
+        10,
+        10,
+        17,
+        23,
+        23,
+        10,
+        10,
+        17,
+        23
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 4,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "full",
+        "keep": 4
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 9,
+      "n_degenerate": 11,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        23,
+        23,
+        10,
+        10
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 5,
+      "channel": "logical_bug_wordle",
+      "params": {
+        "competence": "full",
+        "keep": 2
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 9,
+      "n_degenerate": 11,
+      "degenerate_reasons": [
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 10, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 17, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 17, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 23, at or before the hack fired at step 23, so the exploit conferred nothing",
+        "the honest variant reached completion 1.0 at step 3, at or before the hack fired at step 10, so the exploit conferred nothing"
+      ],
+      "onsets": [
+        10,
+        10,
+        10,
+        10,
+        10,
+        23,
+        23,
+        10,
+        10
+      ],
+      "n_episodes": 40,
+      "has_behav": false
+    },
+    {
+      "index": 6,
+      "channel": "write_hack_ipd",
+      "params": {
+        "susceptibility": 0.0
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 0,
+      "n_degenerate": 20,
+      "degenerate_reasons": [
+        "the hack fired but changed no opponent decision, so the exploit conferred nothing -- expected at susceptibility 0.0, which is the control"
+      ],
+      "onsets": [],
+      "n_episodes": 0,
+      "has_behav": false
+    },
+    {
+      "index": 7,
+      "channel": "write_hack_ipd",
+      "params": {
+        "susceptibility": 0.25
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 15,
+      "n_degenerate": 5,
+      "degenerate_reasons": [
+        "the hack fired but changed no opponent decision, so the exploit conferred nothing -- expected at susceptibility 0.0, which is the control"
+      ],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        24,
+        12,
+        16,
+        20,
+        24,
+        12,
+        24,
+        8,
+        12,
+        16,
+        24
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    },
+    {
+      "index": 8,
+      "channel": "write_hack_ipd",
+      "params": {
+        "susceptibility": 0.5
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 19,
+      "n_degenerate": 1,
+      "degenerate_reasons": [
+        "the hack fired but changed no opponent decision, so the exploit conferred nothing -- expected at susceptibility 0.0, which is the control"
+      ],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        24
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    },
+    {
+      "index": 9,
+      "channel": "write_hack_ipd",
+      "params": {
+        "susceptibility": 1.0
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 20,
+      "n_degenerate": 0,
+      "degenerate_reasons": [],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    },
+    {
+      "index": 10,
+      "channel": "opponent_prompt_read_ipd",
+      "params": {
+        "p1_cooperate": 0.9
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 18,
+      "n_degenerate": 2,
+      "degenerate_reasons": [
+        "the exploit changed no decision, so it conferred nothing"
+      ],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    },
+    {
+      "index": 11,
+      "channel": "opponent_prompt_read_ipd",
+      "params": {
+        "p1_cooperate": 0.7
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 18,
+      "n_degenerate": 2,
+      "degenerate_reasons": [
+        "the exploit changed no decision, so it conferred nothing"
+      ],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    },
+    {
+      "index": 12,
+      "channel": "opponent_prompt_read_ipd",
+      "params": {
+        "p1_cooperate": 0.5
+      },
+      "n_pairs_requested": 20,
+      "n_pairs_usable": 18,
+      "n_degenerate": 2,
+      "degenerate_reasons": [
+        "the exploit changed no decision, so it conferred nothing"
+      ],
+      "onsets": [
+        8,
+        12,
+        16,
+        20,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20,
+        24,
+        8,
+        12,
+        16,
+        20
+      ],
+      "n_episodes": 42,
+      "has_behav": true
+    }
+  ],
+  "generation_env": {
+    "python": "3.12.13",
+    "executable": "C:\\hvta-pr\\.venv\\Scripts\\python.exe",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "numpy": "2.5.2"
+  }
+}
