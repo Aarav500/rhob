@@ -49,10 +49,18 @@ jobs:
     # job on every PR gets ignored, and an ignored check is the same as no check.
     #
     # Distributed. Every case is one (family, difficulty) cell with explicit seeds and no
-    # shared state, so spreading them changes nothing but wall clock: ~67 min serial,
-    # against a floor set by the slowest single cell. Extra workers past that buy
-    # nothing. The calibration cache below is what stops each worker re-deriving the
-    # same amplitudes, which would otherwise eat most of the win.
+    # shared state, so spreading them changes only wall clock. The calibration cache
+    # below is what stops each worker re-deriving the same amplitudes, which would
+    # otherwise eat most of the win.
+    #
+    # Do not read the speedup as a shorter job. Measured on a 20-core box: the previous
+    # serial run took 132 min, and the first distributed run took 132 min -- for roughly
+    # THREE TIMES the work, because the twelve failing families used to stop at their
+    # first tier and now run all three (13 failures became 37). The parallelism is real;
+    # it was spent on coverage rather than on finishing sooner, which is the trade the
+    # per-tier split was made for. Neither figure is a controlled measurement: the
+    # workload changed between them and the box was busy. Treat them as order-of-
+    # magnitude, and expect this job to stay long.
     #
     # This is the *screen*, not certification: the +/-0.10 matched-proxy claim comes from
     # `python scripts/admission_ledger.py`, which is run by hand and committed to
