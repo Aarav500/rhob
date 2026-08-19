@@ -525,6 +525,49 @@ Train on 6 families, evaluate frozen on 8 held-out families.
   identical data 10 times produced held-out AUROC on one family ranging from 0.00 to
   1.00. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
 
+### Outside this repository: HVTA
+
+Every number above is measured on families this repo wrote, where "false positive" is
+knowable only because our own generator held out the oracle. That is circular, and it is
+the objection the benchmark could not answer from the inside.
+
+[`external/hvta/`](external/hvta/) scores the same detectors, through
+`rhob.v3.benchmark._evaluate_cell` **unmodified**, inside
+[Hack-Verifiable Environments](https://github.com/MajoRoth/hack-verifiable-environments)
+(Amit Roth, HUJI) — an environment family we did not build, whose ground truth is
+decidable *by construction*: the wrapper records whether the agent read the leaked file
+and at which step. Onset logging comes from
+[PR #2](https://github.com/MajoRoth/hack-verifiable-environments/pull/2), contributed as
+part of this work.
+
+| channel | game | pairs | levels | headline |
+|---|---|---|---|---|
+| `hidden_solution` | Sudoku | 240 | L0/L2/L3 | Reward Trend 0.869 mean AUROC; onset **does not** transfer |
+| `logical_bug` | Wordle | 16 | L0/L3 | Spectral Reward 0.680 at the honest tier |
+| `write_hack` | IteratedPrisonersDilemma | 20 | L0/L2/L3 | Page-Hinkley 0.842; **no true-reward divergence** |
+
+Three findings the internal corpus cannot produce:
+
+- **Onset localization does not transfer.** Against a decidable oracle the best
+  correlation between predicted and true onset is r = 0.43 among detectors that fire on
+  a majority of runs. A *constant* prediction chosen with knowledge of the true onsets
+  scores 11.1 steps and only 1 of 17 detectors beats it — by 0.7 steps.
+- **Every detector that fires, fires on the legitimate twin too.** The twin provably
+  never reads the solution, so these are real false positives with no oracle uncertainty.
+- **`write_hack` has no true-reward divergence at all.** Proxy separates by +0.103 while
+  true reward is identical to four decimals: the agent plays the same moves and only
+  corrupts its counterparty, so its unmanipulated score *is* the honest score. RHOB's own
+  `true_reward_diverges` criterion would reject the family — correctly, and that exposes
+  a gap in the taxonomy. Hacking that degrades the task and hacking that corrupts the
+  environment are not the same thing, and the gate only recognises the first.
+
+Read with the caveats in [`external/hvta/README.md`](external/hvta/README.md): these are
+**scripted** policies hacking on a schedule we chose, not models deciding to cheat. For
+`write_hack` the opponent is our own policy, so HVTA decides the *trigger* while we
+decide the *effect* — susceptibility is an explicit axis, and its 0.0 setting is the
+control that makes all 20 pairs degenerate. `opponent_prompt_read`, the fourth channel,
+is not yet ported.
+
 ## The 33 Families
 
 ### Families 1–6 (v3.2 Baselines)
