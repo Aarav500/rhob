@@ -1,7 +1,25 @@
-# RHOB — Reward Hacking Onset Benchmark
+# RHOB — a reward-hacking detector benchmark, and an audit of it
 
 [![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22005218-blue.svg)](https://doi.org/10.5281/zenodo.22005218)
+
+> **Note on the name.** This repository was published as *"Reward Hacking **Onset**
+> Benchmark"*. The onset column of the leaderboard is now **unvalidated** — see the
+> correction below and §8 of the paper — so the acronym is kept for URL stability only.
+> **Do not expand RHOB as "Onset Benchmark" in citations.**
+
+## The paper
+
+**Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three
+Diagnostics That Find Them.** Aarav Shah. Preprint, CC-BY-4.0.
+**DOI: [10.5281/zenodo.22005218](https://doi.org/10.5281/zenodo.22005218)**
+
+The benchmark in this repository is the paper's **case study**, not its subject. The
+paper's contribution is a failure class — checks that cannot return a negative verdict
+under the design the benchmark ships — three diagnostics that find them, and a
+pre-registered survey of 19 published benchmarks testing whether the class generalizes.
+It does not, in the form found here; that result is reported in §5 as a claim withdrawn.
 
 > ## 🔴 CORRECTION — 2026-08-12
 >
@@ -659,8 +677,10 @@ those families the best (State Divergence) reaches 0.927 and the other 7 sit bet
 ### L2: Behavioral (7)
 Hand-engineered anti-symmetric features from trajectory traces. Best in-distribution
 AUROC 0.975 (Behavioral Threshold); suite mean 0.721. Transfer across held-out
-families built under the same construction recipe is high (ensemble RTS 0.994) — see
-the RTS caveats above before treating that as generalization.
+families built under the same construction recipe reads high (ensemble RTS 0.994), but
+**that number is an artifact of the feature-sign convention**: randomizing the sign per
+family collapses it to **0.508**, and the L2 suite mean falls **0.7229 → 0.5629**. See
+the correction banner at the top. Do not cite 0.994 without its randomized partner.
 
 ### L3: Oracle (2 rows, 1 independent)
 - **True Reward Oracle** — direct access to ground-truth true reward. The only genuine
