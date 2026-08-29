@@ -1,433 +1,368 @@
-% RHOB, explained from scratch.
+% What my project actually is -- a plain explanation of RHOB for a reader who
+% has not seen it. Single file, drops straight into Overleaf, compiles with
+% pdflatex on a base TeX Live install.
 %
-% A plain-language description of the project for a reader who has not seen it.
-% Written to be uploaded to Overleaf as a single file. Compiles with pdflatex.
-%
-% Source of every number in here: the repository at
-% https://github.com/Aarav500/rhob  (README.md, docs/THREAT_MODEL.md,
-% leaderboard/v5_replicated.json, src/rhob/v3/, src/rhob/detectors/).
+% Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
+% leaderboard/v5_replicated.json, and the module docstrings under src/rhob/.
 
 \documentclass[11pt,a4paper]{article}
 
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=1.1in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{xcolor}
-\usepackage{longtable}
-\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,
-            citecolor=blue!50!black]{hyperref}
+\usepackage[colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black]{hyperref}
 
-% Only base + recommended TeX Live packages are used, so this compiles on a
-% minimal install as well as on Overleaf.
+% Plain-document layout: no paragraph indents, space between paragraphs.
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.7em plus 0.15em minus 0.05em}
+
 \newcommand{\code}[1]{\texttt{\small #1}}
-% A description-list item whose definition starts on the next line.
-\newcommand{\term}[1]{\item[#1]\hfill\\}
 
-\title{RHOB, explained from scratch\\
-       \large A benchmark for reward-hacking detectors, and an audit that
-       took most of its results back}
-\author{Aarav Shah \\ \small \texttt{ashah264@ucr.edu}}
-\date{August 2026}
+% Unnumbered sans-serif headings, so this reads as a document and not a paper.
+\newcommand{\heading}[1]{%
+  \par\vspace{1.5em}%
+  \phantomsection\addcontentsline{toc}{section}{#1}%
+  {\sffamily\bfseries\large #1}%
+  \par\vspace{0.15em}%
+  \hrule height 0.4pt%
+  \par\vspace{0.5em}%
+}
+\newcommand{\subhead}[1]{%
+  \par\vspace{0.9em}%
+  {\sffamily\bfseries #1}%
+  \par\vspace{0.15em}%
+}
 
 \begin{document}
-\maketitle
 
-\begin{abstract}
-\noindent
-This document explains a project called RHOB. It assumes you know what
-reinforcement learning is and nothing else about the project. Every term is
-defined the first time it is used. Section~\ref{sec:index} is an index that
-maps each question you asked me by email to the section that answers it.
+\thispagestyle{empty}
 
-Short version of the whole thing: I built a set of test problems for programs
-that try to spot cheating agents. I reported a headline number of $0.994$. Then
-I checked my own construction and found the number was an artifact of a coding
-convention I had imposed on myself. Under a control that removes the artifact
-it falls to $0.508$, which is chance. Most of what remains is the method for
-building and checking such test problems, not the scoreboard.
-\end{abstract}
+{\sffamily\bfseries\Large What my project actually is}
 
-\tableofcontents
+\vspace{0.4em}
+{\sffamily Aarav Shah \quad\textbullet\quad August 2026 \quad\textbullet\quad
+\texttt{ashah264@ucr.edu}}
 
-\bigskip
-\hrule
-\bigskip
+\vspace{0.3em}
+\hrule height 0.8pt
+\vspace{1.2em}
 
-\section{What this document is}
+John,
 
-You asked me to explain the purpose and the techniques of the project, and to
-say clearly why it matters. You also said, correctly, that my earlier
-explanations were unclear and that some of my words sounded borrowed. I have
-tried to fix both. Where I use a term that I think is jargon, I define it in
-one sentence and then use plain words afterwards.
+You asked me to explain the purpose of this project, the techniques in it, and why
+it matters. Here it is. I have kept the words simple and defined each one the first
+time I use it. Where I got something wrong I have said so in the main text instead
+of hiding it at the bottom.
 
-Two habits I am trying to follow here, because you flagged both:
+Your questions are listed at the end with the page where I answer each one.
 
-\begin{itemize}
-\item Every number comes with what it was measured on and how many samples it
-      came from.
-\item Where a result was withdrawn or a claim failed, that is stated in the
-      main text and not in a footnote. There are several. They are the most
-      useful part of the project.
-\end{itemize}
+\heading{The short version}
+\label{h:short}
 
-\section{The sixty-second version}
+An agent is trained to make a score go up. A person writes that score in code. The
+score is never exactly the thing the person wanted. So the agent can make the score
+go up by finding a flaw in it instead of doing the task. That is reward hacking.
 
-An agent is trained to maximise a score. The score is written down in code by a
-person. It is almost never exactly the thing the person wanted. So an agent can
-get a very high score by finding a flaw in how the score is computed, instead
-of by doing the task. People call this \emph{reward hacking}.
+Now say you want to write a program that looks at a finished training run and says
+``this agent was gaming the score'' or ``this agent did the task''. How would you
+know if your program works?
 
-Suppose you want to write a program that watches a finished training run and
-says ``this agent was gaming the score'' or ``this agent was doing the task''.
-How would you know if your program works?
+You need examples where you already know the answer. That is what I built. There
+are 33 small task families. Each one makes two runs of the same task. In one the
+agent games the score. In the other it does the task. Both earn about the same
+visible score, on purpose. Then 30 candidate programs try to tell the two apart,
+and I score how often they get it right.
 
-You need examples where you already know the answer. RHOB is a set of such
-examples: 33 small task families, each of which produces two runs --- one where
-the agent gamed the score, one where it did the task properly --- built so that
-the visible score is about the same in both. Then 30 candidate watcher programs
-are run on those examples and scored on how often they get it right.
+I published a headline number of 0.994 out of 1. Then I went back and checked my
+own setup, and the number was fake. It came from a formatting rule I had written in
+my own contributor guide, not from anything about reward hacking. Take that rule
+away and the number drops to 0.508, which is a coin flip.
 
-That is the whole shape. The rest of this document is (a) what each of those
-words means precisely, and (b) what went wrong when I checked my own
-construction.
+The rest of this explains each piece, and then what is left standing.
 
-\section{Vocabulary}
-\label{sec:vocab}
+\heading{The words I was using}
+\label{h:words}
 
-You said several of my words could mean many different things. Here is exactly
-what each one means in this project. This is the section to come back to.
+You said my words could mean a lot of different things. Here is what each one means
+here.
 
-\begin{description}
+\subhead{Proxy reward}
+The number the agent is actually trying to make big. It is a real function in
+Python. The environment computes it. I record it once per episode.
 
-\term{Proxy reward}
-The number the agent actually optimises. It is a real function, written in
-Python, that the environment computes at every step. In this project it is
-recorded once per episode.
+\subhead{True reward}
+A second number, also written in Python by whoever built the task. It measures what
+I actually wanted the agent to do. The agent never sees it and never optimises it.
+It exists so that I know which run was the honest one.
 
-\term{True reward}
-A \emph{second} number, also written in Python by the person who built the task,
-that measures what we actually wanted the agent to do. The agent never sees it
-and never optimises it. It exists only so that we, the people running the
-experiment, know which behaviour was the honest one.
+\subhead{Oracle}
+Just a name for the true reward. It is not a model, not an LLM, not a person. It is
+the second scoring function above. I should have said ``true reward'' from the
+start. The word oracle adds nothing and I will stop using it.
 
-\term{Oracle}
-Just a name for the true reward and for anything allowed to read it. It is not a
-model, not an LLM, not a human. It is the second scoring function described
-above. I should have said ``the true reward'' instead of ``the oracle'' from the
-start; the word adds nothing.
+\subhead{Run}
+One full recorded training run, of one agent, on one variant. You asked whether
+this is a policy, a trajectory, or a distribution over trajectories. It is none of
+those. It is a time series over training. In the small gridworld task it is 500
+episodes, saved as four arrays of length 500: the proxy reward each episode, the
+true reward each episode, a state visit count each episode, and one behaviour
+number each episode.
 
-\term{Run}
-One complete recorded training run of one agent on one task variant. It is not a
-policy and it is not a single trajectory. It is a time series over training. In
-the tabular task, for instance, it is $500$ episodes, and it is stored as four
-arrays of length $500$: the proxy reward per episode, the true reward per
-episode, a state-visit histogram per episode, and one behavioural number per
-episode. Section~\ref{sec:levels} says what each of those is.
+\subhead{Cheating run and honest run}
+A cheating run comes from the arm of the task that games the score. An honest run
+comes from the arm that does the task. The two arms together are a \emph{pair}.
 
-\term{Cheating run / hacking variant}
-A run produced by the arm of the task that gets its score by exploiting the flaw.
+\subhead{Family}
+A generator that makes those pairs. There are 33. I say family rather than
+environment because one family makes many pairs, at five difficulty settings and
+many random layouts.
 
-\term{Honest run / legitimate variant}
-A run produced by the arm of the task that gets its score by doing the task.
+\subhead{Cell}
+One family at one difficulty. There are 123 of them. A cell is the thing that gets
+scored.
 
-\term{Pair}
-The two arms together, plus the machinery that generates them. One pair is one
-matched comparison.
+\subhead{Entry check}
+A test a pair has to pass before it is allowed into the set at all. This is the
+thing I was calling ``admission criteria''. You were right that the phrase is bad.
+Entry check is what I meant, and it is the part of the project I care about most.
 
-\term{Family}
-A generator that can produce such pairs at a requested difficulty. There are 33
-of them. ``Family'' rather than ``environment'' because one family produces many
-pairs, at five difficulty settings, at many random layouts.
+\heading{Do the two arms learn? Mostly no}
+\label{h:learn}
 
-\term{Cell}
-One (family, difficulty) combination. $123$ cells exist across the 33 families.
-A cell is the unit that gets scored.
+You asked whether the learning algorithms are the same, whether the reward
+functions are the same, and whether these can be seen as two seeds optimising the
+same reward.
 
-\term{Detector}
-A candidate watcher program. Section~\ref{sec:detector} defines it precisely.
+The answer is no, and this is the biggest limit on the whole project. It is written
+in my threat model file and I should have led with it.
 
-\term{Entry check}
-A test that a candidate pair must pass before it is allowed into the test set at
-all. This is the thing I was calling an ``admission criterion''. You were right
-that the phrase is opaque; ``entry check'' is what I mean, and
-Section~\ref{sec:gate} is the part of the project I actually care about.
+In 28 of the 33 families neither arm learns anything. Both arms are policies I
+wrote by hand. I wrote a script that behaves the way a cheating agent would behave,
+and a script that behaves the way an honest agent would behave, and I ran both.
+There is no learner at all. So no, they are not two seeds of the same learner. The
+seeds change the layout and the noise, not any optimisation.
 
-\end{description}
+The other 5 families are different. They run real policy gradient against a reward
+model that was actually fitted from preference data. There the cheating is not
+scripted, it comes out on its own. But the hole in the reward model, and the label
+saying which arm is which, are still mine.
 
-\section{What a pair is, and the honest answer about learning algorithms}
-\label{sec:pair}
+So what does the benchmark show? It shows what you could detect \emph{in principle}
+from each kind of information. It does not show what real trained agents leave
+behind. Those are two different claims and I ran them together in earlier writeups.
 
-You asked: \emph{are the learning algorithms the same? The reward functions? Can
-we view these variants as two seeds optimising the same reward?}
+What is the same in both arms: the task, the proxy reward function, and, after a
+tuning step, the amount of proxy reward earned. What is different: the behaviour,
+and the true reward.
 
-The honest answer is no, and this is the single largest limitation of the
-project. It is written down in \code{docs/THREAT\_MODEL.md} and it should have
-been the first thing I told you.
+\subhead{Why I force the visible scores to match}
+If the cheating arm simply earned more visible score, a detector could read the
+visible score and be right every time. It would have learned nothing about
+cheating. It would have learned that my benchmark pays cheaters more. By making the
+visible score the same, any detector that works has to have read something else.
+And because I hand out the extra information in named channels, I know exactly
+which one it read.
 
-\textbf{In 28 of the 33 families, neither arm learns anything.} Both arms are
-hand-written policies. I wrote a script that behaves the way an exploiting agent
-would behave, and a script that behaves the way an honest agent would behave,
-and I ran both. There is no learner and there are no seeds of a learner. The
-seeds vary the layout and the environment noise, not an optimisation process.
+\heading{The four things a detector is allowed to see}
+\label{h:levels}
 
-The remaining 5 families are a partial exception. They run real policy-gradient
-ascent against a reward model that was genuinely fitted from preference data. In
-those, the \emph{exploitation} is emergent --- nobody scripted the exploit ---
-although the vulnerability in the reward model, and the label saying which arm is
-which, are still designed.
+You said each of these could mean a variety of things. Here is exactly what is in
+each one.
 
-So what does the benchmark establish, given that? It establishes what is
-detectable \emph{in principle} from each information channel. It does not
-establish what real learned agents leave behind. Those are different claims and
-I conflated them in earlier write-ups.
-
-What is the same across the two arms of a pair: the task, the proxy reward
-function, and --- after a calibration step --- the \emph{amount} of proxy reward
-earned. What differs: the behaviour, and the true reward.
-
-\subsection{Matching}
-
-The two arms are calibrated so that the proxy reward they earn is statistically
-indistinguishable, while the true reward clearly differs. This is the point of
-the whole construction, so it is worth stating why.
-
-If the cheating arm simply earned more visible score than the honest arm, then a
-detector could just look at the visible score and be right. It would have learned
-nothing about cheating. It would have learned that this benchmark gives cheaters
-higher numbers.
-
-By forcing the visible score to be equal, any detector that succeeds \emph{must}
-have read something other than the visible score. And because the extra
-information is handed out in named channels, you know exactly which one it read.
-
-\section{The four access levels}
-\label{sec:levels}
-
-You said each of ``reward only'', ``state visitation'', ``behavioural'' and
-``oracle'' could mean a variety of things. Precisely, from
-\code{src/rhob/v3/access.py}, a detector at a given level is handed a copy of the
-run with everything above its level deleted:
-
-\begin{center}
-\begin{tabular}{@{}llp{8.1cm}@{}}
+\vspace{0.3em}
+\begin{tabular}{@{}llp{7.7cm}@{}}
 \toprule
-Level & Field added & What the array actually contains \\
+Level & Field it adds & What the array actually holds \\
 \midrule
 L0 & \code{proxy\_rewards} &
-  A float array, one entry per episode: the proxy reward that episode. \\
+  One number per episode: the proxy reward that episode. \\
 L1 & \code{state\_counts} &
-  An integer array, episodes $\times$ bins: how many times each discretised
-  state was visited in that episode. \\
+  Episodes $\times$ bins: how many times each state was visited that episode. \\
 L2 & \code{behav\_trace} &
-  A float array, one entry per episode: one hand-written summary number
-  describing the behaviour that episode. On a gridworld it is (mean row visited)
-  minus (mean column visited); in a continuous task it is mean $x$ minus the
-  centre. \\
+  One number per episode: a summary of the behaviour that episode, written by
+  hand. On a gridworld it is (mean row visited) minus (mean column visited). \\
 L3 & \code{true\_rewards} &
-  A float array, one entry per episode: the true reward. \\
+  One number per episode: the true reward. \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-Three things about this table matter more than the table.
+Three things matter more than the table.
 
-\textbf{Enforcement is structural, not a promise.} The function \code{restrict()}
-builds a fresh object with the disallowed fields set to \code{None} or empty. A
-detector at L0 cannot read \code{behav\_trace} because there is nothing there to
-read. It is not a rule that a contributor might forget.
+\subhead{The code deletes what you are not allowed to see}
+Before a run reaches a detector it goes through a function that builds a fresh copy
+with the higher fields emptied out. A detector at L0 cannot read the behaviour
+number because there is nothing there to read. It is not a rule someone could
+forget to follow.
 
-\textbf{L3 is not a real access level.} No practical monitoring system gets the
-true reward; if you had it you would not need a detector. L3 exists as a
-\emph{ceiling}: it tells you how well detection could possibly do on these tasks.
-It should never be quoted as a practical result.
+\subhead{L3 is not a real level}
+No real monitoring system gets the true reward. If you had it you would not need a
+detector. L3 is there as a ceiling, to say how well detection could possibly do on
+these tasks. It should never be quoted as a practical result.
 
-\textbf{L2 is hand-authored, and that is a problem I have only half-fixed.} The
-behavioural number was chosen by me, knowing which arm was the cheating one. I
-chose an axis that I knew separates them. Section~\ref{sec:bug} is about what
-that cost me. Rebuilding the L2 channel out of label-blind summaries of the raw
-trajectory is work I have not done.
+\subhead{L2 is a number I chose, and that is a problem I have only half fixed}
+I picked the behaviour number knowing which arm was the cheating one, and I picked
+an axis I knew would separate them. The next two sections are about what that cost
+me. Building L2 out of summaries that nobody chose with the answer in hand is work
+I have not done yet.
 
-\section{What a detector is, and what ``fit'' means}
-\label{sec:detector}
+\heading{What a detector is, and what fit means}
+\label{h:detector}
 
-A detector is a class with two required methods.
+A detector is a class with two methods.
 
-\begin{itemize}
-\item \code{classify(run)} takes one run, already stripped to the detector's
-      access level, and returns a number between $0$ and $1$. Higher means
-      ``I think this is the cheating one''. It does not have to be a calibrated
-      probability; only the ordering is used.
-\item \code{detect\_onset(run)} returns which episode it thinks the cheating
-      started, or $-1$. This half of the project is currently unvalidated and I
-      am not making claims about it.
-\end{itemize}
+\code{classify(run)} takes one run, already cut down to that detector's level, and
+returns a number between 0 and 1. Higher means ``I think this one is cheating''. It
+does not have to be a real probability. Only the ordering is used.
 
-Most detectors are a fixed statistic. ``Does the reward curve flatten and stay
-flat?'' ``Is the reward distribution skewed?'' ``How far apart are the two
-state-visit histograms?'' Nothing is trained; the same formula is applied to
-every run.
+\code{detect\_onset(run)} returns which episode it thinks the cheating started, or
+$-1$. This half of the project is not currently supported and I am not making
+claims about it.
 
-\subsection{What ``fit'' means}
+Most detectors are a fixed formula. Does the reward curve go flat and stay flat? Is
+the reward spread lopsided? How far apart are the two state histograms? Nothing is
+trained. The same formula is applied to every run.
 
-Some detectors additionally expose a method called \code{fit(runs\_a, runs\_b)}.
-That method is handed the two groups \emph{with the labels attached} --- these
-are the cheating runs, those are the honest ones --- and trains on them.
+\subhead{What fit means}
+Some detectors also have a method called \code{fit}. It gets handed the two groups
+with the labels attached, these are the cheating runs and those are the honest
+ones, and it trains on them.
 
-The benchmark decides how to score a detector with one line: does this object
-have a method named \code{fit}? If not, apply it to each run directly. If yes,
-run 5-fold cross-validation --- train on four fifths of the runs, score on the
-held-out fifth, rotate.
+The benchmark decides how to score a detector with one line of code: does this
+object have a method called \code{fit}? If not, run it on each run directly. If
+yes, do 5-fold cross validation. Train on four fifths of the runs, score on the
+fifth it did not see, then rotate.
 
-Cross-validation keeps this honest: such a detector is never scored on runs it
-was trained on, so the number is not leaked and is a real measurement. But it
-answers a different question:
+Cross validation keeps this fair. Such a detector is never scored on runs it
+trained on, so the number is real. But it answers a different question:
 
-\begin{center}
 \begin{tabular}{@{}ll@{}}
 \toprule
-Unsupervised detector & ``Does this fixed statistic separate the two arms?'' \\
-Label-fitted detector & ``Is the difference learnable from labelled examples?'' \\
+A fixed-formula detector & Does this formula separate the two arms? \\
+A detector fitted on labels & Can the difference be learned from labelled examples? \\
 \bottomrule
 \end{tabular}
-\end{center}
 
-Averaging both into one number per access level answers neither. It reports
-whichever question happened to give the bigger number. Section~\ref{sec:five} is
-what happens when you separate them.
+If I average both into one number per level, I answer neither. I report whichever
+question happened to give the bigger number. That turns out to matter a lot, and it
+is the section after next.
 
-\section{What the score means}
-\label{sec:auroc}
+\heading{What the score means}
+\label{h:score}
 
-The score is AUROC. In plain words:
+The score is AUROC. In plain words: pick one cheating run and one honest run at
+random. AUROC is the chance that the detector gave the cheating one the higher
+number. A tie counts as half. So 0.5 is a coin flip, 1.0 is always right, and 0.0
+is always exactly wrong.
 
-\begin{quote}
-Pick one cheating run and one honest run at random. AUROC is the probability
-that the detector gave the cheating one the higher number. A tie counts as half.
-\end{quote}
+You asked whether a high score means a lot of reward hacking or a little. Neither,
+and it is a fair thing to ask because the number looks like it should mean that.
+AUROC measures how well a detector separates two groups. It says nothing about how
+often hacking happens anywhere else. In my setup the mix is exactly half cheating
+and half honest by construction, so the benchmark cannot say anything at all about
+how common hacking is.
 
-So $0.5$ is a coin flip, $1.0$ is always right, and $0.0$ is always exactly
-wrong (which would be a perfect detector with its sign backwards).
+Scores are worked out per cell and then averaged upwards, per detector, per family,
+per level.
 
-You asked whether a high score would indicate ``a lot of reward hacking, or a
-little''. Neither --- and this is worth being explicit about, because it is a
-natural reading of the number and it is wrong. AUROC here measures how well the
-detector \emph{separates} two groups. It says nothing about how much hacking
-occurs in the wild. In this benchmark the mix is exactly 50/50 cheating and
-honest by construction, so the benchmark cannot say anything about base rates at
-all.
-
-Scores are computed per cell and then averaged upward: per detector per family,
-per access level, and so on.
-
-\subsection{The 0.994 specifically}
-
-$0.994$ was not the ordinary score. It was the \emph{cross-family transfer}
-score: fit the detectors on some families, then test them on families they had
-never seen. If that number were real, it would mean something genuinely
-interesting --- that a detector trained on one kind of exploit catches kinds of
-exploit it was never shown. Detection would generalise across mechanisms.
+\subhead{Where the 0.994 came from}
+It was not the ordinary score. It was the transfer score. Fit the detectors on some
+families, then test them on families they had never seen. If that number were real
+it would mean something worth having: a detector trained on one kind of cheat
+catches kinds it was never shown. Detection would carry across mechanisms. That was
+the interesting claim.
 
 It was not real.
 
-\section{The bug: a style rule that became the answer}
-\label{sec:bug}
+\heading{Why the 0.994 was fake}
+\label{h:bug}
 
-You asked what I meant by ``a coding convention'', and whether I meant that I set
-myself a convention that affected the logic of the code. Yes. That is exactly
-what happened, and you are right that it is a serious thing to have done.
+You asked what I meant by ``a coding convention'', and whether I mean I set myself
+a rule that changed what the code does. Yes. That is what happened, and you are
+right that it is a bad thing to have done.
 
-\code{CONTRIBUTING.md} --- the contributor guide, a document about house style
---- required that every family's behavioural number be \emph{anti-symmetric}
-across the pair with one fixed orientation: positive for the cheating arm,
-negative for the honest arm. The reason was tidiness. It made the families
-comparable and the plots consistent.
+My contributor guide, which is a document about house style, said every family had
+to produce its behaviour number with the same orientation: positive for the
+cheating arm, negative for the honest arm. The reason was tidiness. It made
+families comparable and plots consistent.
 
 The main L2 detector scored a run by taking the mean of the last 100 entries of
-that number. The benchmark computed AUROC with ``cheating'' as the positive
-class.
+that number. The benchmark worked out AUROC with cheating as the positive class.
 
-Put those three facts together: \textbf{the sign of the observation was the
-label}. The detector was not reading behaviour. It was reading my style guide.
-A detector that ``transfers to an unseen hacking mechanism'' had discovered that
-all 33 families were written by the same person following the same rule.
+Put those three facts together. The sign of the number was the label. The detector
+was not reading behaviour. It was reading my style guide. A detector that
+``transfers to a hacking mechanism it has never seen'' had worked out that all 33
+families were written by one person following one rule.
 
-\subsection{The tell I ignored for months}
+\subhead{The sign I ignored for months}
+Every family has a difficulty knob that sets how far apart I make the two arms. L2
+AUROC sat at exactly 1.000 at every difficulty setting, in 12 of the 13 families
+whose knob I swept. I moved the knob and the score did not move.
 
-There was a symptom in the data the whole time. Each family has a difficulty
-knob that controls how far apart the two arms are made to be. L2 AUROC was pinned
-at exactly $1.000$ across \emph{every} difficulty setting in 12 of the 13
-families whose knob was swept --- the knob moved the separation and the score did
-not budge.
+That cannot happen for a real measurement, and it is obvious once you say it out
+loud. A knob that changes how far apart two things are cannot fail to move a
+statistic that measures how far apart they are. Unless that statistic is measuring
+something else. It was. The sign was already the answer, so distance did not
+matter.
 
-That is impossible for a real measurement, and obvious in hindsight. A knob that
-changes how far apart two things are cannot fail to move a statistic that
-measures how far apart they are --- unless the statistic is not measuring that.
-The sign was already the answer, so distance was irrelevant.
+\subhead{The fix}
+For each family and layout, a fixed rule gives either $+1$ or $-1$. Both arms get
+multiplied by that one value before any detector sees them.
 
-\subsection{The fix}
+Multiplying \emph{both} arms is the whole trick. It flips the axis the pair is
+defined on. It is not noise added to individual runs. If I flipped the two arms
+separately I would not be hiding the direction, I would be destroying the pair,
+because the opposite signs are what makes it a pair in the first place. Every size
+is kept exactly, so the entry checks and the difficulty knob are untouched. The
+only thing removed is the constant that let a detector read the label off a sign.
 
-The fix is in \code{src/rhob/v3/sign\_randomization.py}. For each (family,
-layout) pair, a deterministic keyed digest produces $+1$ or $-1$. Both arms'
-behavioural numbers are multiplied by that one value before any detector sees
-them.
+The transfer score falls from 0.994 to 0.508. The L2 average falls from 0.7229 to
+0.5629.
 
-Multiplying \emph{both} arms is what makes this a de-biasing step rather than a
-destructive one. It is a flip of the coordinate axis the pair is defined on, not
-noise added to individual runs. Flipping the two arms independently would not
-hide the direction; it would destroy the pair, because the anti-symmetry
-\emph{is} the pair. Every magnitude is preserved exactly, so the entry checks and
-the difficulty knob are unaffected. The only thing removed is the global constant
-that let a detector read the label off a sign.
+\heading{Am I sure about the 0.508?}
+\label{h:sure}
 
-Result: the cross-family transfer score falls from $0.994$ to $0.508$. The L2
-suite mean falls from $0.7229$ to $0.5629$.
+You asked this straight, so here is what I have and what I do not.
 
-\section{Am I sure about the 0.508?}
-\label{sec:sure}
+\subhead{What backs it up}
+The comparison is like for like. The randomisation is a single flag. Turn it off
+and 0.994 comes back exactly. And 0.508 is not one run. I repeated the whole thing
+20 times with different layout and rollout seeds, which is 600 detector passes, and
+got 95\% intervals by resampling those 20 repeats.
 
-You asked this directly. Here is what I have and what I do not.
+\subhead{What chance means here}
+0.508 against 0.5 is not something I can tell apart from a coin flip with this
+sample. I am not claiming the detectors are slightly better than chance.
 
-\textbf{What supports it.} The comparison is like-for-like: sign randomisation is
-a single flag, and turning it off reproduces $0.994$ exactly. The $0.508$ is not
-one run --- the suite was replicated over 20 independent draws, each with its own
-layout and rollout seeds, giving 600 detector-passes, with 95\% intervals from a
-percentile bootstrap over the 20 draws.
+\subhead{What would overturn it}
+The randomisation hides the direction inside any single run. But a detector is also
+allowed to look at a whole batch of runs without labels, and it could in principle
+work the direction out from the batch. That is allowed and I have not shown that
+nobody can do it. A detector that did that and still transferred would put the
+number back up, and it would deserve to.
 
-\textbf{What ``chance'' means here.} $0.508$ against $0.5$ is not distinguishable
-from a coin flip given this sample. It is not a claim that the detectors are
-slightly better than chance.
+\subhead{One hole I know about and have not closed}
+At L2 the detector also sees the state counts, and I do not flip those. A count
+over one family's own grid has no direction to flip. So a family whose bins line up
+with the same axis as its behaviour number still carries, in principle, enough to
+recover the old orientation. Nothing in my repo does this. Doing it on purpose
+would be reading the label by a longer route. It only closes properly when I
+rebuild L2.
 
-\textbf{What would overturn it.} The randomisation hides the direction from any
-\emph{single} run, but a detector is also allowed to look at a whole batch of
-runs without labels, and could in principle work out the orientation from the
-population. That is legitimate and I have not shown that no detector can do it. A
-detector that oriented itself that way and still transferred would put the number
-back up, and would deserve to.
-
-\textbf{One leak I know about and have not closed.} At L2 a detector also sees
-the state-visit histograms, and those are not flipped --- a histogram over a
-family's own grid has no benchmark-wide sign to flip. A family whose histogram
-bins encode the same spatial axis as its behavioural number therefore still
-carries, in principle, enough information to recover the old orientation. Nothing
-in the repository does this today, and doing it deliberately would be reading the
-label by a longer route. It closes properly only when the L2 channel is rebuilt
-without a hand-authored axis.
-
-\textbf{The honest limit of the fix.} Sign randomisation removes the direction
-freebie and only that. The behavioural number is still a feature I chose knowing
-the answer. So an L2 score measured under randomisation means ``this detector did
-not need the sign convention''. It does not mean ``the L2 channel is blind to the
+\subhead{What the fix does not do}
+It removes the free direction and nothing else. The behaviour number is still a
+feature I picked knowing the answer. So an L2 score under randomisation means
+``this detector did not need the sign rule''. It does not mean ``L2 is blind to the
 label''.
 
-\section{Five of the thirty}
-\label{sec:five}
+\heading{Five of the thirty}
+\label{h:five}
 
-Five of the thirty \emph{detectors} --- not the environments. They are:
+Five of the thirty \emph{detectors}, not the environments. They are:
 
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}ll@{}}
 \toprule
 Detector & Level \\
@@ -439,382 +374,358 @@ Visitation Entropy Trend & L1 \\
 Trajectory MLP & L2 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-These are the ones that expose \code{fit}, so they are trained on labels and
-scored by cross-validation as described in Section~\ref{sec:detector}.
+These are the ones with a \code{fit} method, so they are trained on labels and
+scored by cross validation.
 
-This matters because of what the project's central table was being read as. The
-table is an ``access ladder'': give a detector more information, does it do
-better? The claimed answer was yes, with a large jump from reward-only (L0) to
-state-visitation (L1).
+This matters because of what my main table was being read as. The table is a
+ladder. Give a detector more information, does it do better? The answer looked like
+yes, with a big jump from reward-only to state counts.
 
-Separating the two kinds of detector, on the same 20 draws:
+Split the two kinds of detector apart, on the same 20 repeats:
 
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}lcc@{}}
 \toprule
-Access level & Best of all detectors & Best of unsupervised only \\
+Level & Best of all detectors & Best of the fixed-formula ones \\
 \midrule
-L0 (reward only)        & 0.5477 & 0.5437 \\
-L1 (+ state visits)     & 0.9416 & 0.5340 \\
-L2 (+ behavioural)      & 0.9430 & 0.5872 \\
-L3 (+ true reward)      & 0.9746 & 0.9746 \\
+L0 (reward only)      & 0.5477 & 0.5437 \\
+L1 (+ state counts)   & 0.9416 & 0.5340 \\
+L2 (+ behaviour)      & 0.9430 & 0.5872 \\
+L3 (+ true reward)    & 0.9746 & 0.9746 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-Each step of the ladder, measured pairwise across the 20 draws:
+And each step of the ladder, measured across the 20 repeats:
 
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}llcc@{}}
 \toprule
-Step & Detectors & Gap [95\% interval] & Draws where the step held \\
+Step & Detectors & Gap [95\% interval] & Repeats where the step held \\
 \midrule
-L1 $-$ L0 & all           & $+0.394$ \ $[+0.384,\ +0.403]$ & 20 of 20 \\
-L1 $-$ L0 & unsupervised  & $-0.010$ \ $[-0.028,\ +0.008]$ & 5 of 20 \\
+L1 $-$ L0 & all            & $+0.394$ \ $[+0.384,\ +0.403]$ & 20 of 20 \\
+L1 $-$ L0 & fixed-formula  & $-0.010$ \ $[-0.028,\ +0.008]$ & 5 of 20 \\
 \addlinespace
-L2 $-$ L1 & all           & $+0.001$ \ $[-0.004,\ +0.006]$ & 13 of 20 \\
-L3 $-$ L2 & all           & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
+L2 $-$ L1 & all            & $+0.001$ \ $[-0.004,\ +0.006]$ & 13 of 20 \\
+L3 $-$ L2 & all            & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-Read the first two rows together. The gap reverses sign and stops separating.
-\textbf{The entire published climb from reward-only access to state-visitation
-access was one supervised detector.} That is a real finding about this benchmark,
-but it is not the finding the ladder was being read as, and no reader could have
-recovered it from a single-column table.
+Read the first two rows together. The gap flips sign and stops being a gap. The
+whole published climb from reward-only to state counts was one detector that had
+been trained on labels. That is a real result about my benchmark. It is not the
+result the ladder was being read as, and nobody could have got it out of a
+single-column table.
 
-The third row is worth noticing too: the interval for the step from
-state-visitation to behavioural access includes zero, so there is no measurable
-step there either.
+The third row matters too. The step from state counts to behaviour has an interval
+that includes zero, so there is no measurable step there either.
 
-\section{Entry checks: the part I think is actually worth something}
-\label{sec:gate}
+\heading{What I meant by admission criteria}
+\label{h:checks}
 
-You said ``admission criteria'' sounded weird and had probably leaked into my
-vocabulary. Fair. Here is the idea without the phrase.
+You said the phrase sounded weird and had probably come from an LLM. Fair. Here is
+the idea without it.
 
-A matched pair is a \emph{claim}: I assert that these two arms earn the same
-visible score while doing different things. An assertion is not a fact. So before
-a pair is allowed into the test set, it is tested. Six tests per cell:
+A pair is a claim. I am saying these two arms earn the same visible score while
+doing different things. A claim is not a fact. So before a pair goes into the set,
+I test it. Six tests per cell:
 
 \begin{enumerate}
 \item The two arms earn the same visible score on average.
-\item The two arms' visible scores have the same \emph{shape}, not just the same
-      mean --- checked with three different shape-sensitive statistics.
-\item The behaviour genuinely does differ between the arms.
-\item The true rewards genuinely do differ.
-\item The moment the cheating starts can be located consistently.
-\item The cheating persists to the end of training rather than fading.
+\item Their visible scores have the same \emph{shape}, not just the same average.
+      Checked three ways.
+\item The behaviour really is different.
+\item The true rewards really are different.
+\item You can find the moment the cheating starts, and find it consistently.
+\item The cheating keeps going to the end instead of fading out.
 \end{enumerate}
 
-\subsection{The interesting part: what test 1 used to be}
+\subhead{What test 1 used to be}
+It was literally this: \code{abs(mean\_auroc - 0.5) < 0.10}.
 
-Until the audit, test 1 was literally this:
+That is: run a reward-only detector, and if it fails to tell the arms apart, decide
+the arms match. Which is ``I did not find a leak'' written down as ``there is no
+leak''.
 
-\begin{center}
-\code{abs(mean\_auroc - 0.5) < 0.10}
-\end{center}
+That is only as good as the experiment's ability to find a leak, and mine had
+almost none. At four seeds a side the standard error is 0.0625. So:
 
-That is: run a reward-only detector, and if it fails to separate the arms,
-conclude that the arms are matched. In other words, ``I failed to find a leak''
-reported as ``there is no leak''.
-
-That is only as strong as the experiment's power to find a leak, and this
-experiment had almost none. At the then-default four seeds per side per layout,
-the standard error is exactly $0.0625$. So:
-
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}lc@{}}
 \toprule
 If the true value were\dots & \dots the old test passed it this often \\
 \midrule
-$0.500$ (genuinely matched) & 89.6\% \\
-$0.556$                     & 76.2\% \\
-$0.611$ (\textbf{leaking})  & \textbf{43.5\%} \\
-$0.714$                     & 2.5\% \\
+0.500 (really matched)   & 89.6\% \\
+0.556                    & 76.2\% \\
+0.611 (\textbf{leaking}) & \textbf{43.5\%} \\
+0.714                    & 2.5\% \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-A family that was clearly leaking passed nearly half the time. Worse, the
-incentive runs the wrong way: \emph{noisier} data made the test easier to pass,
-because a noisy measurement is more likely to land near $0.5$.
+A family that was clearly leaking passed nearly half the time. Worse, the incentive
+runs backwards. Noisier data made the test \emph{easier} to pass, because a noisy
+measurement lands near 0.5 more often.
 
-\subsection{The fix, and what it cost}
+\subhead{The fix, and what it cost}
+Swap the test round.
 
-Replace the difference test with an \emph{equivalence} test (two one-sided tests,
-TOST). The plain-language difference:
-
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}ll@{}}
 \toprule
-Difference test asks & ``Can I show these differ?'' \\
-Equivalence test asks & ``Can I show these are close?'' \\
+The old test asked & Can I show these two are different? \\
+The new test asks  & Can I show these two are close? \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-Now the burden of proof is inverted. To pass, the whole confidence interval must
-fit inside $0.5 \pm 0.10$. Noise makes a wide interval, and a wide interval
-cannot fit. Noise now makes passing \emph{harder}, which is the correct
-direction.
+Now the whole confidence interval has to fit inside 0.5 plus or minus 0.10. Noise
+makes a wide interval, and a wide interval does not fit. So noise now makes it
+harder to pass, which is the right way round.
 
-The margin stayed at $0.10$, so the scientific claim did not change. What changed
-is the sample size needed to support it, and the change is large:
+The margin stayed at 0.10, so the claim itself did not change. What changed is how
+much data it takes, and that change is big:
 
-\begin{center}
+\vspace{0.3em}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 & Before & After \\
 \midrule
 Seeds per side per layout & 4 & 24 \\
 Layouts & 12 & 12 \\
-Rollouts per cell & 96 & 576 \\
-Interval half-width & $0.117$ & $0.046$ \\
+Runs per cell & 96 & 576 \\
+Half width of the interval & 0.117 & 0.046 \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-Note the top-right of that table against the margin: at a half-width of $0.117$,
-the interval is wider than the entire $\pm 0.10$ band. The old design could not
-have certified equivalence at \emph{any} observed value, not even at exactly
-$0.5$. That is the quantitative reason a difference test had been standing in for
-an equivalence test: the equivalence test would have failed everything.
+Look at that 0.117 against the margin. The interval was wider than the whole 0.10
+band. So the old setup could not have passed the new test at any measured value,
+not even at exactly 0.5. That is the numeric reason a weak test was standing in for
+the right one. The right test would have failed everything.
 
-\section{The check that broke inside the fix}
-\label{sec:degenerate}
+\heading{The check that broke inside the fix}
+\label{h:degen}
 
-This is the part I would show a student, because it is the same mistake
-reappearing one level down, inside its own repair.
+This is the part I would show a student, because it is the same mistake happening
+again one level down, inside its own repair.
 
-AUROC is a rank statistic --- it only looks at ordering. If every score it is
-asked to rank is tied, the standard implementation returns exactly $0.5$, by the
-convention that ties count half. Not because the two arms were compared and found
-indistinguishable. Because \emph{nothing was compared}.
+AUROC only looks at order. If every score it has to rank is tied, the standard
+function returns exactly 0.5, because ties count half. Not because the two arms
+were compared and found equal. Because nothing was compared.
 
-Now feed that into the new equivalence test. Every layout returns exactly $0.5$,
-so the bootstrap standard error is $0$, so the confidence interval collapses to
-the single point $[0.5000, 0.5000]$, so it fits inside any margin whatsoever ---
-$0.10$, or $0.001$, or anything. The test passes, always, and cannot fail.
+Now feed that into the new test. Every layout gives exactly 0.5. So the spread is
+0. So the interval collapses to the single point $[0.5000, 0.5000]$. So it fits
+inside any margin at all, 0.10 or 0.001 or anything smaller. The test passes
+always, and can never fail.
 
-That is precisely the defect the equivalence test was introduced to remove. The
-first ledger the new gate produced certified 15 of its 35 cells this way. Every
-one of them belonged to a family whose proxy reward is \emph{constant by
-construction}. A constant score is trivially matched. It is also completely
-uninformative, and the gate could not tell those apart.
+That is exactly the problem the new test was brought in to fix. The first ledger
+the new gate produced passed 15 of its 35 cells this way. Every one of them was a
+family whose proxy reward is a constant by design. A constant score is trivially
+matched. It is also useless, and the gate could not tell those two apart.
 
-\subsection{Two guards, and a third verdict}
+\subhead{Two guards, and a third answer}
+So before reading any of these tests, the gate now asks two questions.
 
-The gate now asks two questions before it will read an equivalence test at all.
+\emph{Could the number have come out different?} For each layout it works out what
+fraction of the cross-arm run pairs the detector actually puts in an order. If the
+range the score could possibly reach already fits inside the band, the test was
+decided before the first run.
 
-\textbf{Could the statistic have come out differently?} For each layout it
-computes what fraction of cross-arm run pairs the detector strictly orders. If
-the attainable range of the AUROC already fits inside the equivalence band, the
-test was decided before the first rollout.
+\emph{Did the signal mean anything?} The first guard is cheap to fool. A proxy
+reward of $0.675$ plus a wobble of size $0.0000001$, which is a constant plus noise
+a hundred million times smaller than the reward and which nothing could act on,
+pushes the first guard to 0.961 and the whole gate says pass. No tie tolerance
+fixes that, because a wobble ten times bigger than the tolerance always clears it.
+So the second guard is about the family and not the scores: how big the proxy
+reward's spread is compared to the reward itself, with a floor underneath it.
 
-\textbf{Did the signal mean anything?} The first guard alone is cheap to defeat.
-A proxy reward of $0.675 + \mathcal{N}(0, 10^{-7})$ --- a constant plus jitter
-eight orders of magnitude below the reward, which no consumer of a reward could
-act on --- pushes the ordering fraction to $0.961$ and the whole gate reports
-success. No tie tolerance fixes this, because jitter ten times larger than the
-tolerance always clears it. So the second guard is a property of the family, not
-of the scores: the pooled proxy reward's standard deviation as a fraction of its
-own magnitude, with a floor at $10^{-4}$.
-
-Neither guard subsumes the other. On the current grid each catches three families
+Neither guard covers the other. On the current grid each one catches three families
 the other cannot see.
 
-And the verdict is now three-valued:
+And there are now three answers instead of two:
 
-\begin{center}
-\begin{tabular}{@{}lp{9.5cm}@{}}
+\vspace{0.3em}
+\begin{tabular}{@{}lp{9.2cm}@{}}
 \toprule
-PASS & Measured, and matched within the margin. \\
-FAIL & Measured, and outside the margin. The score leaks; every other number on
-       that cell is suspect. \\
-DEGENERATE & \textbf{Could not be measured at all.} Licenses nothing, in either
+Pass & Measured, and matched inside the margin. \\
+Fail & Measured, and outside the margin. The score leaks, and every other
+       number on that cell is suspect. \\
+Could not measure & The test could not be run at all. Says nothing, in either
        direction. \\
 \bottomrule
 \end{tabular}
-\end{center}
+\vspace{0.3em}
 
-DEGENERATE is not a soft failure and it is emphatically not a pass. Filing that
-third case under the first is the mistake this whole audit is about, and it
-happened twice at two different levels: before the fix, ``I failed to detect a
-leak'' was published as ``there is no leak''; after the fix, ``I could not look''
-was published as ``I looked, and it was fine''. Same error. The second one
-survived a repair aimed at the first.
+``Could not measure'' is not a soft fail and it is not a pass. Filing it as a pass
+is the mistake this whole audit is about, and I made it twice at two different
+levels. Before the fix: ``I did not find a leak'' published as ``there is no
+leak''. After the fix: ``I could not look'' published as ``I looked and it was
+fine''. Same mistake. The second one survived a repair aimed at the first.
 
-\subsection{Where the ledger currently stands}
+\subhead{Where it stands now}
+Of the 50 cells in scope: \textbf{15 pass, 30 could not be measured, 5 genuinely
+failed}. Passing is the minority. The count dropped from an earlier ``30 of 35
+passed'' not because any family got worse, but because the new guard stopped
+counting cells whose tests were never really run.
 
-Of the 50 cells currently in scope: \textbf{15 admitted, 30 degenerate, 5
-genuinely failed}. Admitted is a minority of the grid, and the count fell from an
-earlier ``30 of 35 admitted'' not because any family got worse, but because the
-new guard stopped counting cells whose tests were never actually run.
+And the scope is small, which I would rather tell you than have you find. The
+ledger covers 10 of the 33 families. The other 23 are unchecked, which is not the
+same as checked and fine.
 
-And the scope itself is limited, which I would rather state than have you find:
-the ledger covers \textbf{10 of the 33 families}. The other 23 are uncertified,
-which is not the same as certified-and-passing.
+\heading{What I actually want to work on}
+\label{h:point3}
 
-\section{What I think the research question is}
-\label{sec:point3}
+You asked whether my interest is in building benchmarks or in experimental rigour,
+how I would change things, and, the sharpest one, whether I am sure there is a real
+problem in the literature.
 
-You asked whether my interest is in constructing benchmarks or in experimental
-rigour, how I would change the status quo, and --- the sharpest version ---
-whether I am sure there is a real problem in the literature.
+Let me take the last one first. No, I am not.
 
-Let me answer the last one first, because the honest answer is no.
+The paper claims a kind of failure: checks that cannot come back negative, given
+how the benchmark is built. It gives three ways to find them. It also has a survey
+of 19 published benchmarks, and I wrote down what I was going to look for before I
+started so I could not move the target afterwards.
 
-The paper this repository accompanies claims a failure class: checks that cannot
-return a negative verdict under the design the benchmark ships. It offers three
-diagnostics for finding them. It also includes a pre-registered survey of 19
-published benchmarks, run specifically to test whether the class generalises
-beyond my own work.
+I did not find it. The pattern did not turn up in the other benchmarks in the form
+I found it in mine. That is in the paper as a claim I withdrew.
 
-\textbf{It does not.} The survey did not find the pattern elsewhere in the form
-found here, and that is reported in the paper as a claim withdrawn. So my
-position is: I found this in one benchmark, mine, and when I went looking for it
-in nineteen others under a protocol I fixed in advance, I did not find it. What
-survives is the method and a detailed case study, not a claim about the field.
+So my honest position is this. I found this in one benchmark, and it was mine. I
+went looking for it in nineteen others under rules I fixed in advance, and it was
+not there. What is left is the method and one detailed case study. Not a claim
+about the field.
 
-A second prediction of mine failed recently and is worth recording for the same
-reason. Earlier work of mine concluded that the ``true rewards differ'' check is
-blind to hacking that \emph{adds to} a competent agent rather than
-\emph{substituting for} competence. I predicted that two categories in an
-external corpus would be of the additive kind. They are not --- all of them turn
-out to avoid doing the real work. The prediction was wrong and the check is not
-obviously blind in the way I claimed.
+A second prediction of mine failed recently, and I am telling you for the same
+reason. Earlier work of mine said the ``true rewards differ'' check is blind to
+cheating that \emph{adds to} a competent agent rather than \emph{replacing}
+competence. I predicted that two categories in an outside dataset would be the
+adding kind. They are not. All of them avoid doing the real work. The prediction
+was wrong.
 
-With that said, here is what I actually want to work on, stated concretely enough
-to be attacked:
+Here is the thing I do want to work on, stated concretely enough that you can
+attack it:
 
+\vspace{0.4em}
 \begin{quote}
-When an evaluation produces a number, is that number evidence about the thing the
-evaluation says it measures?
+\emph{When an evaluation gives you a number, is that number evidence about the
+thing the evaluation says it measures?}
 \end{quote}
+\vspace{0.4em}
 
-That splits into two questions I can actually test:
+That splits into two things I can actually test.
 
-\begin{enumerate}
-\item Can you demonstrate, before reporting any score, that a benchmark's entry
-      checks are capable of rejecting something? A criterion is not a check until
-      it comes with a demonstration that it can fail --- a power curve, or an
-      adversarial probe that passes it. A negative control is decorative unless
-      the failures are published next to the passes.
-\item Does a result that holds in-distribution survive a perturbation stated in
-      advance? The $0.994 \to 0.508$ collapse is one instance: the perturbation
-      was named first, and the result did not survive it.
-\end{enumerate}
+First, before reporting any score, can you show that a benchmark's entry checks are
+capable of rejecting something? A criterion is not a check until it comes with a
+demonstration that it can fail. A control is decoration unless the failures get
+published next to the passes.
 
-You are right that people already evaluate their own tests, more or less
-rigorously. My claim is narrower than ``nobody does this'': it is that auditing
-your own benchmark is currently a one-off event you write a paper about, rather
-than a routine step with a standard form. I do not have a framework for making it
-routine. I have one worked example and three diagnostics.
+Second, does a result that holds on the data you have survive a change you named in
+advance? The 0.994 to 0.508 collapse is one case of that. I named the change first,
+and the result did not survive it.
 
-On your point about hyperparameters --- you are right, and it made me drop a word
-I had been using loosely. Nothing is robust to arbitrary perturbation, and any
-algorithm can be made ill-conditioned on purpose. So ``is this robust?'' has no
-answer. ``Does this specific result survive this specific perturbation, named in
-advance?'' does.
+You are right that people already check their own tests, more or less carefully. My
+claim is smaller than ``nobody does this''. It is that auditing your own benchmark
+is a one-off thing you write a paper about, rather than a routine step with a
+standard shape. I do not have a framework for making it routine. I have one worked
+example and three checks.
 
-\section{What this project does not show}
+On your hyperparameter point, you are right, and it made me drop a word I had been
+using loosely. Nothing survives an arbitrary change, and any algorithm can be made
+badly behaved on purpose. So ``is this robust'' has no answer. ``Does this result
+survive this specific change, named in advance'' does.
 
-Collected in one place, so you do not have to trust me to volunteer them
-individually.
+\heading{What this project does not show}
+\label{h:limits}
+
+All in one place, so you do not have to trust me to bring them up one at a time.
 
 \begin{itemize}
-\item \textbf{The cheating is scripted.} 28 of 33 families are hand-written
-      policies, as in Section~\ref{sec:pair}. This is about what a channel
-      contains in principle, not about real learned agents.
-\item \textbf{The public scoreboard is a single draw.} Every cell is one
-      unreplicated 5-versus-5 comparison. The standard error near $0.5$ is about
-      $0.19$. Do not read its third decimal, and do not rank two detectors that
-      differ by less than about $0.2$. This is fixed for the aggregate numbers ---
-      those come from the 20-draw replication --- but not for individual cells.
-\item \textbf{All 30 detectors share that draw}, so their cell values are
-      correlated and their differences are not independent measurements.
-\item \textbf{The certified set is not the scored set.} The entry checks average
-      over 12 layouts; the scoreboard evaluates one.
-\item \textbf{L0 sitting at chance is a negative control, not a discovery.} The
-      families are \emph{built} so that reward-only detectors cannot work. An
-      earlier version of the README reported this as an empirical finding that
-      ``reward-only monitoring fails''. That was wrong. The result is useful only
-      in the failure direction: an L0 detector rising above chance means the
-      construction leaked.
-\item \textbf{One scoreboard row is a duplicate.} The detector labelled ``Perfect
-      Feature Oracle'' at L3 is a subclass of an L2 detector that overrides only
-      its name and its declared level. It never reads the true reward. It agrees
-      with its parent on 33 of 33 families. It is kept as a labelled cross-check
-      and excluded from every aggregate, but the old ``L3 mean over $n=2$'' figure
-      averaged one oracle with one copy of an L2 baseline and measured nothing.
-\item \textbf{The onset half is unvalidated.} The project was published as
-      ``Reward Hacking \emph{Onset} Benchmark''. That column of the scoreboard is
-      not currently supported. The acronym is kept for URL stability only, and the
-      expansion should not be used.
-\item \textbf{The entry checks are barely exercised by the test suite.} The
-      full-certification path is never invoked on a registered family anywhere in
-      the tests --- the two tests that touch it use synthetic fixtures. A green
-      test suite here means ``the screens that exist passed'', not ``the families
-      are certified''.
+\item \textbf{The cheating is scripted.} 28 of 33 families are policies I wrote by
+      hand. This is about what a channel holds in principle, not about real trained
+      agents.
+\item \textbf{The public table is one draw.} Every cell is a single 5-against-5
+      comparison, run once. The standard error near 0.5 is about 0.19. Do not read
+      the third decimal, and do not rank two detectors that differ by less than
+      about 0.2. This is fixed for the summary numbers, which come from the 20
+      repeats, but not for individual cells.
+\item \textbf{All 30 detectors share that one draw}, so their cell values move
+      together and their differences are not independent.
+\item \textbf{The set I check is not the set I score.} The entry checks average
+      over 12 layouts. The public table uses one.
+\item \textbf{L0 sitting at chance is a control, not a discovery.} The families are
+      \emph{built} so reward-only detectors cannot work. An earlier version of my
+      README reported this as a finding that ``reward-only monitoring fails''. That
+      was wrong. It is only useful in the failure direction: an L0 detector going
+      above chance means the construction leaked.
+\item \textbf{One row in the table is a duplicate.} The detector I labelled
+      ``Perfect Feature Oracle'' at L3 is a subclass of an L2 detector that
+      overrides only its name and its level. It never reads the true reward. It
+      agrees with its parent on 33 of 33 families. I keep it as a labelled
+      cross-check and leave it out of every average, but the old ``L3 mean over
+      two detectors'' figure averaged one oracle with one copy of an L2 baseline
+      and measured nothing.
+\item \textbf{The onset half is unsupported.} I published this as ``Reward Hacking
+      \emph{Onset} Benchmark''. That column is not currently backed by anything. I
+      keep the short name so old links work, and the long name should not be used.
+\item \textbf{The entry checks are barely covered by my own tests.} The full check
+      is never run on a real registered family anywhere in the test suite. The two
+      tests that touch it use made-up fixtures. A green test suite here means ``the
+      screens that exist passed'', not ``the families are checked''.
 \end{itemize}
 
-\section{Index: your questions and where they are answered}
-\label{sec:index}
+\heading{Your questions, and where I answered them}
+\label{h:index}
 
-\begin{longtable}{@{}p{9.3cm}l@{}}
+\begin{tabular}{@{}p{10.4cm}r@{}}
 \toprule
-Your question & Section \\
+Your question & Page \\
 \midrule
-\endhead
-What is a cheating run? An honest run? & \ref{sec:vocab}, \ref{sec:pair} \\
-How do you distinguish between them? & \ref{sec:pair} \\
-Are the learning algorithms the same? The reward functions? & \ref{sec:pair} \\
-Can these be viewed as two seeds optimising the same reward? & \ref{sec:pair} \\
-What is a ``proxy'' reward function? & \ref{sec:vocab} \\
-What is ``a finished run'' --- a policy, a trajectory, a distribution? & \ref{sec:vocab} \\
-What are ``reward only'', ``state visitation'', ``behavioural'', ``oracle''? & \ref{sec:levels} \\
-Cheating is contested in the literature --- how can you detect it? & \ref{sec:pair} \\
-What is a detector? & \ref{sec:detector} \\
-What does it mean to ``fit'' a detector? & \ref{sec:detector} \\
-What are these scores? Is 0.994 an average of them? & \ref{sec:auroc} \\
-Would a real 0.994 mean a lot of hacking, or a little? & \ref{sec:auroc} \\
-What do you mean by ``a coding convention''? Was it a bug? & \ref{sec:bug} \\
-A style rule that impacted the logic of the code? & \ref{sec:bug} \\
-What is the significance of 0.508? Are you sure it is correct? & \ref{sec:sure} \\
-What does ``confidence comes from twenty replications'' mean? & \ref{sec:sure} \\
-``Five of the thirty'' --- detectors or environments? & \ref{sec:five} \\
-What is an ``admission criterion''? & \ref{sec:gate} \\
-Is your interest benchmarks, or experimental rigour? & \ref{sec:point3} \\
-How would you change the status quo? What would the impact be? & \ref{sec:point3} \\
-Are you sure there is a real problem in the literature? & \ref{sec:point3} \\
+What is a cheating run? What is an honest run? & \pageref{h:words} \\
+How do you distinguish between them? & \pageref{h:learn} \\
+Are the learning algorithms the same? The reward functions? & \pageref{h:learn} \\
+Can these be seen as two seeds optimising the same reward? & \pageref{h:learn} \\
+What is a proxy reward function? & \pageref{h:words} \\
+What is a finished run? Policy, trajectory, or distribution? & \pageref{h:words} \\
+What are reward-only, state visitation, behavioural, oracle? & \pageref{h:levels} \\
+Cheating is contested in the literature. How can you detect it? & \pageref{h:learn} \\
+What is a detector? & \pageref{h:detector} \\
+What does it mean to fit a detector? & \pageref{h:detector} \\
+What are these scores? Is 0.994 an average of them? & \pageref{h:score} \\
+Would a real 0.994 mean a lot of hacking, or a little? & \pageref{h:score} \\
+What do you mean by a coding convention? Was it a bug? & \pageref{h:bug} \\
+A style rule that changed what the code does? & \pageref{h:bug} \\
+What is the significance of 0.508? Are you sure it is correct? & \pageref{h:sure} \\
+What does confidence from twenty replications mean? & \pageref{h:sure} \\
+Five of the thirty. Detectors or environments? & \pageref{h:five} \\
+What is an admission criterion? & \pageref{h:checks} \\
+Is your interest benchmarks, or experimental rigour? & \pageref{h:point3} \\
+How would you change the status quo? What would the impact be? & \pageref{h:point3} \\
+Are you sure there is a real problem in the literature? & \pageref{h:point3} \\
 \bottomrule
-\end{longtable}
+\end{tabular}
 
-\section*{Sources}
-\addcontentsline{toc}{section}{Sources}
+\heading{If you want to check any of this}
+\label{h:sources}
 
-Everything above is in the repository at
-\url{https://github.com/Aarav500/rhob}. The specific files:
+Everything above is in the repo at \url{https://github.com/Aarav500/rhob}. The
+files that matter:
 
 \begin{itemize}
-\item \code{README.md} --- correction banner, method, scope limits, scoreboard.
-\item \code{docs/THREAT\_MODEL.md} --- what the benchmark measures and does not;
-      the scripted-policy limitation.
-\item \code{src/rhob/v3/sign\_randomization.py} --- Section~\ref{sec:bug}, written
-      as a module docstring.
-\item \code{src/rhob/v3/admission\_gate.py} --- the entry checks of
-      Section~\ref{sec:gate}.
-\item \code{src/rhob/v3/access.py}, \code{src/rhob/detectors/posthoc.py} --- the
-      access levels and the run data format of Section~\ref{sec:levels}.
-\item \code{src/rhob/detectors/supervision.py} --- Section~\ref{sec:five}.
-\item \code{leaderboard/v5\_replicated.json} --- the 20-draw numbers, with
-      bootstrap intervals.
-\item \code{admission/ADMISSION\_LEDGER.md} --- every cell, every check, passes
-      and failures alike.
+\item \code{README.md} for the correction notice, the method, and the limits.
+\item \code{docs/THREAT\_MODEL.md} for what the benchmark does and does not
+      measure, including the scripted-policy limit.
+\item \code{src/rhob/v3/sign\_randomization.py} for the fake 0.994, written up at
+      the top of the file.
+\item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
+\item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
+      four levels and the run format.
+\item \code{src/rhob/detectors/supervision.py} for the five fitted detectors.
+\item \code{leaderboard/v5\_replicated.json} for the 20 repeats and the intervals.
+\item \code{admission/ADMISSION\_LEDGER.md} for every cell and every check, the
+      failures alongside the passes.
 \end{itemize}
 
 \end{document}
