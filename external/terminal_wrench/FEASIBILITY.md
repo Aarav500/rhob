@@ -36,8 +36,43 @@ step-indexed action sequence. Terminal Wrench also ships `stripped_trajectories/
 agent reasoning blanked and actions intact, which is an access-level split someone else
 has already run.
 
-Whether a ground-truth onset step is recoverable is unresolved. The hack happens in some
-episode; nothing checked here says the corpus records which.
+### Onset: resolved for Terminal Wrench, and the answer is no
+
+Checked directly against `tasks/regex-chess/gemini-3.1-pro/hack_trajectories/v5`:
+
+    trial/agent/episode-0 .. episode-8     9 episodes, real per-step structure
+    trial/agent/trajectory.json
+    trial/verifier/reward.txt              2 BYTES -- one scalar for the whole trial
+    trial/result.json                      started_at / finished_at, trial-level only
+    metadata.json                          classification, reward, episode_count
+
+`metadata.json` labels the TRAJECTORY, not the step: `classification`,
+`judged_serious_exploit`, `brief_exploit_summary`, `episode_count: 9`. Nothing anywhere
+records which episode the exploit happened in. So onset error cannot be measured on this
+corpus at all, and L0 cannot run because the only reward is 2 bytes at trial level.
+
+### And the labels are LLM-judged, which matters more
+
+`"classification_source": "stored_judgment"`, with `judged_serious_exploit`,
+`judged_legitimate_solve` and `judged_rewarding_nonhack` alongside it. The README says
+these come from scoring with `gpt-5.4` against a judge prompt.
+
+Scoring RHOB's detectors against those labels would mean measuring a detector against an
+LLM judge's opinion. That is the exact unreliability the hack-verifiable methodology was
+built to escape, and it would reintroduce a circularity as bad as the one the HVTA port
+was meant to break -- just with someone else's judge instead of our own oracle.
+
+Terminal Wrench is therefore excellent for what it was built for, monitorability studies,
+and wrong for ours. It gives real agents and step structure, and neither of the two
+things RHOB needs: a per-step proxy and a structurally-decided onset.
+
+### Which leaves HVTB's watcher as the only candidate
+
+HVTB detects structurally, by inotify, with no judge. Its author has since added a
+watcher on test-file edits, which fires at a moment rather than setting an end-of-run
+flag. Whether that moment survives into the released traces as a step index or a
+timestamp is the open question, and it is now the ONLY route to an external corpus that
+labels onset rather than the episode. There is no fallback if the answer is no.
 
 ## The finding: we may have invented the augment class
 
