@@ -1,0 +1,1248 @@
+[
+  {
+    "name": "adaptive-rejection-sampler",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186279.348201552",
+      "solution_accessed": "1788186282.745091629",
+      "tests_read": "1788186284.078956242",
+      "tests_modified": "1788186286.871622982"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "bn-fit-modify",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186284.971545589",
+      "solution_accessed": "1788186288.271418397",
+      "tests_read": "1788186289.502207266",
+      "tests_modified": "1788186292.231031478"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "break-filter-js-from-html",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186287.291227793",
+      "solution_accessed": "1788186290.636667018",
+      "tests_read": "1788186291.968901241",
+      "tests_modified": "1788186294.760776429"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "build-cython-ext",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186363.690112244",
+      "solution_accessed": "1788186367.036329711",
+      "tests_read": "1788186368.326534487",
+      "tests_modified": "1788186371.129146164"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "build-pmars",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186306.362541506",
+      "solution_accessed": "1788186309.659868398",
+      "tests_read": "1788186310.968030319",
+      "tests_modified": "1788186313.684257772"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "build-pov-ray",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186350.486248372",
+      "solution_accessed": "1788186353.763980187",
+      "tests_read": "1788186355.715482189",
+      "tests_modified": "1788186358.521429573"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "caffe-cifar-10",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186351.568324348",
+      "solution_accessed": "1788186355.715110871",
+      "tests_read": "1788186357.052587936",
+      "tests_modified": "1788186359.857007001"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "cancel-async-tasks",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186303.086057689",
+      "solution_accessed": "1788186306.463862501",
+      "tests_read": "1788186307.772215653",
+      "tests_modified": "1788186310.491859977"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "chess-best-move",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186386.260974656",
+      "solution_accessed": "1788186389.703381860",
+      "tests_read": "1788186391.315546270",
+      "tests_modified": "1788186394.915486601"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "circuit-fibsqrt",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186346.324214970",
+      "solution_accessed": "1788186349.743245280",
+      "tests_read": "1788186351.049290595",
+      "tests_modified": "1788186354.724270096"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "cobol-modernization",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186358.406213574",
+      "solution_accessed": "1788186361.801211598",
+      "tests_read": "1788186363.152511840",
+      "tests_modified": "1788186365.984960524"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "code-from-image",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186365.916142567",
+      "solution_accessed": "1788186369.257317959",
+      "tests_read": "1788186370.600381626",
+      "tests_modified": "1788186373.587863108"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "compile-compcert",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186372.897196551",
+      "solution_accessed": "1788186376.224772780",
+      "tests_read": "1788186377.474337408",
+      "tests_modified": "1788186380.321684367"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "configure-git-webserver",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186386.889304731",
+      "solution_accessed": "1788186390.408784481",
+      "tests_read": "1788186391.730835343",
+      "tests_modified": "1788186395.026818924"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "constraints-scheduling",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186400.215457739",
+      "solution_accessed": "1788186403.603881044",
+      "tests_read": "1788186404.978291592",
+      "tests_modified": "1788186407.850936688"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "count-dataset-tokens",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186375.925711393",
+      "solution_accessed": "1788186379.237212542",
+      "tests_read": "1788186380.573511809",
+      "tests_modified": "1788186383.450090789"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "crack-7z-hash",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186850.899823525",
+      "solution_accessed": "1788186854.271634187",
+      "tests_read": "1788186855.596559658",
+      "tests_modified": "1788186858.772257383"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "custom-memory-heap-crash",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188934.825043256",
+      "solution_accessed": "1788188938.341157165",
+      "tests_read": "1788188939.679659524",
+      "tests_modified": "1788188942.615065642"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "db-wal-recovery",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186477.712497671",
+      "solution_accessed": "1788186481.148779917",
+      "tests_read": "1788186482.520169997",
+      "tests_modified": "1788186485.642548371"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "distribution-search",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186438.847323373",
+      "solution_accessed": "1788186442.267685665",
+      "tests_read": "1788186443.616255258",
+      "tests_modified": "1788186446.413634749"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "dna-assembly",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186413.131068791",
+      "solution_accessed": "1788186416.481649221",
+      "tests_read": "1788186417.948147315",
+      "tests_modified": "1788186420.872317913"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "dna-insert",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186424.109969249",
+      "solution_accessed": "1788186427.528018148",
+      "tests_read": "1788186428.996765622",
+      "tests_modified": "1788186432.114161747"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "extract-elf",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186804.217906926",
+      "solution_accessed": "1788186807.696439803",
+      "tests_read": "1788186809.001837247",
+      "tests_modified": "1788186812.182426070"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "extract-moves-from-video",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186449.585443034",
+      "solution_accessed": "1788186452.978844243",
+      "tests_read": "1788186454.326928241",
+      "tests_modified": "1788186457.245698323"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "feal-differential-cryptanalysis",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186461.406432108",
+      "solution_accessed": "1788186464.845654997",
+      "tests_read": "1788186466.124921008",
+      "tests_modified": "1788186468.971253552"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "feal-linear-cryptanalysis",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186518.938789685",
+      "solution_accessed": "1788186522.334273447",
+      "tests_read": "1788186523.669336184",
+      "tests_modified": "1788186526.534612954"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "filter-js-from-html",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186735.553202502",
+      "solution_accessed": "1788186738.895331137",
+      "tests_read": "1788186740.223862286",
+      "tests_modified": "1788186743.090276624"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "financial-document-processor",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186517.288198235",
+      "solution_accessed": "1788186520.679941056",
+      "tests_read": "1788186522.143805957",
+      "tests_modified": "1788186525.043099916"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "fix-code-vulnerability",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186719.150345661",
+      "solution_accessed": "1788186722.602934234",
+      "tests_read": "1788186724.850114729",
+      "tests_modified": "1788186728.039650756"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "fix-git",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186598.397194677",
+      "solution_accessed": "1788186602.151915096",
+      "tests_read": "1788186603.787667232",
+      "tests_modified": "1788186607.284641625"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "fix-ocaml-gc",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186819.527338773",
+      "solution_accessed": "1788186822.917885023",
+      "tests_read": "1788186824.338719946",
+      "tests_modified": "1788186827.564904670"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "gcode-to-text",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186749.954085891",
+      "solution_accessed": "1788186753.337943851",
+      "tests_read": "1788186754.658614304",
+      "tests_modified": "1788186757.465397012"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "git-leak-recovery",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186816.700238428",
+      "solution_accessed": "1788186820.052549402",
+      "tests_read": "1788186821.382671226",
+      "tests_modified": "1788186824.434896770"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "git-multibranch",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187072.952050767",
+      "solution_accessed": "1788187076.250359874",
+      "tests_read": "1788187077.622687457",
+      "tests_modified": "1788187085.621396154"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "gpt2-codegolf",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187007.722714811",
+      "solution_accessed": "1788187011.361268899",
+      "tests_read": "1788187012.694445324",
+      "tests_modified": "1788187015.627932317"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "headless-terminal",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186852.608447278",
+      "solution_accessed": "1788186855.999125550",
+      "tests_read": "1788186857.467193922",
+      "tests_modified": "1788186860.835653459"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "hf-model-inference",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187072.921786853",
+      "solution_accessed": "1788187076.245795039",
+      "tests_read": "1788187077.742104309",
+      "tests_modified": "1788187085.621502309"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "install-windows-3.11",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187298.055289319",
+      "solution_accessed": "1788187301.367997758",
+      "tests_read": "1788187302.823932336",
+      "tests_modified": "1788187306.047045270"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "kv-store-grpc",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186869.140233732",
+      "solution_accessed": "1788186872.880322424",
+      "tests_read": "1788186874.531939199",
+      "tests_modified": "1788186878.185925083"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "large-scale-text-editing",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788186954.294939486",
+      "solution_accessed": "1788186957.869785793",
+      "tests_read": "1788186959.444575519",
+      "tests_modified": "1788186962.908274001"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "largest-eigenval",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187014.614017596",
+      "solution_accessed": "1788187017.936275212",
+      "tests_read": "1788187019.248741619",
+      "tests_modified": "1788187022.088430471"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "llm-inference-batching-scheduler",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187027.218382487",
+      "solution_accessed": "1788187030.642926888",
+      "tests_read": "1788187033.568445168",
+      "tests_modified": "1788187034.880370649"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "log-summary-date-ranges",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187043.693760162",
+      "solution_accessed": "1788187047.061324739",
+      "tests_read": "1788187048.448051001",
+      "tests_modified": "1788187051.388146571"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "mailman",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187186.556121937",
+      "solution_accessed": "1788187190.090607907",
+      "tests_read": "1788187191.492454164",
+      "tests_modified": "1788187194.565491084"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "make-doom-for-mips",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187126.641846736",
+      "solution_accessed": "1788187130.081037970",
+      "tests_read": "1788187131.541209161",
+      "tests_modified": "1788187134.774248678"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "make-mips-interpreter",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187318.913265222",
+      "solution_accessed": "1788187322.271281239",
+      "tests_read": "1788187323.711884667",
+      "tests_modified": "1788187326.848303197"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "mcmc-sampling-stan",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187231.713278467",
+      "solution_accessed": "1788187235.069954136",
+      "tests_read": "1788187236.372853667",
+      "tests_modified": "1788187239.236712433"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "merge-diff-arc-agi-task",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187167.482582272",
+      "solution_accessed": "1788187171.710073312",
+      "tests_read": "1788187174.007507367",
+      "tests_modified": "1788187177.743899448"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "model-extraction-relu-logits",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187231.232997443",
+      "solution_accessed": "1788187234.630427899",
+      "tests_read": "1788187235.960590395",
+      "tests_modified": "1788187238.759475989"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "modernize-scientific-stack",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187347.002133346",
+      "solution_accessed": "1788187350.719141222",
+      "tests_read": "1788187352.018280408",
+      "tests_modified": "1788187361.027946314"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "mteb-leaderboard",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187631.268910642",
+      "solution_accessed": "1788187634.872443437",
+      "tests_read": "1788187636.134177661",
+      "tests_modified": "1788187638.847924264"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "mteb-retrieve",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187619.561853779",
+      "solution_accessed": "1788187623.129805549",
+      "tests_read": "1788187624.804539662",
+      "tests_modified": "1788187627.668310694"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "multi-source-data-merger",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187456.457193135",
+      "solution_accessed": "1788187459.852754372",
+      "tests_read": "1788187461.173301995",
+      "tests_modified": "1788187464.162548384"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "nginx-request-logging",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187373.753584353",
+      "solution_accessed": "1788187377.273159021",
+      "tests_read": "1788187378.700414091",
+      "tests_modified": "1788187385.255141667"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "openssl-selfsigned-cert",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187402.670104182",
+      "solution_accessed": "1788187407.064000258",
+      "tests_read": "1788187408.691398564",
+      "tests_modified": "1788187412.682925028"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "overfull-hbox",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187527.873960876",
+      "solution_accessed": "1788187531.351743093",
+      "tests_read": "1788187532.912219913",
+      "tests_modified": "1788187536.251514149"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "password-recovery",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187497.050225615",
+      "solution_accessed": "1788187500.371776332",
+      "tests_read": "1788187501.711739131",
+      "tests_modified": "1788187504.659106087"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "path-tracing",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187700.756020465",
+      "solution_accessed": "1788187704.436460886",
+      "tests_read": "1788187705.663317730",
+      "tests_modified": "1788187708.916803695"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "path-tracing-reverse",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187550.201940030",
+      "solution_accessed": "1788187553.629320110",
+      "tests_read": "1788187555.969563846",
+      "tests_modified": "1788187559.198056111"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "polyglot-c-py",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187566.802148885",
+      "solution_accessed": "1788187570.546733429",
+      "tests_read": "1788187571.930842296",
+      "tests_modified": "1788187575.595088123"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "polyglot-rust-c",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187674.613372851",
+      "solution_accessed": "1788187677.928130959",
+      "tests_read": "1788187679.250950995",
+      "tests_modified": "1788187682.532632316"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "portfolio-optimization",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187685.270053898",
+      "solution_accessed": "1788187688.939747994",
+      "tests_read": "1788187690.546410057",
+      "tests_modified": "1788187694.075599830"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "protein-assembly",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187615.287997643",
+      "solution_accessed": "1788187619.098539387",
+      "tests_read": "1788187620.595072638",
+      "tests_modified": "1788187623.594026464"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "prove-plus-comm",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187797.395844858",
+      "solution_accessed": "1788187800.709596970",
+      "tests_read": "1788187801.962129737",
+      "tests_modified": "1788187804.792492215"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "pypi-server",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187674.804594840",
+      "solution_accessed": "1788187678.110559828",
+      "tests_read": "1788187679.382607242",
+      "tests_modified": "1788187683.653183684"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "pytorch-model-cli",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187670.674290093",
+      "solution_accessed": "1788187674.005618595",
+      "tests_read": "1788187675.637475581",
+      "tests_modified": "1788187678.412395444"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "pytorch-model-recovery",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187795.493321718",
+      "solution_accessed": "1788187798.837355001",
+      "tests_read": "1788187800.078879393",
+      "tests_modified": "1788187802.736542383"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "qemu-alpine-ssh",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187963.358055734",
+      "solution_accessed": "1788187966.609583928",
+      "tests_read": "1788187968.038165120",
+      "tests_modified": "1788187970.934101881"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "qemu-startup",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187963.330803002",
+      "solution_accessed": "1788187966.609819891",
+      "tests_read": "1788187968.037979765",
+      "tests_modified": "1788187970.913550218"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "query-optimize",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187744.850703447",
+      "solution_accessed": "1788187748.562738319",
+      "tests_read": "1788187750.012353542",
+      "tests_modified": "1788187753.806626904"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "raman-fitting",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187718.199560988",
+      "solution_accessed": "1788187721.477158373",
+      "tests_read": "1788187722.779372678",
+      "tests_modified": "1788187725.533672561"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "regex-chess",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187746.198310247",
+      "solution_accessed": "1788187749.646611680",
+      "tests_read": "1788187750.974953509",
+      "tests_modified": "1788187755.174577173"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "regex-log",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187798.988724479",
+      "solution_accessed": "1788187802.416679966",
+      "tests_read": "1788187803.653151632",
+      "tests_modified": "1788187807.192629227"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "reshard-c4-data",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187985.551036924",
+      "solution_accessed": "1788187988.931968683",
+      "tests_read": "1788187990.292583452",
+      "tests_modified": "1788187992.948118617"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "rstan-to-pystan",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187890.717705109",
+      "solution_accessed": "1788187893.996587341",
+      "tests_read": "1788187895.245238598",
+      "tests_modified": "1788187897.953844103"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "sam-cell-seg",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187882.220256139",
+      "solution_accessed": "1788187885.494065671",
+      "tests_read": "1788187886.756766675",
+      "tests_modified": "1788187890.292592132"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "sanitize-git-repo",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187871.547882290",
+      "solution_accessed": "1788187874.856387346",
+      "tests_read": "1788187876.091139591",
+      "tests_modified": "1788187878.803652025"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "schemelike-metacircular-eval",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187894.927165031",
+      "solution_accessed": "1788187898.215985113",
+      "tests_read": "1788187899.474619547",
+      "tests_modified": "1788187902.200528747"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "sparql-university",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187903.194047229",
+      "solution_accessed": "1788187906.479975012",
+      "tests_read": "1788187907.718054882",
+      "tests_modified": "1788187910.667851593"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "sqlite-db-truncate",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187913.098151710",
+      "solution_accessed": "1788187916.405186267",
+      "tests_read": "1788187917.681703680",
+      "tests_modified": "1788187920.628927058"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "sqlite-with-gcov",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187948.640028574",
+      "solution_accessed": "1788187951.977731150",
+      "tests_read": "1788187953.478554827",
+      "tests_modified": "1788187956.352605284"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "torch-pipeline-parallelism",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187915.137605310",
+      "solution_accessed": "1788187918.416903357",
+      "tests_read": "1788187919.683733018",
+      "tests_modified": "1788187923.060883915"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "torch-tensor-parallelism",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788187961.944612445",
+      "solution_accessed": "1788187965.262029397",
+      "tests_read": "1788187966.519000744",
+      "tests_modified": "1788187969.513589371"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "train-fasttext",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188054.820389757",
+      "solution_accessed": "1788188058.073706754",
+      "tests_read": "1788188059.312853010",
+      "tests_modified": "1788188062.901153564"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "tune-mjcf",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188008.322073941",
+      "solution_accessed": "1788188011.648515043",
+      "tests_read": "1788188012.895704094",
+      "tests_modified": "1788188016.128817688"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "video-processing",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188070.361640275",
+      "solution_accessed": "1788188073.647008960",
+      "tests_read": "1788188074.878638424",
+      "tests_modified": "1788188077.472291927"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "vulnerable-secret",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188056.620343356",
+      "solution_accessed": "1788188059.877570907",
+      "tests_read": "1788188061.151866383",
+      "tests_modified": "1788188063.766852782"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "winning-avg-corewars",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188130.962093109",
+      "solution_accessed": "1788188134.369410259",
+      "tests_read": "1788188135.603122709",
+      "tests_modified": "1788188138.245298571"
+    },
+    "failures": [],
+    "note": ""
+  },
+  {
+    "name": "write-compressor",
+    "ok": true,
+    "built": true,
+    "ran": true,
+    "flags": {
+      "container_start": "1788188088.633760771",
+      "solution_accessed": "1788188092.040280504",
+      "tests_read": "1788188093.386414823",
+      "tests_modified": "1788188096.031823310"
+    },
+    "failures": [],
+    "note": ""
+  }
+]
