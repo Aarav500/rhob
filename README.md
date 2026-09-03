@@ -46,13 +46,14 @@ It does not, in the form found here; that result is reported in §5 as a claim w
 > on the 14 families it can read; 5 of those remain at exactly 0.500 from a near-constant
 > proxy, disclosed rather than fixed. The same tie had made the nightly admission screen
 > report 36 short-horizon cells unmeasurable; measured, 19 admit and 14 fail on a real
-> late-window density leak.
+> late-window density leak. The ladder figures above are as regenerated after this re-score
+> (`leaderboard/v5_replicated.json`); each moved by under 0.01 and no conclusion changed.
 >
 > A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
 > the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
 > labels**, one of them the L1 champion. Removing them makes the L1−L0 gap **reverse sign**,
-> from +0.394 [+0.384, +0.403] to **−0.010 [−0.028, +0.008]**. Among unsupervised post-hoc
-> detectors the rungs read **L0 0.544 · L1 0.534 · L2 0.587**, against **0.975** for the L3
+> from +0.388 [+0.378, +0.397] to **−0.017 [−0.039, +0.002]**. Among unsupervised post-hoc
+> detectors the rungs read **L0 0.551 · L1 0.534 · L2 0.587**, against **0.975** for the L3
 > oracle — all three sub-oracle rungs within 0.09 of chance.
 >
 > **Everything below this banner predates that audit and has not yet been regenerated.**
