@@ -1,57 +1,53 @@
-# RHOB Roadmap
+# RHOB roadmap
 
-RHOB's long-term goal is to become the shared, default benchmark for reward-hacking
-detection — the way ImageNet became the default benchmark for image classification. That
-requires two things a single benchmark release can't provide on its own: a metric the
-whole field rallies around, and a visible reason to keep coming back. This roadmap covers
-both.
+This file used to plan an ImageNet-style benchmark with a headline transfer score and a
+twice-yearly challenge. That plan is withdrawn. The headline score did not survive a sign
+control (0.994 to 0.508; see the correction in [README.md](README.md)), the onset column
+the acronym refers to is unvalidated, and the audit that found both became the paper this
+repository now serves as the case study for.
 
-## The headline metric: RTS
+What the repository is: a 33-family matched-pair benchmark with an admission gate, a
+20-draw replicated leaderboard, and the audit record of the checks in it that could not
+have failed. The benchmark is the evidence. The paper is the claim.
 
-The **RHOB Transfer Score (RTS)** — mean AUROC on 8 held-out, mechanistically-unseen test
-families after training on 6 — is now the benchmark's primary reported number (see
-[README.md](README.md) and the [live leaderboard](https://rhob.aarav-shah.com)). Every
-new detector submission is expected to report RTS alongside in-distribution AUROC, the
-same way new vision models report top-5/top-1 accuracy on ImageNet rather than an
-in-house metric. Overall-AUROC-only submissions are still accepted, but won't rank on the
-RTS leaderboard.
+## Retired
 
-## Versioned milestones
+- The RHOB Transfer Score as a headline metric, and any leaderboard ranked on it.
+- The challenge cadence and the workshop shared task built around it.
+- The internal onset column. Every admitted cell records an onset label with zero
+  dispersion across seeds, so a constant prediction equal to the label scores a perfect
+  error of 0.000. The column is no longer reported; the code path is kept only for the
+  external HVTA evaluation, where the label was not written by us.
+- Any claim that RHOB detects reward hacking. The replicated result is that the three
+  sub-oracle rungs sit within 0.09 of chance for unsupervised detectors.
 
-- **v1.4 (current)**: 14 families, 3 REWARD_TAMPERING/DECEPTIVE_ALIGNMENT/RM_OVEROPT
-  mechanisms, 35 detectors, RTS established as the headline metric.
-- **v1.5**: extend RTS evaluation to the full 35-detector suite (currently only 4
-  representative detector classes have been transfer-tested). Add 2-3 community-submitted
-  families if admission-gate-valid submissions arrive in the meantime.
-- **v1.6**: multi-agent extension — matched-proxy environments where hacking degrades a
-  *shared* reward, or agents collude around a flawed joint reward. Directly follows up on
-  the interest-check issues opened with PettingZoo/Farama.
-  ([tracking issue](https://github.com/Aarav500/rhob/issues) — open once scoped)
-- **v2.0**: target 25+ families and a real RLHF-scale setting (beyond the current toy
-  preference-bandit), contingent on community contributions and/or a lab partnership.
+## Active
 
-## The RHOB Challenge: a recurring cadence
+1. **Regenerate every published number under one convention.** A cell a detector could
+   not have scored is N/A, never a 0.5. The L1 row was fixed in the 2026-08 correction.
+   The L0 Reward Skewness row had the same defect from a different cause (its windows
+   need 100 episodes; 19 families run 40 or 60) and is being re-scored on this branch.
+2. **Extend the admission ledger to the short-horizon families.** The nightly smoke tier
+   reported most of them DEGENERATE, and most of that was the Skewness horizon defect
+   rather than the families. With the detector declaring its horizon, they can be
+   measured.
+3. **The survey, axis A.** The paper's external evidence rests on an enumeration of
+   preconditions whose search patterns select against equivalence-test vocabulary. The
+   pre-registered remediation (revised patterns, the three unaudited members, the power
+   re-run) is the one item that changes what the paper is evidence *about*.
+4. **HVTB.** The onset-timestamp patch for the 89 hack-verifiable Terminal Bench tasks is
+   going upstream. Step-indexed onset from real agents is future work, and a different
+   paper.
 
-A benchmark that never changes doesn't generate a "who's ahead this year" story —
-ImageNet had ILSVRC for exactly this reason. Proposed cadence:
+## Not planned
 
-- **Twice yearly** (aligned loosely with major ML conference deadlines), publish a
-  snapshot of the RTS leaderboard: who's on top, what moved since last time, which
-  mechanism is still hardest (currently: reward-channel/sensor-calibration tampering are
-  the two hardest held-out families for every non-ensemble detector).
-- Publicize each snapshot the same way a version bump is publicized — a short write-up,
-  not just a commit.
-- Once there are 3+ independent (non-maintainer) detector submissions, propose a
-  **workshop shared task** at an ICML/NeurIPS safety/alignment workshop, built directly
-  around the RTS leaderboard as the shared evaluation. A short pitch draft for this is in
-  [docs/WORKSHOP_PITCH.md](docs/WORKSHOP_PITCH.md).
+Learned families as certified benchmark members, a multi-agent hacking class as a
+contribution, or new trace collection before the paper deadline. Each was designed and
+argued against; the arguments are in the paper's limitations section.
 
-## What would accelerate this
+## What would change this
 
-- A citable paper (arXiv, currently blocked on an endorsement in progress).
-- At least one detector submission from a researcher outside the maintainer's own
-  network — the first external submission is qualitatively different from every
-  maintainer-authored one, the same way ImageNet only mattered once outside labs adopted
-  it.
-- A co-author or named collaborator from an established lab, which changes the project's
-  perceived provenance from "one researcher's repo" to "a field resource."
+An external detector submission, or an external corpus in which hacking is decidable by
+construction and caused by the agent rather than scheduled by the authors. The second
+exists (HVTB) and lacks a per-step label; supplying one is the next thing that would move
+the project.
