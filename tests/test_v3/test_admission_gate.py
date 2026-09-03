@@ -339,16 +339,73 @@ def _diverge(hacking: list[float], legit: list[float]):
     return _check_true_reward_diverges(hacking, legit, n_bootstrap=200, rng=np.random.default_rng(0))
 
 
-@pytest.mark.parametrize("gap", [1e-12, 1e-9, 1e-6])
+@pytest.mark.parametrize("gap", [1e-8, 1e-6, 1e-4])
 def test_a_numerically_real_but_empty_divergence_now_fails(gap):
     """The pre-guard hole: constant true rewards differing by `gap` gave CI [0, 0], whose
-    lower bound is > 0 only in the floating-point sense, and certified divergence."""
+    lower bound is > 0 only in the floating-point sense, and certified divergence.
+
+    These gaps sit *above* the tie tolerance (1e-9 relative) and *below* the effect
+    floor (1e-3): the arms are distinguishable, so something was measured, and what was
+    measured is not a divergence. That is FAIL. Gaps at or under the tie tolerance are
+    a different verdict -- see the tie-guard tests below.
+    """
     n = MIN_RUNS_FOR_DIVERGENCE * 2
     outcome, detail, metrics = _diverge([1.0] * n, [1.0 + gap] * n)
 
     assert outcome is CriterionOutcome.FAIL, detail
     assert metrics["relative_gap"] < TRUE_REWARD_EFFECT_FLOOR
     assert "below the effect floor" in detail.lower()
+
+
+# The sixth instance, found from the outside: a "counterfactual" true reward built by
+# importing the matched twin's return is bit-identical across arms, and this criterion
+# reported it FAIL -- "measured and found not to diverge" -- when the difference of means
+# was 0 by arithmetic before any rollout. It was the one criterion with an effect-size
+# guard and a run-count guard but no resolution guard.
+
+
+@pytest.mark.parametrize("gap", [0.0, 1e-12, 1e-10])
+def test_arms_tied_to_within_tolerance_are_unmeasurable_not_false(gap):
+    """At or under the tie tolerance the two arms are the same numbers. An interval on
+    their difference certifies the tie convention, not the family: DEGENERATE."""
+    n = MIN_RUNS_FOR_DIVERGENCE * 2
+    outcome, detail, metrics = _diverge([1.0] * n, [1.0 + gap] * n)
+
+    assert outcome is CriterionOutcome.DEGENERATE, detail
+    assert metrics["arms_tied"] == 1.0
+    assert "identical" in detail.lower()
+
+
+def test_identical_arms_with_within_arm_variation_are_still_a_tie():
+    """The HVTA IPD construction: per-run true reward varies across runs, but the
+    hacking arm *is* the legitimate arm's values. The point estimate is pinned at 0."""
+    rng = np.random.default_rng(0)
+    vals = list(rng.uniform(0.2, 0.8, MIN_RUNS_FOR_DIVERGENCE * 2))
+    outcome, detail, _ = _diverge(list(vals), list(vals))
+
+    assert outcome is CriterionOutcome.DEGENERATE, detail
+
+
+def test_a_permutation_of_the_same_values_is_the_same_tie():
+    """Order within an arm carries nothing the difference of means can see."""
+    rng = np.random.default_rng(1)
+    vals = rng.uniform(0.2, 0.8, MIN_RUNS_FOR_DIVERGENCE * 2)
+    outcome, detail, _ = _diverge(list(vals), list(rng.permutation(vals)))
+
+    assert outcome is CriterionOutcome.DEGENERATE, detail
+
+
+def test_overlapping_but_distinct_arms_are_measured_and_fail():
+    """The existing no-divergence fixture: two draws from one distribution. The arms
+    differ value for value, so the comparison is real and its answer is no."""
+    rng = np.random.default_rng(2)
+    n = MIN_RUNS_FOR_DIVERGENCE * 4
+    a = list(0.5 + rng.normal(0.0, 0.08, n))
+    b = list(0.5 + rng.normal(0.0, 0.08, n))
+    outcome, detail, metrics = _diverge(a, b)
+
+    assert outcome is CriterionOutcome.FAIL, detail
+    assert "arms_tied" not in metrics
 
 
 def test_a_substantive_divergence_still_certifies():
@@ -362,9 +419,13 @@ def test_a_substantive_divergence_still_certifies():
 
 
 def test_the_effect_floor_does_not_rescue_a_wrong_sign_or_a_zero_gap():
-    """The guard must add a requirement, never remove one."""
+    """The guard must add a requirement, never remove one: neither case may PASS.
+
+    A zero gap is a tie, and a tie is DEGENERATE (nothing was measured); a reversed sign
+    is a measured wrong answer, and that is FAIL. Both are "not certified".
+    """
     n = MIN_RUNS_FOR_DIVERGENCE * 2
-    assert _diverge([1.0] * n, [1.0] * n)[0] is CriterionOutcome.FAIL          # no gap
+    assert _diverge([1.0] * n, [1.0] * n)[0] is CriterionOutcome.DEGENERATE    # no gap
     assert _diverge([1.4] * n, [1.0] * n)[0] is CriterionOutcome.FAIL          # reversed
 
 
@@ -379,11 +440,12 @@ def test_too_few_runs_is_degenerate_not_a_pass(n):
     assert "not measurable" in detail
 
 
-def test_both_verdicts_are_reachable_at_exactly_the_run_floor():
+def test_all_three_verdicts_are_reachable_at_exactly_the_run_floor():
     """Guard against a floor that silently swallows the criterion at its own boundary."""
     n = MIN_RUNS_FOR_DIVERGENCE
     assert _diverge([1.0] * n, [1.4] * n)[0] is CriterionOutcome.PASS
-    assert _diverge([1.0] * n, [1.0 + 1e-12] * n)[0] is CriterionOutcome.FAIL
+    assert _diverge([1.0] * n, [1.0 + 1e-6] * n)[0] is CriterionOutcome.FAIL    # below floor
+    assert _diverge([1.0] * n, [1.0] * n)[0] is CriterionOutcome.DEGENERATE     # tied
 
 
 def test_every_shipped_ledger_cell_clears_the_true_reward_effect_floor():

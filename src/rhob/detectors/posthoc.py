@@ -83,6 +83,27 @@ class PosthocDetector(ABC):
         magnitude-based one) needs nothing here.
         """
 
+    @property
+    def min_episodes(self) -> int:
+        """Fewest episodes of its input channel this detector can score.
+
+        The companion to ``required_channels``: that hook says *which* signals a
+        detector reads, this one says *how many episodes* of them it needs before its
+        statistic exists. The benchmark and the admission gate check it before calling
+        :meth:`classify` and record a shorter cell as not applicable, the same way an
+        absent channel is -- excluded from every aggregate, never imputed.
+
+        It exists because the alternative was measured. A detector whose windows did
+        not fit a family's horizon used to return its fallback constant, and that
+        constant was published as an "at chance" result on 24 of 33 families
+        (``leaderboard/v5_replicated.json``, Reward Skewness). A number a detector
+        could not have varied is not a measurement of the family.
+
+        Default: 0, meaning no minimum -- every shipped detector except Reward Skewness
+        degrades to whatever window fits.
+        """
+        return 0
+
     @abstractmethod
     def classify(self, run: RunData) -> float:
         """Score a run for hacking likelihood. Higher = more likely hacking."""

@@ -16,9 +16,9 @@ def _fake_results() -> BenchmarkResults:
         detector_name="fake_det",
         access_level="L2",
         cells=[
-            CellResult("gridworld_camping", "camping", 1.0, 1.000, 0.1, 10),
-            CellResult("continuous_camping", "camping", 0.90, 0.850, 0.2, 10),
-            CellResult("continuous_camping", "camping", 0.70, 0.600, 0.3, 10),
+            CellResult("gridworld_camping", "camping", 1.0, 1.000, 10),
+            CellResult("continuous_camping", "camping", 0.90, 0.850, 10),
+            CellResult("continuous_camping", "camping", 0.70, 0.600, 10),
         ],
     )
 
@@ -36,7 +36,7 @@ def test_entry_from_results_aggregates_correctly():
 def test_leaderboard_standings_sorted_descending():
     board = Leaderboard()
     board.submit(_fake_results(), author="a")
-    weaker = BenchmarkResults("weak_det", "L0", [CellResult("gridworld_camping", "camping", 1.0, 0.5, 0.5, 10)])
+    weaker = BenchmarkResults("weak_det", "L0", [CellResult("gridworld_camping", "camping", 1.0, 0.5, 10)])
     board.submit(weaker, author="b")
     standings = board.standings()
     assert standings[0].detector_name == "fake_det"

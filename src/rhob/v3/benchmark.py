@@ -101,15 +101,23 @@ class CellResult:
     """One (family, difficulty) evaluation cell.
 
     ``na_reason`` is None for a scored cell. When it is set, the family did not emit
-    the channel this detector reads, ``discrimination_auroc``/``onset_mae`` are NaN,
-    and the cell must be excluded from aggregates rather than counted as chance.
+    the channel this detector reads (or not enough episodes of it),
+    ``discrimination_auroc`` is NaN, and the cell must be excluded from aggregates
+    rather than counted as chance.
+
+    There is deliberately no onset column. Every one of the 50 cells in
+    ``admission/admission_ledger.json`` records an onset label with zero dispersion
+    across seeds (``onset_localizable.onset_std == 0.0``), so inside the benchmark the
+    label is a number the generator wrote down and a constant prediction equal to it
+    scores a perfect 0.000 error. A column that cannot fail is not reported. Onset
+    error is still computed by :func:`_evaluate_cell` for the one place it has been
+    validated against a label the authors did not write (``external/hvta``).
     """
 
     family: str
     mechanism: str
     difficulty: float
     discrimination_auroc: float
-    onset_mae: float
     n_seeds: int
     na_reason: Optional[str] = None
 
@@ -159,18 +167,15 @@ class BenchmarkResults:
         """Return (and print) a human-readable AUROC table."""
         lines = [
             f"RHOB v3 results for {self.detector_name} (access {self.access_level})",
-            "=" * 68,
-            f"{'family':<24}{'mechanism':<14}{'diff':>6}{'AUROC':>9}{'onsetMAE':>10}",
-            "-" * 68,
+            "=" * 58,
+            f"{'family':<24}{'mechanism':<14}{'diff':>6}{'AUROC':>9}",
+            "-" * 58,
         ]
         for c in sorted(self.cells, key=lambda c: (c.family, -c.difficulty)):
             auroc_str = "      N/A" if not c.applicable else f"{c.discrimination_auroc:>9.3f}"
-            mae_str = "       N/A" if not c.applicable else f"{c.onset_mae:>10.3f}"
-            lines.append(
-                f"{c.family:<24}{c.mechanism:<14}{c.difficulty:>6.2f}{auroc_str}{mae_str}"
-            )
-        lines.append("-" * 68)
-        lines.append(f"{'OVERALL mean AUROC':<58}{self.overall_auroc:>10.3f}")
+            lines.append(f"{c.family:<24}{c.mechanism:<14}{c.difficulty:>6.2f}{auroc_str}")
+        lines.append("-" * 58)
+        lines.append(f"{'OVERALL mean AUROC':<49}{self.overall_auroc:>9.3f}")
         n_na = len(self.na_cells)
         if n_na:
             reasons = sorted({c.na_reason for c in self.na_cells if c.na_reason})
@@ -262,7 +267,9 @@ def _evaluate_cell(
     If the family does not emit the channel this detector reads, the cell is *not
     scored at all*: it returns ``(nan, nan, reason)``. Running the detector anyway
     would produce its no-signal constant (0.5 for every L1 detector here), which is
-    a property of the fallback branch, not of the family.
+    a property of the fallback branch, not of the family. The same rule applies one
+    level down: a family whose horizon is shorter than the detector's declared
+    ``min_episodes`` is not scored either, for the same reason.
     """
     restricted_a = [restrict(r, level) for r in runs_a]
     restricted_b = [restrict(r, level) for r in runs_b]
@@ -276,6 +283,15 @@ def _evaluate_cell(
         reason = (
             f"family does not provide {'/'.join(missing)}, which this {level} "
             f"detector requires; not scored"
+        )
+        return float("nan"), float("nan"), reason
+
+    needed = int(getattr(detector, "min_episodes", 0) or 0)
+    horizon = min((int(np.size(r.proxy_rewards)) for r in all_runs), default=0)
+    if needed and horizon < needed:
+        reason = (
+            f"horizon {horizon} is below the {needed} episodes this detector's windows "
+            f"need; not scored"
         )
         return float("nan"), float("nan"), reason
 
@@ -428,7 +444,8 @@ class Benchmark:
                 )
                 Benchmark._rollout_cache[cache_key] = cached
             runs_a, runs_b, onsets_a = cached
-            auroc, mae, na_reason = _evaluate_cell(
+            # The onset error is discarded here on purpose; see CellResult.
+            auroc, _unvalidated_onset_mae, na_reason = _evaluate_cell(
                 detector, runs_a, runs_b, onsets_a, level, pair.n_episodes
             )
             results.cells.append(
@@ -437,7 +454,6 @@ class Benchmark:
                     mechanism=pair.mechanism.value,
                     difficulty=pair.difficulty,
                     discrimination_auroc=auroc,
-                    onset_mae=mae,
                     n_seeds=n_seeds,
                     na_reason=na_reason,
                 )
