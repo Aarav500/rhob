@@ -73,3 +73,6 @@ results/*
 # file that would be trusted forever once merged. CI restores it via actions/cache,
 # where a wrong key costs a recomputation rather than a wrong result.
 /.rhob_cache/
+
+# Committed on purpose: the one family where hacking is discovered rather than scheduled.
+!results/emergent_pilot/
