@@ -38,6 +38,16 @@ It does not, in the form found here; that result is reported in §5 as a claim w
 > and the L3 "oracle ceiling" was **a relabelled duplicate of the pre-correction best L2
 > detector**, byte-identical on 33/33 families.
 >
+> **2026-09-03.** A fourth, in the L0 row the paper treats as its negative control: Reward
+> Skewness needs 100 episodes and 19 of 33 families run 40 or 60, so it returned a constant
+> 0.5 on every run there, and the published row carried 24 of 33 family means at exactly
+> 0.500 / SD 0.000 averaged in as "at chance". Detectors now declare a minimum horizon and
+> shorter cells are N/A. Re-scored on the same 20 draws: 0.504 [0.494, 0.514] over 64 cells
+> on the 14 families it can read; 5 of those remain at exactly 0.500 from a near-constant
+> proxy, disclosed rather than fixed. The same tie had made the nightly admission screen
+> report 36 short-horizon cells unmeasurable; measured, 19 admit and 14 fail on a real
+> late-window density leak.
+>
 > A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
 > the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
 > labels**, one of them the L1 champion. Removing them makes the L1−L0 gap **reverse sign**,
