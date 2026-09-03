@@ -12,7 +12,9 @@ For each ``replicate_NNN.json`` in ``--from-dir`` (produced by
   file of the same name in ``--into-dir`` -- same draw, or the merge is refused;
 * on every cell the old record scored AND the new record scored, the AUROCs must agree
   to ``--atol`` -- the fix was supposed to leave scored cells alone, and this is where
-  that claim is checked rather than asserted;
+  that claim is checked rather than asserted. A cell that nonetheless differs can be
+  admitted with ``--allow-changed family:difficulty``, but only by name, and the old
+  and new values are written into the replicate's provenance so the artifact says so;
 * the old record is replaced by the new one, and a ``rescored`` entry is appended to
   the replicate's provenance naming the detector, the source directory, and the
   commit, so the artifact says which rows were regenerated when.
@@ -54,7 +56,13 @@ def _cells(record: dict) -> dict[tuple[str, float], float | None]:
     }
 
 
-def merge_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> dict:
+def merge_one(
+    new_path: Path,
+    into_dir: Path,
+    detector: str,
+    atol: float,
+    allow_changed: set[tuple[str, float]],
+) -> dict:
     new = json.loads(new_path.read_text(encoding="utf-8"))
     old_path = into_dir / new_path.name
     if not old_path.is_file():
@@ -93,11 +101,14 @@ def merge_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> dic
                 unchanged += 1
         elif new_auroc is not None and old_auroc is None:
             changed.append((key, old_auroc, new_auroc))
-    if changed:
-        lines = "\n".join(f"  {k}: {a} -> {b}" for k, a, b in changed[:10])
+    not_allowed = [c for c in changed if c[0] not in allow_changed]
+    if not_allowed:
+        lines = "\n".join(f"  {k}: {a} -> {b}" for k, a, b in not_allowed[:10])
         raise SystemExit(
-            f"{new_path.name}: {len(changed)} scored cell(s) changed value; a horizon fix "
-            f"must not move a cell it could already score:\n{lines}"
+            f"{new_path.name}: {len(not_allowed)} scored cell(s) changed value; a horizon fix "
+            f"must not move a cell it could already score:\n{lines}\n"
+            f"Pass --allow-changed family:difficulty only after establishing why; the change "
+            f"is then recorded in the replicate's provenance."
         )
 
     old["results"][detector] = new_rec
@@ -108,6 +119,10 @@ def merge_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> dic
         "commit": _commit(),
         "cells_newly_not_applicable": len(newly_na),
         "cells_unchanged": unchanged,
+        "cells_changed_and_allowed": [
+            {"family": k[0], "difficulty": k[1], "old_auroc": a, "new_auroc": b}
+            for k, a, b in changed
+        ],
         "source_provenance": new.get("provenance"),
     })
     old_path.write_text(json.dumps(old, indent=2), encoding="utf-8")
@@ -116,6 +131,7 @@ def merge_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> dic
         "unchanged": unchanged,
         "newly_na": len(newly_na),
         "na_families": sorted({fam for fam, _ in newly_na}),
+        "changed": changed,
     }
 
 
@@ -125,17 +141,36 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--from-dir", type=Path, required=True)
     ap.add_argument("--into-dir", type=Path, default=Path("results/replication"))
     ap.add_argument("--atol", type=float, default=1e-9)
+    ap.add_argument(
+        "--allow-changed",
+        nargs="*",
+        default=[],
+        metavar="FAMILY:DIFFICULTY",
+        help=(
+            "Scored cells permitted to differ, each only after its cause is established. "
+            "The old and new values are written into the replicate's provenance, never "
+            "silently absorbed."
+        ),
+    )
     args = ap.parse_args(argv)
+    allow: set[tuple[str, float]] = set()
+    for spec in args.allow_changed:
+        fam, _, diff = spec.rpartition(":")
+        allow.add((fam, round(float(diff), 4)))
 
     files = sorted(args.from_dir.glob("replicate_*.json"))
     if not files:
         raise SystemExit(f"no replicate_*.json in {args.from_dir}")
-    summaries = [merge_one(f, args.into_dir, args.detector, args.atol) for f in files]
+    summaries = [merge_one(f, args.into_dir, args.detector, args.atol, allow) for f in files]
 
     na_sets = {tuple(s["na_families"]) for s in summaries}
     print(f"merged {len(summaries)} replicate(s) for {args.detector!r}")
     print(f"  scored cells unchanged, total: {sum(s['unchanged'] for s in summaries)}")
     print(f"  cells newly not applicable, total: {sum(s['newly_na'] for s in summaries)}")
+    changed = [(s["file"], c) for s in summaries for c in s["changed"]]
+    print(f"  scored cells changed (allowed by name): {len(changed)}")
+    for f, (k, a, b) in changed:
+        print(f"    {f} {k}: {a} -> {b}")
     if len(na_sets) == 1:
         fams = next(iter(na_sets))
         print(f"  not-applicable families, identical across every replicate ({len(fams)}):")
