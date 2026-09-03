@@ -97,9 +97,9 @@ def test_na_cells_are_excluded_from_overall_auroc_not_averaged_as_chance():
         detector_name="Fake L1",
         access_level="L1",
         cells=[
-            CellResult("fam_with_counts", "camping", 0.9, 0.9, 0.1, 5),
+            CellResult("fam_with_counts", "camping", 0.9, 0.9, 5),
             CellResult(
-                "fam_without_counts", "camping", 0.9, float("nan"), float("nan"), 5,
+                "fam_without_counts", "camping", 0.9, float("nan"), 5,
                 na_reason="family does not provide state_counts",
             ),
         ],
@@ -116,7 +116,7 @@ def test_overall_auroc_is_nan_when_nothing_was_measurable():
         access_level="L1",
         cells=[
             CellResult(
-                "fam", "camping", 0.9, float("nan"), float("nan"), 5,
+                "fam", "camping", 0.9, float("nan"), 5,
                 na_reason="family does not provide state_counts",
             )
         ],
@@ -131,7 +131,7 @@ def test_summary_renders_na_rather_than_a_number():
         access_level="L1",
         cells=[
             CellResult(
-                "fam", "camping", 0.9, float("nan"), float("nan"), 5,
+                "fam", "camping", 0.9, float("nan"), 5,
                 na_reason="family does not provide state_counts",
             )
         ],

@@ -78,6 +78,15 @@ def main() -> None:
         default=Path("results/replication"),
         help="Directory for replicate_NNN.json.",
     )
+    parser.add_argument(
+        "--detectors",
+        nargs="+",
+        default=None,
+        help=(
+            "Subset of detector names (default: all). For re-scoring one row after a "
+            "detector fix; the merged replicate must record which rows were re-scored."
+        ),
+    )
     args = parser.parse_args()
 
     if args.replicate_id < 0:
@@ -88,10 +97,14 @@ def main() -> None:
     family_names = FamilyRegistry.list_families() if families == "all" else list(families)
 
     print(f"replicate {args.replicate_id}: layout_seed={layout_seed} seed_base={seed_base}")
-    print(f"  {len(DETECTORS)} detectors x {len(family_names)} families, n_seeds={args.n_seeds}")
+    detectors = [d for d in DETECTORS if args.detectors is None or d.name in args.detectors]
+    if args.detectors and len(detectors) != len(args.detectors):
+        known = {d.name for d in DETECTORS}
+        parser.error(f"unknown detector(s): {sorted(set(args.detectors) - known)}")
+    print(f"  {len(detectors)} detectors x {len(family_names)} families, n_seeds={args.n_seeds}")
 
     results_by_detector: dict[str, dict] = {}
-    for i, detector in enumerate(DETECTORS, 1):
+    for i, detector in enumerate(detectors, 1):
         name = detector.name
         try:
             results = Benchmark.evaluate(
@@ -122,9 +135,9 @@ def main() -> None:
             results_by_detector[name] = record
             overall = record["overall_auroc"]
             shown = "N/A" if overall is None else f"{overall:.3f}"
-            print(f"  [{i}/{len(DETECTORS)}] {name:<38} {shown}")
+            print(f"  [{i}/{len(detectors)}] {name:<38} {shown}")
         except Exception as e:  # noqa: BLE001 -- one bad detector must not lose the replicate
-            print(f"  [{i}/{len(DETECTORS)}] {name:<38} ERROR: {e}")
+            print(f"  [{i}/{len(detectors)}] {name:<38} ERROR: {e}")
             results_by_detector[name] = {"access_level": detector.access_level, "error": str(e)}
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -137,6 +150,7 @@ def main() -> None:
                 "seed_base": seed_base,
                 "n_seeds": args.n_seeds,
                 "families_evaluated": family_names,
+                "detectors_evaluated": [d.name for d in detectors],
                 "provenance": provenance_block(script="scripts/replicate_leaderboard.py"),
                 "results": results_by_detector,
             },

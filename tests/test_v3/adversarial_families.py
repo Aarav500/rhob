@@ -133,6 +133,12 @@ class AdmissibleBaselineFamily(BaseFamily):
     #: summary, an assertion message -- as something that is not a benchmark family.
     violation = "baseline_admissible"
 
+    #: Horizon and onset, overridable per fixture. The module constants are the design
+    #: every violator below was built at; a fixture that needs a different horizon sets
+    #: these rather than reaching for the constants.
+    n_episodes: int = N_EPISODES
+    onset: int = ONSET
+
     @property
     def name(self) -> str:
         return f"adversarial_{self.violation}"
@@ -167,17 +173,17 @@ class AdmissibleBaselineFamily(BaseFamily):
 
     def _onset(self, rng: np.random.Generator) -> int:
         """The episode this run's behavior changes at -- and the oracle label for it."""
-        return ONSET
+        return self.onset
 
     def _shape(self, onset: int) -> np.ndarray:
         """Unit-amplitude behavioral envelope: 0 before onset, held at 1 afterwards."""
-        envelope = np.zeros(N_EPISODES)
+        envelope = np.zeros(self.n_episodes)
         envelope[onset:] = 1.0
         return envelope
 
     def _true_reward(self, rng: np.random.Generator, is_hacking: bool) -> np.ndarray:
         """Oracle true reward. The hack costs 0.4 of it; the foil keeps it."""
-        return np.full(N_EPISODES, TRUE_HACKING if is_hacking else TRUE_LEGIT)
+        return np.full(self.n_episodes, TRUE_HACKING if is_hacking else TRUE_LEGIT)
 
     # ----------------------------------------------------------------------- the pair
     def _rollout(self, is_hacking: bool):
@@ -188,7 +194,7 @@ class AdmissibleBaselineFamily(BaseFamily):
         def _inner(seed: int):
             rng = np.random.default_rng(seed)
             base = _PROXY_BASE + shift + rng.normal(0.0, _PROXY_RUN_SD)
-            proxy = base + rng.normal(0.0, _PROXY_EPISODE_SD, N_EPISODES)
+            proxy = base + rng.normal(0.0, _PROXY_EPISODE_SD, self.n_episodes)
             onset = self._onset(rng)
             amplitude = _AMPLITUDE + rng.normal(0.0, _AMPLITUDE_RUN_SD)
             behav = sign * amplitude * self._shape(onset)
@@ -203,7 +209,7 @@ class AdmissibleBaselineFamily(BaseFamily):
             mechanism=self.mechanism,
             complexity=self.complexity,
             difficulty=difficulty,
-            n_episodes=N_EPISODES,
+            n_episodes=self.n_episodes,
             rollout_hacking=self._rollout(is_hacking=True),
             rollout_legit=self._rollout(is_hacking=False),
             params={"violation": self.violation},
@@ -399,6 +405,73 @@ def certification_gate(**overrides) -> AdmissionGate:
 #: ledger's own FAILs covers all of :data:`~rhob.v3.admission_gate.CRITERIA` -- so a
 #: seventh criterion cannot be added to the gate without someone having to say where
 #: its violating fixture is, or a criterion here quietly stop being exercised.
+
+# ------------------------------------------------------------------ two more, not FAILs
+# The five above each make one criterion return FAIL. These two make the gate return the
+# *other* honest verdict, DEGENERATE or not-applicable, on a construction it used to get
+# wrong. Neither belongs in VIOLATORS: the parametrized tests there assert FAIL
+# specifically, and that is the right assertion for them.
+
+#: ``base_pair.MatchedPair.rollout`` draws the hacking run of pair ``s`` at
+#: ``seed_base + s`` and the legitimate one at ``seed_base + 1000 + s``. A fixture that
+#: wants both arms of a pair to see the same draw has to undo that offset.
+_LEGIT_SEED_OFFSET = 1000
+
+
+class IdenticalTrueRewardFamily(AdmissibleBaselineFamily):
+    """Both arms carry the *same* true-reward stream: not overlapping -- identical.
+
+    :class:`NoTrueRewardDivergenceFamily` draws both arms from one distribution, so
+    ``true_reward_diverges`` has a real comparison to lose and loses it (FAIL). This
+    fixture removes the comparison: the hacking run's true reward is the legitimate
+    run's, value for value, the way a "what the twin scored" counterfactual imports it.
+    The difference of means is then 0 by arithmetic on every draw; no dataset this
+    family can produce would make it anything else. That is the resolution argument the
+    proxy criteria already make, applied to true reward, and the verdict it earns is
+    DEGENERATE -- the criterion measured nothing -- not FAIL, which would claim it
+    measured the property and found it false. Before the tie guard, FAIL is what the
+    gate said.
+    """
+
+    violation = "identical_true_reward"
+
+    TRUE_MEAN = 0.5
+    TRUE_RUN_SD = 0.08
+    TRUE_EPISODE_SD = 0.05
+
+    def _rollout(self, is_hacking: bool):
+        inner = super()._rollout(is_hacking)
+
+        def _paired(seed: int):
+            run, onset = inner(seed)
+            pair_seed = seed if is_hacking else seed - _LEGIT_SEED_OFFSET
+            prng = np.random.default_rng(pair_seed)
+            true = (
+                self.TRUE_MEAN
+                + prng.normal(0.0, self.TRUE_RUN_SD)
+                + prng.normal(0.0, self.TRUE_EPISODE_SD, self.n_episodes)
+            )
+            return RunData(run.proxy_rewards, true, run.state_counts, run.behav_trace), onset
+
+        return _paired
+
+
+class ShortHorizonAdmissibleFamily(AdmissibleBaselineFamily):
+    """The control at 40 episodes: the horizon eleven shipped families actually run.
+
+    Nothing about the pair changes except its length. Reward Skewness needs 100
+    episodes; before it declared that, it returned 0.5 on every run here, tied on every
+    pair, and the shape panel reported the *family* as unmeasurable. That single
+    mechanism was 33 of the 36 DEGENERATE cells in the nightly ledger. The gate now
+    records the detector as not applicable at this horizon and rests the panel on the
+    two that fit.
+    """
+
+    violation = "short_horizon_admissible"
+    n_episodes = 40
+    onset = 10
+
+
 VIOLATORS: dict[str, type[AdmissibleBaselineFamily]] = {
     "proxy_matched": LeakyProxyFamily,
     "behavioral_separated": NoBehavioralSeparationFamily,
