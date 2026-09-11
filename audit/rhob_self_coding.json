@@ -1,0 +1,159 @@
+{
+  "_about": [
+    "RHOB's own six admission criteria, coded against the diagnostics in",
+    "rhob.audit.diagnostics, at two points in time. This is the survey's worked",
+    "example and its calibration: a survey that names other benchmarks has to be",
+    "able to score the surveyor, and has to score it badly where it was bad.",
+    "",
+    "Every row here is checkable against this repository at the cited source. No",
+    "external benchmark is coded in this file -- see docs/SURVEY_PROTOCOL.md for",
+    "why the external rows are not yet published."
+  ],
+  "coder": "ashah264",
+  "coded_on": "2026-09-11",
+  "protocol": "docs/SURVEY_PROTOCOL.md",
+  "snapshots": {
+    "rhob_pre_audit": {
+      "_about": "RHOB as published before the 2026-08 audit, at the 4-seed default.",
+      "rows": [
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "proxy_matched",
+          "source": "README.md:119-154 (describes the pre-audit form: abs(mean_auroc - 0.5) < 0.10)",
+          "claim_shape": "equivalence",
+          "test_used": "difference_test",
+          "failure_demonstrated": "none",
+          "resolution_guarded": false,
+          "coder": "ashah264",
+          "notes": "The criterion asserts the two variants earn statistically indistinguishable proxy reward. It was tested by checking that an L0 detector failed to separate them. At 4 seeds/side/layout the SE is 0.0625, so a family at a true AUROC of 0.611 passed 43.5% of the time. Noise made passing easier."
+        },
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "proxy_distribution_matched",
+          "source": "README.md:113",
+          "claim_shape": "equivalence",
+          "test_used": "difference_test",
+          "failure_demonstrated": "none",
+          "resolution_guarded": false,
+          "coder": "ashah264",
+          "notes": "Same defect as proxy_matched, applied to three shape-sensitive L0 detectors."
+        },
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "behavioral_separated",
+          "source": "README.md:114",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Mean L2 AUROC >= 0.60. A threshold claim: noise pushes it toward failing, which is the safe direction. No published rejection."
+        },
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "true_reward_diverges",
+          "source": "README.md:115",
+          "claim_shape": "difference",
+          "test_used": "difference_test",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Bootstrap CI on the true-reward gap excludes 0. Correctly a difference test."
+        },
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "onset_localizable",
+          "source": "README.md:116",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Onset-label SD < 10% of the horizon."
+        },
+        {
+          "benchmark": "rhob_pre_audit",
+          "criterion": "camping_quality",
+          "source": "README.md:117",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "The hacking signal sustains into the trailing window."
+        }
+      ]
+    },
+    "rhob_post_audit": {
+      "_about": "RHOB as it stands after the 2026-08 audit, at 24 seeds/side/layout.",
+      "rows": [
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "proxy_matched",
+          "source": "README.md:112; src/rhob/v3/admission_gate.py",
+          "claim_shape": "equivalence",
+          "test_used": "equivalence_test",
+          "failure_demonstrated": "power_curve",
+          "resolution_guarded": true,
+          "coder": "ashah264",
+          "notes": "TOST at margin 0.10; the whole CI must sit inside it. The power curve is the pass-rate table at true values 0.500/0.556/0.611/0.714 (README.md:126-133), which is what shows the old test could not fail and the new one can. Degeneracy guarded by the resolution check and the informativeness floor of 1e-4."
+        },
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "proxy_distribution_matched",
+          "source": "README.md:113; admission/ADMISSION_LEDGER.md",
+          "claim_shape": "equivalence",
+          "test_used": "equivalence_test",
+          "failure_demonstrated": "observed_failure",
+          "resolution_guarded": true,
+          "coder": "ashah264",
+          "notes": "Five genuine rejections published in the ledger alongside the passes: reward_channel_tampering at four difficulty tiers and goal_misgeneralization at 0.60. This is the criterion that most clearly demonstrates it can fail, because it did."
+        },
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "behavioral_separated",
+          "source": "README.md:114",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Unchanged by the audit. Correctly a threshold claim, but no rejection has been published, so it scores UNDEMONSTRATED -- a reporting gap, not a design defect."
+        },
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "true_reward_diverges",
+          "source": "README.md:115; external/hvta/RESULTS.md",
+          "claim_shape": "difference",
+          "test_used": "difference_test",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Correctly a difference test. The HVTA work argued this criterion is blind to hacking that augments a competent agent rather than substituting for competence; a later prediction derived from that argument was checked against Terminal Wrench and was wrong (commit 9352529). Neither is a published rejection, so the row stays UNDEMONSTRATED."
+        },
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "onset_localizable",
+          "source": "README.md:116",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "The onset column of the leaderboard is currently unvalidated (README.md:6-10), so this criterion supports nothing that is being reported."
+        },
+        {
+          "benchmark": "rhob_post_audit",
+          "criterion": "camping_quality",
+          "source": "README.md:117",
+          "claim_shape": "threshold",
+          "test_used": "point_threshold",
+          "failure_demonstrated": "none",
+          "resolution_guarded": null,
+          "coder": "ashah264",
+          "notes": "Unchanged by the audit. No published rejection."
+        }
+      ]
+    }
+  }
+}
