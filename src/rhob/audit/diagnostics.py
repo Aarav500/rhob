@@ -312,11 +312,13 @@ def format_table(result: SurveyResult, criteria: Sequence[CodedCriterion] = ()) 
             "undefined, not zero."
         )
     else:
+        n_other = result.n_scored - n_eq
+        verb = "is" if n_other == 1 else "are"
         lines.append(
             f"**Inverted: {n_inv} of {n_eq} equivalence-shaped criteria.** "
-            f"({result.n_scored} criteria scored in total; the other "
-            f"{result.n_scored - n_eq} are difference- or threshold-shaped, where a "
-            "difference test is correct.)"
+            f"({result.n_scored} criteria scored in total; the other {n_other} "
+            f"{verb} difference- or threshold-shaped, where a difference test is "
+            "correct.)"
         )
     if result.skipped:
         lines.append(

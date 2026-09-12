@@ -193,10 +193,20 @@ class CodedCriterion:
             return False, "no source: the row cannot be checked against the benchmark"
         if not self.coder.strip():
             return False, "no coder: the judgement has no author"
-        if self.claim_shape is ClaimShape.EQUIVALENCE and self.resolution_guarded is None:
+        # The degeneracy question is only answerable where an equivalence test was
+        # actually run: a tied statistic can only over-certify a test that reads an
+        # interval. Requiring it of every equivalence-shaped row would skip precisely
+        # the rows that carry the INVERTED finding -- an equivalence claim with no
+        # equivalence test has no interval for a guard to be missing from -- and the
+        # survey would silently drop its own results.
+        if (
+            self.claim_shape is ClaimShape.EQUIVALENCE
+            and self.test_used is StatTest.EQUIVALENCE_TEST
+            and self.resolution_guarded is None
+        ):
             return False, (
-                "equivalence-shaped criterion with resolution_guarded unset: the "
-                "degeneracy question was not asked"
+                "equivalence test with resolution_guarded unset: the degeneracy "
+                "question applies here and was not asked"
             )
         return True, ""
 
