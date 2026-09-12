@@ -124,7 +124,11 @@ def test_direction_outranks_demonstrated_failure():
     [
         {"source": ""},
         {"coder": ""},
-        {"claim_shape": ClaimShape.EQUIVALENCE, "resolution_guarded": None},
+        {
+            "claim_shape": ClaimShape.EQUIVALENCE,
+            "test_used": StatTest.EQUIVALENCE_TEST,
+            "resolution_guarded": None,
+        },
     ],
 )
 def test_inadmissible_rows_are_skipped_and_reported(kw):
@@ -217,3 +221,24 @@ def test_survey_result_has_no_loose_rate_helper():
     result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))
     for name in dir(result):
         assert "equivalence_support" not in name
+
+
+def test_equivalence_claim_without_an_equivalence_test_stays_admissible():
+    """The regression that matters: these rows ARE the headline finding.
+
+    An equivalence claim tested with a difference test has no interval for a
+    degeneracy guard to be missing from, so demanding resolution_guarded of it would
+    skip every INVERTED row and the survey would drop its own results.
+    """
+    row = _row(
+        claim_shape=ClaimShape.EQUIVALENCE,
+        test_used=StatTest.DIFFERENCE_TEST,
+        resolution_guarded=None,
+    )
+    ok, why = row.is_admissible()
+    assert ok, why
+
+    result = run_survey([row])
+    assert result.n_scored == 1
+    assert not result.skipped
+    assert result.inverted_rate() == (1, 1)

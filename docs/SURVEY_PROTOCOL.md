@@ -178,15 +178,47 @@ The sequence:
   documented, and in scope. It is not representative of the field and no rate computed
   from it should be described as a rate in the field.
 
-## 8. Open question blocking execution
+## 8. What §5 does and does not already contain
 
-The paper reports a survey of **19** published benchmarks and, per `README.md`, states
-that the failure class **does not** generalize — recorded in §5 as a claim withdrawn.
-A separate figure has been quoted internally as "zero of 77 preconditions across 15
-published benchmarks".
+Two claims live in §5 and they have different statuses:
 
-These are not reconcilable from anything in this repository: the counts differ (19 vs
-15), and it is unclear whether the second figure is a surviving descriptive statistic
-from §5 or part of what was withdrawn. **No table naming any benchmark may be
-published until that is settled**, and settled in the direction the paper's own §5
-records, not the direction that makes the better headline.
+- **Withdrawn:** that the failure class — checks that cannot return a negative —
+  *generalizes* to other published benchmarks. The pre-registered survey did not find
+  it in the form first proposed. `README.md` records this, and nothing in a published
+  table may quietly reinstate it.
+- **Surviving:** the descriptive statistic that **zero of 77 preconditions across 15
+  published benchmarks are supported by an equivalence test**, with a per-benchmark
+  coding sheet in the paper.
+
+The surviving statistic is not the headline this protocol publishes, and **it cannot
+be converted into that headline by reformatting**. §5 records, per precondition,
+whether an equivalence test supports it. It does not record whether the precondition
+is equivalence-*shaped* — the §2 call — and that is the denominator §4 is computed
+over. The two fields are independent: a difference claim tested with a difference test
+has no equivalence test and is entirely correct.
+
+So porting §5 yields 77 rows with `test_used` known and `claim_shape` blank. Those
+rows are inadmissible under `CodedCriterion.is_admissible()` until a coder fills the
+shape in. **The port is a re-coding pass, not a format conversion**, and it is the
+work that stands between the paper and a publishable table.
+
+`scripts/coding_worksheet.py` is the paperwork for that pass: it emits one worksheet
+per coder with `test_used` pre-filled and `claim_shape` blank, reads them back, and
+reports the disagreement rate §5 requires be published.
+
+### What to expect from the narrower denominator
+
+It will almost certainly **strengthen** the finding rather than weaken it.
+
+"0 of 77 preconditions have an equivalence test" invites the reply that most of the 77
+never needed one — and that reply is correct, which is why the statistic is fragile.
+"*N* of *N* equivalence-shaped preconditions are inverted", with the shape call
+published per row and contestable by the benchmark's own authors, does not have that
+reply available to it.
+
+The equivalence-shaped subset is expected to be a minority of the 77 — decontamination
+and leakage checks, balance claims, "the distractors are indistinguishable", "human
+agreement is at ceiling". If the inverted rate over that subset is high, the finding
+is sharper than the original and survives the obvious rebuttal. If the subset turns
+out to be near-empty, that is also a result, and it is reported as
+**"no equivalence-shaped preconditions found"** — never as a rate of zero.
