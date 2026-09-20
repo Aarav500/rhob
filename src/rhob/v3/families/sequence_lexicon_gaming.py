@@ -31,8 +31,15 @@ file:
    ``test_behav_trace_ranks_hacking_above_legit``. Fixed by splitting the
    lexicon into PRIMARY (``_PRIMARY_LEXICON``, exclusively targeted by the
    flood and tracked by ``_behav_fn``) and SECONDARY (``_SECONDARY_LEXICON``,
-   the calibration lever's only target) -- mirroring
-   ``sequence_keyword_stuffing``'s primary/secondary-keyword split.
+   the calibration lever's only target).
+
+   This used to claim it was mirroring ``sequence_keyword_stuffing``'s
+   primary/secondary split. It was not, because that family did not have one:
+   its lever targeted the PRIMARY keyword, the same token its ``_behav_fn``
+   measured, and the lever consequently calibrated to 0.0 at every tier and
+   never fired at all. The borrowing ran the other way in the end -- that
+   family was restructured in 2026-09 to the design described here. See its
+   INERT LEVER comment.
    ``_PRIMARY_LEXICON`` is chosen from the grammar's naturally rarest tokens
    so a wide ``flood_prob`` range stays below the legit target before
    calibration even engages.
