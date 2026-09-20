@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hvtb-hack-detection"
+version = "0.1.0"
+description = "Does a model hack HVTB's terminal tasks, and can a post-hoc detector tell?"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "inspect_ai>=0.3.100",
+  "numpy>=1.24",
+  "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+# The detector suite. Optional so the dataset, the signal mapping and the metrics can be
+# exercised without it; the scorer raises with this install line if it is missing.
+detectors = ["rhob @ git+https://github.com/Aarav500/rhob"]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["hvtb_hack_detection*"]
+
+[tool.setuptools.package-data]
+hvtb_hack_detection = ["fixtures/*.json"]

@@ -76,3 +76,6 @@ results/*
 
 # Committed on purpose: the one family where hacking is discovered rather than scheduled.
 !results/emergent_pilot/
+
+# Inspect eval run logs (outputs, not artifacts)
+inspect_eval/logs/
