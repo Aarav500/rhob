@@ -80,8 +80,21 @@ jobs:
       # the restore on the same source means a stale entry is unreachable rather than
       # merely unlikely: edit a family, get a new cache key, recompute. A miss costs a
       # recomputation, never a wrong number.
+      #
+      # Split restore/save, deliberately, rather than the combined `actions/cache@v4`.
+      # The combined form saves in a post-job step that is SKIPPED when the job fails,
+      # and that turned one red suite into a permanently cold cache: the tests fail, the
+      # cache is never written, the next nightly recalibrates all 33 families from
+      # scratch, the warm budget blows, and the job stays slow and red for a reason
+      # unrelated to what is actually failing. Measured on 2026-09-19 after 13
+      # consecutive red nightlies: the repository had ZERO caches
+      # (`/actions/caches` reported total_count 0) and every run logged
+      # "Cache not found for input keys: calib-Linux-py3.12-...". The calibrations are
+      # correct work whether or not the assertions downstream pass, so they are saved
+      # either way.
       - name: Restore calibration cache
-        uses: actions/cache@v4
+        id: calib_cache
+        uses: actions/cache/restore@v4
         with:
           path: .rhob_cache
           key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
@@ -99,8 +112,15 @@ jobs:
       # produces no test results at all -- strictly worse than having no warm step. Past
       # the budget the script names what it left cold and the tests derive those
       # themselves, less efficiently but correctly.
+      #
+      # The step timeout is the budget PLUS the worst known single-family cost, not the
+      # budget alone. The script checks its budget between families and a calibration is
+      # not interruptible, so a family that starts just inside the budget runs to
+      # completion past it. At 50 minutes against a 45-minute budget this step was killed
+      # mid-calibration on every cold run, which also discarded its progress output.
+      # 45 + 38 (mujoco_joint_limit_gaming) = 83, rounded up.
       - name: Warm the calibration cache
-        timeout-minutes: 50
+        timeout-minutes: 90
         continue-on-error: true
         run: python scripts/warm_calibration_cache.py --budget-seconds 2700
       - name: Slow admission smoke screens
@@ -109,6 +129,16 @@ jobs:
         # (--dist loadfile) would make the critical path three times the slowest cell for
         # no benefit once the cache is shared.
         run: pytest tests/ -q -m slow -n auto --durations=15
+      # After the tests, so calibrations the tests derived for themselves (anything the
+      # warm step left cold) are captured too, and `if: always()` so a failing assertion
+      # never costs the next run its cache. Skipped on an exact hit, since there would be
+      # nothing new to write.
+      - name: Save calibration cache
+        if: always() && steps.calib_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
 
   no-torch-import-check:
     # Core dependencies (numpy, scipy, scikit-learn, pydantic, click) must be
