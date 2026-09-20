@@ -69,14 +69,38 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     names = sorted(args.families) if args.families else FamilyRegistry.list_families()
-    print(f"cache dir: {cache_dir()}")
-    print(f"warming {len(names)} families\n")
+    print(f"cache dir: {cache_dir()}", flush=True)
+    print(f"warming {len(names)} families\n", flush=True)
 
     failures: list[tuple[str, float, str]] = []
     skipped: list[str] = []
     total = 0.0
     started_all = time.perf_counter()
+    # Largest single-family cost seen so far this run. The budget is checked BETWEEN
+    # families and a calibration is not interruptible, so a guard that only asks "is the
+    # budget spent?" can start a family that runs far past it: measured in CI, the warm
+    # step blew a 45-minute budget and was killed by the 50-minute step timeout, losing
+    # every unflushed progress line with it. Refusing to start a family when less than
+    # the worst observed cost remains bounds the overrun to one family instead of one
+    # family plus the whole remaining list. It cannot bound the FIRST expensive family,
+    # which has no prior observation -- so the step timeout still has to exceed the
+    # budget by the worst known single-family cost (mujoco_joint_limit_gaming, ~38 min).
+    worst_seen = 0.0
     for index, name in enumerate(names):
+        remaining = (
+            None
+            if args.budget_seconds is None
+            else args.budget_seconds - (time.perf_counter() - started_all)
+        )
+        if remaining is not None and remaining < worst_seen and index > 0:
+            skipped = list(names[index:])
+            print(
+                f"\n  {remaining:.0f}s left, less than the worst family seen "
+                f"({worst_seen:.0f}s); leaving {len(skipped)} families cold rather than "
+                f"starting one that would overrun",
+                flush=True,
+            )
+            break
         if (
             args.budget_seconds is not None
             and time.perf_counter() - started_all >= args.budget_seconds
@@ -84,14 +108,15 @@ def main(argv: list[str] | None = None) -> int:
             skipped = list(names[index:])
             print(
                 f"\n  budget of {args.budget_seconds:.0f}s reached; "
-                f"leaving {len(skipped)} families cold"
+                f"leaving {len(skipped)} families cold",
+                flush=True,
             )
             break
         try:
             family = FamilyRegistry.get(name)
             difficulties = family.default_difficulties()
         except Exception as exc:  # noqa: BLE001 -- one broken family must not stop the rest
-            print(f"  {name}: SKIPPED ({type(exc).__name__}: {exc})")
+            print(f"  {name}: SKIPPED ({type(exc).__name__}: {exc})", flush=True)
             failures.append((name, 0.0, f"{type(exc).__name__}: {exc}"))
             if args.fail_fast:
                 return 1
@@ -104,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                 family.generate_pair(difficulty, seed=0)
         except Exception as exc:  # noqa: BLE001
             elapsed = time.perf_counter() - started
-            print(f"  {name}: FAILED after {elapsed:.1f}s ({type(exc).__name__}: {exc})")
+            print(f"  {name}: FAILED after {elapsed:.1f}s ({type(exc).__name__}: {exc})", flush=True)
             failures.append((name, elapsed, f"{type(exc).__name__}: {exc}"))
             if args.fail_fast:
                 return 1
@@ -112,21 +137,22 @@ def main(argv: list[str] | None = None) -> int:
 
         elapsed = time.perf_counter() - started
         total += elapsed
+        worst_seen = max(worst_seen, elapsed)
         # A warm family costs milliseconds; a cold one costs its calibrations. The
         # distinction is the useful signal, so say which happened.
         state = "already warm" if elapsed < 1.0 else "derived"
-        print(f"  {name}: {state} ({len(difficulties)} tiers, {elapsed:.1f}s)")
+        print(f"  {name}: {state} ({len(difficulties)} tiers, {elapsed:.1f}s)", flush=True)
 
     warmed = len(names) - len(failures) - len(skipped)
-    print(f"\ntotal {total:.1f}s across {warmed} families")
+    print(f"\ntotal {total:.1f}s across {warmed} families", flush=True)
     if skipped:
         # Named, not merely counted: comparing two runs, a reader needs to know which
         # families the test phase had to derive for itself.
-        print(f"left cold by the budget ({len(skipped)}): {', '.join(skipped)}")
+        print(f"left cold by the budget ({len(skipped)}): {', '.join(skipped)}", flush=True)
     if failures:
-        print(f"{len(failures)} family/families could not be warmed:")
+        print(f"{len(failures)} family/families could not be warmed:", flush=True)
         for name, _, why in failures:
-            print(f"  {name}: {why}")
+            print(f"  {name}: {why}", flush=True)
         # Not fatal by default: a family that cannot calibrate will fail its own test
         # with a better message than this script can give.
     return 0
