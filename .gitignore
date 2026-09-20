@@ -79,3 +79,6 @@ results/*
 
 # Inspect eval run logs (outputs, not artifacts)
 inspect_eval/logs/
+
+# Committed on purpose: the measurements behind an xfail reason.
+!results/family_diagnostics/
