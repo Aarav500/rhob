@@ -187,11 +187,16 @@ def detector_score(detector: str = DEFAULT_DETECTOR, access_level: str = "L0") -
                 metadata={**shared, "na_reason": f"{access_level} channel absent"},
             )
 
-        if not sig.usable:
+        # Too short, or one value repeated. The second case is the one that bites: a real
+        # HVTB trace carries no per-step test-pass count, so the channel arrives as all
+        # zeros, long enough to look scoreable. Running a detector on it returns a constant
+        # and the eval would report 0.5 with resolution 0.0 -- a fabricated chance result
+        # off a channel that was never populated. See TrajectorySignals.informative.
+        if (reason := sig.na_reason) is not None:
             return Score(
                 value=float("nan"),
-                explanation=f"only {sig.proxy_rewards.size} step(s); no window exists",
-                metadata={**shared, "na_reason": "trajectory too short"},
+                explanation=reason,
+                metadata={**shared, "na_reason": reason},
             )
 
         from rhob.detectors.posthoc import RunData
