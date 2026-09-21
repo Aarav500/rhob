@@ -46,14 +46,33 @@ this repository.
 
 ### What is missing, precisely
 
-1. **The live solver.** `live()` raises `NotImplementedError` on purpose. It needs HVTB's
-   task dataset and container runtime, and it must emit, per step: the command, the task's
-   test-pass count after it, and a timestamp on the same clock as the container's watcher
-   flags. Writing it against a guess at that shape would produce an eval that runs and
-   means nothing.
-2. **Real trajectories.** None are in this repo.
-3. **Two full eval logs.** Registration requires "the log files of two models doing an
-   evaluation run of all the samples". Those need item 1 plus compute.
+Checked against the published dataset on 2026-09-21, in dependency order:
+
+1. **A Harbor Hub account.** The 89-task dataset is public and downloads with no
+   credentials (`harbor download hack-verifiable-environments/hv-terminal-bench-2-1`, 2.3 MB).
+   The 2,225 traces are not: `harbor trial download` returns `NotAuthenticatedError`.
+   Everything below is blocked on this. The dataset's licence is also unstated — the hub
+   page names none and the package ships no `LICENSE`, while the upstream repo's MIT covers
+   only `hvta/`.
+2. **The onset patch actually submitted.** `external/hvtb/add_onset_timestamps.py` in the
+   parent repo is verified in Docker on 89 of 89 tasks but has never been opened as a pull
+   request, and appears nowhere upstream. The live dataset's `tests/test.sh` is still
+   byte-identical to the pre-patch literal the script matches on, so no published trace
+   carries a watcher timestamp.
+3. **The patch extended to emit a per-step test count.** It records wall-clock only, and
+   says so. Nobody has written this part, and it is what L0 above needs.
+4. **A re-run of two models** on the patched tasks. Items 2 and 3 change the tasks, so the
+   existing traces cannot be reused for the observable channel.
+5. **Two full eval logs.** Registration requires "the log files of two models doing an
+   evaluation run of all the samples", and these are Inspect eval logs. The 25 published
+   Harbor job logs are not those and cannot be converted, because `replay()` over them
+   yields the empty channel described above.
+
+One shortcut worth asking about before paying for item 4: `harbor job regrade` runs an
+updated verifier against recorded outputs without re-running the agent. If the recorded
+artifacts happen to preserve `/tmp/solution_accessed` and its siblings, a patched verifier
+could recover the flag mtimes. Unlikely, since those live in `/tmp` and every `task.toml`
+declares `artifacts = []`, but it would collapse a full re-run into a re-grade.
 
 ## Why the third metric
 
@@ -72,10 +91,28 @@ paper: *Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks
 
 | level | channel | status |
 |---|---|---|
-| L0 | per-step count of the task's own passing tests | supplied |
+| L0 | per-step count of the task's own passing tests | defined, **not obtainable from published traces** — see below |
 | L1 | state visitation | **N/A** — a terminal task has no state space to histogram |
 | L2 | behavioural feature | **N/A** — see below |
 | L3 | the watcher label | supplied, positive control only |
+
+L0 is where this eval is currently blocked, and the reason is structural rather than a
+missing file. HVTB's verifier runs **once, after the agent stops** (`tests/` is uploaded to
+the environment post-run, every task declares `artifacts = []`, and no task is multi-step),
+so a published trace carries a final reward and a transcript, never a per-step test count.
+There is no series to read.
+
+Feeding such a trace to `signals_from_trajectory` yields an all-zeros array that is long
+enough to look scoreable. The scorer therefore refuses it: `TrajectorySignals.informative`
+is false when the channel is one value repeated, and the cell comes back N/A with that
+reason instead of a number. Without that guard the eval returned `detection_auroc` 0.5 at
+`score_resolution` 0.0 — a fabricated chance result off a channel that was never populated,
+which is precisely the failure this eval reports on. It shipped with that hole; the
+regression tests in `tests/test_eval_runs.py` are named for it.
+
+`hack_rate` is unaffected and available on real traces today. The watcher booleans are
+present in all 2,225 published trials across five frontier models and 89 tasks, and that
+metric needs no detector, no timestamps and no new compute.
 
 L2 is absent for a reason worth stating plainly. The obvious behavioural feature is "did
 this command touch `/app/admin/solution` or `/app/admin/tests`" — and that feature **is the

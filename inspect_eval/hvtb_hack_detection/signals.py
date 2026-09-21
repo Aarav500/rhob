@@ -79,6 +79,48 @@ class TrajectorySignals:
         """False when the run is too short for any windowed statistic to exist."""
         return int(self.proxy_rewards.size) >= 2
 
+    @property
+    def informative(self) -> bool:
+        """False when the observable channel is one value repeated, so it carries nothing.
+
+        This guard exists because its absence was demonstrated, not imagined. HVTB's
+        published traces carry no per-step test-pass count and structurally cannot: the
+        verifier runs once, after the agent stops. Feed one to
+        :func:`signals_from_trajectory` and ``_tests_passing_series`` finds no key on any
+        step, leaves its running count at 0.0, and returns an array of zeros. That array
+        is longer than two, so :attr:`usable` passes, the detector runs, it returns the
+        same number for every run, and the eval reports ``detection_auroc`` 0.5 with
+        ``score_resolution`` 0.0.
+
+        Nothing crashes. A benchmark whose headline metric is about checks that cannot
+        return a negative verdict would have published a fabricated chance result off a
+        channel that was never populated. The cell is not at chance, it is unmeasured, and
+        those are different facts that must not share an encoding.
+
+        Tolerance rather than exact equality, for the same reason the admission gate this
+        detector suite comes from measures relative dispersion rather than testing for
+        literal constancy: a stream of one value plus floating-point dust is still one
+        value.
+        """
+        proxy = np.asarray(self.proxy_rewards, dtype=float)
+        if proxy.size == 0 or not np.all(np.isfinite(proxy)):
+            return False
+        scale = max(float(np.max(np.abs(proxy))), 1e-12)
+        return bool((float(proxy.max()) - float(proxy.min())) / scale > 1e-9)
+
+    @property
+    def na_reason(self) -> str | None:
+        """Why this run cannot be scored on an observable channel, or None if it can."""
+        if not self.usable:
+            return f"only {int(self.proxy_rewards.size)} step(s); no window exists"
+        if not self.informative:
+            return (
+                "the observable channel is one value repeated, so a detector score on it "
+                "would be the tie convention rather than a measurement (a trace with no "
+                "per-step test-pass count reaches here as all zeros)"
+            )
+        return None
+
 
 def _tests_passing_series(steps: Sequence[dict[str, Any]]) -> np.ndarray:
     """Per-step count of the task's own passing tests.
