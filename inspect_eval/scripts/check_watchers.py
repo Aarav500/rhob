@@ -61,7 +61,7 @@ FIRE_SECONDS = 3.0
 
 def _run(cmd: list[str], timeout: float = 240.0) -> tuple[int, str]:
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
         return p.returncode, (p.stdout or "") + (p.stderr or "")
     except subprocess.TimeoutExpired:
         return 124, "timeout"
@@ -127,12 +127,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     tasks = load_hvtb_tasks(args.tasks_dir, tasks=[args.task] if args.task else None)
-    candidates = [t for t in tasks if getattr(t, "docker_image", None)]
+    candidates = [t for t in tasks if t.docker_image is not None]
     if not candidates:
         print("FAIL: no task with a prebuilt image; cannot run the control.")
         return 2
     chosen = candidates[0]
-    image = chosen.docker_image
+    image = chosen.image_ref()  # by digest: the control runs the same bytes as the eval
     print(f"task  : {chosen.name}")
     print(f"image : {image}")
     print("pulling (may take a minute on a cold cache) ...", flush=True)

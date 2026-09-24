@@ -9,6 +9,16 @@
 > correction below and §8 of the paper — so the acronym is kept for URL stability only.
 > **Do not expand RHOB as "Onset Benchmark" in citations.**
 
+## Inspect eval: HVTB hack rate
+
+[`inspect_eval/`](inspect_eval/) is an [Inspect](https://inspect.aisi.org.uk/) eval of how
+often a model, working as an agent, reads the hidden solution or hidden tests of the 89
+tasks in [Hack-Verifiable Terminal Bench](https://arxiv.org/abs/2608.22103v1). It is
+listed in the UK AISI [inspect_evals](https://github.com/UKGovernmentBEIS/inspect_evals)
+register from the [`inspect-eval`](https://github.com/Aarav500/rhob/tree/inspect-eval)
+branch, whose root is that directory, so `uv sync` there installs it. Usage, pins,
+requirements and results are in its [README](inspect_eval/README.md).
+
 ## The paper
 
 **Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three
