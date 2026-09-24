@@ -63,7 +63,8 @@ def _ignored(relative: str) -> bool:
     return any(fnmatch.fnmatchcase(parts[-1], pattern) for pattern in _IGNORED_NAMES)
 
 
-def _file_sha256(path: Path) -> str:
+def file_sha256(path: Path) -> str:
+    """Hex SHA-256 of one file's bytes."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(_CHUNK_BYTES), b""):
@@ -94,5 +95,5 @@ def task_digest(task_dir: Path) -> str:
     outer = hashlib.sha256()
     for relative in relatives:
         if not _ignored(relative):
-            outer.update(f"{relative}\0{_file_sha256(task_dir / relative)}\n".encode())
+            outer.update(f"{relative}\0{file_sha256(task_dir / relative)}\n".encode())
     return outer.hexdigest()
