@@ -4,7 +4,15 @@
 #   HVTB_TASKS_DIR=/path/to/hv-terminal-bench-2-1 bash scripts/run_register_sweep.sh
 #
 # Optional: INSPECT (default: inspect), PYTHON (default: python), AWS_REGION (default
-# us-east-1), OPUS_BUDGET_USD (default 600), LOG_ROOT (default logs/register).
+# us-east-1), OPUS_BUDGET_USD (default 600), LOG_ROOT (default logs/register),
+# PLAN (default "haiku-4-5:light haiku-4-5:heavy opus-4-6:light opus-4-6:heavy"),
+# LIGHT_CONCURRENCY (default 4), HEAVY_CONCURRENCY (default 1).
+#
+# PLAN and the concurrency knobs exist because the 2026-09-24 register sweep moved hosts
+# mid-way: Haiku's light pass ran on a 16 GB laptop, which then ran out of RAM (0.6 GB
+# free, a 35 GB page file), and the remaining passes ran on a 32 vCPU / 128 GiB EC2
+# instance where the 8 GB tasks get their declared memory and can run four at a time.
+# Same commit for the eval code, same image digests, same per-task limits on both hosts.
 #
 # Why it is shaped like this -- each point was a failure found before or during setup:
 #
@@ -100,21 +108,47 @@ run_pass() { # model slug pass ids concurrency
   say "DONE $slug $pass: $(errored_in "$dir") sample(s) still without a score"
 }
 
-run_model() { # model slug
-  run_pass "$1" "$2" light "$LIGHT" 4
-  run_pass "$1" "$2" heavy "$HEAVY_CSV" 1
-  "$PYTHON" scripts/sweep_report.py "$LOG_ROOT/$2" --json "$LOG_ROOT/$2/report.json" | tee -a "$STATUS"
+PLAN=${PLAN:-"haiku-4-5:light haiku-4-5:heavy opus-4-6:light opus-4-6:heavy"}
+LIGHT_CONCURRENCY=${LIGHT_CONCURRENCY:-4}
+HEAVY_CONCURRENCY=${HEAVY_CONCURRENCY:-1}
+say "plan: $PLAN (light x$LIGHT_CONCURRENCY, heavy x$HEAVY_CONCURRENCY)"
+
+model_id() {
+  case $1 in
+    haiku-4-5) echo "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0" ;;
+    opus-4-6) echo "bedrock/global.anthropic.claude-opus-4-6-v1" ;;
+    *) say "ABORT: unknown model slug $1"; exit 2 ;;
+  esac
 }
 
-run_model "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0" haiku-4-5
+opus_gate() {
+  # Only meaningful when this host ran Haiku's full light pass: the projection scales
+  # Haiku's measured bill, and a partial Haiku bill would understate it.
+  case " $PLAN " in *" haiku-4-5:light "*) ;; *) say "Opus cost gate skipped: Haiku's light pass ran elsewhere"; return ;; esac
+  local cost projected
+  cost=$("$PYTHON" -c "import json;print(json.load(open('$LOG_ROOT/haiku-4-5/report.json'))['estimated_cost_usd'])")
+  projected=$("$PYTHON" -c "print(round($cost * 5, 2))")
+  say "Haiku cost ~\$$cost; Opus projected at 5x list price ~\$$projected (budget \$$OPUS_BUDGET_USD)"
+  if "$PYTHON" -c "import sys; sys.exit(0 if $projected > $OPUS_BUDGET_USD else 1)"; then
+    say "WAITING: projected Opus spend exceeds the budget; create $GO_FILE to continue"
+    until [ -f "$GO_FILE" ]; do sleep 60; done
+  fi
+}
 
-HAIKU_COST=$("$PYTHON" -c "import json;print(json.load(open('$LOG_ROOT/haiku-4-5/report.json'))['estimated_cost_usd'])")
-PROJECTED=$("$PYTHON" -c "print(round($HAIKU_COST * 5, 2))")
-say "Haiku cost ~\$$HAIKU_COST; Opus projected at 5x list price ~\$$PROJECTED (budget \$$OPUS_BUDGET_USD)"
-if "$PYTHON" -c "import sys; sys.exit(0 if $PROJECTED > $OPUS_BUDGET_USD else 1)"; then
-  say "WAITING: projected Opus spend exceeds the budget; create $GO_FILE to continue"
-  until [ -f "$GO_FILE" ]; do sleep 60; done
-fi
-
-run_model "bedrock/global.anthropic.claude-opus-4-6-v1" opus-4-6
+previous=""
+for step in $PLAN; do
+  slug=${step%%:*}
+  pass=${step##*:}
+  if [ -n "$previous" ] && [ "$slug" != "$previous" ]; then
+    "$PYTHON" scripts/sweep_report.py "$LOG_ROOT/$previous" --json "$LOG_ROOT/$previous/report.json" | tee -a "$STATUS"
+    [ "$slug" = opus-4-6 ] && opus_gate
+  fi
+  case $pass in
+    light) run_pass "$(model_id "$slug")" "$slug" light "$LIGHT" "$LIGHT_CONCURRENCY" ;;
+    heavy) run_pass "$(model_id "$slug")" "$slug" heavy "$HEAVY_CSV" "$HEAVY_CONCURRENCY" ;;
+    *) say "ABORT: unknown pass $pass"; exit 2 ;;
+  esac
+  previous=$slug
+done
+"$PYTHON" scripts/sweep_report.py "$LOG_ROOT/$previous" --json "$LOG_ROOT/$previous/report.json" | tee -a "$STATUS"
 say "SWEEP DONE"
