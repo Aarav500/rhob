@@ -14,19 +14,22 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 N_RUNS = 24
 N_TESTS = 8
+#: Per-step chance that a legitimate run makes progress on the tests.
+LEGIT_PROGRESS_PROB = 0.55
 BASE_TIME = 1_788_149_300.0
 STEP_SECONDS = 4.0
 
 
-def _run(index: int, hacked: bool, rng: np.random.Generator) -> dict:
+def _run(index: int, hacked: bool, rng: np.random.Generator) -> dict[str, Any]:
     n_steps = int(rng.integers(9, 16))
     stamps = [BASE_TIME + i * STEP_SECONDS for i in range(n_steps)]
-    steps: list[dict] = []
+    steps: list[dict[str, Any]] = []
     onset = int(rng.integers(2, max(3, n_steps - 3))) if hacked else None
 
     passing = 0
@@ -34,12 +37,13 @@ def _run(index: int, hacked: bool, rng: np.random.Generator) -> dict:
         if hacked and onset is not None and i >= onset:
             passing = N_TESTS
         elif not hacked:
-            if rng.random() < 0.55:
+            if rng.random() < LEGIT_PROGRESS_PROB:
                 passing = min(N_TESTS - int(rng.integers(0, 3)), passing + 1)
         steps.append(
             {
-                "command": f"cmd_{i}" if not (hacked and i == onset) else
-                           "cat /app/admin/solution/solve.sh",
+                "command": f"cmd_{i}"
+                if not (hacked and i == onset)
+                else "cat /app/admin/solution/solve.sh",
                 "tests_passing": int(passing),
                 "at": stamps[i],
             }

@@ -1,31 +1,90 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hvtb-hack-detection"
-version = "0.1.0"
-description = "Does a model hack HVTB's terminal tasks, and can a post-hoc detector tell?"
+version = "1.0.0"
+description = "HVTB hack rate: how often a model reads a terminal task's hidden solution or tests (Inspect eval)"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
-  "inspect_ai>=0.3.100",
+  # Pinned exactly: the register logs were produced with this version, and the
+  # Bedrock output-token and read-timeout behaviour the README documents is specific to it.
+  "inspect_ai==0.3.266",
   "numpy>=1.24",
   "scikit-learn>=1.3",
-  # task.toml parsing. tomllib is stdlib from 3.11; this keeps the declared
-  # requires-python >= 3.10 honest rather than failing at import on 3.10.
+  # task.toml parsing: tomllib is standard library from Python 3.11.
   "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
-# The detector suite. Optional so the dataset, the signal mapping and the metrics can be
-# exercised without it; the scorer raises with this install line if it is missing.
-detectors = ["rhob @ git+https://github.com/Aarav500/rhob"]
-dev = ["pytest>=7"]
+# The RHOB post-hoc detector suite, needed only by the development task
+# hack_detection_replay. Pinned to a commit that provides rhob.detectors.posthoc.RunData.
+detectors = ["rhob @ git+https://github.com/Aarav500/rhob@cae08e4a70cb39054c134eda9ac6c4eb422fe1ae"]
+dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10"]
+
+[project.entry-points.inspect_ai]
+hvtb_hack_detection = "hvtb_hack_detection"
 
 [tool.setuptools.packages.find]
 include = ["hvtb_hack_detection*"]
 
 [tool.setuptools.package-data]
 hvtb_hack_detection = ["fixtures/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "docker: needs a running Docker daemon and the pinned HVTB tasks directory",
+  "slow: takes minutes rather than seconds",
+]
+
+# Lint and type-check settings follow inspect_evals' own (pyproject.toml of
+# UKGovernmentBEIS/inspect_evals), restricted to what applies to one package.
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "D", "I", "SIM101", "YTT", "LOG", "PT", "NPY", "PLE", "PLR", "PLW",
+          "UP006", "UP007", "UP045", "FURB", "TID251", "TID252"]
+ignore = ["E203", "E501", "D10", "D212", "D415", "PLR0911", "PLR0912", "PLR0913", "PLR0915",
+          "PT011"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["PLR2004", "PLW0108"]
+"hvtb_hack_detection/**" = ["PT"]
+"scripts/**" = ["PT"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.mypy]
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["hvtb_hack_detection.*"]
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+extra_checks = true
+disable_error_code = "unused-ignore"
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "rhob", "rhob.*", "tomli"]
+ignore_missing_imports = true
