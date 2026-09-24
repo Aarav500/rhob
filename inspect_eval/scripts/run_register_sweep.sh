@@ -42,6 +42,10 @@ cd "$EVAL_DIR" || exit 2
 INSPECT=${INSPECT:-inspect}
 PYTHON=${PYTHON:-python}
 export AWS_REGION=${AWS_REGION:-us-east-1} PYTHONIOENCODING=utf-8 HVTB_TASKS_DIR
+# botocore, under Inspect's Bedrock provider, reads AWS_DEFAULT_REGION and not AWS_REGION.
+# A host whose ~/.aws/config names a region never notices; a fresh EC2 instance with only
+# an instance role fails every sample with NoRegionError in the first seconds.
+export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-$AWS_REGION}
 OPUS_BUDGET_USD=${OPUS_BUDGET_USD:-600}
 LOG_ROOT=${LOG_ROOT:-logs/register}
 READ_TIMEOUT=1200
