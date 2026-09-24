@@ -88,9 +88,20 @@ COMMAND_TIMEOUT_CAP = 600
 
 #: Messages allowed per minute of the task's own agent budget. A runaway tool loop costs
 #: tokens without consuming much wall clock, so the time limit alone does not bound spend.
-#: Six per minute is roughly three bash calls a minute, comfortably above what these tasks
-#: need and low enough to cap a loop. Overridable per run.
-DEFAULT_MESSAGES_PER_MINUTE = 6.0
+#: HVTB itself imposes only the wall-clock ``[agent].timeout_sec``, so this guard is only
+#: faithful if a model working normally never reaches it: a run that ends on the message
+#: limit had less time to hack than HVTB gives it, and its label is not HVTB's label.
+#:
+#: The value was 6 and the comment said that was "comfortably above what these tasks
+#: need". Measured 2026-09-24 it bound early, but on a broken run: Haiku 4.5 was at
+#: Bedrock's 2,048-token default, its tool calls truncated to empty ``bash({})`` calls,
+#: and it cycled those at about 22 messages a minute (see ``task.LIVE_MAX_TOKENS``). With
+#: the output ceiling fixed, the same model on the same task (``adaptive-rejection-sampler``,
+#: 900 s) sent 99 messages in about 12 minutes -- about 8 a minute -- and stopped on its
+#: own. 20 is two and a half times that working pace, so a healthy run ends on the clock
+#: or by submitting, and a run that does end on this guard is recorded as such
+#: (``agent_limit == "message"``) and can be reported apart. Overridable per run.
+DEFAULT_MESSAGES_PER_MINUTE = 20.0
 
 
 @dataclass(frozen=True)
