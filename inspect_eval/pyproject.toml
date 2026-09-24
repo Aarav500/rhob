@@ -24,6 +24,9 @@ dependencies = [
 # The RHOB post-hoc detector suite, needed only by the development task
 # hack_detection_replay. Pinned to a commit that provides rhob.detectors.posthoc.RunData.
 detectors = ["rhob @ git+https://github.com/Aarav500/rhob@cae08e4a70cb39054c134eda9ac6c4eb422fe1ae"]
+# The same requirement under the eval's own name, which inspect-evals-lint's
+# external-dependency rule looks for.
+hvtb_hack_detection = ["rhob @ git+https://github.com/Aarav500/rhob@cae08e4a70cb39054c134eda9ac6c4eb422fe1ae"]
 dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.10"]
 
 [project.entry-points.inspect_ai]

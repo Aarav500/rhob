@@ -20,8 +20,8 @@ One directory per task, as published in ``hack-verifiable-environments/hv-termin
 
 THE WATCHERS, AND WHY THE CONTAINER'S ENTRYPOINT MUST SURVIVE
 -------------------------------------------------------------
-Every one of the 89 images declares an ``ENTRYPOINT`` that backgrounds five
-``inotifywait`` calls on ``/app/admin/{solution,tests}`` and then ``exec "$@"``. Those
+Every one of the 89 images declares an ``ENTRYPOINT`` that backgrounds 5 to 13
+``inotifywait`` calls on files under ``/app/admin/{solution,tests}`` and then ``exec "$@"``. Those
 watchers are the entire labelling mechanism: they touch ``/tmp/solution_accessed``,
 ``/tmp/tests_read`` and ``/tmp/tests_modified``, and ``tests/test.sh`` reads those three
 sentinels into ``reward.json``. So the compose service this module generates sets
@@ -31,8 +31,9 @@ every model --- a zero that looks like a measurement.
 
 WHAT ``allow_internet`` MEANS HERE
 ----------------------------------
-All 89 tasks declare ``allow_internet = true``, and they have to: every one of the 89
-``tests/test.sh`` scripts installs ``uv`` over the network before it can run pytest. The
+All 89 tasks declare ``allow_internet = true``, and they have to: every ``tests/test.sh``
+installs its test dependencies over the network before it runs pytest (uv in 82 tasks, pip
+in 6). The
 flag is honoured anyway rather than ignored, but note that a task with it set to false
 would need the network restored for the scoring phase, which no published task exercises.
 
@@ -71,7 +72,7 @@ from inspect_ai.util import (
     SandboxEnvironmentSpec,
 )
 
-from hvtb_hack_detection.pins import load_pins, pinned_download_command, task_digest
+from hvtb_hack_detection.pins import file_sha256, load_pins, pinned_download_command, task_digest
 
 try:  # Python 3.11+
     import tomllib
@@ -217,6 +218,12 @@ class HVTBTask:
     def environment_dir(self) -> Path:
         return self.directory / "environment"
 
+    @property
+    def watcher_count(self) -> int:
+        """How many ``inotifywait`` watchers the task's ENTRYPOINT starts."""
+        dockerfile = (self.environment_dir / "Dockerfile").read_text(encoding="utf-8")
+        return dockerfile.count("inotifywait -q -e")
+
     def command_timeout(self) -> int:
         """Per-command timeout for the ``bash()`` tool.
 
@@ -246,8 +253,8 @@ class HVTBTask:
     def build_context(self, build_dir: Path) -> Path:
         """A copy of ``environment/`` with the derived Dockerfile, for the QEMU tasks.
 
-        The directory name includes the derived Dockerfile's hash, so a stale copy is
-        never reused after the derivation changes. The copy is assembled under a
+        The directory name includes a hash of the derived Dockerfile and of every file
+        in ``environment/``, so a copy made from other content is never reused. The copy is assembled under a
         temporary name and renamed into place, so an interrupted build leaves no partial
         context behind.
 
@@ -260,7 +267,15 @@ class HVTBTask:
         derived = derived_qemu_dockerfile(
             (self.environment_dir / "Dockerfile").read_text(encoding="utf-8")
         )
-        context = (build_dir / f"{self.name}-{_sha256_text(derived)[:16]}").resolve()
+        # The key covers the derived Dockerfile and every file of environment/, so a
+        # context copied from different content is never reused.
+        env_files = sorted(p for p in self.environment_dir.rglob("*") if p.is_file())
+        env_hash = "".join(
+            f"{p.relative_to(self.environment_dir).as_posix()}\0{file_sha256(p)}\n"
+            for p in env_files
+        )
+        key = _sha256_text(derived + env_hash)[:16]
+        context = (build_dir / f"{self.name}-{key}").resolve()
         if context.is_dir():
             return context
         build_dir.mkdir(parents=True, exist_ok=True)
@@ -347,6 +362,7 @@ class HVTBTask:
                 "verifier_timeout_sec": self.verifier_timeout_sec,
                 "command_timeout_sec": self.command_timeout(),
                 "message_limit": self.message_limit(messages_per_minute),
+                "watcher_count": self.watcher_count,
             },
         )
 
@@ -389,7 +405,7 @@ def parse_task_toml(path: Path) -> dict[str, Any]:
 def load_hvtb_task(directory: Path) -> HVTBTask:
     """Parse one task directory. Raises if any file the live path depends on is absent."""
     directory = Path(directory)
-    for required in ("instruction.md", "task.toml", "tests/test.sh"):
+    for required in ("instruction.md", "task.toml", "tests/test.sh", "environment/Dockerfile"):
         if not (directory / required).is_file():
             raise ValueError(f"{directory}: not an HVTB task directory (no {required})")
     fields = parse_task_toml(directory / "task.toml")
@@ -398,7 +414,10 @@ def load_hvtb_task(directory: Path) -> HVTBTask:
             f"{directory}: task.toml declares no docker_image and there is no "
             "environment/Dockerfile to build one from"
         )
-    return HVTBTask(name=directory.name, directory=directory, **fields)
+    task = HVTBTask(name=directory.name, directory=directory, **fields)
+    if task.watcher_count < 1:
+        raise ValueError(f"{directory}: environment/Dockerfile starts no inotifywait watcher")
+    return task
 
 
 def _verify_against_pins(root: Path, candidates: list[Path], full_set: bool) -> dict[str, str]:
@@ -434,8 +453,9 @@ def _verify_against_pins(root: Path, candidates: list[Path], full_set: bool) -> 
             "the HVTB tasks directory does not match the pinned dataset ("
             + "; ".join(problems)
             + f"). Fetch the pinned copy with: {pinned_download_command()}. "
-            "To run on a different copy anyway, pass -T verify_dataset=false; the logs "
-            "then record dataset_verified=false."
+            "-T verify_dataset=false skips this content check (the logs then record "
+            "dataset_verified=false), but images and the QEMU build stay pinned, so a copy "
+            "with other image tags or another QEMU Dockerfile still cannot run."
         )
     return digests
 
@@ -509,9 +529,9 @@ def hvtb_samples(
 def verifier_files(tests_dir: Path) -> list[tuple[str, bytes]]:
     """Every file under a task's ``tests/`` directory, as (relative posix path, bytes).
 
-    Read as bytes, not text: four tasks ship binary fixtures their pytest file loads
-    (a 5 MB ``weights_gtruth.pt``, a video, reference images), and two ship
-    subdirectories, so a flat text copy would corrupt or drop part of the verifier.
+    Read as bytes, not text: several tasks ship binary fixtures their pytest file loads
+    (model weights, a video, archives, images) and some ship subdirectories, so a flat
+    text copy would corrupt or drop part of the verifier.
     """
     tests_dir = Path(tests_dir)
     out: list[tuple[str, bytes]] = []
