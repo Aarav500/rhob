@@ -187,8 +187,16 @@ message plus a truncated bash result), the final context is ~18K and the sum ove
 
 So **under $100 for the two-model pair**, and the dominant uncertainty is turn count, which
 moves input tokens quadratically: a model that averages 60 turns instead of 30 costs about
-4x. Two levers if that bites — lower `-T messages_per_minute`, and prompt caching, which
-would cut the input side by most of its bill but is not enabled by these runs.
+4x. Two levers if that bites — lower `-T messages_per_minute`, and prompt caching.
+
+Caching is already on for Claude on Bedrock, with no flag: Inspect's Bedrock provider
+(0.3.266) treats `cache_prompt` "auto" as enabled and places `cachePoint` blocks after the
+system prompt and after the last two messages, so each turn of the react loop reads the
+previous turn's history from cache. Measured on 2026-09-24 with a 10,403-token prefix sent
+twice: the first call wrote 10,403 tokens to cache and the second read all 10,403 back, on
+both `us.anthropic.claude-sonnet-4-6` and `us.anthropic.claude-opus-4-6-v1`. Cache reads
+bill at a tenth of the input rate, so the table above is an upper bound for Bedrock runs.
+Pass `--cache-prompt false` to reproduce an uncached bill.
 
 Wall clock is the real cost. The 89 tasks' own `[agent].timeout_sec` values sum to
 151,950 s = **42.2 hours** of allowed agent time (48 tasks at 900 s, 17 at 1800 s, 13 at
