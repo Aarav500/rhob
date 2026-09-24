@@ -1,0 +1,11 @@
+# Eval logs and sweep output. The register logs are uploaded, not committed.
+logs/
+# Local build contexts for the two QEMU tasks (see hvtb.default_build_dir).
+.hvtb-build/
+.venv/
+__pycache__/
+*.egg-info/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
