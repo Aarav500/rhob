@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # The register runs: one full pass of hvtb_hack_rate per model over all 89 HVTB tasks,
-# then eval-retry until every sample has a label, then an acceptance check on the result.
+# then eval-retry for samples that errored, then an acceptance check on the final log.
 #
-#   HVTB_TASKS_DIR=/data/hv-terminal-bench-2-1 bash scripts/run_register_sweep.sh haiku-4-5
+#   HVTB_TASKS_DIR=/data/hv-terminal-bench-2-1 uv run bash scripts/run_register_sweep.sh haiku-4-5
 #
-# Run from a clean checkout of the commit the listing pins. Environment:
+# Run from a clean checkout of the commit the listing pins, under `uv run` (or with the
+# venv active) so `inspect` and `python` resolve to it. Environment:
 #   HVTB_TASKS_DIR   the pinned dataset (required)
 #   INSPECT          inspect executable (default: inspect)
 #   PYTHON           python with this package installed (default: python)
 #   CONCURRENCY      samples, sandboxes and connections in flight (default: 8)
 #   LOG_ROOT         where logs go (default: logs/register)
 #   AWS_REGION       Bedrock region (default: us-east-1)
-#   MAX_RETRY_ROUNDS eval-retry rounds before giving up (default: 3)
+#   MAX_RETRY_ROUNDS eval-retry rounds before the acceptance check (default: 3)
 #
 # Why each piece is here:
 # * One invocation per model with no --sample-id, so one log covers all 89 samples; the
 #   register asks for "an evaluation run of all the samples" per model. Errored samples
-#   are rerun with eval-retry, which writes a new log that carries the finished ones.
+#   are rerun with eval-retry (up to MAX_RETRY_ROUNDS), which writes a new log that
+#   carries the finished ones.
 # * -M read_timeout=1200. Inspect's Bedrock client reads with a 60 s timeout on the
 #   non-streaming Converse API, and a long generation (a heredoc writing a whole file)
 #   exceeds it; the read timeout is not retried, so the sample would error and rerun.
@@ -25,7 +27,7 @@
 # * The acceptance check fails the run unless the final log has status success, 89
 #   samples, no sample errors, a label on all 89, and no sample whose tool calls mostly
 #   failed to parse.
-set -u
+set -uo pipefail
 
 MODEL_SLUG=${1:?usage: run_register_sweep.sh <haiku-4-5|opus-4-6>}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -59,7 +61,13 @@ if [ -n "$(git -C "$EVAL_DIR" status --porcelain)" ]; then
 fi
 say "commit $(git -C "$EVAL_DIR" rev-parse HEAD), model $MODEL, concurrency $CONCURRENCY"
 
-until aws sts get-caller-identity >/dev/null 2>&1; do
+command -v "$INSPECT" >/dev/null && "$PYTHON" -c "import inspect_ai, boto3" 2>/dev/null || {
+  say "ABORT: $INSPECT or $PYTHON with inspect_ai not found; run under 'uv run' or set INSPECT/PYTHON"
+  exit 2
+}
+# The same credential chain the Bedrock provider uses; no AWS CLI needed.
+creds_ok() { "$PYTHON" -c "import boto3; boto3.client('sts').get_caller_identity()" >/dev/null 2>&1; }
+until creds_ok; do
   say "WAITING: AWS credentials are not valid"
   sleep 120
 done
@@ -94,7 +102,7 @@ for round in $(seq 1 "$MAX_RETRY_ROUNDS"); do
   left=$(unfinished)
   [ "$left" = "0" ] && break
   say "RETRY round $round: $left sample(s) unfinished"
-  until aws sts get-caller-identity >/dev/null 2>&1; do sleep 120; done
+  until creds_ok; do sleep 120; done
   "$INSPECT" eval-retry "$(newest_log)" \
     --max-sandboxes "$CONCURRENCY" --max-connections "$CONCURRENCY" --max-samples "$CONCURRENCY" \
     --no-fail-on-error --log-dir "$DIR" --display plain >> "$DIR/console.out" 2>&1
