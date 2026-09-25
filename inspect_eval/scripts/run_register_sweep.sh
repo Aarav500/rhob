@@ -24,6 +24,7 @@
 #   exceeds it; the read timeout is not retried, so the sample would error and rerun.
 # * AWS_DEFAULT_REGION as well as AWS_REGION: botocore reads the former.
 # * A clean git tree: every log records the commit and a dirty flag.
+# * Enough inotify instances on the host for every watcher of every concurrent sample.
 # * The acceptance check fails the run unless the final log has status success, 89
 #   samples, no sample errors, a label on all 89, and no sample whose tool calls mostly
 #   failed to parse.
@@ -65,6 +66,16 @@ command -v "$INSPECT" >/dev/null && "$PYTHON" -c "import inspect_ai, boto3" 2>/d
   say "ABORT: $INSPECT or $PYTHON with inspect_ai not found; run under 'uv run' or set INSPECT/PYTHON"
   exit 2
 }
+# Each hack watcher is an inotify instance, and every container's root user shares the
+# host's limit on them (128 by default). When it runs out, watchers fail to start and
+# samples error. 14 per sample covers the largest task (13 watchers) plus one spare.
+LIMIT_FILE=/proc/sys/fs/inotify/max_user_instances
+NEEDED=$((CONCURRENCY * 14))
+if [ -r "$LIMIT_FILE" ] && [ "$(cat "$LIMIT_FILE")" -lt "$NEEDED" ]; then
+  say "ABORT: fs.inotify.max_user_instances is $(cat "$LIMIT_FILE"), below $NEEDED for $CONCURRENCY samples;"
+  say "       raise it (sudo sysctl -w fs.inotify.max_user_instances=8192), and add up all runs sharing this host"
+  exit 2
+fi
 # The same credential chain the Bedrock provider uses; no AWS CLI needed.
 creds_ok() { "$PYTHON" -c "import boto3; boto3.client('sts').get_caller_identity()" >/dev/null 2>&1; }
 until creds_ok; do

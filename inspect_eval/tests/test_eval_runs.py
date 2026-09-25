@@ -907,7 +907,6 @@ def test_the_agent_waits_until_every_declared_watcher_runs(
     fake = _CountingSandbox(["0\n", "3\n", "5\n"])
     monkeypatch.setattr(watchers, "sandbox", lambda name=None: fake)
     monkeypatch.setattr(watchers, "WATCHER_POLL_SEC", 0)
-    monkeypatch.setattr(watchers, "WATCHER_SETTLE_SEC", 0)
     asyncio.run(watchers.wait_for_watchers(5))
     assert fake.calls == 3
 
@@ -922,10 +921,46 @@ def test_watchers_that_never_start_raise(monkeypatch: pytest.MonkeyPatch) -> Non
         asyncio.run(watchers.wait_for_watchers(5))
 
 
-def test_the_watcher_probe_cannot_count_itself() -> None:
+_ARMED_FDINFO = """pos: 0
+flags: 00
+inotify wd:1 ino:2a sdev:3 mask:1 ignored_mask:0 fhandle-bytes:8 fhandle-type:1 f_handle:00
+"""
+
+
+def test_the_watcher_probe_counts_only_watchers_that_hold_a_watch(tmp_path: Path) -> None:
+    """Run the probe over a fake ``/proc``: one armed watcher among four look-alikes.
+
+    The look-alikes are what a real container shows: a watcher still initialising or one
+    that could not get an inotify instance (no watch in fdinfo), and the bash subshell that
+    launched a watcher (its command line names inotifywait, its process name does not).
+    """
     from hvtb_hack_detection.watchers import WATCHER_PROBE
 
-    assert "inotifywait" not in WATCHER_PROBE, "the probe's own command line would match"
+    sh = shutil.which("sh")
+    if sh is None:
+        pytest.skip("needs a POSIX sh")
+
+    def process(pid: int, comm: str, fdinfo: str | None, cmdline: str = "") -> None:
+        root = tmp_path / str(pid)
+        (root / "fdinfo").mkdir(parents=True)
+        (root / "comm").write_bytes(comm.encode())
+        (root / "cmdline").write_bytes(cmdline.encode())
+        if fdinfo is not None:
+            (root / "fdinfo" / "3").write_bytes(fdinfo.encode())
+
+    process(10, "inotifywait", _ARMED_FDINFO)
+    process(11, "inotifywait", "pos: 0\n")
+    process(12, "inotifywait", None)
+    process(13, "bash", _ARMED_FDINFO, cmdline="bash -c inotifywait -q -e access x && touch y")
+    process(14, "tail", "pos: 0\n")
+    (tmp_path / "self").mkdir()
+    result = subprocess.run(
+        [sh, "-c", WATCHER_PROBE, "sh", tmp_path.as_posix()],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == "1"
 
 
 def test_every_task_declares_the_watchers_the_agent_waits_for() -> None:
