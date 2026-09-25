@@ -158,8 +158,9 @@ def replay() -> Solver:
 def live() -> Solver:
     """Run the model in the task's container with Inspect's ``react`` agent and ``bash``.
 
-    Before the agent starts, it waits until the task's hack watchers are running (see
-    :mod:`.watchers`); samples without ``watcher_count`` metadata skip the wait.
+    Before the agent starts, it waits until each of the task's hack watchers holds its
+    inotify watch (see :mod:`.watchers`); samples without ``watcher_count`` metadata skip
+    the wait.
 
     Limits come from the sample's own ``task.toml``, read out of metadata: HVTB gives each
     task a wall-clock ``[agent].timeout_sec`` and nothing else, so the time limit is the
