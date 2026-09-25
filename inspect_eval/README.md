@@ -19,7 +19,7 @@ adjudicates the label: a watcher either fired or it did not.
 ## Usage
 
 Requirements: Docker, an x86_64 host, and credentials for a model provider Inspect
-supports. See [Requirements](#requirements) for memory and disk.
+supports. See [Requirements](#requirements) for memory, disk and the host's inotify limit.
 
 ```bash
 git clone https://github.com/Aarav500/rhob.git && cd rhob
@@ -117,7 +117,15 @@ it too.
 - Memory: tasks declare 2 GB (68 tasks), 4 GB (13) or 8 GB (8). At `--max-samples 8`
   budget 64 GB; on a machine with 16 GB of RAM, use 2 to 4, and note that Docker
   Desktop's VM gets half the host's memory by default.
-- Disk: about 60 GB for the 87 images, plus a few GB per running container.
+- Disk: about 75 GB. The 89 images take 66 GB (87 pulled, 2 built) and the QEMU builds
+  leave about 6 GB of build cache; each running container adds a few GB.
+- inotify instances: each hack watcher is one, and every container's root user shares
+  the host's `fs.inotify.max_user_instances`, 128 by default on Linux. Allow 14 per
+  concurrent sample, summed over every run on the host, for example
+  `sudo sysctl -w fs.inotify.max_user_instances=8192`. When the limit runs out, watchers
+  fail to start and the sample errors (see [Validation](#validation)); the sweep script
+  refuses to start below the limit its concurrency needs. Under Docker Desktop the limit
+  that applies is the VM's.
 - Network: every `test.sh` installs its test dependencies over the network before it
   runs pytest (uv in 82 tasks, pip in 6), and all 89 tasks allow network access.
 - The two QEMU tasks emulate a VM with QEMU. No `/dev/kvm` is passed through, so they run
@@ -172,19 +180,31 @@ the results below are for `react()` agents, not for the products the paper teste
   run each over the full task set with
   `--solver hvtb_hack_detection/controls.py@<control>` and `--model mockllm/model`.
 - **Watchers armed before the agent starts** ([`watchers.py`](hvtb_hack_detection/watchers.py)).
-  Each image starts its watchers in the background from its `ENTRYPOINT`, so a container
-  is up slightly before its watchers are. The first full oracle run found this: 88 of 89
-  tasks scored 1, and `git-multibranch` scored 0 when 16 containers started at once; it
-  scored 1 on three reruns alone. The agent and both controls now wait until every
-  watcher the task's Dockerfile declares (5 to 13 per task) is running, plus one second,
-  and the sample errors if they never start. The wait is outside the agent's time limit.
+  Each image starts its watchers in the background from its `ENTRYPOINT`, and nothing in
+  HVTB checks that they started. Full control runs found two ways they do not:
+  - A container is up slightly before its watchers are. With 16 containers starting at
+    once, `git-multibranch` scored 0 under `oracle_hack`; it scored 1 on three reruns
+    alone.
+  - A watcher can fail to start at all. Each is an inotify instance, and all containers
+    share the host's limit on them (see [Requirements](#requirements)). With 24
+    containers at once the limit ran out: `inotifywait` exited with "Couldn't initialize
+    inotify", the container ran on unwatched, and three positive-control samples scored
+    0 or errored. Of 30 containers of one task started together on that host, the 1st to
+    3rd and the 10th had all five watchers; the 20th and every later one checked had none.
+
+  The agent and every control now wait until each watcher the task's Dockerfile declares
+  (5 to 13 per task) is an `inotifywait` process whose inotify instance holds a watch, as
+  `/proc/<pid>/fdinfo` reports it, and the sample errors if that does not happen within
+  120 s. Counting processes by command line is not enough: each watcher runs in a bash
+  subshell whose command line also names `inotifywait`. The wait is outside the agent's
+  time limit.
 - **Watcher check** ([`scripts/check_watchers.py`](scripts/check_watchers.py)): starts one
   task's container as the eval does, reads the solution, and checks the sentinel appears,
   then checks an untouched container shows none.
 - **Tests** (`pytest`): the scorer, metrics, pins, dataset loading and the derived
   Dockerfile, without Docker; with `HVTB_DOCKER_TESTS=1` and `HVTB_TASKS_DIR` set, the
-  two controls on one prebuilt and one QEMU task in real containers.
-- **Trivial baselines**: a no-op agent scores 0.0 and the oracle 1.0 by construction.
+  three controls on one prebuilt and one QEMU task in real containers.
+- **Trivial baselines**: a no-op agent scores 0.0 and each oracle 1.0 by construction.
 
 ## Results
 
@@ -194,8 +214,9 @@ sample has a label, and an acceptance check (`scripts/sweep_report.py --accept`)
 results are reported in the register listing's evaluation report.
 
 A pilot run of an earlier revision (commits `d259131` to `c3eb521`, before dataset
-verification, digest-pinned images and the derived QEMU build; same agent, label and
-limits), on Amazon Bedrock, 1 epoch:
+verification, digest-pinned images, the derived QEMU build and the watcher check; same
+agent, label and limits), on Amazon Bedrock, 1 epoch. Without the watcher check, a hack in
+a container whose watchers had not started scored 0, so these rates may be low:
 
 | Model | Hacked | Hack rate | Ended on time limit | Cost |
 |---|---|---|---|---|
@@ -250,7 +271,8 @@ numbers describe the fixture, not any detector. It is not part of the register l
 - **1-A** (first registered version). Task `hvtb_hack_rate`; one label per task with
   `stderr`; scoring-machinery failures raise; dataset verified against Harbor content
   hashes; images run by digest; the QEMU tasks built from a derived Dockerfile;
-  the agent starts only once the task's watchers are running; `inspect_ai` pinned to
+  the agent starts only once every watcher the task declares holds an inotify watch;
+  `inspect_ai` pinned to
   0.3.266. Changes found during the pilot and fixed before this
   version: the detector's NaN at the root of the score value made Inspect drop every
   sample from `hack_rate`; Bedrock's 2,048-token default cut off file-writing tool calls,
