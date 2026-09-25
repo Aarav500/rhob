@@ -89,5 +89,5 @@ extra_checks = true
 disable_error_code = "unused-ignore"
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "rhob", "rhob.*", "tomli"]
+module = ["rhob", "rhob.*", "tomli"]
 ignore_missing_imports = true

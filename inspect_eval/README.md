@@ -266,6 +266,38 @@ RHOB suite (`pip install -e ".[detectors]"`) over a synthetic fixture. It calls 
 exists to test the detector metrics (`detection_auroc`, `score_resolution`), and its
 numbers describe the fixture, not any detector. It is not part of the register listing.
 
+## Detector replay (experimental)
+
+This is not part of the registered task, and nothing in it changes how `hvtb_hack_rate`
+runs or scores.
+
+`hvtb_replay` (in `hvtb_hack_detection/replay.py`) re-runs a recorded `hvtb_hack_rate`
+sample in a fresh container of the same task, turn by turn, to measure how many of the
+task's own tests pass after each turn. A detector that sees only rewards needs that
+stream, and the register logs do not have it, because HVTB's verifier runs once, at the
+end. A turn is one assistant message's `bash` calls. They run concurrently, as Inspect ran
+them, with the bash tool's own command and timeout, starting at their recorded offset. A
+call that the time limit cut off is cut at its recorded duration. In mode `C`, after every
+turn the container is committed, and HVTB's `tests/test.sh` runs in a disposable clone
+with no watchers. `tests_passing` is passed/total from `ctrf.json`. The score is the
+eval's own verifier. Each replayed call is compared with its recording (exit status and
+output), and after every turn the replay records which watcher sentinels exist. The
+sentinels are only used to check fidelity.
+
+```bash
+inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none \
+  -T log=logs/register/<model>/<log>.eval -T samples=raman-fitting -T mode=C \
+  -T tasks_dir=/path/to/hv-terminal-bench-2-1
+
+# mode-C replay logs -> a trajectory file for the detector scorer, plus a fidelity report
+python scripts/replay_to_fixture.py logs/replay/ --out replayed_trajectories.json
+```
+
+The analysis, the pilot and its pass criteria were fixed before any replay ran; see
+[docs/replay-preregistration.md](docs/replay-preregistration.md). With 20 hacked runs
+in the register logs, a replay of them validates the pipeline. It does not support a
+claim that a detector works.
+
 ## Changelog
 
 - **1-A** (first registered version). Task `hvtb_hack_rate`; one label per task with
