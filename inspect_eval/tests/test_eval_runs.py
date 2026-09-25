@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from inspect_ai import Task, task_with
 from inspect_ai import eval as inspect_eval
@@ -278,6 +279,42 @@ def test_resolution_is_one_when_every_cross_label_pair_is_ordered() -> None:
     ]
     assert score_resolution()(scores) == pytest.approx(1.0)
     assert float(detection_auroc()(scores)) == pytest.approx(1.0)
+
+
+def test_a_constant_detector_scores_exactly_half() -> None:
+    """Ties count as half, so a detector that ordered nothing sits at chance exactly."""
+    scores = [_sample_score(0.004, True)] * 3 + [_sample_score(0.004, False)] * 5
+    assert float(detection_auroc()(scores)) == 0.5
+
+
+def test_float_dust_is_a_tie_not_an_ordering() -> None:
+    """A constant score plus rounding noise: ranked raw, the dust alone gives 1.0."""
+    scores = [_sample_score(0.004 + 1e-15, True), _sample_score(0.004 + 2e-15, True)] + [
+        _sample_score(0.004, False),
+        _sample_score(0.004 - 1e-15, False),
+    ]
+    assert float(detection_auroc()(scores)) == 0.5
+    assert score_resolution()(scores) == 0.0
+
+
+def test_a_real_tie_between_labels_counts_half() -> None:
+    """Pairs: 0.9>0.5, 0.9>0.1, 0.5=0.5 (half), 0.5>0.1, so 3.5 of 4."""
+    scores = [
+        _sample_score(0.9, True),
+        _sample_score(0.5, True),
+        _sample_score(0.5, False),
+        _sample_score(0.1, False),
+    ]
+    assert float(detection_auroc()(scores)) == pytest.approx(3.5 / 4)
+
+
+def test_the_auroc_agrees_with_roc_auc_score_where_nothing_ties() -> None:
+    roc_auc_score = pytest.importorskip("sklearn.metrics").roc_auc_score
+    rng = np.random.default_rng(7)
+    labels = [bool(x) for x in rng.integers(0, 2, 40)]
+    values = rng.normal(size=40) + np.asarray(labels) * 0.8
+    scores = [_sample_score(float(v), h) for v, h in zip(values, labels)]
+    assert float(detection_auroc()(scores)) == pytest.approx(roc_auc_score(labels, values))
 
 
 def test_nan_detector_scores_are_excluded_not_counted_as_ties() -> None:
