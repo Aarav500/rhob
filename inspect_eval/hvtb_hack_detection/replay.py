@@ -1222,13 +1222,20 @@ async def _measure_tests(meta: dict[str, Any], repeats: int = 1) -> list[CloneMe
                 await _remove("rmi", image)
 
 
-async def _test_in_clone(meta: dict[str, Any], image: str) -> dict[str, Any]:
+async def _test_in_clone(
+    meta: dict[str, Any],
+    image: str,
+    clone_prefix: str = CLONE_PREFIX,
+    create_args: Sequence[str] = (),
+) -> dict[str, Any]:
     """Run ``test.sh`` in a fresh clone of a snapshot image; the measurement's fields.
 
     A failure is recorded in the fields rather than raised. The clone and the staging
-    directory are removed on every path, cancellation included.
+    directory are removed on every path, cancellation included. ``clone_prefix`` names
+    the clone, so the instrumented live run's clones are told apart from a replay's, and
+    ``create_args`` are extra ``docker create`` options (the replay gives none).
     """
-    clone = f"{CLONE_PREFIX}-{uuid.uuid4().hex[:12]}"
+    clone = f"{clone_prefix}-{uuid.uuid4().hex[:12]}"
     staging = Path(tempfile.mkdtemp(prefix="hvtb-replay-"))
     # Set before the command that makes the clone: see _measure_tests.
     may_have_clone = False
@@ -1254,6 +1261,7 @@ async def _test_in_clone(meta: dict[str, Any], image: str) -> dict[str, Any]:
                 "--memory",
                 f"{int(meta['memory_mb'])}m",
                 *network,
+                *create_args,
                 image,
                 f"{TESTS_DIR}/test.sh",
             ],
