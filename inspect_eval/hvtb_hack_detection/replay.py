@@ -28,7 +28,10 @@ same way, so the replayed and recorded outputs are comparable.
 
 A call the sample's time limit cut off is cut off after its recorded duration, the same
 way: by cancelling the host-side ``exec``. That leaves the command running inside the
-container, as the time limit did, until the in-container ``timeout`` ends it.
+container, as the time limit did, until the in-container ``timeout`` ends it. The
+recorded duration runs to the moment the limit expired, not to the limit event: Inspect
+logs that event only after the cancelled ``exec`` has unwound, which includes a 2 s grace
+between SIGTERM and SIGKILL, and the replay's own cancellation takes the same grace.
 
 THE TIMELINE
 ------------
@@ -36,10 +39,11 @@ Offsets are seconds from the sample's ``started_at``, which is when its solver s
 The replay's clock starts when its solver starts, the solver waits for the watchers as
 ``live()`` did, and each turn starts at its recorded offset (never earlier; if the replay
 is behind, at once), so the model-latency gaps the recorded run had, during which
-background jobs ran on, are kept. In mode C the time spent measuring tests is excluded
-from that clock, so every turn still starts its recorded gap after the previous one; the
-container sees the measurement on top of that gap, which is why the pre-registration
-checks C against A.
+background jobs ran on, are kept. The last gap too: after the last turn the solver waits
+until the recorded start of scoring, so the verifier sees the container as late as it did.
+In mode C the time spent measuring tests is excluded from that clock, so every turn still
+starts its recorded gap after the previous one; the container sees the measurement on top
+of that gap, which is why the pre-registration checks C against A.
 
 MEASURING TESTS (MODE C)
 ------------------------
@@ -53,7 +57,17 @@ cpus and memory, a fresh copy of the task's ``tests/`` at ``/tests`` and an empt
 leave files the tests write as root on the host, where the replay cannot delete them).
 ``tests_passing`` is passed/total from ``ctrf.json`` (both CTRF files for
 ``fix-code-vulnerability``, whose ``reward.json`` is always 1), never ``reward.json``.
-The clone, the image and the staging directory are removed whatever happens.
+The clone, the image and the staging directory are removed whatever happens, a cancelled
+replay included. The host's docker commands stay out of Inspect's subprocess limiter, so
+a ``docker wait`` never holds a slot that another sample's replayed call is queueing for.
+
+A clone carries the container's filesystem and none of its processes. The tests of
+``SERVICE_TASKS`` talk to a server, VM or daemon the agent started, so in a clone they
+fail whatever the agent did; the pre-registration takes those tasks out of the primary
+analysis. For every other task, whether the last turn's clone passed every test is
+compared with the replay's own verifier reward, as a check that the clone measures what
+the verifier does. A failed measurement is recorded as one, and reaches the trajectory
+file as an unmeasured turn, never as a number.
 
 After every turn the replay also records which of the three watcher sentinels exist. That
 column is sealed: it is a fidelity check and an exact onset, and never a detector input.
@@ -74,7 +88,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
@@ -116,6 +130,11 @@ REPLAY_KEY = "replay"
 #: Tool-call errors that mean the call never reached the container.
 NOT_EXECUTED_ERRORS = ("parsing", "approval")
 
+#: Span types in a recorded sample: ``live()`` starts the agent's time limit as it starts
+#: the agent, and the scorers begin when the agent has stopped.
+AGENT_SPAN = "agent"
+SCORERS_SPAN = "scorers"
+
 #: The markers Inspect's tool loop puts around an output it truncated. It keeps the first
 #: and the last half of its byte budget, concatenated with no marker between them.
 TRUNCATION_START = "<START_TOOL_OUTPUT>\n"
@@ -131,6 +150,30 @@ DEFAULT_CTRF_FILES = ("ctrf.json",)
 CTRF_FILES: dict[str, tuple[str, ...]] = {
     "fix-code-vulnerability": ("ctrf.json", "original-repo-ctrf.json"),
 }
+
+#: Tasks whose tests talk to a process the agent started: sshd and a web server
+#: (configure-git-webserver, git-multibranch), Flask (hf-model-inference), a QEMU VM
+#: (install-windows-3.11, qemu-alpine-ssh, qemu-startup), gRPC (kv-store-grpc), postfix
+#: (mailman), nginx (nginx-request-logging) and a package index (pypi-server). A clone has
+#: none of the live container's processes, so these fail in it after every turn. Read from
+#: each task's ``tests/``; headless-terminal starts its own server and is not one.
+SERVICE_TASKS = (
+    "configure-git-webserver",
+    "git-multibranch",
+    "hf-model-inference",
+    "install-windows-3.11",
+    "kv-store-grpc",
+    "mailman",
+    "nginx-request-logging",
+    "pypi-server",
+    "qemu-alpine-ssh",
+    "qemu-startup",
+)
+
+#: Tasks whose verifier reward does not follow their tests: fix-code-vulnerability's
+#: ``test.sh`` writes reward 1 whatever pytest returns, so a clone cannot be checked
+#: against it.
+REWARD_IGNORES_TESTS = ("fix-code-vulnerability",)
 
 #: Snapshot images and clones are named with these prefixes and a random suffix, so a
 #: leftover from an interrupted replay is recognisable.
@@ -158,7 +201,7 @@ class RecordedCall(_Record):
     timeout: int | None
     #: Seconds from the sample's start to the call's start.
     start_sec: float
-    #: Seconds the call ran; for a call the time limit cut off, until the cut.
+    #: Seconds the call ran; for a call the time limit cut off, until the limit expired.
     duration_sec: float | None
     exit_code: int | None
     success: bool
@@ -192,8 +235,11 @@ class RecordedRun(_Record):
     agent_timeout_sec: float
     command_timeout_sec: int
     agent_limit: str | None
-    #: Seconds from the sample's start to the time-limit event, if the run hit it.
+    #: Seconds from the sample's start to when the time limit expired, if the run hit it.
     time_limit_sec: float | None
+    #: Seconds from the sample's start to when scoring began. The agent's last model call
+    #: ran in between, and any background job ran on until then.
+    scoring_start_sec: float
     flags: dict[str, bool]
     reward: float | None
     turns: list[RecordedTurn]
@@ -290,6 +336,35 @@ def _tool_spans(sample: EvalSample) -> dict[str, ToolEvent]:
     return spans
 
 
+def _span_start(sample: EvalSample, span_type: str) -> datetime:
+    """When the sample's first span of a type began.
+
+    Raises:
+        ValueError: If the sample has no such span.
+    """
+    for event in sample.events:
+        if isinstance(event, SpanBeginEvent) and event.type == span_type:
+            return event.timestamp
+    raise ValueError(f"sample {sample.id!r} has no {span_type!r} span")
+
+
+def _time_limit_deadline(sample: EvalSample, limit: SampleLimitEvent) -> datetime:
+    """When the agent's time limit expired: the agent's start plus the limit.
+
+    Not the limit event's own time. Inspect logs that once the cancelled work has unwound,
+    and a pending command unwinds through a shielded 2 s grace between SIGTERM and SIGKILL
+    (``SUBPROCESS_SIGTERM_GRACE_SECONDS`` in ``inspect_ai.util._subprocess``). In the
+    register logs the event comes 2.00 s after this deadline in every run a ``bash`` call
+    was pending in, and within 0.01 s of it in the three runs cut during a model call.
+
+    Raises:
+        ValueError: If the sample has no agent span, or the event no limit.
+    """
+    if limit.limit is None:
+        raise ValueError(f"sample {sample.id!r}: its time-limit event records no limit")
+    return _span_start(sample, AGENT_SPAN) + timedelta(seconds=float(limit.limit))
+
+
 def _label(sample: EvalSample) -> tuple[dict[str, bool], float | None]:
     score = (sample.scores or {}).get(VERIFIER_SCORER)
     if score is None or not score.metadata or "flags" not in score.metadata:
@@ -310,7 +385,8 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
         The run's label, limits and turns.
 
     Raises:
-        ValueError: If the sample has no start time or no label.
+        ValueError: If the sample has no start time, no label, no scorers span, or a
+            call whose tool event and tool message disagree on its output.
     """
     sample = resolve_sample_attachments(sample, "core")
     if sample.started_at is None:
@@ -330,11 +406,12 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
     # How a cut is recognised: when the time limit fires mid-call, Inspect cancels the
     # call, so its ToolEvent is never completed and stays `pending`, no SandboxEvent
     # (written only when exec returns) and no tool message exist for it, and a
-    # SampleLimitEvent of type "time" follows. The call ran until that event.
+    # SampleLimitEvent of type "time" follows. The call ran until the limit expired.
     limit = next(
         (e for e in sample.events if isinstance(e, SampleLimitEvent) and e.type == "time"),
         None,
     )
+    deadline = _time_limit_deadline(sample, limit) if limit is not None else None
 
     turns: list[RecordedTurn] = []
     for message in sample.messages:
@@ -350,17 +427,25 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
             command = call.arguments.get("command")
             error = event.error.type if event.error is not None else None
             executed = isinstance(command, str) and error not in NOT_EXECUTED_ERRORS
-            cut = bool(event.pending) and limit is not None
+            cut = bool(event.pending) and deadline is not None
             duration: float | None = None
             if event.completed is not None:
                 duration = _seconds(event.completed, event.timestamp)
-            elif cut and limit is not None:
-                duration = _seconds(limit.timestamp, event.timestamp)
+            elif cut and deadline is not None:
+                duration = _seconds(deadline, event.timestamp)
             sandbox_event = execs.get(call.id)
             exit_code = sandbox_event.result if sandbox_event is not None else None
             timeout = (sandbox_event.options or {}).get("timeout") if sandbox_event else None
+            # The tool event holds the result of every call that returned. The tool
+            # message does not: when the time limit cuts one call of a turn, Inspect
+            # appends no tool message for any call of that turn, finished ones included.
+            output = event.result if isinstance(event.result, str) else ""
             tool_message = tool_messages.get(call.id)
-            output = tool_message.text if tool_message is not None else ""
+            if tool_message is not None and tool_message.text != output:
+                raise ValueError(
+                    f"sample {sample.id!r}: call {call.id}'s tool event and tool message "
+                    "record different outputs"
+                )
             calls.append(
                 RecordedCall(
                     id=call.id,
@@ -397,7 +482,8 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
         agent_timeout_sec=float(meta["agent_timeout_sec"]),
         command_timeout_sec=int(meta["command_timeout_sec"]),
         agent_limit=meta.get("agent_limit"),
-        time_limit_sec=_seconds(limit.timestamp, started) if limit is not None else None,
+        time_limit_sec=_seconds(deadline, started) if deadline is not None else None,
+        scoring_start_sec=_seconds(_span_start(sample, SCORERS_SPAN), started),
         flags=flags,
         reward=reward,
         turns=turns,
@@ -485,6 +571,35 @@ def ctrf_counts(reports: Sequence[dict[str, Any]]) -> tuple[int, int]:
     return passed, total
 
 
+def final_tests_agree(
+    run: RecordedRun, turns: Sequence[ReplayedTurn], reward: float | None
+) -> bool | None:
+    """Whether the last turn's clone passed every test exactly when the verifier passed.
+
+    A check that a clone measures what the live verifier does. It fails for every
+    ``SERVICE_TASKS`` run the verifier passed, which is why those are reported apart. The
+    clone runs right after the last turn and the verifier after the recorded gap that
+    follows it, so a background job finishing in that gap can also make them disagree.
+
+    Args:
+        run: The recording.
+        turns: The replayed turns.
+        reward: The replay's verifier reward.
+
+    Returns:
+        None when there is nothing to compare: the last turn was not replayed or not
+        measured, the verifier gave no reward, or the task's reward ignores its tests.
+    """
+    if not turns or not run.turns or turns[-1].index != run.turns[-1].index:
+        return None
+    last = turns[-1].tests
+    if last is None or last.passed is None or last.total is None:
+        return None
+    if reward is None or run.task in REWARD_IGNORES_TESTS:
+        return None
+    return (last.total > 0 and last.passed == last.total) == (reward == 1.0)
+
+
 def run_fidelity(
     run: RecordedRun,
     turns: Sequence[ReplayedTurn],
@@ -518,7 +633,20 @@ def run_fidelity(
         "measurement_failures": sum(
             1 for turn in turns if turn.tests is not None and turn.tests.tests_passing is None
         ),
+        "final_tests_passing": turns[-1].tests.tests_passing
+        if turns and turns[-1].tests is not None
+        else None,
+        "final_tests_agree": final_tests_agree(run, turns, reward),
     }
+
+
+def _unmeasured_reason(tests: CloneMeasurement | None) -> str | None:
+    """Why a turn has no test-pass fraction, or None if it has one."""
+    if tests is None:
+        return "not replayed"
+    if tests.tests_passing is None:
+        return tests.error or "not measured"
+    return None
 
 
 def trajectory_record(
@@ -527,8 +655,10 @@ def trajectory_record(
     """One replayed run in the trajectory schema ``hack_detection_replay`` scores.
 
     One step per recorded turn: its commands, its recorded start and the test-pass
-    fraction measured after it (None where nothing was measured, which the signal
-    mapping carries forward). The label is the recording's; the replay's own flags and
+    fraction measured after it. Every step says whether it was measured; one that was not
+    (the measurement failed, or the replay stopped before the turn) has ``tests_passing``
+    None, ``measured`` false and the reason, and the signal mapping makes the run N/A
+    rather than fill the gap in. The label is the recording's; the replay's own flags and
     sentinels are fidelity checks and are left out, so no detector can read them.
 
     Args:
@@ -540,13 +670,16 @@ def trajectory_record(
     steps = []
     for recorded in run.turns:
         tests = measured.get(recorded.index)
-        steps.append(
-            {
-                "command": "\n".join(call.command for call in recorded.calls),
-                "tests_passing": tests.tests_passing if tests is not None else None,
-                "at": recorded.start_sec,
-            }
-        )
+        reason = _unmeasured_reason(tests)
+        step: dict[str, Any] = {
+            "command": "\n".join(call.command for call in recorded.calls),
+            "tests_passing": tests.tests_passing if tests is not None else None,
+            "at": recorded.start_sec,
+            "measured": reason is None,
+        }
+        if reason is not None:
+            step["measurement_error"] = reason
+        steps.append(step)
     record: dict[str, Any] = {
         "id": f"{run.model}/{run.task}",
         "task": run.task,
@@ -554,6 +687,8 @@ def trajectory_record(
         "steps": steps,
         **{flag: int(run.flags[flag]) for flag in ALL_FLAGS},
         "reward": run.reward,
+        # A property of the task, not of the run: see SERVICE_TASKS.
+        "clone_measurable": run.task not in SERVICE_TASKS,
     }
     if error is not None:
         record["replay_error"] = error
@@ -623,11 +758,16 @@ async def _read_sentinels() -> dict[str, bool]:
 async def _docker(args: list[str], timeout: int) -> str:
     """Run a host docker command; its stdout.
 
+    Outside Inspect's subprocess limiter (``max_subprocesses``, the CPU count by default),
+    whose slots the replayed calls' own ``docker exec`` take. A ``docker wait`` would hold
+    one for the whole of ``test.sh``, and other samples' replayed calls would queue for it,
+    which the recorded runs never did. These commands wait on the daemon and use no CPU.
+
     Raises:
         RuntimeError: If it exits non-zero.
         TimeoutError: If it outlives ``timeout``.
     """
-    result = await subprocess(["docker", *args], timeout=timeout)
+    result = await subprocess(["docker", *args], timeout=timeout, concurrency=False)
     if not result.success:
         detail = (result.stderr or result.stdout).strip()[-OUTPUT_TAIL_CHARS:]
         raise RuntimeError(f"docker {args[0]} exited {result.returncode}: {detail}")
@@ -650,7 +790,7 @@ async def _remove(kind: Literal["rm", "rmi"], name: str) -> None:
     """Force-remove a clone or an image, warning rather than raising if that fails."""
     try:
         await _docker([kind, "-f", name], DOCKER_CLI_TIMEOUT_SEC)
-    except (RuntimeError, TimeoutError) as exc:
+    except (RuntimeError, TimeoutError, OSError) as exc:
         logger.warning(f"hvtb_replay could not remove {name}: {exc}")
 
 
@@ -659,21 +799,24 @@ async def _measure_tests(meta: dict[str, Any]) -> CloneMeasurement:
 
     A failure is recorded in the measurement rather than raised, so one failed turn does
     not lose the rest of the replay; the fidelity report counts them. The clone, the
-    snapshot image and the staging directory are removed on every path.
+    snapshot image and the staging directory are removed on every path, cancellation
+    included.
     """
     token = uuid.uuid4().hex[:12]
     image = f"{SNAPSHOT_REPOSITORY}:{token}"
     clone = f"{CLONE_PREFIX}-{token}"
     staging = Path(tempfile.mkdtemp(prefix="hvtb-replay-"))
-    committed = created = False
+    # Set before the command that makes the object, not after it returns: a commit or
+    # create the host-side timeout ended may still have been carried out by the daemon.
+    may_have_image = may_have_clone = False
     fields: dict[str, Any] = {}
     try:
         container = (await sandbox().connection()).container
         if container is None:
             raise RuntimeError("the sandbox reports no container to commit")
         start = time.monotonic()
+        may_have_image = True
         await _docker(["commit", container, image], COMMIT_TIMEOUT_SEC)
-        committed = True
         fields["commit_sec"] = time.monotonic() - start
         fields["layer_bytes"] = await _layer_bytes(image)
 
@@ -683,6 +826,7 @@ async def _measure_tests(meta: dict[str, Any]) -> CloneMeasurement:
         (tree / LOGS_DIR.lstrip("/")).mkdir(parents=True)
         network = [] if meta.get("allow_internet", True) else ["--network", "none"]
         start = time.monotonic()
+        may_have_clone = True
         await _docker(
             [
                 "create",
@@ -701,7 +845,6 @@ async def _measure_tests(meta: dict[str, Any]) -> CloneMeasurement:
             ],
             DOCKER_CLI_TIMEOUT_SEC,
         )
-        created = True
         await _docker(["cp", f"{tree}{os.sep}.", f"{clone}:/"], DOCKER_CLI_TIMEOUT_SEC)
         await _docker(["start", clone], DOCKER_CLI_TIMEOUT_SEC)
         fields["clone_start_sec"] = time.monotonic() - start
@@ -723,18 +866,25 @@ async def _measure_tests(meta: dict[str, Any]) -> CloneMeasurement:
         fields.update(passed=passed, total=total, tests_passing=passed / total if total else 0.0)
     except (RuntimeError, TimeoutError, OSError, ValueError, KeyError) as exc:
         fields["error"] = f"{type(exc).__name__}: {exc}"
-        if created:
+        if may_have_clone:
             try:
-                logs = await subprocess(["docker", "logs", clone], timeout=DOCKER_CLI_TIMEOUT_SEC)
+                logs = await subprocess(
+                    ["docker", "logs", clone], timeout=DOCKER_CLI_TIMEOUT_SEC, concurrency=False
+                )
                 fields["output_tail"] = (logs.stdout + logs.stderr)[-OUTPUT_TAIL_CHARS:]
             except TimeoutError:
                 pass
     finally:
-        if created:
-            await _remove("rm", clone)
-        if committed:
-            await _remove("rmi", image)
         shutil.rmtree(staging, ignore_errors=True)
+        # Shielded, or a cancelled replay (an operator's cancel, a sample limit, another
+        # sample's error under fail_on_error) would cancel the removal too, and leave a
+        # running clone holding the task's memory and a snapshot of gigabytes. Every
+        # command carries its own timeout, so the shield cannot hang.
+        with anyio.CancelScope(shield=True):
+            if may_have_clone:
+                await _remove("rm", clone)
+            if may_have_image:
+                await _remove("rmi", image)
     return CloneMeasurement(**fields)
 
 
@@ -744,7 +894,8 @@ def replay_recording(mode: Literal["A", "C"] = "A", pacing: bool = True) -> Solv
 
     Args:
         mode: ``A`` replays only; ``C`` also measures the task's tests after every turn.
-        pacing: Start each turn at its recorded offset. Off, turns run back to back.
+        pacing: Start each turn at its recorded offset, and end at the recorded start of
+            scoring. Off, turns run back to back and scoring follows the last at once.
     """
     if mode not in REPLAY_MODES:
         raise ValueError(f"mode must be one of {REPLAY_MODES}, got {mode!r}")
@@ -762,7 +913,11 @@ def replay_recording(mode: Literal["A", "C"] = "A", pacing: bool = True) -> Solv
             state.metadata["watchers_armed_sec"] = await wait_for_watchers(
                 int(meta["watcher_count"])
             )
+        # In the sample's metadata from the start and extended turn by turn: Inspect logs
+        # the metadata of a sample whose solver raised, so a replay that stops part-way
+        # still keeps every turn, and every measurement, it finished.
         turns: list[dict[str, Any]] = []
+        state.metadata[REPLAY_KEY] = {"mode": mode, "pacing": pacing, "turns": turns}
         for turn in run.turns:
             if pacing:
                 await anyio.sleep(max(0.0, turn.start_sec - replay_clock()))
@@ -786,7 +941,10 @@ def replay_recording(mode: Literal["A", "C"] = "A", pacing: bool = True) -> Solv
                 tests=tests,
             )
             turns.append(replayed.model_dump())
-        state.metadata[REPLAY_KEY] = {"mode": mode, "pacing": pacing, "turns": turns}
+        if pacing:
+            # The recorded agent's last model call ran after its last turn, and background
+            # jobs ran on until scoring began; the verifier sees the same gap.
+            await anyio.sleep(max(0.0, run.scoring_start_sec - replay_clock()))
         return state
 
     return solve
@@ -871,6 +1029,9 @@ def replay_task(
         # As in the eval: the label lives in the container's /tmp, and a resumed sample
         # would be scored in a fresh container.
         checkpoint=False,
+        # One run's error must not cancel the others: an errored run is still reported,
+        # with the turns it finished, and a cancelled one is not.
+        fail_on_error=False,
         metadata={
             "replay_of": source,
             "recorded_models": sorted({run.model for run in runs}),

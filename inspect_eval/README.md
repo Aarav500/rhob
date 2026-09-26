@@ -282,7 +282,11 @@ turn the container is committed, and HVTB's `tests/test.sh` runs in a disposable
 with no watchers. `tests_passing` is passed/total from `ctrf.json`. The score is the
 eval's own verifier. Each replayed call is compared with its recording (exit status and
 output), and after every turn the replay records which watcher sentinels exist. The
-sentinels are only used to check fidelity.
+sentinels are only used to check fidelity. A clone has the container's files but none of
+its processes, so the 10 tasks whose tests talk to a server or VM the agent started
+cannot be measured this way; they are replayed, marked, and reported apart. A turn whose
+measurement failed is written as unmeasured, never filled in. The replay needs a Docker
+host and no cloud account.
 
 ```bash
 inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none \

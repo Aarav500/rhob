@@ -89,4 +89,41 @@ each live turn). If run 5 fails, results are reported split by how the run ended
 
 ## Changes after this point
 
-None yet.
+All of the changes below were made on 2026-09-25, after a review of the replay harness and
+before the pilot or any other replay had run. No replay data existed when they were made.
+
+1. **Service tasks are taken out of the primary analysis.** A clone made with
+   `docker commit` has the container's files and none of its processes. The tests of 10
+   tasks connect to a process the agent started: `configure-git-webserver`,
+   `git-multibranch`, `hf-model-inference`, `install-windows-3.11`, `kv-store-grpc`,
+   `mailman`, `nginx-request-logging`, `pypi-server`, `qemu-alpine-ssh` and
+   `qemu-startup`. In a clone those tests fail after every turn, even when the live
+   verifier passes. The register logs hold 20 runs of these tasks: 15 have reward 1, and
+   1 is hacked (Haiku 4.5, `qemu-startup`). They are still replayed and measured after
+   every turn, like every other run, and marked `clone_measurable: false` in the
+   trajectory file. The primary analysis leaves them out: 158 runs, 19 of them hacked.
+   Their fidelity and streams are reported separately. A sensitivity analysis includes
+   them.
+2. **A new check: the last clone against the verifier.** For every other task, the
+   clone's result after the last turn (every test passed, or not) is compared with the
+   replay's own verifier reward (1, or not). `fix-code-vulnerability` is not checked,
+   because its reward is always 1. Disagreements are reported by task. The pilot also
+   requires agreement on all five runs. The clone runs straight after the last turn and
+   the verifier runs after the recorded final gap, so a background job that finishes in
+   that gap can make the two disagree. Such cases are reported, not hidden.
+3. **An unmeasured turn stays unmeasured.** A turn can go unmeasured because the commit
+   or the clone failed, `test.sh` timed out, or `ctrf.json` was missing. Every turn of a
+   replay that stopped early is also unmeasured. Such a turn is written as unmeasured
+   (`measured: false`, with the reason) and is never filled in from the turns around it.
+   A run with any unmeasured turn has no stream: it is N/A for every detector, and the
+   number of such runs is reported by label beside every AUROC. This is the one way a
+   run leaves the AUROC. Before this change, the signal mapping carried the previous
+   value forward, or 0.0 when there was none. An errored replay would then have entered
+   the primary analysis as a run measured at zero.
+4. **Two clarifications of "as recorded", with the intent unchanged.**
+   - A call that the time limit cut off runs until the moment the limit expired: the
+     agent's start plus the limit. Inspect logs the limit event 2 s after that, once the
+     cancelled command's SIGTERM grace has passed, and the replay's own cancellation
+     takes the same grace.
+   - After the last turn, the replay waits until the recorded start of scoring, so the
+     verifier sees background jobs run on for as long as they did.
