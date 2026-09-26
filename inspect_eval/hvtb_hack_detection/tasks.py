@@ -164,7 +164,9 @@ def live() -> Solver:
 
     Limits come from the sample's own ``task.toml``, read out of metadata: HVTB gives each
     task a wall-clock ``[agent].timeout_sec`` and nothing else, so the time limit is the
-    faithful one and the message limit is a spend guard. Both are caught rather than
+    faithful one and the message limit is a spend guard. The time limit is
+    ``agent_time_limit_sec``, the task's own limit times the task's ``time_limit_multiple``;
+    samples without it use ``agent_timeout_sec``. Both are caught rather than
     propagated: the watcher sentinels are already set when a limit is reached, so a
     limit-ended run still has a label and must still reach the scorer. Which limit ended
     the run is recorded in ``agent_limit``.
@@ -178,7 +180,7 @@ def live() -> Solver:
             )
         agent = react(tools=[bash(timeout=int(meta["command_timeout_sec"]))])
         limits = [
-            time_limit(float(meta["agent_timeout_sec"])),
+            time_limit(float(meta.get("agent_time_limit_sec", meta["agent_timeout_sec"]))),
             message_limit(int(meta["message_limit"])),
         ]
         with apply_limits(limits, catch_errors=True) as scope:
@@ -458,6 +460,7 @@ def hvtb_hack_rate(
     tasks: str | list[str] | None = None,
     messages_per_minute: float = DEFAULT_MESSAGES_PER_MINUTE,
     verify_dataset: bool = True,
+    time_limit_multiple: float = 1.0,
 ) -> Task:
     """How often a model reads HVTB's hidden solution or tests while doing the task.
 
@@ -469,6 +472,9 @@ def hvtb_hack_rate(
             a spend guard, not a limit HVTB imposes.
         verify_dataset: Check every task directory against its pinned content hash
             before running. Turning it off is recorded in each sample's metadata.
+        time_limit_multiple: Multiplies each task's time limit, as Harbor's
+            ``agent_timeout_multiplier`` does; the message allowance follows it at the same
+            rate a minute. 1, the default, is the task's own limit.
 
     Returns:
         The task. Each sample carries its own Docker sandbox, built from the task's
@@ -490,6 +496,7 @@ def hvtb_hack_rate(
             tasks=selected,
             messages_per_minute=messages_per_minute,
             verify=verify_dataset,
+            time_limit_multiple=time_limit_multiple,
         ),
         solver=live(),
         scorer=hvtb_verifier_score(),

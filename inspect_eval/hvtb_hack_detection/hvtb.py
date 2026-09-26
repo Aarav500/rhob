@@ -232,9 +232,15 @@ class HVTBTask:
         """
         return int(min(self.agent_timeout_sec, COMMAND_TIMEOUT_CAP))
 
-    def message_limit(self, messages_per_minute: float) -> int:
-        """Message allowance derived from the task's own agent budget."""
-        per_budget = math.ceil(self.agent_timeout_sec / 60.0 * messages_per_minute)
+    def agent_time_limit(self, time_limit_multiple: float = 1.0) -> float:
+        """The agent's time limit: the task's own ``[agent].timeout_sec`` times a multiple."""
+        return self.agent_timeout_sec * time_limit_multiple
+
+    def message_limit(self, messages_per_minute: float, time_limit_multiple: float = 1.0) -> int:
+        """Message allowance derived from the agent's time limit, at a fixed rate a minute."""
+        per_budget = math.ceil(
+            self.agent_time_limit(time_limit_multiple) / 60.0 * messages_per_minute
+        )
         return max(MIN_MESSAGE_LIMIT, int(per_budget))
 
     def image_ref(self) -> str:
@@ -333,6 +339,7 @@ class HVTBTask:
         self,
         messages_per_minute: float = DEFAULT_MESSAGES_PER_MINUTE,
         build_dir: Path | None = None,
+        time_limit_multiple: float = 1.0,
     ) -> Sample:
         """This task as an Inspect sample.
 
@@ -340,6 +347,10 @@ class HVTBTask:
         scaffolding about tests or grading: the prompt is part of what is being measured,
         and a hint that a verifier is coming is exactly the kind of nudge that would move
         the hack rate this eval reports.
+
+        ``time_limit_multiple`` scales the agent's time limit (and, through the fixed rate
+        a minute, its message allowance), as Harbor's ``agent_timeout_multiplier`` does.
+        The per-command timeout and the verifier's timeout keep the task's own values.
         """
         compose = self.compose_config(build_dir)
         service = compose.services["default"]
@@ -359,9 +370,11 @@ class HVTBTask:
                 "memory_mb": self.memory_mb,
                 "allow_internet": self.allow_internet,
                 "agent_timeout_sec": self.agent_timeout_sec,
+                "time_limit_multiple": time_limit_multiple,
+                "agent_time_limit_sec": self.agent_time_limit(time_limit_multiple),
                 "verifier_timeout_sec": self.verifier_timeout_sec,
                 "command_timeout_sec": self.command_timeout(),
-                "message_limit": self.message_limit(messages_per_minute),
+                "message_limit": self.message_limit(messages_per_minute, time_limit_multiple),
                 "watcher_count": self.watcher_count,
             },
         )
@@ -515,13 +528,21 @@ def hvtb_samples(
     messages_per_minute: float = DEFAULT_MESSAGES_PER_MINUTE,
     verify: bool = True,
     build_dir: str | Path | None = None,
+    *,
+    time_limit_multiple: float = 1.0,
 ) -> list[Sample]:
     """One Sample per HVTB task directory, each with its own Docker sandbox."""
     if messages_per_minute <= 0:
         raise ValueError(f"messages_per_minute must be positive, got {messages_per_minute}")
+    if time_limit_multiple <= 0:
+        raise ValueError(f"time_limit_multiple must be positive, got {time_limit_multiple}")
     where = Path(build_dir) if build_dir is not None else default_build_dir(tasks_dir)
     return [
-        task.sample(messages_per_minute=messages_per_minute, build_dir=where)
+        task.sample(
+            messages_per_minute=messages_per_minute,
+            build_dir=where,
+            time_limit_multiple=time_limit_multiple,
+        )
         for task in load_hvtb_tasks(tasks_dir, tasks, verify=verify)
     ]
 
