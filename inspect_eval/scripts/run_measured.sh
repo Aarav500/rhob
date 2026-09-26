@@ -3,6 +3,9 @@
 # model over all 89 HVTB tasks, then eval-retry for samples that errored, then an
 # acceptance check and the measurement report on the final log.
 #
+# Never run for the analysis: the live pilot failed, and docs/replay-preregistration.md
+# amendment 9 records that the measured runs do not start.
+#
 #   HVTB_TASKS_DIR=/data/hv-terminal-bench-2-1 uv run bash scripts/run_measured.sh claude-opus-5
 #
 # The model runs as anthropic/<model> on the Anthropic API, with ANTHROPIC_API_KEY taken

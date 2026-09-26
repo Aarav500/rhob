@@ -106,7 +106,9 @@ is an outcome, not something known in advance, so the population check is the nu
 runs per model alone. Everything else is as above: the same analyses, detectors, baselines
 and bootstrap, and the claim of amendment 7c on the two primary detectors, pooled over the
 given models, with its 97.5% bound and seed 20260925. Without ``--measured-models`` the
-register is ``REGISTER`` and nothing above changes.
+register is ``REGISTER`` and nothing above changes. Neither input exists: the full replay
+was abandoned (amendment 8) and the measured runs did not start (amendment 9), so this
+analysis has never been applied to the data it was written for.
 
 Usage::
 

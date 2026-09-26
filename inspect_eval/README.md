@@ -330,7 +330,14 @@ The analysis, the pilot and its pass criteria were fixed before any replay ran; 
 two of its criteria on output text that changes from run to run, and amendment 7, written
 after seeing it, rewrote those two, added the Opus 5 and Opus 5.5 runs (356 runs, 70
 hacked outside the service tasks) and defined the only two detector claims. The rewritten
-criteria are judged on a fresh pilot of different runs, never on the first.
+criteria were judged on a fresh pilot of different runs, never on the first, and it failed
+criteria 2, 3 and 4: two identical replays of the same run left different files behind,
+so the full replay did not run (amendment 8). The pre-registered fallback, a live run that
+commits the container after every turn and tests a clone of it (`hvtb_hack_rate_measured`,
+in `hvtb_hack_detection/measured.py`), failed its own pilot: each commit copies the whole
+writable layer, and the commits took up to 267 s of a task's 900 s time limit
+(amendment 9). The measured runs did not start, and the detector claim of amendment 7c was
+not tested.
 
 ## Changelog
 

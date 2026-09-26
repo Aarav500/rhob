@@ -331,3 +331,76 @@ before the pilot or any other replay had run. No replay data existed when they w
    operational settings (concurrency, clone slots, snapshot bound) may be changed and the
    pilot repeated; no rule of the analysis changes. Pilot runs are not part of the data.
 
+### After the live pilot
+
+9. **2026-09-26. The live pilot fails, the measured runs do not start, and the detector
+   question ends here untested. The negative result is about the measurement (a snapshot by
+   `docker commit` costs a heavy task too much of its time), not about the detectors.
+   Written after the live pilot and the checks below; no rule above is changed.**
+
+   **What the live pilot found.** At commit `65c6a76`, all 8 samples finished without error
+   (line 1), nothing was left behind (line 4) and the end-to-end test had passed on the host
+   (line 6). Line 2 failed: 161 of 339 turns were never snapshotted, because 32 snapshots
+   were already waiting for a clone test. Line 3 was not met: it held on the 5 runs whose
+   last turn was measured, and could not be judged on the other 3, whose last turn was never
+   snapshotted. Line 5 failed in 4 runs: the commits took 267 s of `make-doom-for-mips`'
+   900 s, 63 s of `largest-eigenval`'s 900 s, 60 s of `build-cython-ext`'s 900 s and 200 s
+   of `reshard-c4-data`'s 3600 s. This is not the line-2-only failure that allows a repeat.
+
+   **Why.** Each snapshot is a `docker commit` of the whole writable layer, so its cost grows
+   with that layer. On the run host (Docker 29.1.3 with its default containerd image store)
+   a commit compresses the layer with gzip in one thread, syncs it to disk and unpacks a
+   second copy. Snapshotted layers of 0.2 to 1.9 GiB committed at 12 to 28 MiB/s, 10.5 to
+   158 s per commit; on the 27 turns that waited, the model call beside the commit took 2 to
+   19 s (median 9).
+
+   **What was checked before this was recorded.** None of these checks ran a model. A
+   benchmark committed containers filled with real files from one task image
+   (`make-doom-for-mips`): one at a time at 250, 1200 and 2000 MiB, and together at 2000,
+   1200, 250 and 250 MiB with four near-empty layers, committing at once. That is lighter
+   than the pilot's mix, which also held `fix-ocaml-gc`'s 0.7 GiB layer, committing beside
+   the 1.9 and 1.1 GiB layers. A predictor charged every pilot turn, the unsnapshotted ones
+   included, the benchmarked commit time beyond that turn's own recorded model call.
+
+   The check's rules were stated before any full-size benchmark number was seen: stop if any
+   run's lowest prediction exceeds 5% of its time limit; the benchmark must reproduce the
+   pilot's own waits within 30%, or the verdict is gray; and commits using at least 0.8
+   CPU-seconds per second while writing under 60 MB/s count as CPU-bound, in which case the
+   volume is not changed. A first benchmark, filled with random bytes, failed that
+   calibration, predicted a stop and fell short of the CPU-bound test (0.60 to 0.75
+   CPU-seconds per second). After it, and before the numbers of the two benchmarks below were
+   seen, the filler was replaced by real files (random data compresses faster than real
+   layers), the calibration was restated as a factor of 0.77 to 1.3 on the benchmark's
+   commit times for every run that waited at least 50 s, the predictor's handling of calls
+   cut by a limit and of time-limited runs was corrected, and a screen for the classic store
+   (stop if any run's lowest prediction exceeds 5%) was added. The stop rule never changed.
+   - On the default store a layer of 250 to 2000 MiB committed alone used 0.88 to 0.92
+     CPU-seconds per second and wrote about 9 MiB/s. That is CPU-bound, so a faster volume
+     could at best bring the pilot's commits down to about the benchmark's times, and the
+     volume was not changed. The benchmark failed its calibration: the factor was 1.16 to
+     1.64, and above 1.3 on `largest-eigenval` (1.31), `fix-ocaml-gc` (1.61) and
+     `reshard-c4-data` (1.64), so by that rule this store's verdict is gray. Every miss is
+     on the optimistic side (the benchmark commits faster than the pilot did), and
+     uncalibrated it still predicts that with every turn snapshotted, `make-doom-for-mips`
+     would lose at least 48% of its time budget.
+   - Docker's classic `overlay2` store does not compress on commit. There the benchmark
+     committed 1.2 GiB in 19 to 24 s, against 47 to 51 s on the default store, but still
+     predicts that `make-doom-for-mips` would lose at least 16.8% of its budget (19.8% with
+     the layers committing at once). That benchmark cannot be checked against the pilot,
+     which ran on the other store, and it errs optimistic (its commits are not synced to
+     disk).
+
+   Ending here is therefore a judgment, not a rule's outcome alone: the calibration left the
+   default store gray, and the stop rests on the direction of that miss (real commits were
+   slower than benchmarked, so the predictions understate the cost) and on the classic
+   store's screen.
+
+   **What follows.** The measured runs do not start. Amendment 7c's claim is defined on runs
+   that were never measured (the full replay's 356, or amendment 8's 267 measured runs), so
+   it is not tested; the pilots' few per-turn streams are not part of the data. A snapshot
+   whose cost does not grow with the layer (for example an incremental copy of the files
+   each turn changed) could make the design feasible; that would be a new pre-registration,
+   not an amendment of this one. The live pilot's 8 runs, the benchmark data, the
+   predictor's output and the scripts are archived together outside this repository, with
+   the pilot's logs. The archived benchmark script is the one the classic-store run used;
+   the real-file run on the default store differed only in listing images without `-a`.
