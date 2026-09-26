@@ -164,3 +164,8 @@ before the pilot or any other replay had run. No replay data existed when they w
      sandbox time: every register run's recorded time to scoring, plus, for every register
      turn, the pilot's mean time per mode-C turn for the probe, the commit, the clone start
      and the tests. Without a budget, or without the register logs, it fails.
+6. **The budget for criterion 6**, fixed on 2026-09-26 before the pilot started (only the
+   Docker end-to-end tests on a synthetic two-turn recording had run): 150 sequential
+   sandbox-hours for the full replay of the 178 register runs, as the report measures it.
+   At 8 concurrent samples on one 32-vCPU host that is about 19 hours of wall-clock time,
+   or roughly $30 of compute. The research estimate before any replay was 68 to 108 hours.
