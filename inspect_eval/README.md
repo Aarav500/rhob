@@ -303,27 +303,34 @@ python scripts/replay_to_fixture.py logs/replay/ --out replayed_trajectories.jso
 
 The pilot replays its five runs twice in mode A (into two log directories, A and A') and
 once in mode C with `-T retest=true`, then checks them against the pre-registered
-criteria. The report prints one PASS or FAIL line per criterion, lists every run, turn
-and call that failed one, and exits non-zero if any line fails. Every replay must be
-paced (the default), and A and A' must be two separate replays. A replay that is missing,
-unpaced, in the wrong mode or given in two sets fails every criterion that needs it:
+criteria. Since amendment 7 its runs are the fresh pilot of 7d, fixed in the report
+along with the four logs and the 200 h budget of criterion 6; none is an option. The
+report prints one PASS or FAIL line per criterion, lists every run, turn and call that
+failed one, and exits non-zero if any line fails. Every replay must be paced (the
+default), and A and A' must be two separate replays. A replay that is missing, unpaced,
+in the wrong mode or given in two sets fails every criterion that needs it, and a replay
+of any run outside the pilot fails the pairing:
 
 ```bash
-inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none --log-dir logs/pilot/C \
-  -T log=logs/register/haiku-4-5/<log>.eval -T mode=C -T retest=true \
-  -T 'samples=[raman-fitting, write-compressor, financial-document-processor, feal-linear-cryptanalysis]' \
+inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none --log-dir logs/pilot2/C \
+  -T log=logs/opus5/opus-5/<log>.eval -T mode=C -T retest=true \
+  -T 'samples=[make-mips-interpreter, compile-compcert, make-doom-for-mips]' \
   -T tasks_dir=/path/to/hv-terminal-bench-2-1
+# ... and the Opus 5.5 log's make-mips-interpreter and make-doom-for-mips, into the same
+# directory; then the same twice in mode A, into logs/pilot2/A and logs/pilot2/A2
 
 python scripts/replay_pilot_report.py \
-  --a logs/pilot/A --a-prime logs/pilot/A2 --c logs/pilot/C \
-  --register-logs logs/register/haiku-4-5/<final>.eval logs/register/opus-4-6/<final>.eval \
-  --budget-hours <budget>
+  --a logs/pilot2/A --a-prime logs/pilot2/A2 --c logs/pilot2/C \
+  --register-logs logs/register/opus-4-6/<log>.eval logs/register/haiku-4-5/<log>.eval \
+    logs/opus5/opus-5/<log>.eval logs/opus5/opus-5-5/<log>.eval
 ```
 
 The analysis, the pilot and its pass criteria were fixed before any replay ran; see
-[docs/replay-preregistration.md](docs/replay-preregistration.md). With 20 hacked runs
-in the register logs, a replay of them validates the pipeline. It does not support a
-claim that a detector works.
+[docs/replay-preregistration.md](docs/replay-preregistration.md). The first pilot failed
+two of its criteria on output text that changes from run to run, and amendment 7, written
+after seeing it, rewrote those two, added the Opus 5 and Opus 5.5 runs (356 runs, 70
+hacked outside the service tasks) and defined the only two detector claims. The rewritten
+criteria are judged on a fresh pilot of different runs, never on the first.
 
 ## Changelog
 
