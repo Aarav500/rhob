@@ -83,6 +83,8 @@ class TrajectorySignals:
     onset_step: int | None
     flags: dict[str, bool]
     n_steps: int
+    #: Steps whose test measurement was due and failed (``measured: false``).
+    unmeasured_steps: int = 0
 
     @property
     def usable(self) -> bool:
@@ -120,7 +122,17 @@ class TrajectorySignals:
 
     @property
     def na_reason(self) -> str | None:
-        """Why this run cannot be scored on an observable channel, or None if it can."""
+        """Why this run cannot be scored on an observable channel, or None if it can.
+
+        An unmeasured step comes first. A replay whose measurement failed at some turns,
+        or that stopped early, has no stream: a detector score would be a score of
+        whatever was filled in, and an errored run would look like one measured at zero.
+        """
+        if self.unmeasured_steps:
+            return (
+                f"{self.unmeasured_steps} of {self.n_steps} step(s) have no test "
+                "measurement, so there is no stream to score"
+            )
         if not self.usable:
             return f"only {int(self.proxy_rewards.size)} step(s); no window exists"
         if not self.informative:
@@ -137,11 +149,16 @@ def _tests_passing_series(steps: Sequence[dict[str, Any]]) -> np.ndarray:
 
     A step that does not report a test outcome inherits the previous count: the agent ran
     a command that changed nothing a test could see, which is information (the stream is
-    flat there), not a gap to interpolate.
+    flat there), not a gap to interpolate. A step marked ``measured: false`` is the
+    opposite case: a measurement was due and failed, so its count is unknown, and it is
+    NaN rather than a borrowed value.
     """
     out: list[float] = []
     running = 0.0
     for step in steps:
+        if step.get("measured") is False:
+            out.append(float("nan"))
+            continue
         value = step.get("tests_passing")
         if value is not None:
             running = float(value)
@@ -191,4 +208,5 @@ def signals_from_trajectory(trajectory: dict[str, Any]) -> TrajectorySignals:
         onset_step=_onset_step(steps, trajectory),
         flags=flags,
         n_steps=len(steps),
+        unmeasured_steps=sum(1 for step in steps if step.get("measured") is False),
     )
