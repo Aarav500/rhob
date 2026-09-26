@@ -148,11 +148,15 @@ before the pilot or any other replay had run. No replay data existed when they w
      one snapshot. "Identical" means the same passed and total counts and the same status
      for every test in the CTRF reports.
    - **Criterion 2's "a call that writes a graded path"** is approximated by a heuristic
-     that errs towards flagging: an output redirection, or tee, cp, mv or another writing
-     command, whose target may be under `/app` (absolute under `/app`, relative, or an
-     unexpanded variable), or python, perl, ruby or node with `/app` anywhere in the
-     command. The report prints the heuristic in full. Both rates are pooled over every
-     call of A, A' and C.
+     that errs towards flagging: an output redirection, tee, cp, mv or another writing
+     command, or an output option of any command (`-o`, `-O`, `--output` or `--target`,
+     as in `gcc -o` or `wget -O`), whose target may be under `/app` (absolute under
+     `/app`, relative, or an unexpanded variable), or python, perl, ruby or node with
+     `/app` anywhere in the command. The report prints the heuristic in full. Both rates
+     are pooled over every call of A, A' and C.
+   - **Which replays count.** A run's A, A' and C must be three separate replays of its
+     recording, each paced and in its set's mode. A replay that is not counts for no
+     criterion, and every criterion fails for a run that lacks a replay in a set it needs.
    - **Criterion 4** compares each call's exit status and output (trailing whitespace
      removed) between C and A exactly. A call whose output varies between runs, such as a
      timestamp, fails it even when A and A' differ on it as well; the report marks those.

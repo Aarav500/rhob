@@ -236,15 +236,22 @@ LISTING_CAP = 5000
 #
 # Does the probe perturb the container? It writes nothing. find, stat, sha256sum, sort,
 # tee, head, wc and cat only read; the output goes down docker exec's pipe; and sort is
-# given /proc as its temporary directory, where no file can be created, so a listing too
-# big for sort's memory fails the probe instead of spilling to /tmp. PATH is pinned to the
-# system directories, so a tool the agent installed under /usr/local cannot stand in for
-# these. It does leave traces a write-free process can leave: each read updates the file's
-# atime (at most once a day under relatime), which is accepted, and fires IN_ACCESS and
-# IN_OPEN on the file, which only a process watching that file would see; while it runs
-# it takes CPU and page cache inside the container's limits, as background jobs do, in the
-# gap before the next turn. Both modes run it at the same point, so it cannot make C
-# differ from A. It runs as the replayed calls do, as the container's default user.
+# given /proc as its temporary directory, where no file can be created, so a listing that
+# outgrows sort's buffer fails the probe instead of spilling to /tmp. Reading a pipe, GNU
+# sort sizes that buffer from a fixed guess at the input's size, not from the memory it
+# has, and outgrows it at about 70,000 files. So the buffer is set: ``-S 256M``, which
+# coreutils 8.32 to 9.4 use as given for a pipe, and ``--parallel=1``, which keeps sort's
+# overhead at 48 bytes a line whatever the host's CPU count. A listing line is its path
+# plus 67 bytes, so the probe holds about 1.7 million files with 40-byte paths and about a
+# million with 150-byte ones, and fails above that; sort touches only the part of the
+# buffer the listing fills. PATH is pinned to the system directories, so a tool the agent
+# installed under /usr/local cannot stand in for these. It does leave traces a write-free
+# process can leave: each read updates the file's atime (at most once a day under
+# relatime), which is accepted, and fires IN_ACCESS and IN_OPEN on the file, which only a
+# process watching that file would see; while it runs it takes CPU and page cache inside
+# the container's limits, as background jobs do, in the gap before the next turn. Both
+# modes run it at the same point, so it cannot make C differ from A. It runs as the
+# replayed calls do, as the container's default user.
 #
 # Output: a ``#root <dir>`` line per directory hashed; then the first <cap> lines of the
 # listing sorted by path, each ``<sha256>  <path>`` as ``sha256sum -t`` prints it (a name
@@ -277,7 +284,8 @@ hash_files() {
 }
 exec 4>&1
 summary=$(
-  { { { hash_files | sort -t ' ' -k 3 -T /proc | tee /dev/fd/5 /dev/fd/6 | sha256sum \
+  { { { hash_files | sort -S 256M --parallel=1 -t ' ' -k 3 -T /proc \
+        | tee /dev/fd/5 /dev/fd/6 | sha256sum \
         | { read -r sum _; echo "#digest $sum"; } >&7
       } 5>&1 | { head -n "$cap" >&4; cat >/dev/null; }
     } 6>&1 | wc -l | { read -r lines; echo "#count $lines"; } >&7

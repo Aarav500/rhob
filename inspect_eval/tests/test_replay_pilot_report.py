@@ -176,7 +176,9 @@ def _replay(recording: RecordedRun, set_name: str) -> Any:
         reward=recording.reward,
         error=None,
         mode=report.SETS[set_name],
+        pacing=True,
         retest=measuring,
+        identity=f"{set_name} {recording.model}/{recording.task}",
     )
 
 
@@ -223,26 +225,93 @@ def test_a_pilot_that_meets_every_criterion_passes_every_line() -> None:
 
 
 # ----------------------------------------------------------- one failure each
-def test_a_run_missing_from_a_set_fails_the_pairing_and_is_not_dropped() -> None:
+#: The lines that need a replay in each set: 1 and 2 need all three, 3 needs A and A',
+#: 4 needs A and C, and 5, 6 and the last-clone check need C.
+NEEDS = {
+    "A": {"pairing", "1", "2", "3", "4"},
+    "A'": {"pairing", "1", "2", "3"},
+    "C": {"pairing", "1", "2", "4", "5", "6", "final_tests_agree"},
+}
+
+
+@pytest.mark.parametrize("set_name", list(report.SETS))
+def test_a_run_missing_from_a_set_fails_every_line_that_needs_it(set_name: str) -> None:
     replays = _pilot()
-    del replays[_find(replays, "A'")]
+    del replays[_find(replays, set_name)]
     verdicts = _verdicts(replays)
-    assert _failed(verdicts) == {"pairing", "3"}
-    assert any("has no replay in A'" in line for line in verdicts["pairing"].details)
-    assert any("no A and A' pair" in line for line in verdicts["3"].details)
+    assert _failed(verdicts) == NEEDS[set_name]
+    run = f"{MODELS['haiku-4-5']}/write-compressor"
+    assert f"{run} has no replay in {set_name}" in verdicts["pairing"].details
+    for name in NEEDS[set_name] - {"pairing"}:
+        missing = f"{run}: no admitted replay in {set_name} (see the pairing)"
+        assert missing in verdicts[name].details, name
 
 
-def test_a_missing_pre_registered_run_or_a_wrong_mode_fails_the_pairing() -> None:
+def test_a_missing_pre_registered_run_fails_every_line() -> None:
     replays = [r for r in _pilot() if r.recording.task != "feal-linear-cryptanalysis"]
     verdicts = _verdicts(replays)
-    assert _failed(verdicts) == {"pairing"}
-    assert any(
-        "feal-linear-cryptanalysis was not replayed" in d for d in verdicts["pairing"].details
-    )
+    assert _failed(verdicts) == set(verdicts)
+    for verdict in verdicts.values():
+        assert (
+            "the pre-registered run haiku-4-5 feal-linear-cryptanalysis was not replayed"
+            in verdict.details
+        ), verdict.name
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        ({"mode": "C"}, "ran in mode C, not A"),
+        ({"pacing": False}, "was not paced (pacing False)"),
+        ({"pacing": None}, "was not paced (pacing None)"),
+    ],
+)
+def test_a_replay_in_the_wrong_mode_or_unpaced_counts_for_no_criterion(
+    change: dict[str, Any], reason: str
+) -> None:
     replays = _pilot()
     at = _find(replays, "A'")
-    replays[at] = dataclasses.replace(replays[at], mode="C")
-    assert _failed(_verdicts(replays)) == {"pairing"}
+    replays[at] = dataclasses.replace(replays[at], **change)
+    verdicts = _verdicts(replays)
+    assert _failed(verdicts) == NEEDS["A'"]
+    assert f"{replays[at].label} {reason}" in verdicts["pairing"].details
+    assert any("no admitted replay in A'" in line for line in verdicts["3"].details)
+
+
+def test_one_replay_given_as_both_a_and_a_prime_counts_as_neither() -> None:
+    """Otherwise criterion 3 would compare a replay with itself, and pass."""
+    replays = _pilot()
+    a, again = _find(replays, "A"), _find(replays, "A'")
+    replays[again] = dataclasses.replace(replays[again], identity=replays[a].identity)
+    verdicts = _verdicts(replays)
+    assert _failed(verdicts) == NEEDS["A"] | NEEDS["A'"]
+    details = verdicts["pairing"].details
+    assert f"{replays[a].label} is the same replay as the one given in A'" in details
+    assert f"{replays[again].label} is the same replay as the one given in A" in details
+    assert any("no admitted replay in A, A'" in line for line in verdicts["3"].details)
+
+
+def test_replays_of_different_recordings_of_one_run_count_for_no_criterion() -> None:
+    replays = _pilot()
+    at = _find(replays, "C")
+    other = replays[at].recording.model_copy(update={"reward": 0.0})
+    replays[at] = dataclasses.replace(replays[at], recording=other)
+    verdicts = _verdicts(replays)
+    assert _failed(verdicts) == set(verdicts)
+    run = f"{MODELS['haiku-4-5']}/write-compressor"
+    assert f"{run}: its replays in A, A', C replay different recordings" in (
+        verdicts["pairing"].details
+    )
+
+
+def test_a_run_replayed_twice_in_one_set_counts_for_no_criterion_there() -> None:
+    replays = _pilot()
+    at = _find(replays, "C")
+    replays.append(dataclasses.replace(replays[at], identity="another C replay"))
+    verdicts = _verdicts(replays)
+    assert _failed(verdicts) == NEEDS["C"]
+    run = f"{MODELS['haiku-4-5']}/write-compressor"
+    assert f"C {run} was replayed 2 times" in verdicts["pairing"].details
 
 
 def test_a_replay_that_changes_the_reward_fails_criterion_1() -> None:
@@ -443,8 +512,30 @@ def test_a_replay_that_errored_fails_criterion_1_and_everything_that_needs_its_t
         ("find . -name '*.o' | xargs rm", True),
         ("for f in *.txt; do cp $f /tmp/; done", True),  # $f could be anything
         ("timeout 10s cp a.txt /app/b.txt", True),
+        # A wrapper option's value is not the command.
+        ("sudo -u root cp a /app/b", True),
+        ("timeout -s KILL 10 cp a /app/b", True),
+        ("timeout --kill-after 5 60 mv a /app/b", True),
+        ("ls *.txt | xargs -I {} cp {} /app/out/", True),
+        ("env -u PYTHONPATH tee /app/log.txt", True),
+        # An output option's value, for any command (the write-compressor pilot run's).
+        ("cd /app && gcc -o decomp decomp.c", True),
+        ("cd /app && rustc -O main.rs -o main_compress 2>&1 | head -20", True),
+        ("wget -q -O /app/data.bin https://example.com/x", True),
+        ("curl -sSLo /app/x https://example.com/x", True),
+        ("curl -L -O https://example.com/x.tgz", True),  # the remote name, in the WORKDIR
+        ("python3 convert.py \\\n  --output_path /app/out.json", True),
+        ("sort data.txt --output=/app/sorted.txt", True),
+        ("time -o /app/timing.txt ls", True),
         ("bash -c 'echo x > data.txt'", True),
         ("python3 -c \"open('/app/x', 'w').write('1')\"", True),
+        ("gcc -O2 -o /tmp/t /tmp/t.c", False),
+        ("wget -qO - https://example.com/x | head", False),
+        ("find /app -name '*.c' -o -name '*.h'", False),
+        ("grep -o 'atg[acgt]*' /app/sequences.fasta", False),
+        ("timeout 5 ssh -o StrictHostKeyChecking=no -p 2222 root@localhost id", False),
+        ("set -euo pipefail; ls /app", False),
+        ("sudo -u root cat /app/x", False),
         ("ls -la /app", False),
         ("cat /app/data.txt 2>/dev/null", False),
         ("grep -r foo /app > /dev/null", False),
@@ -477,7 +568,7 @@ def _log(tmp_path: Path, name: str, samples: list[EvalSample]) -> Path:
 def _replay_sample(replay: Any, sample_id: int) -> EvalSample:
     record = {
         "mode": replay.mode,
-        "pacing": True,
+        "pacing": replay.pacing,
         "retest": replay.retest,
         "turns": [turn.model_dump() for turn in replay.turns],
     }
@@ -496,18 +587,26 @@ def _replay_sample(replay: Any, sample_id: int) -> EvalSample:
     )
 
 
+def _pilot_logs(tmp_path: Path) -> dict[str, Path]:
+    """The pilot's three sets, a log each, written as Inspect writes them."""
+    replays = _pilot()
+    return {
+        set_name: _log(
+            tmp_path,
+            f"set-{n}",
+            [
+                _replay_sample(replay, i)
+                for i, replay in enumerate(r for r in replays if r.set_name == set_name)
+            ],
+        )
+        for n, set_name in enumerate(report.SETS)
+    }
+
+
 def test_the_script_reads_the_three_sets_and_the_register_logs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    replays = [r for r in _pilot() if r.recording.task == "raman-fitting"]
-    logs = {
-        set_name: _log(
-            tmp_path,
-            f"set-{i}",
-            [_replay_sample(r, i) for i, r in enumerate(replays) if r.set_name == set_name],
-        )
-        for i, set_name in enumerate(report.SETS)
-    }
+    logs = _pilot_logs(tmp_path)
     register = _log(tmp_path, "register", [_synthetic_sample()])
     status = report.main(
         [
@@ -525,15 +624,36 @@ def test_the_script_reads_the_three_sets_and_the_register_logs(
     )
     out = capsys.readouterr().out
     assert status == 1
-    assert "PASS  pairing" not in out, "three of the five pre-registered runs are missing"
-    assert "the pre-registered run haiku-4-5 write-compressor was not replayed" in out
-    for name in ("1", "2", "3", "4", "5", "final_tests_agree"):
+    for name in ("pairing", "1", "2", "3", "4", "5", "final_tests_agree"):
         assert f"PASS  {name}:" in out, out
     # One register run of five turns, not 178.
     assert "register: 1 runs, 5 turns" in out
     assert f"{SCORING_AT / 3600:.1f} h of recorded time" in out
     assert "FAIL  6:" in out
-    assert "6 of 8 lines pass; failed: pairing, 6" in out
+    assert "7 of 8 lines pass; failed: 6" in out
+
+
+def test_the_script_admits_no_log_given_as_both_mode_a_sets(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    logs = _pilot_logs(tmp_path)
+    status = report.main(
+        ["--a", str(logs["A"]), "--a-prime", str(logs["A"]), "--c", str(logs["C"])]
+    )
+    out = capsys.readouterr().out
+    assert status == 1
+    assert f"A {MODELS['opus-4-6']}/raman-fitting is the same replay as the one given in A'" in out
+    for name in ("pairing", "1", "2", "3", "4"):
+        assert f"FAIL  {name}:" in out, out
+    assert "PASS  5:" in out
+
+
+def test_a_replay_is_identified_by_its_uuid_or_else_by_its_eval_id_and_epoch() -> None:
+    replay = next(r for r in _pilot() if r.set_name == "A")
+    sample = _replay_sample(replay, 3)
+    assert report.replay_of(sample, "A", "a.eval", "EVAL").identity == "EVAL/3/1"
+    sample = sample.model_copy(update={"uuid": "Q9u5QmRyr3Zb8kcvQh3nXo"})
+    assert report.replay_of(sample, "A", "a.eval", "EVAL").identity == "Q9u5QmRyr3Zb8kcvQh3nXo"
 
 
 def test_an_unfinished_replay_log_fails_the_pairing(tmp_path: Path) -> None:
