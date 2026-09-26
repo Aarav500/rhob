@@ -285,8 +285,12 @@ output), and after every turn the replay records which watcher sentinels exist. 
 sentinels are only used to check fidelity. A clone has the container's files but none of
 its processes, so the 10 tasks whose tests talk to a server or VM the agent started
 cannot be measured this way; they are replayed, marked, and reported apart. A turn whose
-measurement failed is written as unmeasured, never filled in. The replay needs a Docker
-host and no cloud account.
+measurement failed is written as unmeasured, never filled in. After every turn, in both
+modes, a read-only probe also hashes every file under `/app` (and under the WORKDIR when
+that is elsewhere), never entering `/app/admin`, whose files the watchers watch; like the
+sentinels, the digest is a fidelity check. With `-T retest=true` (mode C only), the first,
+middle and last turns are measured twice, in two clones of the same snapshot. The replay
+needs a Docker host and no cloud account.
 
 ```bash
 inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none \
@@ -295,6 +299,23 @@ inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none \
 
 # mode-C replay logs -> a trajectory file for the detector scorer, plus a fidelity report
 python scripts/replay_to_fixture.py logs/replay/ --out replayed_trajectories.json
+```
+
+The pilot replays its five runs twice in mode A (into two log directories, A and A') and
+once in mode C with `-T retest=true`, then checks them against the pre-registered
+criteria. The report prints one PASS or FAIL line per criterion, lists every run, turn
+and call that failed one, and exits non-zero if any line fails:
+
+```bash
+inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none --log-dir logs/pilot/C \
+  -T log=logs/register/haiku-4-5/<log>.eval -T mode=C -T retest=true \
+  -T 'samples=[raman-fitting, write-compressor, financial-document-processor, feal-linear-cryptanalysis]' \
+  -T tasks_dir=/path/to/hv-terminal-bench-2-1
+
+python scripts/replay_pilot_report.py \
+  --a logs/pilot/A --a-prime logs/pilot/A2 --c logs/pilot/C \
+  --register-logs logs/register/haiku-4-5/<final>.eval logs/register/opus-4-6/<final>.eval \
+  --budget-hours <budget>
 ```
 
 The analysis, the pilot and its pass criteria were fixed before any replay ran; see

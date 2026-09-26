@@ -127,3 +127,36 @@ before the pilot or any other replay had run. No replay data existed when they w
      takes the same grace.
    - After the last turn, the replay waits until the recorded start of scoring, so the
      verifier sees background jobs run on for as long as they did.
+5. **2026-09-25: how the pilot's criteria are measured.** When this was written, only the
+   Docker end-to-end tests of the replay had run (a synthetic 2-turn recording). No pilot
+   replay and no replay of a register run existed. The workspace probe and the retest
+   described here were added after those tests ran, and have not yet run in a container.
+   - **Criterion 3's "graded paths"** are every regular file under `/app` except
+     `/app/admin`, plus every regular file under the image's WORKDIR when that is outside
+     `/app`, leaving out `__pycache__` directories and `*.pyc` files. The WORKDIR is `/app`
+     or below it in 88 of the 89 tasks, and `/workspace` in `prove-plus-comm`. This is
+     stricter than the graded paths alone: any file the agent's commands leave under
+     `/app` counts, whether or not a test reads it. `/app/admin` is left out because every
+     watched file is under it, and reading one would set the label. Each file is hashed
+     with sha256, except a file larger than 200 MiB or with more than one hard link, which
+     is recorded by its size and mtime without being read (a hard link could be a watched
+     file). That mtime is when the file was written, so such a file that a replay writes
+     itself differs between A and A'. The digest is taken after every turn in both modes,
+     before any test measurement, and criterion 4 compares C with A on it too.
+   - **Criterion 5** is measured at three turns of each mode-C replay, the first, the
+     middle and the last, not at every turn. There the tests run twice, in two clones of
+     one snapshot. "Identical" means the same passed and total counts and the same status
+     for every test in the CTRF reports.
+   - **Criterion 2's "a call that writes a graded path"** is approximated by a heuristic
+     that errs towards flagging: an output redirection, or tee, cp, mv or another writing
+     command, whose target may be under `/app` (absolute under `/app`, relative, or an
+     unexpanded variable), or python, perl, ruby or node with `/app` anywhere in the
+     command. The report prints the heuristic in full. Both rates are pooled over every
+     call of A, A' and C.
+   - **Criterion 4** compares each call's exit status and output (trailing whitespace
+     removed) between C and A exactly. A call whose output varies between runs, such as a
+     timestamp, fails it even when A and A' differ on it as well; the report marks those.
+   - **Criterion 6** is judged against the budget given to the report as sequential
+     sandbox time: every register run's recorded time to scoring, plus, for every register
+     turn, the pilot's mean time per mode-C turn for the probe, the commit, the clone start
+     and the tests. Without a budget, or without the register logs, it fails.
