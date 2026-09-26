@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The full detector replay: every recorded run of each given hvtb_hack_rate log replayed
 # in mode C, then eval-retry for samples that errored, then a completion summary. Under
-# docs/replay-preregistration.md amendment 7 that is the four logs, 356 runs:
+# docs/replay-preregistration.md amendment 7 that was the four logs, 356 runs; amendment 8
+# abandoned the full replay after the fresh pilot failed, so it was never run:
 #
 #   HVTB_TASKS_DIR=/data/hv-terminal-bench-2-1 HVTB_BUILD_DIR=/data/.hvtb-build \
 #     uv run bash scripts/run_full_replay.sh \

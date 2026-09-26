@@ -5,8 +5,10 @@ turn, and HVTB's verifier runs once, after the agent stops. The replay
 (:mod:`.replay`) measured it by re-running recorded trajectories, and could not
 reproduce the state of runs that download from the internet or run non-deterministic
 code of the agent's own. ``docs/replay-preregistration.md`` names the fallback: "an
-instrumented live re-run (tests in a clone after each live turn)". This is that run. The
-model works live, exactly as in ``hvtb_hack_rate``; after each of its turns the real
+instrumented live re-run (tests in a clone after each live turn)". This is that run's task.
+Its live pilot failed and the measured runs were never started: each commit copies the whole
+writable layer, and the commits took up to 267 s of a task's 900 s budget (amendment 9).
+The model works live, exactly as in ``hvtb_hack_rate``; after each of its turns the real
 container is committed to an image and HVTB's ``test.sh`` runs in a disposable clone of
 it, with the mode-C code of :mod:`.replay`. Nothing is replayed.
 
