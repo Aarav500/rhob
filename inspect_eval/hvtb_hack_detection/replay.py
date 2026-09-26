@@ -453,6 +453,23 @@ class ReplayedTurn(_Record):
     retest: CloneMeasurement | None = None
 
 
+# `inspect eval hvtb_hack_detection/replay.py@hvtb_replay` loads this file by path, under a
+# module name that is not in sys.modules while it executes, so pydantic cannot resolve the
+# string annotations (`from __future__ import annotations`) from the module and leaves the
+# models that nest another record half-built. Rebuilding here resolves them against this
+# module's namespace, however the file was loaded.
+for _model in (
+    RecordedCall,
+    RecordedTurn,
+    RecordedRun,
+    CloneMeasurement,
+    WorkspaceDigest,
+    ReplayedCall,
+    ReplayedTurn,
+):
+    _model.model_rebuild(_types_namespace=globals())
+
+
 # ------------------------------------------------------------ the recorded run
 def call_status(*, executed: bool, cut: bool, error: str | None, exit_code: int | None) -> str:
     """One comparable word for how a call ended, recorded or replayed."""

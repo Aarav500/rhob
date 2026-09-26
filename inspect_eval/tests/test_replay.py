@@ -350,6 +350,25 @@ def test_recorded_runs_survive_a_round_trip_through_a_log_file(tmp_path: Path) -
         read_recorded_runs(str(path), ["other-task"])
 
 
+def test_the_records_build_when_the_module_is_loaded_by_path() -> None:
+    """`inspect eval .../replay.py@hvtb_replay` loads the file by path, not as a package module.
+
+    The module then runs under a name that is not in sys.modules, and without an explicit
+    rebuild pydantic left every record that nests another one unusable.
+    """
+    import hvtb_hack_detection.replay as package_module
+
+    spec = importlib.util.spec_from_file_location("replay_loaded_by_path", package_module.__file__)
+    assert spec is not None
+    assert spec.loader is not None
+    by_path = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(by_path)
+
+    call = by_path.RecordedCall(**_recorded("out").model_dump())
+    turn = by_path.RecordedTurn(index=0, start_sec=0.0, calls=[call])
+    assert turn.calls[0].output == "out"
+
+
 # ------------------------------------------------------------ output fidelity
 def _recorded(output: str, **changes: Any) -> RecordedCall:
     fields: dict[str, Any] = {
