@@ -148,7 +148,6 @@ import uuid
 from collections import Counter
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -566,28 +565,35 @@ def measurement_queue(
 
 
 # ------------------------------------------------------------------------- the turns
-@dataclass
 class _Turn:
-    """One turn's snapshot and measurement while they are under way."""
+    """One turn's snapshot and measurement while they are under way.
 
-    turn: int
-    call_ids: list[str]
-    during_agent: bool
-    #: Set once the commit has finished, failed, been cancelled or been skipped.
-    snapshot_done: anyio.Event = field(default_factory=anyio.Event)
-    #: Set once the measurement and its cleanup have finished.
-    done: anyio.Event = field(default_factory=anyio.Event)
-    #: The measurement's own scope, so a measurement still pending can be cancelled.
-    scope: anyio.CancelScope = field(default_factory=anyio.CancelScope)
-    at_sec: float | None = None
-    snapshot_sec: float | None = None
-    agent_wait_sec: float = 0.0
-    layer_bytes: int | None = None
-    queue_wait_sec: float | None = None
-    tests: dict[str, Any] = field(default_factory=dict)
-    error: str | None = None
-    #: Why it is unmeasured, when that is decided outside the measurement.
-    reason: str | None = None
+    A plain class, not a dataclass: `inspect eval hvtb_hack_detection/measured.py@...` runs
+    this file without registering it in sys.modules, and ``@dataclass`` looks the module up
+    there to read the string annotations.
+    """
+
+    def __init__(
+        self, turn: int, call_ids: list[str], during_agent: bool, reason: str | None = None
+    ) -> None:
+        self.turn = turn
+        self.call_ids = call_ids
+        self.during_agent = during_agent
+        #: Set once the commit has finished, failed, been cancelled or been skipped.
+        self.snapshot_done = anyio.Event()
+        #: Set once the measurement and its cleanup have finished.
+        self.done = anyio.Event()
+        #: The measurement's own scope, so a measurement still pending can be cancelled.
+        self.scope = anyio.CancelScope()
+        self.at_sec: float | None = None
+        self.snapshot_sec: float | None = None
+        self.agent_wait_sec = 0.0
+        self.layer_bytes: int | None = None
+        self.queue_wait_sec: float | None = None
+        self.tests: dict[str, Any] = {}
+        self.error: str | None = None
+        #: Why it is unmeasured, when that is decided outside the measurement.
+        self.reason = reason
 
     def record(self) -> TurnMeasurement:
         passing = self.tests.get("tests_passing")

@@ -1240,6 +1240,26 @@ def test_the_measured_task_is_hvtb_hack_rate_with_its_own_solver_scorer_and_vers
     assert [registry_unqualified_name(s) for s in t.scorer or []] == [MEASURED_SCORER]
 
 
+def test_the_module_loads_by_path_as_inspect_eval_loads_it() -> None:
+    """`inspect eval hvtb_hack_detection/measured.py@...` executes the file by path.
+
+    Inspect's loader never registers the module in sys.modules, so nothing the module runs
+    while it loads may look it up there, as ``@dataclass`` does to read string annotations.
+    """
+    from inspect_ai._util.module import load_module
+
+    by_path = load_module(Path(measured.__file__))
+    assert by_path is not None
+    assert by_path.__name__ not in sys.modules
+
+    async def a_record() -> Any:
+        return by_path._Turn(turn=0, call_ids=["c"], during_agent=False).record()
+
+    record = anyio.run(a_record)
+    assert (record.turn, record.call_ids, record.measured) == (0, ["c"], False)
+    assert record.reason == "not finished"
+
+
 # -------------------------------------------------------------------- the converter
 def _script(name: str, module_name: str | None = None) -> Any:
     """A script of ``scripts/``, loaded by path; registered when its dataclasses need it."""
