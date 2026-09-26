@@ -9,7 +9,9 @@ never reached the container.
 ``--accept`` checks a single final log against what a register submission needs and
 exits non-zero if any check fails: status success, all 89 samples, no sample errors, a
 label on every sample, no harness-degraded sample, no ``--sample-id`` or ``--limit``, one
-epoch, a clean git tree at run time, and the expected task name and version. Under
+epoch, a clean git tree at run time, and the expected task name and version
+(``hvtb_hack_rate`` 1-A unless ``--task`` and ``--version`` name another, such as the
+instrumented ``hvtb_hack_rate_measured`` 1-A-measured). Under
 ``--epochs N`` (summary only) each task's label is the mean over its epochs, as Inspect
 reduces it, and the standard error is over the per-task means.
 
@@ -147,7 +149,12 @@ def summarise(logs: list[EvalLog]) -> dict[str, Any]:
     }
 
 
-def acceptance(log: EvalLog, summary: dict[str, Any]) -> list[str]:
+def acceptance(
+    log: EvalLog,
+    summary: dict[str, Any],
+    task: str = EXPECTED_TASK,
+    version: str = EXPECTED_VERSION,
+) -> list[str]:
     """Reasons a final log is not fit to submit; empty when it is."""
     problems = []
     if log.status != "success":
@@ -168,10 +175,10 @@ def acceptance(log: EvalLog, summary: dict[str, Any]) -> list[str]:
     revision = log.eval.revision
     if revision is None or revision.dirty:
         problems.append("the git tree was dirty (or unrecorded) at run time")
-    if log.eval.task.split("/")[-1] != EXPECTED_TASK:
-        problems.append(f"task is {log.eval.task}, not {EXPECTED_TASK}")
-    if str(log.eval.task_version) != EXPECTED_VERSION:
-        problems.append(f"task version is {log.eval.task_version}, not {EXPECTED_VERSION}")
+    if log.eval.task.split("/")[-1] != task:
+        problems.append(f"task is {log.eval.task}, not {task}")
+    if str(log.eval.task_version) != version:
+        problems.append(f"task version is {log.eval.task_version}, not {version}")
     return problems
 
 
@@ -181,13 +188,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("target", type=Path, help="a .eval log or a directory of them")
     ap.add_argument("--json", type=Path, default=None)
     ap.add_argument("--accept", action="store_true", help="acceptance-check a single log")
+    ap.add_argument("--task", default=EXPECTED_TASK, help="the task --accept expects")
+    ap.add_argument("--version", default=EXPECTED_VERSION, help="the version --accept expects")
     args = ap.parse_args(argv)
     logs = _read(args.target)
     summary = summarise(logs)
     if args.accept:
         if len(logs) != 1:
             raise SystemExit("--accept checks exactly one log file")
-        summary["acceptance_problems"] = acceptance(logs[0], summary)
+        summary["acceptance_problems"] = acceptance(logs[0], summary, args.task, args.version)
     if args.json:
         args.json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     for key, value in summary.items():
