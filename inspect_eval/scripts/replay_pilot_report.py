@@ -6,8 +6,10 @@ recorded runs, each replayed twice in mode A (A and A') and once in mode C with
 may be spread over several ``.eval`` files, one per source model for example), pairs the
 replays of each recorded run by (model, task), and prints PASS or FAIL for:
 
-- the pairing: every run replayed exactly once in each set, in the right mode, the five
-  pre-registered runs among them, and every log a finished replay;
+- the pairing: every run replayed exactly once in each set, in the set's mode and paced
+  (each turn at its recorded offset), as three separate replays (A' is not A's log given
+  again) of one recording; the five pre-registered runs among them; and every log a
+  finished replay;
 - 1. every replay reproduces its recorded reward and watcher flags, cuts again every call
   the time limit cut, and times out again every call that timed out (the 600 s timeouts);
 - 2. at least 95% of calls match their recorded exit status and 90% their recorded
@@ -21,10 +23,12 @@ replays of each recorded run by (model, task), and prints PASS or FAIL for:
 - and the amendment's check that each mode-C replay's last clone agrees with its
   verifier (service tasks and ``fix-code-vulnerability`` excepted).
 
-Every failing run, turn or call is listed under its line. No run is dropped: one missing
-from a set fails the pairing and every criterion that needs it, and one whose replay
-errored fails criterion 1 and every criterion that needs its turns. The exit status is 1
-if any line fails.
+Every failing run, turn or call is listed under its line. No run is dropped. A replay the
+pairing does not admit counts for no criterion, and each criterion fails for every run,
+pre-registered or replayed, that has no admitted replay in a set it needs: 1 and 2 need
+all three, 3 needs A and A', 4 needs A and C, and 5, 6 and the last-clone check need C.
+A run whose replay errored fails criterion 1 and every criterion that needs its turns.
+The exit status is 1 if any line fails.
 
 Criterion 6 needs ``--register-logs`` (the two register logs, for the recorded turn
 counts and durations) and ``--budget-hours`` (the budget fixed before the full run);
@@ -99,11 +103,16 @@ WRITES_HEURISTIC = (
     "(>, >>, &>, N>) to a path that may be under /app, or runs tee, cp, mv, install, rsync, "
     "ln, touch, mkdir, rm, rmdir, truncate, patch, unzip, tar, chmod or chown, sed -i or "
     "perl -i, or dd of=, with such a path (or behind xargs, whose paths are unknown), or "
-    "runs python, perl, ruby or node with /app anywhere in the command. A path may be "
-    "under /app if it is /app or below it, relative (the replayed calls start in the "
-    "task's WORKDIR, which is /app or below it for 88 of the 89 tasks) or starts with an "
-    "unexpanded variable other than $HOME or $TMPDIR. Commands inside bash -c or sh -c "
-    "are read too. Over-inclusive by design: a mismatch on any call it flags fails the "
+    "gives any command such a path as the value of -o or -O (alone, or last in a cluster "
+    "such as -sSLo) or of --output or --target in any of their forms (gcc -o, wget -O, "
+    "curl -o, --output_path), except grep, ps, ls, ssh, sshpass, a shell or set, whose -o "
+    "names no file, or runs python, perl, ruby or node with /app anywhere in the command. "
+    "A path may be under /app if it is /app or below it, relative (the replayed calls start "
+    "in the task's WORKDIR, which is /app or below it for 88 of the 89 tasks) or starts "
+    "with an unexpanded variable other than $HOME or $TMPDIR. The command is read behind "
+    "sudo, env, exec, nohup, time, nice, timeout and xargs, their options and those "
+    "options' values (sudo -u root, timeout -s KILL 10, xargs -I {}), and inside bash -c "
+    "or sh -c. Over-inclusive by design: a mismatch on any call it flags fails the "
     "criterion."
 )
 
@@ -136,8 +145,37 @@ WRAPPERS = frozenset(
     {"sudo", "env", "command", "exec", "nohup", "time", "nice", "timeout", "xargs"}
     | {"do", "then", "else", "elif", "if", "while", "until", "!", "{"}
 )
+#: Wrapper options whose value is the next word, which is then not the command.
+WRAPPER_VALUE_OPTIONS: dict[str, frozenset[str]] = {
+    "sudo": frozenset(
+        {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "--user", "--group", "--chdir"}
+    ),
+    "env": frozenset({"-u", "-C", "--unset", "--chdir"}),
+    "exec": frozenset({"-a"}),
+    "time": frozenset({"-f", "-o", "--format", "--output"}),
+    "nice": frozenset({"-n", "--adjustment"}),
+    "timeout": frozenset({"-s", "-k", "--signal", "--kill-after"}),
+    "xargs": frozenset(
+        {"-I", "-n", "-L", "-P", "-s", "-d", "-E", "-a"}
+        | {"--max-args", "--max-lines", "--max-procs", "--max-chars", "--delimiter"}
+        | {"--arg-file"}
+    ),
+}
+
+#: Commands whose -o names no file: grep's only-matching, ps's format, ls's long listing,
+#: ssh's ``-o Option=value`` (sshpass passing it on), and a shell's ``-o pipefail``.
+NO_OUTPUT_OPTION = frozenset(
+    {"grep", "egrep", "fgrep", "zgrep", "rg", "ps", "ls", "ssh", "scp", "sftp", "sshpass"}
+    | SHELLS
+    | {"set"}
+)
 
 _REDIRECT = re.compile(r"(?:\d*|&)>>?\|?[ \t]*(?!&)([^\s;|&<>()]+)")
+#: An option whose value, the next word, names a file the command writes: -o or -O, alone
+#: or last in a cluster of short options (-sSLo, -qO); or --output or --target, or a longer
+#: form of either (--output-document, --target-directory), whose value may follow ``=``.
+_SHORT_OUTPUT = re.compile(r"-[A-Za-z]*[oO]")
+_LONG_OUTPUT = re.compile(r"--(?:output|target)[\w-]*(?:=(.*))?")
 _APP_PATH = re.compile(r"(?<![\w./-])/app(?![\w.-])")
 _SEGMENT_BREAK = re.compile(r"&&|\|\||[;|&\n()`]|\$\(")
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
@@ -158,9 +196,13 @@ class Replay:
     flags: dict[str, bool] | None
     reward: float | None
     error: str | None
-    #: The mode the replay ran in, and whether it retested.
+    #: The mode the replay ran in, whether it was paced, and whether it retested.
     mode: str | None
+    pacing: bool | None
     retest: bool
+    #: What tells one replayed sample from another: its uuid, or where Inspect gave it
+    #: none, its eval's id with its own id and epoch. The same log read twice has the same.
+    identity: str
 
     @property
     def key(self) -> tuple[str, str]:
@@ -203,11 +245,56 @@ class Verdict:
         return "\n".join([head, *(f"      {line}" for line in self.details)])
 
 
-def replay_of(sample: EvalSample, set_name: str, source: str) -> Replay:
+def _is_run(fragment: str, task: str, key: tuple[str, str]) -> bool:
+    """Whether a run's (model, task) is the pre-registered run (model fragment, task)."""
+    return fragment in key[0] and task == key[1]
+
+
+@dataclass(frozen=True)
+class Pilot:
+    """What the criteria judge: each run's admissible replays by set, and the runs expected.
+
+    ``pair_replays`` admits a replay (see its docstring) or reports why not. A criterion
+    judges the admitted replays of the sets it needs, and fails for every run, expected or
+    replayed, that has no admitted replay in one of them.
+    """
+
+    pairs: dict[tuple[str, str], dict[str, Replay]]
+    expected: Sequence[tuple[str, str]] = PILOT_RUNS
+
+    def replays(self, *set_names: str) -> list[Replay]:
+        """The admitted replays of the named sets (all three if none is named), run by run."""
+        names = set_names or tuple(SETS)
+        return [
+            held[name] for _, held in sorted(self.pairs.items()) for name in names if name in held
+        ]
+
+    def missing(self, *needs: str) -> list[str]:
+        """A line for each run with no admitted replay in one of the sets ``needs`` names."""
+        lines = [
+            f"the pre-registered run {fragment} {task} was not replayed"
+            for fragment, task in self.expected
+            if not any(_is_run(fragment, task, key) for key in self.pairs)
+        ]
+        for (model, task), held in sorted(self.pairs.items()):
+            if absent := [name for name in needs if name not in held]:
+                lines.append(
+                    f"{model}/{task}: no admitted replay in {', '.join(absent)} (see the pairing)"
+                )
+        return lines
+
+
+def replay_of(sample: EvalSample, set_name: str, source: str, eval_id: str) -> Replay:
     """A sample of a replay log, as a replay of its set.
 
     The turns come from the score, or, for a sample never scored, from the metadata,
     where the solver keeps every turn it finished.
+
+    Args:
+        sample: The sample.
+        set_name: The set its log was given in.
+        source: The log's file name.
+        eval_id: The log's eval id, which identifies the sample if it has no uuid.
 
     Raises:
         SystemExit: If the sample is not a replay.
@@ -230,7 +317,9 @@ def replay_of(sample: EvalSample, set_name: str, source: str) -> Replay:
         reward=scored.get("reward") if scored else None,
         error=error,
         mode=record.get("mode"),
+        pacing=record.get("pacing"),
         retest=bool(record.get("retest")),
+        identity=sample.uuid or f"{eval_id}/{sample.id}/{sample.epoch}",
     )
 
 
@@ -260,7 +349,9 @@ def read_replays(set_name: str, targets: Sequence[Path]) -> tuple[list[Replay], 
                 f"{set_name}: {path.name} is not a finished replay (status {log.status}, "
                 f"{len(samples)} of {planned if planned is not None else '?'} samples)"
             )
-        replays.extend(replay_of(sample, set_name, path.name) for sample in samples)
+        replays.extend(
+            replay_of(sample, set_name, path.name, log.eval.eval_id) for sample in samples
+        )
     return replays, problems
 
 
@@ -304,18 +395,44 @@ def _words(segment: str) -> list[str]:
         return segment.split()
 
 
+def _output_targets(words: list[str]) -> list[str]:
+    """The files a command's output options name (``_SHORT_OUTPUT``, ``_LONG_OUTPUT``).
+
+    A next word that is itself an option (find's ``-o -name``) or ``-`` (standard output,
+    as in ``wget -qO -``) names no file.
+    """
+    targets: list[str] = []
+    for word, following in zip(words, [*words[1:], ""]):
+        long = _LONG_OUTPUT.fullmatch(word)
+        if long is not None and long[1] is not None:
+            targets.append(long[1])
+        elif (long is not None or _SHORT_OUTPUT.fullmatch(word)) and not following.startswith("-"):
+            targets.append(following)
+    return [target for target in targets if target]
+
+
 def _command_writes(words: list[str]) -> bool:
     """Whether one simple command may write under /app, by its verb and arguments."""
     behind_xargs = False
+    options: list[str] = []  # the wrappers' own, for time -o
     while words and (_ASSIGNMENT.match(words[0]) or words[0] in WRAPPERS):
-        behind_xargs = behind_xargs or words[0] == "xargs"
-        words = words[1:]
-        # A wrapper's own options and numbers (timeout 10s, nice -n 5, env -i, xargs -n1).
+        wrapper, words = words[0], words[1:]
+        behind_xargs = behind_xargs or wrapper == "xargs"
+        takes_value = WRAPPER_VALUE_OPTIONS.get(wrapper, frozenset())
+        # A wrapper's own options, their values and numbers (timeout -s KILL 10s,
+        # nice -n 5, env -i, sudo -u root, xargs -I {}).
         while words and (words[0].startswith("-") or _NUMBER.fullmatch(words[0])):
-            words = words[1:]
+            taken = 2 if words[0] in takes_value else 1
+            options, words = options + words[:taken], words[taken:]
     if not words:
         return False
     verb, args = Path(words[0]).name, words[1:]
+    outputs = _output_targets(options)
+    if verb not in NO_OUTPUT_OPTION:
+        # The verb's word too: a continuation line can start with an option.
+        outputs += _output_targets(words)
+    if any(_may_be_under_app(target) for target in outputs):
+        return True
     if verb in SHELLS and "-c" in args[:-1]:
         return writes_under_app(args[args.index("-c") + 1])
     if verb in IN_PLACE_COMMANDS and not any(
@@ -359,45 +476,79 @@ def _listed(lines: list[str]) -> list[str]:
     return [*lines[:MAX_LISTED], f"... and {len(lines) - MAX_LISTED} more"]
 
 
+def _inadmissible(replay: Replay, sets_of: dict[str, set[str]]) -> list[str]:
+    """Why a run's only replay in its set is not the one the pre-registration describes."""
+    reasons = []
+    if replay.mode != SETS[replay.set_name]:
+        reasons.append(f"ran in mode {replay.mode}, not {SETS[replay.set_name]}")
+    if replay.pacing is not True:
+        # Unpaced, turns run back to back instead of at their recorded offsets.
+        reasons.append(f"was not paced (pacing {replay.pacing})")
+    if also := sorted(sets_of[replay.identity] - {replay.set_name}):
+        reasons.append(f"is the same replay as the one given in {', '.join(also)}")
+    return reasons
+
+
 def pair_replays(
     replays: Sequence[Replay],
     log_problems: Sequence[str] = (),
     expected: Sequence[tuple[str, str]] = PILOT_RUNS,
-) -> tuple[dict[tuple[str, str], dict[str, Replay]], Verdict]:
-    """The replays of each recorded run, by set; and whether the pairing is complete."""
-    pairs: dict[tuple[str, str], dict[str, Replay]] = {}
+) -> tuple[Pilot, Verdict]:
+    """The admissible replays of each recorded run, by set; and whether the pairing is complete.
+
+    A replay is admitted if it is its run's only replay in its set, ran in its set's mode
+    and paced, is not also given in another set (A' is a second replay, not A's log given
+    again), and replays the same recording as the run's other admitted replays. One that
+    is not fails the pairing, which says why, and counts for no criterion.
+    """
     problems = list(log_problems)
+    found: dict[tuple[str, str], dict[str, list[Replay]]] = {}
+    sets_of: dict[str, set[str]] = {}
     for replay in replays:
-        if replay.mode != SETS[replay.set_name]:
+        found.setdefault(replay.key, {}).setdefault(replay.set_name, []).append(replay)
+        sets_of.setdefault(replay.identity, set()).add(replay.set_name)
+    pairs: dict[tuple[str, str], dict[str, Replay]] = {}
+    for (model, task), by_set in sorted(found.items()):
+        held: dict[str, Replay] = {}
+        pairs[model, task] = held
+        if absent := [name for name in SETS if name not in by_set]:
+            problems.append(f"{model}/{task} has no replay in {', '.join(absent)}")
+        for name in SETS:
+            candidates = by_set.get(name, [])
+            if len(candidates) > 1:
+                problems.append(f"{name} {model}/{task} was replayed {len(candidates)} times")
+            elif candidates and (reasons := _inadmissible(candidates[0], sets_of)):
+                problems.append(f"{candidates[0].label} {'; '.join(reasons)}")
+            elif candidates:
+                held[name] = candidates[0]
+        recordings = [replay.recording for replay in held.values()]
+        if any(recording != recordings[0] for recording in recordings[1:]):
             problems.append(
-                f"{replay.label} ran in mode {replay.mode}, not {SETS[replay.set_name]}"
+                f"{model}/{task}: its replays in {', '.join(held)} replay different recordings"
             )
-        held = pairs.setdefault(replay.key, {})
-        if replay.set_name in held:
-            problems.append(f"{replay.label} was replayed more than once in its set")
-            continue
-        held[replay.set_name] = replay
-    for key, held in sorted(pairs.items()):
-        missing = [name for name in SETS if name not in held]
-        if missing:
-            problems.append(f"{key[0]}/{key[1]} has no replay in {', '.join(missing)}")
-    for fragment, task in expected:
-        if not any(fragment in model and task == run_task for model, run_task in pairs):
-            problems.append(f"the pre-registered run {fragment} {task} was not replayed")
+            held.clear()
     extra = [
         f"{model}/{task}"
         for model, task in sorted(pairs)
-        if not any(fragment in model and task == t for fragment, t in expected)
+        if not any(_is_run(fragment, t, (model, task)) for fragment, t in expected)
+    ]
+    problems += [
+        f"the pre-registered run {fragment} {task} was not replayed"
+        for fragment, task in expected
+        if not any(_is_run(fragment, task, key) for key in pairs)
     ]
     details = problems + ([f"beyond the pre-registered runs: {', '.join(extra)}"] if extra else [])
-    title = f"{len(pairs)} run(s), each replayed once in A, A' and C"
-    return pairs, Verdict("pairing", title, not problems, tuple(details))
+    title = (
+        f"{len(pairs)} run(s), each replayed once in A, A' and C, in the set's mode and paced, "
+        "as three separate replays of one recording"
+    )
+    return Pilot(pairs, expected), Verdict("pairing", title, not problems, tuple(details))
 
 
-def criterion_1(replays: Sequence[Replay]) -> Verdict:
-    """Reward and flags reproduced; time-limit cuts and timeouts reproduced."""
-    problems: list[str] = []
-    for replay in replays:
+def criterion_1(pilot: Pilot) -> Verdict:
+    """Reward and flags reproduced; time-limit cuts and timeouts reproduced. Needs every set."""
+    problems = pilot.missing(*SETS)
+    for replay in pilot.replays():
         if replay.error is not None:
             problems.append(f"{replay.label}: the replay errored: {replay.error[:200]}")
             continue
@@ -438,12 +589,13 @@ def _call_pairs(
             yield turn.index, call, calls.get(call.id)
 
 
-def criterion_2(replays: Sequence[Replay]) -> Verdict:
-    """Per-call exit-status and output agreement with the recording, over every replay."""
+def criterion_2(pilot: Pilot) -> Verdict:
+    """Per-call exit-status and output agreement with the recording. Needs every set."""
+    missing = pilot.missing(*SETS)
     calls = statuses = compared = outputs = 0
     mismatches: list[str] = []
     fatal = 0
-    for replay in replays:
+    for replay in pilot.replays():
         for turn, recorded, got in _call_pairs(replay):
             calls += 1
             status_ok = got is not None and got.status_match
@@ -470,6 +622,7 @@ def criterion_2(replays: Sequence[Replay]) -> Verdict:
     status_rate = statuses / calls if calls else 0.0
     output_rate = outputs / compared if compared else 0.0
     details = [
+        *missing,
         f"exit status agrees on {statuses}/{calls} calls ({status_rate:.1%}; needs "
         f"{STATUS_AGREEMENT:.0%})",
         f"output agrees on {outputs}/{compared} compared calls ({output_rate:.1%}; needs "
@@ -480,7 +633,8 @@ def criterion_2(replays: Sequence[Replay]) -> Verdict:
         *(f"  {line}" for line in mismatches),
     ]
     passed = (
-        calls > 0
+        not missing
+        and calls > 0
         and compared > 0
         and status_rate >= STATUS_AGREEMENT
         and output_rate >= OUTPUT_AGREEMENT
@@ -589,18 +743,16 @@ def _compare_digests(left: Replay, right: Replay) -> list[str]:
     return problems
 
 
-def criterion_3(pairs: dict[tuple[str, str], dict[str, Replay]]) -> Verdict:
-    """A and A' leave the same workspace after every turn."""
-    problems: list[str] = []
-    for (model, task), held in sorted(pairs.items()):
-        if "A" not in held or "A'" not in held:
-            problems.append(f"{model}/{task}: no A and A' pair to compare")
-            continue
-        problems.extend(_compare_digests(held["A"], held["A'"]))
+def criterion_3(pilot: Pilot) -> Verdict:
+    """A and A' leave the same workspace after every turn. Needs A and A'."""
+    problems = pilot.missing("A", "A'")
+    for _, held in sorted(pilot.pairs.items()):
+        if "A" in held and "A'" in held:
+            problems.extend(_compare_digests(held["A"], held["A'"]))
     return Verdict(
         "3",
         "A and A' leave identical workspace digests after every turn",
-        bool(pairs) and not problems,
+        bool(pilot.pairs) and not problems,
         tuple(problems),
     )
 
@@ -619,14 +771,16 @@ def _replayed_calls(replay: Replay | None, index: int) -> dict[str, ReplayedCall
     return {call.id: call for call in turn.calls} if turn else {}
 
 
-def criterion_4(pairs: dict[tuple[str, str], dict[str, Replay]]) -> Verdict:
-    """C matches A after every turn: call outputs, workspace digests, sentinels."""
-    problems: list[str] = []
-    for (model, task), held in sorted(pairs.items()):
+def criterion_4(pilot: Pilot) -> Verdict:
+    """C matches A after every turn: call outputs, workspace digests, sentinels. Needs A, C.
+
+    A' is not needed: it only marks a call on which A and A' differ as well.
+    """
+    problems = pilot.missing("A", "C")
+    for _, held in sorted(pilot.pairs.items()):
         a, c, again = held.get("A"), held.get("C"), held.get("A'")
         if a is None or c is None:
-            problems.append(f"{model}/{task}: no A and C pair to compare")
-            continue
+            continue  # missing() reported it
         problems.extend(_compare_digests(a, c))
         for recorded in a.recording.turns:
             ours, theirs = a.turn(recorded.index), c.turn(recorded.index)
@@ -653,7 +807,7 @@ def criterion_4(pairs: dict[tuple[str, str], dict[str, Replay]]) -> Verdict:
         "4",
         "C matches A after every turn on each call's status and output, the workspace "
         "digest and the sentinels",
-        bool(pairs) and not problems,
+        bool(pilot.pairs) and not problems,
         tuple(problems),
     )
 
@@ -662,11 +816,11 @@ def _ctrf_result(tests: CloneMeasurement) -> tuple[Any, ...]:
     return tests.passed, tests.total, tests.outcomes
 
 
-def criterion_5(replays: Sequence[Replay]) -> Verdict:
-    """Every retest pair of every mode-C replay gives identical CTRF results."""
-    problems: list[str] = []
+def criterion_5(pilot: Pilot) -> Verdict:
+    """Every retest pair of every mode-C replay gives identical CTRF results. Needs C."""
+    problems = pilot.missing("C")
     pairs_seen = 0
-    measuring = [replay for replay in replays if replay.set_name == "C"]
+    measuring = pilot.replays("C")
     for replay in measuring:
         if not replay.retest:
             problems.append(f"{replay.label}: replayed without -T retest=true")
@@ -712,11 +866,12 @@ COST_PARTS: tuple[tuple[str, Callable[[ReplayedTurn], float | None]], ...] = (
 )
 
 
-def criterion_6(
-    replays: Sequence[Replay], register: RegisterRuns | None, budget_hours: float | None
-) -> Verdict:
-    """The measured cost per mode-C turn, extrapolated to the register runs."""
-    turns = [turn for replay in replays if replay.set_name == "C" for turn in replay.turns]
+def criterion_6(pilot: Pilot, register: RegisterRuns | None, budget_hours: float | None) -> Verdict:
+    """The measured cost per mode-C turn, extrapolated to the register runs. Needs C.
+
+    The pilot's mean is over every run's mode-C turns, so a run without one fails it.
+    """
+    turns = [turn for replay in pilot.replays("C") for turn in replay.turns]
     lines: list[str] = []
     means: dict[str, float] = {}
     for part, seconds in COST_PARTS:
@@ -729,7 +884,7 @@ def criterion_6(
             f"{part:17s} median {statistics.median(values):8.1f} s/turn, total "
             f"{sum(values):9.1f} s over {len(values)} turns"
         )
-    problems: list[str] = []
+    problems = pilot.missing("C")
     if not turns:
         problems.append("no mode-C turn to measure")
     if register is None:
@@ -767,11 +922,11 @@ def criterion_6(
     )
 
 
-def final_clone_check(replays: Sequence[Replay]) -> Verdict:
-    """Amendment 2: each mode-C replay's last clone agrees with its verifier."""
-    problems: list[str] = []
+def final_clone_check(pilot: Pilot) -> Verdict:
+    """Amendment 2: each mode-C replay's last clone agrees with its verifier. Needs C."""
+    problems = pilot.missing("C")
     notes: list[str] = []
-    measuring = [replay for replay in replays if replay.set_name == "C"]
+    measuring = pilot.replays("C")
     for replay in measuring:
         run = replay.recording
         if run.task in REWARD_IGNORES_TESTS:
@@ -805,16 +960,16 @@ def evaluate(
     expected: Sequence[tuple[str, str]] = PILOT_RUNS,
 ) -> list[Verdict]:
     """Every line of the report, in order."""
-    pairs, pairing = pair_replays(replays, log_problems, expected)
+    pilot, pairing = pair_replays(replays, log_problems, expected)
     return [
         pairing,
-        criterion_1(replays),
-        criterion_2(replays),
-        criterion_3(pairs),
-        criterion_4(pairs),
-        criterion_5(replays),
-        criterion_6(replays, register, budget_hours),
-        final_clone_check(replays),
+        criterion_1(pilot),
+        criterion_2(pilot),
+        criterion_3(pilot),
+        criterion_4(pilot),
+        criterion_5(pilot),
+        criterion_6(pilot, register, budget_hours),
+        final_clone_check(pilot),
     ]
 
 

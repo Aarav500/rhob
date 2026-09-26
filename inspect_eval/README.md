@@ -304,7 +304,9 @@ python scripts/replay_to_fixture.py logs/replay/ --out replayed_trajectories.jso
 The pilot replays its five runs twice in mode A (into two log directories, A and A') and
 once in mode C with `-T retest=true`, then checks them against the pre-registered
 criteria. The report prints one PASS or FAIL line per criterion, lists every run, turn
-and call that failed one, and exits non-zero if any line fails:
+and call that failed one, and exits non-zero if any line fails. Every replay must be
+paced (the default), and A and A' must be two separate replays. A replay that is missing,
+unpaced, in the wrong mode or given in two sets fails every criterion that needs it:
 
 ```bash
 inspect eval hvtb_hack_detection/replay.py@hvtb_replay --model none --log-dir logs/pilot/C \

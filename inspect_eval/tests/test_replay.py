@@ -697,7 +697,7 @@ def test_the_probe_writes_nothing() -> None:
     assert all(re.fullmatch(r"&\d|/dev/null", target) for target in targets), targets
     assert ">>" not in WORKSPACE_PROBE
     assert "tee /dev/fd/5 /dev/fd/6 |" in WORKSPACE_PROBE
-    assert "sort -t ' ' -k 3 -T /proc" in WORKSPACE_PROBE
+    assert "sort -S 256M --parallel=1 -t ' ' -k 3 -T /proc" in WORKSPACE_PROBE
     for writer in ("mktemp", "touch", "mkfifo", " cp ", " mv ", "rm "):
         assert writer not in WORKSPACE_PROBE
 
@@ -809,6 +809,25 @@ def test_a_hard_link_is_recorded_by_stat_and_never_read(tmp_path: Path) -> None:
     [(path, value)] = digest.listing.items()
     assert path.endswith("/linked.sh")
     assert value.startswith("stat:20:")
+
+
+def test_the_probes_sort_holds_a_listing_its_default_buffer_would_spill() -> None:
+    """Reading a pipe, GNU sort guesses its buffer and spills at about 70,000 such lines.
+
+    The probe's sort has /proc as its temporary directory, where a spill fails, so it is
+    given its own buffer. Its exact command sorts 150,000 lines in the probe's format.
+    """
+    bash = _gnu_bash()
+    [sort] = re.findall(r"\| (sort [^|\\]*)", WORKSPACE_PROBE)
+    lines = [f"{_sha(str(i))}  /app/.venv/lib/site-packages/{i:07d}.py\n" for i in range(150_000)]
+    result = subprocess.run(
+        [bash, "-c", f"export LC_ALL=C; cat | {sort.strip()}"],
+        input="".join(reversed(lines)).encode(),
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()
+    assert result.stdout.decode() == "".join(lines)
 
 
 def test_the_probe_output_is_parsed_and_anything_else_refused() -> None:
