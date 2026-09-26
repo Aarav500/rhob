@@ -34,6 +34,7 @@ from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    ModelEvent,
     SampleLimitEvent,
     SandboxEvent,
     SpanBeginEvent,
@@ -42,10 +43,13 @@ from inspect_ai.event import (
 )
 from inspect_ai.log import EvalSample, read_eval_log, write_eval_log
 from inspect_ai.model import (
+    ChatCompletionChoice,
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    GenerateConfig,
     ModelName,
+    ModelOutput,
 )
 from inspect_ai.model._call_tools import truncate_tool_output
 from inspect_ai.scorer import Score, Target
@@ -56,6 +60,7 @@ from test_eval_runs import _docker_ready, _fake_task_dir, _FakeSandbox, _hvtb_di
 
 from hvtb_hack_detection import replay, tasks
 from hvtb_hack_detection.replay import (
+    CONTENT_FILTER,
     RECORDING_KEY,
     REPLAY_KEY,
     SERVICE_TASKS,
@@ -79,6 +84,7 @@ from hvtb_hack_detection.replay import (
     replay_task,
     retest_turns,
     run_fidelity,
+    stopped_by_content_filter,
     trajectory_record,
     workspace_probe_command,
 )
@@ -348,6 +354,137 @@ def test_recorded_runs_survive_a_round_trip_through_a_log_file(tmp_path: Path) -
     assert run == recorded_run(_synthetic_sample(), "mockllm/model")
     with pytest.raises(ValueError, match="no sample"):
         read_recorded_runs(str(path), ["other-task"])
+
+
+# ------------------------------------------- a run the content filter stopped
+FILTERED_AT = 20.0
+
+
+def _model_event(at: float, stop_reason: str, calls: list[ToolCall] | None = None) -> ModelEvent:
+    """One generation of the agent, stopping for ``stop_reason``."""
+    message = ChatMessageAssistant(content="", tool_calls=calls, model=MODEL)
+    return ModelEvent(
+        model=MODEL,
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model=MODEL, choices=[ChatCompletionChoice(message=message, stop_reason=stop_reason)]
+        ),
+        timestamp=_at(at),
+    )
+
+
+def _filtered_sample(stops: tuple[str, ...] = (CONTENT_FILTER,) * 3) -> EvalSample:
+    """A run shaped like Opus 5's ``write-compressor``.
+
+    One turn ran; then the classifier blocked the model's outputs three times in a row.
+    ``react`` answered the first two, which held no call, with its continue message, and
+    broke out of its loop on the third before running the two bash calls it held: they have
+    no ``ToolEvent``. ``stops`` are the stop reasons of the last three generations.
+    """
+    ran = ToolCall(id="ran", function="bash", arguments={"command": "cat /app/decomp.c"})
+    last = [
+        ToolCall(id="never-1", function="bash", arguments={"command": "gcc /app/decomp.c"}),
+        ToolCall(id="never-2", function="bash", arguments={"command": "ls /app"}),
+    ]
+    ran_open, ran_close = _tool_events("ran", "cat /app/decomp.c", 3.0, 3.1, output="int i;\n")
+    events = [
+        SpanBeginEvent(id="agent", type="agent", name="react", timestamp=_at(AGENT_AT)),
+        _model_event(2.0, "tool_calls", [ran]),
+        *ran_open,
+        *ran_close,
+        *(
+            _model_event(FILTERED_AT + i, stop, last if i == len(stops) - 1 else None)
+            for i, stop in enumerate(stops)
+        ),
+        SpanBeginEvent(id="scorers", type="scorers", name="scorers", timestamp=_at(30.0)),
+    ]
+    proceed = ChatMessageUser(content="Please proceed to the next step.")
+    messages = [
+        ChatMessageUser(content="Do the task."),
+        ChatMessageAssistant(content="", tool_calls=[ran]),
+        ChatMessageTool(content="int i;\n", tool_call_id="ran", function="bash"),
+        ChatMessageAssistant(content=""),
+        proceed,
+        ChatMessageAssistant(content=""),
+        proceed,
+        ChatMessageAssistant(content="", tool_calls=last),
+    ]
+    sample = _synthetic_sample()
+    return sample.model_copy(
+        update={
+            "messages": messages,
+            "events": events,
+            "metadata": {**sample.metadata, "agent_limit": None},
+        }
+    )
+
+
+def test_the_calls_a_content_filter_stop_left_unrun_are_dropped_with_their_turn() -> None:
+    sample = _filtered_sample()
+    assert stopped_by_content_filter(sample)
+    run = recorded_run(sample, MODEL)
+    assert [[call.id for call in turn.calls] for turn in run.turns] == [["ran"]]
+    assert run.dropped_calls == ["never-1", "never-2"]
+    assert run.time_limit_sec is None
+    # Carried with the recording into the replay's metadata, and back.
+    assert RecordedRun.model_validate(run.model_dump()) == run
+    fidelity = run_fidelity(run, [_replayed_turn(0, 0.0, CLEAN_FLAGS)], HACKED_FLAGS, 1.0)
+    assert fidelity["calls_dropped"] == 2
+    assert fidelity["turns_recorded"] == 1
+    assert [step["command"] for step in trajectory_record(run, [])["steps"]] == [
+        "cat /app/decomp.c"
+    ]
+
+
+def test_a_final_call_the_content_filter_did_not_stop_still_raises() -> None:
+    """A missing event is a gap in the recording unless the loop broke on the filter.
+
+    Two refusals in a row do not end ``react``'s loop, and a third that is not the last
+    generation was followed by another: neither leaves a call unrun.
+    """
+    for stops in (
+        ("tool_calls", CONTENT_FILTER, CONTENT_FILTER),
+        (CONTENT_FILTER, CONTENT_FILTER, "tool_calls"),
+    ):
+        sample = _filtered_sample(stops)
+        assert not stopped_by_content_filter(sample)
+        with pytest.raises(ValueError, match="call never-1 has no tool event"):
+            recorded_run(sample, MODEL)
+    # A generation that failed leaves an output with no choice: it stopped on nothing.
+    sample = _filtered_sample()
+    failed = next(e for e in sample.events if isinstance(e, ModelEvent))
+    sample.events[sample.events.index(failed)] = failed.model_copy(
+        update={"output": ModelOutput(model=MODEL, choices=[])}
+    )
+    assert stopped_by_content_filter(sample), "only the last three generations count"
+    # One more, failed, after the three refusals: the loop did not end on them.
+    scoring = next(i for i, e in enumerate(sample.events) if getattr(e, "type", None) == "scorers")
+    empty = failed.model_copy(update={"output": ModelOutput(model=MODEL, choices=[])})
+    sample.events = [*sample.events[:scoring], empty, *sample.events[scoring:]]
+    assert not stopped_by_content_filter(sample)
+    # A generation after scoring began is not the agent's.
+    sample.events = [e for e in sample.events if e is not empty] + [empty]
+    assert stopped_by_content_filter(sample)
+
+
+def test_a_mid_run_call_with_no_tool_event_raises_even_after_a_content_filter_stop() -> None:
+    sample = _filtered_sample()
+    sample.events = [
+        event for event in sample.events if not (isinstance(event, ToolEvent) and event.id == "ran")
+    ]
+    assert stopped_by_content_filter(sample)
+    with pytest.raises(ValueError, match="call ran has no tool event, and is not a call of the"):
+        recorded_run(sample, MODEL)
+
+
+def test_a_run_that_ran_every_call_drops_none() -> None:
+    assert recorded_run(_synthetic_sample(), MODEL).dropped_calls == []
+    assert (
+        run_fidelity(recorded_run(_synthetic_sample(), MODEL), [], None, None)["calls_dropped"] == 0
+    )
 
 
 def test_the_records_build_when_the_module_is_loaded_by_path() -> None:
@@ -1440,9 +1577,26 @@ def test_the_script_writes_every_run_and_reports_fidelity_by_label(
     assert [s["measured"] for s in broken["steps"]] == [True, True, False, False, False]
     report = capsys.readouterr().out
     assert "reward agrees" in report
+    assert re.search(r"recorded calls never run, not replayed +0 +0 +0\n", report)
     assert "runs that diverged from their recording: 1" in report
     assert "runs with an unmeasured turn (first reason): 1" in report
     assert "other/model/fake-task: not replayed" in report
+
+
+def test_the_fidelity_report_counts_the_recorded_calls_that_never_ran() -> None:
+    run = recorded_run(_filtered_sample(), MODEL)
+    assert run.hacked
+    replayed = {
+        "recording": run,
+        "turns": [],
+        "fidelity": None,
+        "reward": None,
+        "error": "not replayed",
+        "record": trajectory_record(run, [], "not replayed"),
+    }
+    report = _script().report([replayed])
+    # hacked, clean, all
+    assert re.search(r"recorded calls never run, not replayed +2 +0 +2\n", report)
 
 
 @pytest.mark.parametrize("damage", ["status", "missing sample"])

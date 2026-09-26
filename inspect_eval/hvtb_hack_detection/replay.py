@@ -14,6 +14,14 @@ One assistant message's ``bash`` calls. Inspect's ``bash()`` is declared
 the container has no defined state between them. The replay runs them concurrently too,
 and measures only after the whole turn.
 
+Every call is replayed, with one exception (amendment 7b): when the agent loop stopped on
+the API's content filter, the calls of the final assistant message never ran. Inspect's
+``react`` agent breaks out of its loop on the third content-filter stop in a row, before it
+executes the tool calls of that last output, so those calls have no ``ToolEvent``. They
+are left out, and named in ``RecordedRun.dropped_calls``; a turn they leave empty is left
+out too. A call without a ``ToolEvent`` anywhere else is an unexplained gap in the
+recording, and extraction refuses it.
+
 HOW A CALL IS REPLAYED
 ----------------------
 As Inspect 0.3.266's ``bash()`` ran it (``inspect_ai/tool/_tools/_execute.py``):
@@ -108,7 +116,13 @@ from typing import Any, Literal
 import anyio
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SampleLimitEvent, SandboxEvent, SpanBeginEvent, ToolEvent
+from inspect_ai.event import (
+    ModelEvent,
+    SampleLimitEvent,
+    SandboxEvent,
+    SpanBeginEvent,
+    ToolEvent,
+)
 from inspect_ai.log import EvalSample, read_eval_log, resolve_sample_attachments
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 
@@ -118,7 +132,7 @@ from inspect_ai.model._call_tools import truncate_tool_output
 from inspect_ai.scorer import Score, Scorer, Target, scorer, stderr
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import OutputLimitExceededError, collect, sandbox, subprocess
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from hvtb_hack_detection.hvtb import LOGS_DIR, SENTINELS, TESTS_DIR, hvtb_samples
 from hvtb_hack_detection.metrics import hack_rate
@@ -146,6 +160,13 @@ NOT_EXECUTED_ERRORS = ("parsing", "approval")
 #: the agent, and the scorers begin when the agent has stopped.
 AGENT_SPAN = "agent"
 SCORERS_SPAN = "scorers"
+
+#: The stop reason of a model output the API's safety classifier blocked, and how many in
+#: a row end Inspect's ``react`` loop: it counts consecutive content-filter outputs, and on
+#: the third breaks out before executing that output's tool calls
+#: (``consecutive_content_filter >= 3`` in ``inspect_ai/agent/_react.py``, 0.3.266).
+CONTENT_FILTER = "content_filter"
+CONTENT_FILTER_STOPS = 3
 
 #: The markers Inspect's tool loop puts around an output it truncated. It keeps the first
 #: and the last half of its byte budget, concatenated with no marker between them.
@@ -363,6 +384,10 @@ class RecordedRun(_Record):
     flags: dict[str, bool]
     reward: float | None
     turns: list[RecordedTurn]
+    #: The ids of the ``bash`` calls left out because they never ran: the calls of the
+    #: final assistant message of a run whose agent loop the content filter stopped (see
+    #: ``stopped_by_content_filter``). Not replayed, and in no turn.
+    dropped_calls: list[str] = Field(default_factory=list)
 
     @property
     def hacked(self) -> bool:
@@ -534,6 +559,27 @@ def _time_limit_deadline(sample: EvalSample, limit: SampleLimitEvent) -> datetim
     return _span_start(sample, AGENT_SPAN) + timedelta(seconds=float(limit.limit))
 
 
+def stopped_by_content_filter(sample: EvalSample) -> bool:
+    """Whether the agent loop ended on the content filter, leaving its last calls unrun.
+
+    ``react`` generates one output per turn of its loop, and each generation is one
+    ``ModelEvent``. It counts outputs whose stop reason is ``content_filter`` in a row, and
+    on the third breaks out of the loop before executing the tool calls that output holds.
+    So the loop ended that way exactly when the agent's last ``CONTENT_FILTER_STOPS``
+    model events, those before scoring began, all stopped on the content filter; the last
+    of them is the sample's final model event. An output with no choice, which a failed
+    generation leaves, stopped on nothing.
+    """
+    stops: list[str | None] = []
+    for event in sample.events:
+        if isinstance(event, SpanBeginEvent) and event.type == SCORERS_SPAN:
+            break
+        if isinstance(event, ModelEvent):
+            stops.append(event.output.stop_reason if event.output.choices else None)
+    last = stops[-CONTENT_FILTER_STOPS:]
+    return len(last) == CONTENT_FILTER_STOPS and all(stop == CONTENT_FILTER for stop in last)
+
+
 def _label(sample: EvalSample) -> tuple[dict[str, bool], float | None]:
     score = (sample.scores or {}).get(VERIFIER_SCORER)
     if score is None or not score.metadata or "flags" not in score.metadata:
@@ -554,8 +600,10 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
         The run's label, limits and turns.
 
     Raises:
-        ValueError: If the sample has no start time, no label, no scorers span, or a
-            call whose tool event and tool message disagree on its output.
+        ValueError: If the sample has no start time, no label, no scorers span, a call
+            whose tool event and tool message disagree on its output, or a call with no
+            tool event that is not one of the final message's calls in a run the content
+            filter stopped (those are left out, and named in ``dropped_calls``).
     """
     sample = resolve_sample_attachments(sample, "core")
     if sample.started_at is None:
@@ -581,9 +629,17 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
         None,
     )
     deadline = _time_limit_deadline(sample, limit) if limit is not None else None
+    # The one place a call may lack its ToolEvent: the final assistant message, when the
+    # content filter ended the loop before its calls ran (see stopped_by_content_filter).
+    final_message = max(
+        (i for i, m in enumerate(sample.messages) if isinstance(m, ChatMessageAssistant)),
+        default=None,
+    )
+    content_filtered = stopped_by_content_filter(sample)
 
     turns: list[RecordedTurn] = []
-    for message in sample.messages:
+    dropped: list[str] = []
+    for position, message in enumerate(sample.messages):
         if not isinstance(message, ChatMessageAssistant):
             continue
         calls: list[RecordedCall] = []
@@ -591,8 +647,14 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
             if call.function != "bash":
                 continue
             event = tool_events.get(call.id)
+            if event is None and position == final_message and content_filtered:
+                dropped.append(call.id)
+                continue
             if event is None:
-                raise ValueError(f"sample {sample.id!r}: call {call.id} has no tool event")
+                raise ValueError(
+                    f"sample {sample.id!r}: call {call.id} has no tool event, and is not a "
+                    "call of the final message of a run the content filter stopped"
+                )
             command = call.arguments.get("command")
             error = event.error.type if event.error is not None else None
             executed = isinstance(command, str) and error not in NOT_EXECUTED_ERRORS
@@ -636,6 +698,7 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
                     ),
                 )
             )
+        # A message with no bash call left, dropped calls or none, is no turn.
         if calls:
             turns.append(
                 RecordedTurn(
@@ -656,6 +719,7 @@ def recorded_run(sample: EvalSample, model: str) -> RecordedRun:
         flags=flags,
         reward=reward,
         turns=turns,
+        dropped_calls=dropped,
     )
 
 
@@ -911,6 +975,8 @@ def run_fidelity(
         "sentinels_match": None if final_sentinels is None else final_sentinels == run.flags,
         "turns_recorded": len(run.turns),
         "turns_replayed": len(turns),
+        # Recorded calls that never ran (a content-filter stop), so were not replayed.
+        "calls_dropped": len(run.dropped_calls),
         "calls": len(calls),
         "status_matches": sum(call.status_match for call in calls),
         "outputs_compared": len(compared),

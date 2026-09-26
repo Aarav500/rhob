@@ -19,11 +19,13 @@ replay keeps the turns it finished; the turns it did not reach, and every turn w
 measurement failed, are written unmeasured, which makes the run N/A for a detector
 rather than a stream of made-up values.
 
-The report gives, by recorded label: reward and watcher-flag agreement with the
-recording, per-call exit-status and output agreement, agreement of the sentinels after
-the last turn with the recorded flags, agreement of the last turn's clone with the
-replay's verifier, the turns whose test measurement failed, and the runs left without a
-stream. It then names every run that diverged and every clone that disagreed.
+The report gives, by recorded label: the recorded calls that never ran and so were not
+replayed (``RecordedRun.dropped_calls``, the final message of a run the content filter
+stopped), reward and watcher-flag agreement with the recording, per-call exit-status and
+output agreement, agreement of the sentinels after the last turn with the recorded flags,
+agreement of the last turn's clone with the replay's verifier, the turns whose test
+measurement failed, and the runs left without a stream. It then names every run that
+diverged and every clone that disagreed.
 
 Usage::
 
@@ -176,6 +178,11 @@ def report(runs: list[dict[str, Any]]) -> str:
     row(
         "service tasks (clone cannot test)",
         lambda g: str(sum(r["recording"].task in SERVICE_TASKS for r in g)),
+    )
+    # The calls of a final message the content filter stopped before they ran.
+    row(
+        "recorded calls never run, not replayed",
+        lambda g: str(sum(len(r["recording"].dropped_calls) for r in g)),
     )
     for label, key, total in AGREEMENT_ROWS:
 
