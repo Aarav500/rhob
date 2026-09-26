@@ -1202,9 +1202,31 @@ def test_a_measurement_reads_ctrf_from_a_clone_and_cleans_up(
     [create] = [args for args in fake.commands if args[1] == "create"]
     assert create[create.index("--entrypoint") + 1] == "bash", "no watcher may start"
     assert create[create.index("--memory") + 1] == "2048m"
+    labels = {create[i + 1] for i, arg in enumerate(create) if arg == "--label"}
+    clone = create[create.index("--name") + 1]
+    assert f"com.docker.compose.project={clone}" in labels, "the clone must leave the project"
+    assert "com.docker.compose.service=hvtb-clone" in labels
     assert _removed(fake) == {"rm", "rmi"}
     assert fake.staging is not None
     assert not fake.staging.exists()
+
+
+def test_a_clone_overrides_every_compose_label_its_snapshot_inherits() -> None:
+    """`docker commit` copies the live container's Compose labels into the snapshot.
+
+    A clone keeping them is a second container of the sample's service, and Compose can
+    send the agent's commands to it. Measured on the run host: a clone of a committed
+    container matched `--filter label=com.docker.compose.project=<p>` and
+    `label=com.docker.compose.service=default` alongside the live one.
+    """
+    from hvtb_hack_detection.replay import COMPOSE_LABELS, clone_label_overrides
+
+    args = clone_label_overrides("hvtb-measured-clone-abc")
+    overridden = {args[i + 1].split("=", 1)[0] for i in range(0, len(args), 2)}
+    assert args[::2] == ["--label"] * len(COMPOSE_LABELS)
+    assert overridden == set(COMPOSE_LABELS)
+    assert "com.docker.compose.project=hvtb-measured-clone-abc" in args
+    assert "com.docker.compose.service=default" not in args
 
 
 def test_the_hosts_docker_commands_take_no_subprocess_slot(
