@@ -1222,6 +1222,31 @@ async def _measure_tests(meta: dict[str, Any], repeats: int = 1) -> list[CloneMe
                 await _remove("rmi", image)
 
 
+#: The Docker Compose labels a snapshot carries over from the live container.
+COMPOSE_LABELS = (
+    "com.docker.compose.project",
+    "com.docker.compose.service",
+    "com.docker.compose.container-number",
+)
+
+
+def clone_label_overrides(clone: str) -> list[str]:
+    """``docker create`` options that take a clone out of the eval's Compose project.
+
+    ``docker commit`` copies the live container's labels into the snapshot image, and a
+    container made from that image inherits them: without these overrides a clone is a
+    second container of the sample's Compose service, and ``docker compose exec``, which
+    Inspect runs every sandbox command through, can pick it instead of the live container.
+    The agent's commands would then run in a clone that has no watchers.
+    """
+    values = {
+        "com.docker.compose.project": clone,
+        "com.docker.compose.service": "hvtb-clone",
+        "com.docker.compose.container-number": "0",
+    }
+    return [arg for label in COMPOSE_LABELS for arg in ("--label", f"{label}={values[label]}")]
+
+
 async def _test_in_clone(
     meta: dict[str, Any],
     image: str,
@@ -1253,6 +1278,7 @@ async def _test_in_clone(
                 "create",
                 "--name",
                 clone,
+                *clone_label_overrides(clone),
                 "--init",
                 "--entrypoint",
                 "bash",
