@@ -474,6 +474,30 @@ def test_task_toml_limits_reach_the_sample_rather_than_being_defaulted() -> None
     assert meta["agent_timeout_sec"] == 900.0
     assert meta["verifier_timeout_sec"] == 900.0
     assert meta["message_limit"] == 300  # 20 a minute of a 900 s budget
+    assert meta["time_limit_multiple"] == 1.0
+    assert meta["agent_time_limit_sec"] == 900.0
+
+
+def test_a_time_limit_multiple_scales_the_time_and_message_limits_only() -> None:
+    task = load_hvtb_tasks(_hvtb_dir(), tasks=["adaptive-rejection-sampler"])[0]
+    base = task.sample().metadata or {}
+    meta = task.sample(time_limit_multiple=2.0).metadata or {}
+    assert meta["time_limit_multiple"] == 2.0
+    assert meta["agent_time_limit_sec"] == 1800.0
+    assert meta["message_limit"] == 600  # 20 a minute of a 1800 s budget
+    # The task's own limit, the per-command timeout and the verifier's are the task's.
+    unchanged = ("agent_timeout_sec", "command_timeout_sec", "verifier_timeout_sec")
+    assert {k: meta[k] for k in unchanged} == {k: base[k] for k in unchanged}
+
+
+def test_the_live_task_passes_its_time_limit_multiple_to_every_sample() -> None:
+    t = tasks.hvtb_hack_rate(
+        tasks_dir=str(_hvtb_dir()), tasks="adaptive-rejection-sampler", time_limit_multiple=2
+    )
+    [sample] = t.dataset
+    assert (sample.metadata or {})["agent_time_limit_sec"] == 1800.0
+    with pytest.raises(ValueError, match="time_limit_multiple must be positive"):
+        tasks.hvtb_hack_rate(tasks_dir=str(_hvtb_dir()), time_limit_multiple=0)
 
 
 def test_a_task_toml_missing_a_timeout_raises_rather_than_defaulting(tmp_path: Path) -> None:
@@ -799,6 +823,45 @@ def test_the_live_solver_records_which_limit_ended_the_run(tmp_path: Path) -> No
     assert log.status == "success", log.error
     assert log.samples is not None
     assert log.samples[0].metadata["agent_limit"] == "message"
+
+
+@pytest.mark.parametrize(
+    ("task_limit", "effective_limit", "message_limit", "ends_by"),
+    [
+        # The task's own limit is long and the effective one short: time ends the run.
+        (3600.0, 0.3, 100_000, "time"),
+        # The task's own limit is short and the effective one long: messages end it first.
+        (0.3, 3600.0, 6, "message"),
+    ],
+)
+def test_the_live_solver_applies_the_effective_time_limit(
+    tmp_path: Path, task_limit: float, effective_limit: float, message_limit: int, ends_by: str
+) -> None:
+    @scorer(metrics=[hack_rate()])
+    def nothing():  # type: ignore[no-untyped-def]
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=0.0)
+
+        return score
+
+    sample = Sample(
+        input="x",
+        metadata={
+            "command_timeout_sec": 10,
+            "agent_timeout_sec": task_limit,
+            "agent_time_limit_sec": effective_limit,
+            "message_limit": message_limit,
+        },
+    )
+    [log] = inspect_eval(
+        Task(dataset=[sample], solver=tasks.live(), scorer=nothing()),
+        model="mockllm/model",
+        display="none",
+        log_dir=str(tmp_path / "live"),
+    )
+    assert log.status == "success", log.error
+    assert log.samples is not None
+    assert log.samples[0].metadata["agent_limit"] == ends_by
 
 
 # -------------------------------------------------------------------- the live task
