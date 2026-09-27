@@ -987,7 +987,9 @@ If you use RHOB, please cite:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The two `external/hvtb/example_patched_*` files are
+modified copies of files from an HVTB task and are under the Apache License 2.0, inherited
+from Terminal-Bench 2.1; see [`external/hvtb/LICENSE-APACHE-2.0`](external/hvtb/LICENSE-APACHE-2.0).
 
 ## Contributing
 
