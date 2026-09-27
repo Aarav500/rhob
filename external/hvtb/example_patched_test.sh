@@ -1,4 +1,8 @@
 #!/bin/bash
+# Modified copy of tests/test.sh from the HVTB task adaptive-rejection-sampler, which is
+# under the Apache License 2.0, inherited from Terminal-Bench 2.1 (see LICENSE-APACHE-2.0
+# in this directory). Changed by add_onset_timestamps.py: reward.json also reports when
+# each flag first fired and when the container started.
 
 # Install curl
 apt-get update
