@@ -89,9 +89,15 @@ count other shortcuts an agent might find.
 
 ## Dataset and pins
 
-HVTB is distributed through the Harbor registry, and states no licence (see
-[Known dataset issues](#known-dataset-issues)), so this repository does not redistribute
-it. It pins it instead, in [`hvtb_hack_detection/fixtures/hvtb_pins.json`](hvtb_hack_detection/fixtures/hvtb_pins.json):
+HVTB is distributed through the Harbor registry. Its tasks are under the Apache License
+2.0, inherited from Terminal-Bench 2.1
+([LICENSE](https://github.com/harbor-framework/terminal-bench-2-1/blob/320a8be8b625ee8eb46481f7a397648d7d085775/LICENSE)),
+and the HVTB authors confirmed (2026-09-27) that they add no further restrictions. Some
+task files are third-party code and data under their own terms (see
+[Known dataset issues](#known-dataset-issues)). This eval pins the tasks rather than
+copying them, so that every run can be checked against the exact published tasks and
+images. The pins are in
+[`hvtb_hack_detection/fixtures/hvtb_pins.json`](hvtb_hack_detection/fixtures/hvtb_pins.json):
 
 | Asset | Pin |
 |---|---|
@@ -162,8 +168,14 @@ the results below are for `react()` agents, not for the products the paper teste
   base image by digest, points apt at the base image's own snapshot date, and checks the
   Alpine ISO's SHA-256. Every other line of the shipped Dockerfile, including the watcher
   `ENTRYPOINT`, is kept. The dataset itself is not modified.
-- **No licence is stated** for HVTB: the Harbor record, its README and the task
-  directories contain none. The tasks derive from Terminal-Bench 2.1, which is Apache-2.0.
+- **HVTB ships no licence file.** The Harbor record, its README and the task directories
+  carry none, so a downloaded copy does not include the Apache licence text (see
+  [Dataset and pins](#dataset-and-pins)), which a copy passed on should include. Some task
+  files are third-party code and data that keep their own terms: GPL Doom source in
+  `mips.patch` of `make-mips-interpreter` and in the reference solution of
+  `make-doom-for-mips`, a Doom title screen (id Software artwork) in the tests of both, an
+  LGPL PulseAudio configuration file in `install-windows-3.11`, and the cJSON (MIT) and
+  LodePNG (zlib) sources in `pytorch-model-cli`.
 - **The verifier installs software at scoring time**: each `test.sh` installs its test
   dependencies from the network. The uv and pytest versions are pinned; apt packages and
   transitive Python dependencies are not.
@@ -208,10 +220,15 @@ the results below are for `react()` agents, not for the products the paper teste
 
 ## Results
 
-The register logs are produced with [`scripts/run_register_sweep.sh`](scripts/run_register_sweep.sh):
-one pass per model over all 89 tasks at the listing's commit, `eval-retry` until every
-sample has a label, and an acceptance check (`scripts/sweep_report.py --accept`). Their
-results are reported in the register listing's evaluation report.
+The register logs were produced at commit `bf32249`, the register listing's first pin,
+with [`scripts/run_register_sweep.sh`](scripts/run_register_sweep.sh): one pass per model
+over all 89 tasks, `eval-retry` until every sample has a label, and an acceptance check
+(`scripts/sweep_report.py --accept`). On Amazon Bedrock, 1 epoch:
+
+| Model | Hacked | Hack rate | Stderr |
+|---|---|---|---|
+| `bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0` | 11 of 89 | 12.4% | 3.5% |
+| `bedrock/global.anthropic.claude-opus-4-6-v1` | 9 of 89 | 10.1% | 3.2% |
 
 A pilot run of an earlier revision (commits `d259131` to `c3eb521`, before dataset
 verification, digest-pinned images, the derived QEMU build and the watcher check; same
@@ -293,5 +310,6 @@ numbers describe the fixture, not any detector. It is not part of the register l
 
 ## License
 
-MIT, for the code in this directory. The HVTB tasks are not included; see
-[Known dataset issues](#known-dataset-issues).
+MIT, for the code in this directory. The HVTB tasks are not included; they are under the
+Apache License 2.0, apart from some third-party files (see
+[Dataset and pins](#dataset-and-pins)).

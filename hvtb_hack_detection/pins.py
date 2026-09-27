@@ -1,8 +1,10 @@
 """The exact HVTB task set and images this eval runs, and how to check a copy against them.
 
-HVTB's 89 tasks are distributed through the Harbor registry, not a git host, and the
-dataset states no licence, so this repository does not redistribute them. It pins them
-instead: ``fixtures/hvtb_pins.json`` records the Harbor dataset digest, one content hash
+HVTB's 89 tasks are distributed through the Harbor registry, not a git host. They are
+under the Apache License 2.0, inherited from Terminal-Bench 2.1, apart from third-party
+files that keep their own terms (see the README). This eval pins them rather than
+copying them, so that every run can be checked against the exact published
+tasks: ``fixtures/hvtb_pins.json`` records the Harbor dataset digest, one content hash
 per task directory, and one registry digest per prebuilt image. The loader refuses a task
 directory whose content does not hash to its pin, and every sample runs its image by
 digest rather than by a tag that can be re-pushed.
