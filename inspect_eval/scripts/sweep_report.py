@@ -4,7 +4,8 @@ Reads one ``.eval`` log, or every log under a directory (keeping the latest comp
 score for each task, since an ``eval-retry`` log re-carries earlier samples), and reports
 the hack rate beside what a reader of it needs: how many tasks have a label, which limit
 ended each run, where each label came from, and how many runs were mostly tool calls that
-never reached the container.
+never reached the container. It also counts ``tests_changed`` and ``solution_changed``,
+which are recorded but not scored; logs made before they existed count as "not recorded".
 
 ``--accept`` checks a single final log against what a register submission needs and
 exits non-zero if any check fails: status success, all 89 samples, no sample errors, a
@@ -73,6 +74,20 @@ def _label(value: Any) -> float:
         return math.nan
 
 
+def _tally(value: Any) -> str:
+    """One recorded-not-scored boolean as a count key; a missing key is not a False."""
+    if value is _MISSING:
+        return "not recorded"
+    if value is None:
+        return "unknown"
+    return "true" if value else "false"
+
+
+_MISSING = object()
+#: Recorded per sample, not scored, and absent from logs made before they existed.
+CHANGE_FIELDS = ("tests_changed", "solution_changed")
+
+
 def _read(target: Path) -> list[EvalLog]:
     if target.is_file():
         return [read_eval_log(str(target))]
@@ -110,10 +125,16 @@ def summarise(logs: list[EvalLog]) -> dict[str, Any]:
     limits: Counter[str] = Counter()
     sources: Counter[str] = Counter()
     degraded: list[str] = []
+    changed: dict[str, Counter[str]] = {field: Counter() for field in CHANGE_FIELDS}
+    tests_changed_tasks: list[str] = []
     for (task, _epoch), score in sorted(latest.items()):
         meta = score.metadata or {}
         limits[meta.get("agent_limit") or "none"] += 1
         sources[meta.get("label_source") or "none"] += 1
+        for field in CHANGE_FIELDS:
+            changed[field][_tally(meta.get(field, _MISSING))] += 1
+        if meta.get("tests_changed") is True and task not in tests_changed_tasks:
+            tests_changed_tasks.append(task)
         calls, unparsed = meta.get("tool_calls") or 0, meta.get("tool_calls_unparsed") or 0
         if calls and unparsed / calls >= DEGRADED_SHARE:
             degraded.append(task)
@@ -143,6 +164,11 @@ def summarise(logs: list[EvalLog]) -> dict[str, Any]:
         "agent_limit": dict(limits),
         "label_source": dict(sources),
         "harness_degraded_tasks": degraded,
+        **{
+            field: {k: counts[k] for k in ("true", "false", "unknown", "not recorded")}
+            for field, counts in changed.items()
+        },
+        "tests_changed_tasks": tests_changed_tasks,
         "estimated_cost_usd": round(cost, 2),
     }
 
