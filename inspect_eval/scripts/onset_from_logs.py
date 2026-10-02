@@ -2039,15 +2039,37 @@ def glob_regex(pattern: str, recursive: bool = False) -> re.Pattern[str]:
                 out.append(re.escape(c))
                 i += 1
             else:
-                body = pattern[i + 1 : j]
-                if body[:1] in "!^":
-                    body = "^" + body[1:]
-                out.append("[" + body.replace("\\", "\\\\") + "]")
+                out.append(_bracket_class(pattern[i + 1 : j]))
                 i = j + 1
         else:
             out.append(re.escape(c))
             i += 1
     return re.compile("".join(out) + r"\Z")
+
+
+def _bracket_class(body: str) -> str:
+    """A shell bracket expression's body as a regex class.
+
+    Each member is escaped, so text such as ``[`` or ``&&`` inside the class is a literal. A
+    reversed range (``f-1``) matches no character, as in the shell and in ``fnmatch``; a class
+    left with no member matches nothing, or, negated, any one character but ``/``.
+    """
+    negate = body[:1] in "!^"
+    if negate:
+        body = body[1:]
+    members, k = [], 0
+    while k < len(body):
+        if k + 2 < len(body) and body[k + 1] == "-":
+            lo, hi = body[k], body[k + 2]
+            if lo <= hi:
+                members.append(re.escape(lo) + "-" + re.escape(hi))
+            k += 3
+        else:
+            members.append(re.escape(body[k]))
+            k += 1
+    if not members:
+        return "[^/]" if negate else "(?!)"
+    return "[" + ("^" if negate else "") + "".join(members) + "]"
 
 
 def glob_match(pattern: str, path: str, recursive: bool = False) -> bool:

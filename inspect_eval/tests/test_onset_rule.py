@@ -3851,3 +3851,19 @@ def test_outputs_write_every_column_and_every_section(tmp_path: Path) -> None:
     text = out_md.read_text(encoding="utf-8")
     assert "| P-claude | 0 | yes | 1 |" in text
     assert f"| P-claude | demo__1 | 0 | {TEST_PY} |" in text
+
+
+# ------------------------------------------------------- fix after the first run: glob classes
+@pytest.mark.parametrize("pattern", ["[f-1]x", "a[w-v]b", "[S-B]*", "[[x]", "[a&&b]", "[a--b]"])
+def test_a_bracket_the_shell_cannot_match_compiles_without_raising(pattern: str) -> None:
+    # Code text such as "s[f-1]" reached the glob matcher and raised re.error in the first run.
+    onset.glob_regex(pattern)
+
+
+def test_a_reversed_range_matches_nothing_and_the_rest_of_the_class_still_matches() -> None:
+    assert not onset.glob_match("[f-1]x", "fx")
+    assert not onset.glob_match("[f-1]x", "1x")
+    assert onset.glob_match("[f-1a]x", "ax")
+    assert onset.glob_match("[a-c]x", "bx")
+    assert not onset.glob_match("[!a-c]x", "bx")
+    assert onset.glob_match("[!a-c]x", "dx")
