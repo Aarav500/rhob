@@ -847,6 +847,17 @@ changed, with the values before and after. An amendment is reported as a deviati
 onset is given under the rule as written and under the rule as amended, with the rule as
 written first.
 
+### Pre-run clarifications, 2026-10-02
+
+Added before either script was run on any trial or label file.
+
+- The separate agent's list of check 4 also leaves out each entry's free-text `why`. The
+  reviewers often state the hidden kind there ("direct read of ..."), so it is removed with
+  the kind. The agent gets each entry's step, `tool_call_id` and `file_or_dir`.
+- Where this text was silent or could be read two ways, the scripts' choices are written in
+  their module docstrings. This text still decides: a choice that conflicts with it is a fix
+  under the rule above, once the first run is committed.
+
 ## Appendix A: program lists
 
 | List | Members |
