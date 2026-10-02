@@ -1,0 +1,486 @@
+{
+  "adaptive-rejection-sampler": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "bn-fit-modify": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "break-filter-js-from-html": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/filter.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "build-cython-ext": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "build-pmars": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "build-pov-ray": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/reference_illum1.png",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "caffe-cifar-10": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "cancel-async-tasks": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "chess-best-move": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "circuit-fibsqrt": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/sim.c",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "cobol-modernization": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "code-from-image": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "compile-compcert": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/negative_probe.c",
+    "/app/admin/tests/positive_probe.c",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "configure-git-webserver": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py",
+    "/app/admin/tests/verify.sh"
+  ],
+  "constraints-scheduling": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "count-dataset-tokens": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "crack-7z-hash": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "custom-memory-heap-crash": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "db-wal-recovery": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "distribution-search": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "dna-assembly": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "dna-insert": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "extract-elf": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "extract-moves-from-video": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "feal-differential-cryptanalysis": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/feal.c",
+    "/app/admin/tests/feal.h",
+    "/app/admin/tests/feal_module.c",
+    "/app/admin/tests/setup.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "feal-linear-cryptanalysis": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "filter-js-from-html": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "financial-document-processor": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "fix-code-vulnerability": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "fix-git": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "fix-ocaml-gc": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "gcode-to-text": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "git-leak-recovery": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "git-multibranch": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "gpt2-codegolf": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "headless-terminal": [
+    "/app/admin/solution/headless_terminal.py",
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "hf-model-inference": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "install-windows-3.11": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/qemu-control.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "kv-store-grpc": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "large-scale-text-editing": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/gen_large_csv.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "largest-eigenval": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "llm-inference-batching-scheduler": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/__init__.py",
+    "/app/admin/tests/cost_model_for_tests.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "log-summary-date-ranges": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "mailman": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "make-doom-for-mips": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/reference.jpg",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "make-mips-interpreter": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/reference.jpg",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "mcmc-sampling-stan": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "merge-diff-arc-agi-task": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.json",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "model-extraction-relu-logits": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "modernize-scientific-stack": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "mteb-leaderboard": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "mteb-retrieve": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "multi-source-data-merger": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "nginx-request-logging": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "openssl-selfsigned-cert": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "overfull-hbox": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/input.tex",
+    "/app/admin/tests/main.tex",
+    "/app/admin/tests/synonyms.txt",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "password-recovery": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "path-tracing": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "path-tracing-reverse": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "polyglot-c-py": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "polyglot-rust-c": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "portfolio-optimization": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/portfolio_baseline_protected.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "protein-assembly": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "prove-plus-comm": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "pypi-server": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "pytorch-model-cli": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "pytorch-model-recovery": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py",
+    "/app/admin/tests/weights_gtruth.pt"
+  ],
+  "qemu-alpine-ssh": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "qemu-startup": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "query-optimize": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/golden.sql",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "raman-fitting": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "regex-chess": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "regex-log": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "reshard-c4-data": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/files_hashes.json",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "rstan-to-pystan": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "sam-cell-seg": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/correct_output.csv",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_img.png",
+    "/app/admin/tests/test_metadata.csv",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "sanitize-git-repo": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/process.py",
+    "/app/admin/tests/ray_cluster.yaml",
+    "/app/admin/tests/rw_v2_fasttext_openhermes_vs_rw_v2_bigram_0.1_arcade100k.json",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "schemelike-metacircular-eval": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/interp.py",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "sparql-university": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py",
+    "/app/admin/tests/university_graph_test.ttl"
+  ],
+  "sqlite-db-truncate": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "sqlite-with-gcov": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "torch-pipeline-parallelism": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "torch-tensor-parallelism": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "train-fasttext": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/private_test.tar.gz",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "tune-mjcf": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/model_ref.xml",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "video-processing": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py",
+    "/app/admin/tests/test_video.mp4"
+  ],
+  "vulnerable-secret": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "winning-avg-corewars": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ],
+  "write-compressor": [
+    "/app/admin/solution/solve.sh",
+    "/app/admin/tests/original-data.txt",
+    "/app/admin/tests/original-decomp.c",
+    "/app/admin/tests/test.sh",
+    "/app/admin/tests/test_outputs.py"
+  ]
+}
