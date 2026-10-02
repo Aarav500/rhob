@@ -1,0 +1,12 @@
+You are checking whether particular tool calls in agent transcripts opened the contents of certain files.
+Work ONLY inside the folder C:/hv/c4ws. Do not open, list or search anything outside it (no other folder under C:/hv, no repository, no web). Everything you need is in that folder.
+Files in the folder:
+- DEFINITION.txt: the one definition you apply.
+- watched_files.json: for each task, the list of watched files (absolute paths inside the task container).
+- transcripts/<source>/<task>/: one agent transcript per trial. For most sources this is an agent/ folder (trajectory.json with numbered steps, each holding tool calls with ids, arguments and results; there may also be the CLI's own session files and logs under agent/). For source I2 it is messages.json: numbered messages; assistant messages hold tool_calls with ids, and tool messages carry the tool_call_id and the output.
+- lists/SHARD: your work. Each record is one list: source, task, reviewer, and ordered entries. Each entry gives order, candidate (true for the first), step, tool_call_id and file_or_dir (a path or note copied from someone else's notes; it may be imprecise).
+For each list: take the entries in order, starting with the one marked candidate. For each entry, find the tool call it points to in that trial's transcript (by tool_call_id first; if the id is missing or repeated, use the step number to pick the right one) and decide, using only DEFINITION.txt, whether that call opened the contents of at least one of the task's watched files. Look at the command or tool arguments and at the recorded output. If it did, that entry is the read for the list and you stop. If it did not, record why in one short sentence and go to the next entry. If no entry is a read, the list has no read.
+Judge each call on its own. Do not try to infer what any earlier reviewer concluded. If you cannot find the call, say so as the reason and treat it as not a read.
+Return every list of your shard, in the order given.
+
+(Each of the 16 agents got this text with SHARD replaced by its shard file name, followed by the line "Your shard: lists/shard_NN.json".)
