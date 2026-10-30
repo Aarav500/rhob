@@ -586,6 +586,52 @@ decide the *effect* — susceptibility is an explicit axis, and its 0.0 setting 
 control that makes all 20 pairs degenerate. `opponent_prompt_read`, the fourth channel,
 is not yet ported.
 
+### Outside this repository: HVTB in the Inspect Evals Register
+
+A second piece of work outside this repository is listed in the [Inspect Evals
+Register](https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/): **HVTB —
+Hack-Verifiable Terminal Bench**, an Inspect implementation of `hvtb_hack_rate` that runs an
+agent in each of 89 Terminal Bench 2.1 containers, plants the reference solution and the
+held-out tests under `/app/admin/`, and flags a hack when an `inotify` watcher fires. Nothing
+adjudicates the label: a watcher either fired or it did not. The code is on this repository's
+`inspect-eval` branch, pinned at `a2c7341`. It is not on `main`.
+
+**What is listed is HVTB's hack rate, not RHOB's detector suite.** The entry measures how often
+a model reads files it was told not to read. It says nothing about whether any detector in this
+repository can tell that it happened, and the listing publishes no results — no number from the
+leaderboard above appears on it.
+
+Who maintains what is worth stating precisely, because the repository sits in a government
+GitHub organisation and is easy to misattribute. Inspect Evals is maintained by [Generality
+Labs](https://generality.org/), a London-based nonprofit, with contributions from the [UK AI
+Security Institute](https://www.aisi.gov.uk/), [Arcadia Impact](https://www.arcadiaimpact.org/)
+and the [Vector Institute](https://vectorinstitute.ai/). Being listed is not an endorsement by
+any of them.
+
+What the listing is, in the register's own words, is a pointer: it "lists it for discoverability;
+review the upstream repo and pinned commit before running." Before merge the entry cleared
+automated checks that the named `@task` exists at the declared path, that the file imports
+`inspect_ai` and builds a `Task` with a dataset and a scorer, that the description matches the
+code, and that the pin is a full 40-character SHA — then a manual security and log-file review.
+Nothing in that process asked whether `hack_rate` measures reward hacking. The Contributor
+Guide's scoping, validity and scoring guidelines are explicitly "not mandatory for registry
+acceptance."
+
+The register also runs a daily structural lint against the pinned commit, and says in the same
+breath what it is not: "These checks describe structure and conventions, not whether the
+evaluation measures what it claims." Our row reads 21/21, and that number is less flattering
+than it looks. The mechanism is documented upstream — "The badge reads `passing/applicable`:
+warnings count as passing" — and one warning is open: the `@metric` functions `hack_rate`,
+`detection_auroc` and `score_resolution` are exercised through a real `eval()` in
+`tests/test_eval_runs.py`, but not through the shared helper the rule looks for, so the rule
+declines to count them. A 21/21 that scores its own open warning as a pass is not a quality
+grade, and this repository is the wrong place to display one as if it were.
+
+Nothing upstream ever runs the code — "Nothing from the upstream repository is installed or
+executed" — so no upstream check would notice if HVTB stopped working.
+[`.github/workflows/register_guard.yml`](.github/workflows/register_guard.yml) is what watches
+that, and whether the pinned commit is still fetchable at all.
+
 ## The 33 Families
 
 ### Families 1–6 (v3.2 Baselines)
@@ -984,4 +1030,10 @@ We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) fo
 - **Submit a detector result**: drop a submission JSON in [`submissions/`](submissions/)
   and open a PR (auto-validated by CI) -- see [submissions/README.md](submissions/README.md)
 - **GitHub**: https://github.com/Aarav500/rhob
+- **Inspect Evals Register (HVTB)**:
+  https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/ — the `hvtb_hack_rate` eval,
+  pinned at `a2c73417` on the `inspect-eval` branch. Listed for discoverability, not reviewed
+  for methodology, and publishing no results; see [Outside this repository:
+  HVTB](#outside-this-repository-hvtb-in-the-inspect-evals-register) for what was and was not
+  checked
 - **Paper**: https://arxiv.org/abs/... (coming soon)

@@ -12,6 +12,22 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Added: HVTB listed in the Inspect Evals Register
+
+Unrelated to the audit above, and recorded here because it changes what this repository
+publishes rather than what it measures. The HVTB hack-rate eval on the `inspect-eval` branch
+is listed in the [Inspect Evals
+Register](https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/), pinned at
+`a2c73417a79be65b802b2fbe62dc6fac03e9c3de`. What is listed is HVTB's hack rate, not RHOB's
+detector suite, and the listing publishes no results. The register lists for discoverability
+and does not review methodology; its structural lint "describe[s] structure and conventions,
+not whether the evaluation measures what it claims."
+
+Added `.github/workflows/register_guard.yml`, which checks daily that the pinned commit is
+still fetchable and that the register's published result still describes this entry, and
+weekly that the pinned tree still installs and passes its tests. Nothing upstream installs or
+executes the code, so no upstream check would catch a regression.
+
 ### Corrected: the L3 "oracle ceiling" was an L2 detector counted twice
 
 `PerfectFeatureOracleDetector` is a subclass of the L2 `BehavioralThresholdDetector`

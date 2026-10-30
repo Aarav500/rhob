@@ -46,6 +46,25 @@ ImageNet had ILSVRC for exactly this reason. Proposed cadence:
   around the RTS leaderboard as the shared evaluation. A short pitch draft for this is in
   [docs/WORKSHOP_PITCH.md](docs/WORKSHOP_PITCH.md).
 
+## Discoverability: the Inspect Evals Register
+
+HVTB — the Terminal Bench 2.1 hack-rate eval on this repository's `inspect-eval` branch — is
+listed in the [Inspect Evals
+Register](https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/), maintained by
+Generality Labs with contributions from the UK AI Security Institute, Arcadia Impact and the
+Vector Institute.
+
+That is a distribution channel, not a milestone, and it covers the wrong half of the project to
+count as one. What is listed measures agents' hack rates. It is not the detector suite the RTS
+leaderboard ranks, the register publishes no numbers for it, and its checks are structural —
+the Contributor Guide's scoping, validity and scoring standards are "not mandatory for registry
+acceptance."
+
+So it does not count as the first external detector submission below, and it does not move v1.5
+or v1.6. What it plausibly buys is that someone searching for reward-hacking evals in Inspect
+finds this repository without having been told about it. Whether that converts into anything is
+unknown, and a listing is not an adoption: nothing here substitutes for asking people directly.
+
 ## What would accelerate this
 
 - A citable paper (arXiv, currently blocked on an endorsement in progress).
