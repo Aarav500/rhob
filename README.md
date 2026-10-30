@@ -956,11 +956,13 @@ framing of the L0 result. Cite the current artifacts.
 If you use RHOB, please cite:
 
 ```bibtex
-@article{shah2026rhob,
+@misc{shah2026rhob,
   title={RHOB v1.0: Generalizable Reward Hacking Detection Through Matched-Proxy Benchmarking},
   author={Shah, Aarav},
-  journal={TMLR},
-  year={2026}
+  year={2026},
+  howpublished={Zenodo},
+  doi={10.5281/zenodo.22005218},
+  url={https://doi.org/10.5281/zenodo.22005218}
 }
 ```
 
