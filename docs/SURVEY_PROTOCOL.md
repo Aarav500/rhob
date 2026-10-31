@@ -222,3 +222,24 @@ agreement is at ceiling". If the inverted rate over that subset is high, the fin
 is sharper than the original and survives the obvious rebuttal. If the subset turns
 out to be near-empty, that is also a result, and it is reported as
 **"no equivalence-shaped preconditions found"** — never as a rate of zero.
+
+### What the paper itself prints, and what it does not (added 2026-10-31)
+
+Appendix F of the paper prints the frame: all 19 members, each one's count of enumerated
+preconditions, and the split of the 77 by support — 0 equivalence test, 15 difference
+test, 40 descriptive, 22 no support, the 15 difference-test claims falling in 4
+benchmarks. That is transcribed in [`audit/survey_s1_frame.json`](../audit/survey_s1_frame.json).
+It does **not** print the rows: which criterion, from which source, under which test.
+Those come from the coding sheet, which is not in this repository.
+
+So the port has a check it did not write: `rhob.audit.frame.reconcile` takes the ported
+rows and names every way they fail to reproduce Appendix F — a missing or extra row per
+benchmark, a precondition moved between kinds of support, difference-test claims spread
+over the wrong number of benchmarks, or a row for one of the three members the paper never
+audited (NINCO, MMTEB, Shifts), which would be new coding rather than a port. Run it
+before emitting worksheets. A port that does not reconcile is not the paper's survey.
+
+The paper's own reading already narrows the denominator: it reports the class-A rate as
+15/77 by claim and 4/15 by benchmark, and says the pooled 0/77 must never be quoted alone.
+The two-coder pass in §5 narrows it once more, from all preconditions to the
+equivalence-shaped ones.

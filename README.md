@@ -1,4 +1,4 @@
-# RHOB — a reward-hacking detector benchmark, and an audit of it
+# RHOB — checks that cannot fail, and the benchmark they were found in
 
 [![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -9,17 +9,80 @@
 > correction below and §8 of the paper — so the acronym is kept for URL stability only.
 > **Do not expand RHOB as "Onset Benchmark" in citations.**
 
+## What this is
+
+A benchmark's headline usually rests on a claim about its own construction: *the two
+arms are matched*, *this control is at chance*, *this split is balanced*. A check in the
+harness guards it. This repository is about one way those checks go wrong. They do not
+return a wrong number. They become **unable to fail**: under the design that ships, no
+observation they could realistically receive would make them report a negative. Such a
+check is green in CI and looks exactly like one that was earned.
+
+The paper gives the class a generating question — *what observation would have had to
+exist for this to report failure?* — splits it into five sub-classes, and gives three
+diagnostics that answer it from artifacts a benchmark already produces:
+
+- **D1, resolution.** What range could the statistic have taken? Its cheapest form is a
+  count of distinct values: an AUROC over a score vector with one distinct value cannot
+  move. Implemented as `attainable_auroc_half_range` and `is_degenerate` in
+  [`src/rhob/v3/admission_gate.py`](src/rhob/v3/admission_gate.py).
+- **D2, power.** At the design that ships, how often would the precondition catch a
+  violation of a stated size? (paper §4.2)
+- **D3, channel digest.** Did a parameter reach anything the evaluation reads, or is it
+  wired to nothing? (paper §4.3)
+
+**RHOB is the case study, not the subject.** It is 33 reward-hacking environment families
+over 123 cells with 30 detectors scored on them, audited exhaustively and replicated over
+20 draws. The audit found seven instances of the class, three of them introduced by the
+fix to an earlier one. The correction below is what that looked like from inside, and it
+is the main evidence that the diagnostics find real defects.
+
+What the benchmark does **not** show matters as much. Its hacking is scripted, not
+emergent: 28 of the 33 families run hand-written policies on both arms. Against an
+external environment it did not build, the best detector's correlation with true hack
+onset is r = 0.43, and every detector that fires on a hack also fires on its matched
+legitimate twin. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) states what the construction
+can and cannot support.
+
+### Does the class occur elsewhere?
+
+A pre-registered survey of 19 published benchmarks (paper §5 and App. F) split the answer.
+Sub-class B, a score vector with a single distinct value, **did not generalise** and is
+withdrawn as a prevalence claim: pooled 0.54%, CI [0.00%, 1.32%], against 58.3% here.
+Sub-class A, an equivalence asserted from a non-significant difference test, **did**: 15
+of the 77 enumerated preconditions (19.5%), in 4 of 15 benchmarks (26.7%).
+
+The figure that tends to get repeated, *0 of 77 preconditions are supported by an
+equivalence test*, is true and is not the finding. 62 of those 77 rest on no test at all,
+and the paper says that pooled number must never be quoted alone. The per-benchmark frame
+is transcribed in [`audit/survey_s1_frame.json`](audit/survey_s1_frame.json).
+
+### Audit another benchmark's preconditions
+
+[`rhob.audit`](src/rhob/audit/) codes each precondition of a benchmark — what it asserts,
+what test backs it, whether a failure was ever shown — and returns a verdict per row:
+`inverted` (an equivalence claim backed by a difference test, or by nothing),
+`degeneracy_unguarded`, `undemonstrated`, or `sound`. The rate it reports is inverted over
+*equivalence-shaped* preconditions only. It deliberately offers no "supported by an
+equivalence test, over all preconditions" rate, for the reason in the paragraph above.
+
+    python scripts/audit_table.py audit/rhob_self_coding.json
+    python scripts/coding_worksheet.py emit path/to/skeleton.csv --coders a,b
+
+RHOB codes itself as the calibration. Before the audit, both of its equivalence-shaped
+admission criteria come back `inverted`; after it, neither does, and four rows are still
+`undemonstrated` ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). The protocol a survey has
+to follow, fixed before any coding, is [docs/SURVEY_PROTOCOL.md](docs/SURVEY_PROTOCOL.md).
+
 ## The paper
 
 **Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three
 Diagnostics That Find Them.** Aarav Shah. Preprint, CC-BY-4.0.
 **DOI: [10.5281/zenodo.22005218](https://doi.org/10.5281/zenodo.22005218)**
 
-The benchmark in this repository is the paper's **case study**, not its subject. The
-paper's contribution is a failure class — checks that cannot return a negative verdict
-under the design the benchmark ships — three diagnostics that find them, and a
-pre-registered survey of 19 published benchmarks testing whether the class generalizes.
-It does not, in the form found here; that result is reported in §5 as a claim withdrawn.
+The Zenodo record's own metadata gives a different title and abstract (*Detecting Reward
+Hacking Without an Oracle: An Access-Level Benchmark and Its Failures*). The PDF at that
+DOI is the paper named here; cite it by this title.
 
 > ## 🔴 CORRECTION — 2026-08-12
 >
@@ -60,14 +123,21 @@ It does not, in the form found here; that result is reported in §5 as a claim w
 > `leaderboard/v5_replicated.json` carries 20 independent draws with bootstrap
 > intervals, and the figures below are drawn from it. The null SE quoted in earlier
 > revisions of this file as 0.16 was wrong; it is 0.19.
+>
+> **Update (2026-10-31):** the access-ladder and cross-family transfer tables that
+> followed this banner were removed rather than left standing beside their
+> corrections, and replaced with the corrected figures from the 20-draw board. The L0
+> and L1 subsections still quote single-draw numbers from before the leaderboard
+> rebuild, and say so where they do.
 
 
-**A method for building evaluation environments whose properties are certified and
-falsifiable — plus 33 environment families built with it, and a leaderboard of 30
-detectors scored on them.**
-
-The method is the contribution. If you take one thing from this repository, take the
-**matched pair + admission gate** pattern, not the leaderboard ranking.
+**The benchmark: matched pairs, certified by an admission gate.** Each cell mints pairs of
+a hacking run and a legitimate run whose proxy reward is meant to be indistinguishable
+while the true reward diverges, and an admission gate decides, criterion by criterion,
+whether the construction achieved that. The gate is the most reusable part of the code,
+and a working example of a check built so that it can fail: its nightly smoke screen, run
+for the first time on 2026-08-17, rejected 12 of the 13 families it screens (paper App. I).
+The leaderboard below is the least reusable part.
 
 > **Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before citing any number here.**
 > It states what RHOB measures, what it does not, and which conclusions the
@@ -353,58 +423,39 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
 
 ## Results
 
-### Access-level ladder — mean *and* max
+### Access-level ladder
 
-Generated to [`docs/figures/v5_access_summary.md`](docs/figures/v5_access_summary.md)
-by `scripts/plot_v5_results.py`. L1–L3 cover all 33 families and 123 cells per
-detector; **L0 covers 27 families**, with the ledger's six DEGENERATE families held out
-(see [L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding) below).
+The table that stood here read 0.531 → 0.621 → 0.975 → 0.983 on maxima and concluded that
+essentially all of the climb happens between L1 and L2. It does not survive. It was one
+draw; its L2 rung predates the sign of the behavioural feature ceasing to encode the
+label; its L1 rung imputed a constant on 71.5% of cells; and its maxima mixed label-fitted
+detectors with unsupervised ones. It is removed rather than left beside its corrections.
 
-| Access level | Detectors | Mean AUROC | SD **across detectors** | **Best** AUROC | Best detector |
-|---|---|---|---|---|---|
-| L0 (reward-only) | 13 | 0.4866 | 0.0250 | 0.5311 | Reward CUSUM |
-| L1 (state-visitation) | 8 | 0.5200 | 0.0387 | 0.6210 | State Divergence |
-| L2 (behavioral) | 7 | 0.7213 | 0.2052 | 0.9750 | Behavioral Threshold |
-| L3 (oracle) | 1 | 0.9830 | — | 0.9830 | True Reward Oracle |
+From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 independent
+draws, percentile bootstrap of the mean over draws, 10,000 resamples — the best
+**unsupervised** detector at each level scores:
 
-**The SD column is between-detector heterogeneity, not measurement uncertainty.** It
-describes how varied the detector suite at that level happens to be, and it grows or
-shrinks as detectors are added. Every detector contributes one number from a single
-shared draw, so these are not independent replicates. (Population SDs, ddof=0; sample
-SDs would read L0 0.0260, L1 0.0413, L2 0.2217.)
+| Access level | Best unsupervised detector, mean AUROC [95% CI] |
+|---|---|
+| L0 (reward-only) | 0.544 [0.533, 0.554] |
+| L1 (state-visitation) | 0.534 [0.515, 0.554] |
+| L2 (behavioural) | 0.587 [0.576, 0.600] |
+| L3 (oracle) | 0.975 [0.971, 0.978] |
 
-**Read the max alongside the mean.** They answer different questions. A level's mean
-is dragged down by however many weak detectors happen to have been written for it, so
-a mean-only ladder measures the *suite's composition* as much as the benchmark's
-structure. L2 is the clearest case: mean 0.7213 over 7 detectors, max 0.9750. The max
-is the statistic that speaks to *"is the signal present at this access level?"*.
+All three sub-oracle rungs sit within 0.09 of chance, and the L1−L0 step is −0.010
+[−0.028, +0.008], which includes zero. Five of the 30 detectors expose `fit()` and are
+cross-validated on the hacking/legitimate labels: Reward MLP, State Coverage Rate, State
+Divergence, Trajectory MLP and Visitation Entropy Trend. Counting them moves the same step
+to +0.394 [+0.384, +0.403]. A per-level maximum over both kinds reports whichever question
+produced the larger number, so the two must be read separately.
 
-On maxima the ladder is **0.531 → 0.621 → 0.975 → 0.983**: essentially all of the
-climb happens between L1 and L2, and **nothing happens between L2 and L3**.
-
-#### There is no oracle gap above L2
-
-The best-L2 vs best-L3 difference is **0.9750 vs 0.9830 — a gap of 0.0080 AUROC**.
-
-Earlier versions of this README reported an L3 rung of 0.99 against an L2 rung of
-0.76 and presented the ladder as a monotone access hierarchy. That L3 figure was
-inflated by a duplicate. `PerfectFeatureOracleDetector` is a subclass of the L2
-`BehavioralThresholdDetector` overriding only `access_level` and `name`; it inherits
-`classify` and `detect_onset` verbatim, reads only `behav_trace` (which L2 already
-exposes), and never touches `true_rewards` — the one channel L3 adds. In the
-committed leaderboard it agrees with Behavioral Threshold on **33 of 33 families**,
-both at 0.9750 overall. The old "L3, n=2, mean 0.9790" was the average of one oracle
-and one copy of an L2 baseline; it never measured anything.
-
-Nothing was deleted. Perfect Feature Oracle keeps its row and its reported label
-(artifacts, paper tables and the Space key off them), is registered as a duplicate in
-`rhob.detectors.redundancy`, and is held out of **every** access-level aggregate — it
-is not re-filed under L2 either, because that would just move the double-count there
-and lift L2's mean to 0.7530 for no new information. **A duplicate belongs to no
-level's aggregate.** Describe it as a labelled cross-check, never as an independent
-detector or an oracle.
-
-**30 detectors ship in the leaderboard; 29 are independent measurements.**
+The L3 oracle reads `true_rewards`, the one channel the other levels never see. It is a
+ceiling, not an access level a deployed detector could have. Perfect Feature Oracle, which
+earlier versions of this file counted as a second L3 detector, is a subclass of the L2
+Behavioral Threshold detector that overrides only `access_level` and `name` and never
+reads `true_rewards`; it agrees with its parent on all 33 families. It keeps its row,
+labelled as a duplicate in `rhob.detectors.redundancy`, and belongs to no level's
+aggregate.
 
 ### L0 at chance is a negative control, not a finding
 
@@ -493,7 +544,10 @@ strong detector down to 0.621 and the suite mean to 0.520. The previously report
 the cells.
 
 The correct statement: **on the 8 families that emit state-visitation data, the best
-L1 detector reaches 0.927; the other 7 remain near chance (0.489–0.549).** Every L1
+L1 detector reaches 0.927; the other 7 remain near chance (0.489–0.549).**
+State Divergence is one of the five label-fitted detectors, so that 0.927 answers "is
+the difference learnable from labelled examples?", not "does a fixed statistic
+separate the variants?". Over 20 draws, the best unsupervised L1 detector scores 0.534. Every L1
 figure must be quoted with its denominator (8 families / 35 cells) because it is
 **not** comparable to the 33-family denominators used at L0 and L2.
 
@@ -511,37 +565,17 @@ indistinguishable from the 25 families where nothing was measured at all.
 
 ### Cross-family transfer (RTS)
 
-Train on 6 families, evaluate frozen on 8 held-out families.
-`leaderboard/cross_family_transfer.json`, `n_seeds_train=10`, `n_seeds_test=20`,
-`n_trials=5`.
+The table that stood here reported a held-out transfer AUROC of **0.994** for the L2
+ensemble. That is the headline the correction at the top retracts. Each family's
+behavioural feature was required to be anti-symmetric with positive meaning hacking, so
+the sign of the observation was the label. Randomizing that sign per family takes the
+score to **0.508**, chance, and the 0.994 reproduces exactly with the randomization
+switched off. The table is removed. `leaderboard/cross_family_transfer.json` is kept as
+the record of what was measured, and is not a transfer result.
 
-| Detector | Access | Train AUROC | Transfer AUROC (RTS) |
-|---|---|---|---|
-| Reward MLP | L0 | 0.451 ± 0.015 | 0.478 ± 0.007 |
-| State Divergence | L1 | 0.520 | 0.500 |
-| Trajectory MLP | L2 | 0.879 ± 0.002 | 0.931 ± 0.026 |
-| Ensemble (Top 5) | L2 | 0.965 ± 0.001 | 0.994 ± 0.002 |
-
-**How to read these, and how not to.**
-
-- **The ± is across 5 neural-net weight initializations only.** It is *not* an
-  environment-draw replication: `n_replicates` for the environment draw is 1. Re-running
-  with different rollout seeds is not covered by that interval.
-- **State Divergence has no ±** because it is deterministic and was fit once.
-- **The held-out families are not novel mechanisms.** All 14 train+test families were
-  written by the same authors under the same construction recipe, with the same
-  `behav_trace` convention (anti-symmetric, ~0 pre-onset, opposite signs post-onset).
-  Transfer across families sharing an authored convention is a substantially weaker
-  claim than transfer to mechanisms nobody designed. **Do not read RTS as evidence
-  that these detectors generalize to reward hacking in the wild.**
-- **L0/L1 transfer at chance is the negative control again**, not a finding — the
-  matched-proxy construction guarantees it.
-- The L2 ensemble's 0.994 is *within-recipe* transfer. The honest summary is that
-  compact behavioral features carry across families built the same way, and that
-  ensembling deterministic detectors is what makes the number stable: `TrajectoryMLPDetector`
-  originally did not seed its `torch` weight init, and repeating the identical fit on
-  identical data 10 times produced held-out AUROC on one family ranging from 0.00 to
-  1.00. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+Even before that defect, the held-out families were not novel mechanisms. All 14 train and
+test families were written by one author under one construction recipe, so the most the
+design could support was transfer within a single authored convention.
 
 ### Outside this repository: HVTA
 
@@ -1003,7 +1037,7 @@ If you use RHOB, please cite:
 
 ```bibtex
 @misc{shah2026rhob,
-  title={RHOB v1.0: Generalizable Reward Hacking Detection Through Matched-Proxy Benchmarking},
+  title={Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three Diagnostics That Find Them},
   author={Shah, Aarav},
   year={2026},
   howpublished={Zenodo},
@@ -1036,4 +1070,4 @@ We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) fo
   for methodology, and publishing no results; see [Outside this repository:
   HVTB](#outside-this-repository-hvtb-in-the-inspect-evals-register) for what was and was not
   checked
-- **Paper**: https://arxiv.org/abs/... (coming soon)
+- **Paper**: [Checks That Cannot Fail](https://doi.org/10.5281/zenodo.22005218) (Zenodo preprint)
