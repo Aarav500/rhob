@@ -193,9 +193,66 @@ def test_post_audit_rhob_still_carries_undemonstrated_rows():
     assert undemonstrated == {
         "behavioral_separated",
         "true_reward_diverges",
-        "onset_localizable",
         "camping_quality",
     }
+
+
+def test_post_audit_onset_localizable_is_degenerate():
+    """The regression that motivated diagnose_constant_statistic.
+
+    onset_std is exactly 0.0 in all 50 ledger cells, so the threshold passes every cell
+    by construction. Before the measured-constant check this row came back merely
+    undemonstrated, because a threshold claim was never offered to the degeneracy check.
+    """
+    result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))
+    assert {f.criterion.criterion for f in result.degenerate} == {"onset_localizable"}
+    assert result.inverted_rate() == (0, 2), "a degenerate row must not enter the inverted rate"
+
+
+# --- The measured-constant diagnostic ------------------------------------------
+
+
+def test_threshold_claim_on_a_constant_statistic_is_degenerate():
+    row = _row(
+        claim_shape=ClaimShape.THRESHOLD,
+        test_used=StatTest.POINT_THRESHOLD,
+        observed_distinct_values=1,
+    )
+    finding = diagnose(row)
+    assert finding.verdict is Verdict.DEGENERATE
+    assert finding.is_finding
+
+
+def test_a_statistic_that_varies_is_not_degenerate():
+    row = _row(
+        claim_shape=ClaimShape.THRESHOLD,
+        test_used=StatTest.POINT_THRESHOLD,
+        observed_distinct_values=2,
+    )
+    assert diagnose(row).verdict is Verdict.NOT_APPLICABLE
+
+
+def test_unmeasured_is_not_degenerate():
+    """None means nobody ran D1. That is the usual case and must not read as a finding."""
+    row = _row(claim_shape=ClaimShape.THRESHOLD, test_used=StatTest.POINT_THRESHOLD)
+    assert row.observed_distinct_values is None
+    assert diagnose(row).verdict is Verdict.NOT_APPLICABLE
+
+
+def test_measured_constant_outranks_direction():
+    """No change of test fixes a constant, so it is reported ahead of INVERTED."""
+    row = _row(
+        claim_shape=ClaimShape.EQUIVALENCE,
+        test_used=StatTest.DIFFERENCE_TEST,
+        observed_distinct_values=1,
+    )
+    assert diagnose(row).verdict is Verdict.DEGENERATE
+
+
+def test_zero_distinct_values_is_inadmissible():
+    result = run_survey([_row(observed_distinct_values=0)])
+    assert result.n_scored == 0
+    assert "below 1" in result.skipped[0].why
 
 
 def test_the_loose_denominator_would_misreport_post_audit_rhob():

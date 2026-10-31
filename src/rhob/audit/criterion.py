@@ -127,6 +127,14 @@ class Verdict(str, Enum):
     #: Test matches the claim, and a failure is demonstrated.
     SOUND = "sound"
 
+    #: D1, measured: the criterion's own statistic took a single value across every cell
+    #: or draw of the shipped design, so its verdict is fixed by construction. Unlike
+    #: ``DEGENERACY_UNGUARDED``, which reads a missing guard off the design, this is an
+    #: observation, and it applies to every claim shape: a threshold check on a constant
+    #: passes everywhere or fails everywhere. RHOB's ``onset_localizable`` is the
+    #: instance -- ``onset_std`` is exactly 0.0 in all 50 ledger cells.
+    DEGENERATE = "degenerate"
+
     #: Test matches the claim, but nothing shows a negative verdict is reachable.
     UNDEMONSTRATED = "undemonstrated"
 
@@ -167,6 +175,11 @@ class CodedCriterion:
         resolution_guarded: For an equivalence test, whether anything checks that the
             statistic could have taken a different value. ``None`` where not
             applicable.
+        observed_distinct_values: D1, as measured rather than read off the design: how
+            many distinct values the criterion's own statistic took across every cell
+            or draw of the shipped design (``cannotfail resolution`` computes it).
+            ``1`` means the verdict is fixed by construction. ``None`` means nobody
+            measured it, which is the usual case and is not a finding.
         coder: Identifier of the person who coded the row.
         notes: Free text. Required when the coding is not obvious from the source.
     """
@@ -178,6 +191,7 @@ class CodedCriterion:
     test_used: StatTest
     failure_demonstrated: FailureEvidence = FailureEvidence.NONE
     resolution_guarded: bool | None = None
+    observed_distinct_values: int | None = None
     coder: str = ""
     notes: str = ""
 
@@ -193,6 +207,11 @@ class CodedCriterion:
             return False, "no source: the row cannot be checked against the benchmark"
         if not self.coder.strip():
             return False, "no coder: the judgement has no author"
+        if self.observed_distinct_values is not None and self.observed_distinct_values < 1:
+            return False, (
+                "observed_distinct_values below 1: a statistic that was measured took at "
+                "least one value"
+            )
         # The degeneracy question is only answerable where an equivalence test was
         # actually run: a tied statistic can only over-certify a test that reads an
         # interval. Requiring it of every equivalence-shaped row would skip precisely
@@ -231,6 +250,7 @@ class CriterionFinding:
     def is_finding(self) -> bool:
         """Whether this says something adverse about the criterion."""
         return self.verdict in (
+            Verdict.DEGENERATE,
             Verdict.INVERTED,
             Verdict.DEGENERACY_UNGUARDED,
             Verdict.UNDEMONSTRATED,

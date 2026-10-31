@@ -124,3 +124,25 @@ def test_shape_census_gives_the_published_denominator():
     census = shape_census(rows)
     assert census["equivalence"] == 2
     assert sum(census.values()) == 4
+
+
+def test_measured_distinct_values_survive_a_round_trip(tmp_path):
+    path = tmp_path / "a.csv"
+    write_worksheet([_row("onset", observed_distinct_values=1)], path, coder="ash")
+    text = path.read_text(encoding="utf-8").replace(
+        "bench_x,onset,paper §3.1,,", "bench_x,onset,paper §3.1,threshold,"
+    )
+    path.write_text(text, encoding="utf-8")
+    (row,) = read_worksheet(path)
+    assert row.observed_distinct_values == 1
+
+
+def test_a_non_integer_distinct_count_is_refused(tmp_path):
+    path = tmp_path / "a.csv"
+    write_worksheet([_row("onset", observed_distinct_values=1)], path, coder="ash")
+    text = path.read_text(encoding="utf-8").replace(
+        "bench_x,onset,paper §3.1,,", "bench_x,onset,paper §3.1,threshold,"
+    ).replace(",1,ash,", ",one,ash,")
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="not a whole number"):
+        read_worksheet(path)

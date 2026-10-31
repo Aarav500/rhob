@@ -77,6 +77,7 @@ def main() -> int:
         result = run_survey(rows)
         n_inv, n_eq = result.inverted_rate()
         print(f"  {name}: {n_inv}/{n_eq} equivalence-shaped criteria inverted, "
+              f"{len(result.degenerate)} degenerate, "
               f"{len(result.undemonstrated)} undemonstrated, "
               f"{len(result.skipped)} not scored")
     return 0

@@ -44,6 +44,12 @@ def parse_row(raw: dict[str, Any]) -> CodedCriterion:
             f"resolution_guarded must be true, false or null, got {guarded!r}"
         )
 
+    distinct = raw.get("observed_distinct_values")
+    if distinct is not None and (isinstance(distinct, bool) or not isinstance(distinct, int)):
+        raise ValueError(
+            f"observed_distinct_values must be a whole number or null, got {distinct!r}"
+        )
+
     return CodedCriterion(
         benchmark=raw["benchmark"],
         criterion=raw["criterion"],
@@ -52,6 +58,7 @@ def parse_row(raw: dict[str, Any]) -> CodedCriterion:
         test_used=test,
         failure_demonstrated=failure,
         resolution_guarded=guarded,
+        observed_distinct_values=distinct,
         coder=raw.get("coder", ""),
         notes=raw.get("notes", ""),
     )

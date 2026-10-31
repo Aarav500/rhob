@@ -139,8 +139,9 @@
           "test_used": "point_threshold",
           "failure_demonstrated": "none",
           "resolution_guarded": null,
+          "observed_distinct_values": 1,
           "coder": "ashah264",
-          "notes": "The onset column of the leaderboard is currently unvalidated (README.md:6-10), so this criterion supports nothing that is being reported."
+          "notes": "D1, measured: onset_std is exactly 0.0 in all 50 cells of admission/admission_ledger.json, against a pass cut of 0.10 x horizon (onset_std_frac in src/rhob/v3/admission_gate.py), so the criterion passes every cell by construction. The onset column of the leaderboard is also unvalidated (README.md:6-10), so this criterion supports nothing that is being reported."
         },
         {
           "benchmark": "rhob_post_audit",

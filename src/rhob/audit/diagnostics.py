@@ -1,11 +1,26 @@
-"""The three diagnostics, as code, plus the aggregation a published table may use.
+"""Verdicts on coded preconditions, plus the aggregation a published table may use.
 
-Provenance of the three
------------------------
-The paper names three diagnostics; this repository has never listed them, so the
-three implemented here are **reconstructed from what the RHOB audit actually did**,
-not transcribed from the paper. Each corresponds to a defect that was found in this
-repository and is documented in ``README.md``:
+Two layers, and which is which
+------------------------------
+The paper's three diagnostics -- D1 resolution, D2 power, D3 channel digest -- read a
+benchmark's *artifacts*: score vectors, designs, wiring. D1 and D2 are computed by the
+standalone ``cannotfail`` package in ``tools/cannotfail``. This module works one layer
+up, on *coded rows*: a person's reading of what a precondition asserts and what backs
+it. An earlier version of this docstring said the checks below were reconstructed
+because the paper's three were unknown, and that they should be renamed if the paper's
+turned out different. They did, but renaming would be wrong, because these are not
+artifact diagnostics. They are the verdicts a row receives, and the first of them
+consumes D1's measurement directly:
+
+0. :func:`diagnose_constant_statistic` -- did D1, measured on the shipped design, find
+   that the criterion's statistic took one value everywhere? Then its verdict is fixed
+   by construction, whatever its claim shape. This exists because the checks below
+   missed RHOB's ``onset_localizable``, a threshold criterion whose ``onset_std`` is
+   exactly 0.0 in all 50 ledger cells: as a threshold claim it was never offered to
+   the degeneracy check, and it came back merely ``undemonstrated``.
+
+The other three correspond to defects found in this repository and documented in
+``README.md``:
 
 1. :func:`diagnose_direction` -- is an equivalence claim being tested with a
    difference test? This is the pre-audit ``proxy_matched``: ``abs(mean_auroc - 0.5)
@@ -21,9 +36,6 @@ repository and is documented in ``README.md``:
 3. :func:`diagnose_demonstrated_failure` -- did anything published show a negative
    verdict is reachable? This is the thesis criterion, and the weakest of the three:
    it is a statement about what was published, not about the check.
-
-If the paper's three turn out to be different, these should be renamed to match it
-rather than the paper quietly restated to match these.
 
 What this module will not compute
 ---------------------------------
@@ -51,6 +63,7 @@ from rhob.audit.criterion import (
 )
 
 __all__ = [
+    "diagnose_constant_statistic",
     "diagnose_direction",
     "diagnose_degeneracy",
     "diagnose_demonstrated_failure",
@@ -59,6 +72,32 @@ __all__ = [
     "SurveyResult",
     "InadmissibleRow",
 ]
+
+
+def diagnose_constant_statistic(row: CodedCriterion) -> CriterionFinding | None:
+    """Flag a criterion whose statistic was measured to take one value everywhere.
+
+    Applies to every claim shape. A difference or threshold check is normally the safe
+    direction, because noise pushes it toward failing -- but a constant has no noise,
+    so a threshold on it passes in every cell or fails in every cell, and either way no
+    observation the design can produce changes the verdict.
+    """
+    if row.observed_distinct_values != 1:
+        return None
+
+    return CriterionFinding(
+        criterion=row,
+        verdict=Verdict.DEGENERATE,
+        reason=(
+            "D1, measured: the criterion's statistic took a single value across every "
+            "cell of the shipped design, so its verdict is fixed by construction and "
+            "says nothing about any cell"
+        ),
+        remedy=(
+            "report it as not measured rather than passed, and find what fixes the "
+            "statistic -- usually a quantity the generator sets rather than samples"
+        ),
+    )
 
 
 def diagnose_direction(row: CodedCriterion) -> CriterionFinding | None:
@@ -159,11 +198,14 @@ def diagnose_demonstrated_failure(row: CodedCriterion) -> CriterionFinding | Non
     )
 
 
-#: Applied in order; the first non-``None`` wins. Direction precedes degeneracy
-#: because a criterion tested in the wrong direction has no equivalence test for the
-#: degeneracy guard to be missing from, and both precede the demonstrated-failure
-#: check because both are statements about the design rather than the write-up.
+#: Applied in order; the first non-``None`` wins. A measured constant comes first: it is
+#: an observation, not a reading of the design, and no change of test fixes it. Direction
+#: precedes degeneracy because a criterion tested in the wrong direction has no
+#: equivalence test for the degeneracy guard to be missing from, and both precede the
+#: demonstrated-failure check because both are statements about the design rather than
+#: the write-up.
 _DIAGNOSTICS = (
+    diagnose_constant_statistic,
     diagnose_direction,
     diagnose_degeneracy,
     diagnose_demonstrated_failure,
@@ -230,6 +272,10 @@ class SurveyResult:
         return tuple(
             f for f in self.findings if f.verdict is Verdict.DEGENERACY_UNGUARDED
         )
+
+    @property
+    def degenerate(self) -> tuple[CriterionFinding, ...]:
+        return tuple(f for f in self.findings if f.verdict is Verdict.DEGENERATE)
 
     @property
     def undemonstrated(self) -> tuple[CriterionFinding, ...]:
@@ -319,6 +365,14 @@ def format_table(result: SurveyResult, criteria: Sequence[CodedCriterion] = ()) 
             f"({result.n_scored} criteria scored in total; the other {n_other} "
             f"{verb} difference- or threshold-shaped, where a difference test is "
             "correct.)"
+        )
+    if result.degenerate:
+        n_deg = len(result.degenerate)
+        noun, their = ("criterion", "Its verdict is") if n_deg == 1 else ("criteria", "Their verdicts are")
+        lines.append(
+            f"**Degenerate: {n_deg} {noun}** whose statistic was measured to take one "
+            f"value across the whole design. {their} fixed by construction, whatever the "
+            "claim shape, and counted separately from the inverted rate."
         )
     if result.skipped:
         lines.append(

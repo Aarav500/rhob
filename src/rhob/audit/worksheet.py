@@ -60,6 +60,7 @@ WORKSHEET_COLUMNS = (
     "test_used",
     "failure_demonstrated",
     "resolution_guarded",
+    "observed_distinct_values",
     "coder",
     "notes",
 )
@@ -110,6 +111,10 @@ def write_worksheet(
                 "resolution_guarded": (
                     "" if row.resolution_guarded is None else str(row.resolution_guarded).lower()
                 ),
+                "observed_distinct_values": (
+                    "" if row.observed_distinct_values is None
+                    else str(row.observed_distinct_values)
+                ),
                 "coder": coder,
                 "notes": row.notes,
             }
@@ -154,6 +159,13 @@ def read_worksheet(path: str | Path) -> tuple[CodedCriterion, ...]:
             )
         raw = dict(raw)
         raw["resolution_guarded"] = _parse_guard(raw.get("resolution_guarded") or "")
+        distinct = (raw.get("observed_distinct_values") or "").strip()
+        try:
+            raw["observed_distinct_values"] = int(distinct) if distinct else None
+        except ValueError:
+            raise ValueError(
+                f"{src}:{lineno}: observed_distinct_values {distinct!r} is not a whole number"
+            ) from None
         rows.append(parse_row(raw))
 
     return tuple(rows)
