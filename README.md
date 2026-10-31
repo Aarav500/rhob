@@ -37,9 +37,11 @@ over 123 cells with 30 detectors scored on them, audited exhaustively and replic
 fix to an earlier one. The correction below is what that looked like from inside, and it
 is the main evidence that the diagnostics find real defects.
 
-What the benchmark does **not** show matters as much. Its hacking is scripted, not
-emergent: 28 of the 33 families run hand-written policies on both arms. Against an
-external environment it did not build, the best detector's correlation with true hack
+What the benchmark does **not** show matters as much. Its hacking is authored, not
+discovered. In 26 of the 33 families both arms are hand-written policies. In every family
+the author designed the exploitable flaw and assigned the label, and only in six
+(`gridworld_camping` and the five RLHF families) does an optimizer find the exploit
+itself. Against an external environment it did not build, the best detector's correlation with true hack
 onset is r = 0.43, and every detector that fires on a hack also fires on its matched
 legitimate twin. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) states what the construction
 can and cannot support.
@@ -394,12 +396,14 @@ result about the other 30.
 
 Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
 
-- **Hacking policies are scripted.** In 28 of 33 families both variants are
+- **Hacking policies are scripted.** In 26 of 33 families both variants are
   hand-written policies; the behavioral trace exists because an author computed it.
-  The 5 RLHF-RM families (19–23) are a partial exception — they run real
-  policy-gradient ascent against a genuinely fitted reward model, so the
+  Six families are a partial exception. The 5 RLHF-RM families (19–23) run real
+  policy-gradient ascent against a genuinely fitted reward model, and
+  `gridworld_camping` trains a tabular Q-learner on each variant, so in those six the
   *exploitation* is emergent even though the *vulnerability* and the *label* are
-  designed. This means RHOB establishes what is detectable **in principle** from each
+  designed. `continuous_camping` contains a pre-trained DQN, but it was trained to
+  navigate, and its switch to camping happens at an authored episode. This means RHOB establishes what is detectable **in principle** from each
   channel, not what real learned agents leave behind.
 - **The leaderboard is one draw.** Every cell is a single unreplicated 5-vs-5
   comparison at layout seed 0. **SE near AUROC 0.5 is ≈ 0.19** — the Mann–Whitney

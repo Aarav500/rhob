@@ -70,15 +70,24 @@ about the *mechanism* they instantiate, not about language models.
 
 ## 3. The scripted-policy limitation (the big one)
 
-**In 28 of 33 families, both variants are hand-written policies.** The "hacking"
+**In 26 of 33 families, both variants are hand-written policies.** The "hacking"
 behavior is a script the family author wrote to game the proxy; the "legitimate"
-behavior is a second script. Neither is discovered by an optimizer. Concretely,
-`gridworld_camping` builds its two variants from `make_hacking_env` and
-`make_legitimate_env` — two separately authored environment/policy pairs — and
-the MuJoCo, PettingZoo and sequence-generation families follow the same pattern
-with a scripted exploit routine.
+behavior is a second script. Neither is discovered by an optimizer. The MuJoCo,
+PettingZoo and sequence-generation families all follow this pattern, with a scripted
+exploit routine.
 
-The five RLHF-RM families (19–23) are the partial exception and are worth stating
+This section previously said 28, and used `gridworld_camping` as its example of a
+scripted family. It is not one. Its two variants come from `make_hacking_env` and
+`make_legitimate_env`, two authored *environments*, but the agent in both is a
+`TabularQLearner` that learns from the proxy reward
+(`src/rhob/evaluation/eval_rollout.py`), so the camping is found by the learner.
+`continuous_camping` contains a pre-trained DQN (`rhob.agents.dqn.train_camper`), but
+that network was trained on a generic navigate-and-hold task and then frozen, and the
+switch to camping is triggered at an authored `activation_episode`, so nothing discovers
+the hack there. Seven families contain a learner; in six of them (`gridworld_camping`
+and the five below) an optimizer finds the exploit.
+
+The five RLHF-RM families (19–23) are the main partial exception and are worth stating
 precisely, because "scripted" is not quite right for them: each runs **real
 policy-gradient ascent** against a **genuinely fitted** preference reward model,
 with a KL penalty to a reference policy (`src/rhob/environments/rlhf_rm/rollout.py`).
