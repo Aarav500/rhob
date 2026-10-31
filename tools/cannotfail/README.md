@@ -40,7 +40,7 @@ reward_only       48         1      24      24       0.000   [0.500, 0.500]  fix
 mostly_tied       48         2      24      24       0.042   [0.479, 0.521]  pinned (AUROC confined within 0.5 +/- 0.0208)
 behavioural       48        48      24      24       1.000   [0.000, 1.000]  ok
 
-1 of 3 groups has at most one distinct value, so any rank statistic over them is fixed at 0.5.
+1 of 3 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
 1 of 3 groups is pinned: the AUROC cannot get further from 0.5 than 0.1, so its estimate cannot leave an equivalence band of that width. A test that also needs its interval inside the band can still fail, but only on the interval's width; a pass there says the scores tie.
 ```
 
@@ -79,6 +79,14 @@ resolutions are in `--json`.
   measurable rather than as matched.
 - `dust`: decide whether those differences are signal or rounding, and say which in your
   write-up.
+
+It also reads a `.json` list of objects or a `.jsonl` file, one object per scored item —
+the shape leaderboard prediction files usually take — so a submission can be checked as it
+was submitted:
+
+```
+$ cannotfail resolution predictions.json --score score --fail-on fixed
+```
 
 Without `--label` it counts distinct values only, which is enough to find a cell whose
 scores are all one number. Use `--positive VALUE` when your labels are words: every row

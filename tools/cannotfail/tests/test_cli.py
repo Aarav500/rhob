@@ -144,3 +144,41 @@ def test_power_difference_needs_no_scipy(capsys):
     assert "weak evidence" in out and "only indicative" in out
     assert main(["power", "difference", "--pos", "3", "--neg", "3", "--true-auroc", "1.0"]) == 0
     assert "No data can make a two-sided Mann-Whitney test reject" in capsys.readouterr().out
+
+
+def test_a_leaderboard_predictions_json_is_one_command(tmp_path, capsys):
+    """RAID-style predictions.json: a list of {id, score}. The case that motivated JSON input."""
+    path = tmp_path / "predictions.json"
+    path.write_text(json.dumps([{"id": f"x{i}", "score": 1.0} for i in range(50)]), encoding="utf-8")
+    code, payload = _run_json(capsys, "resolution", str(path), "--score", "score")
+    assert code == 0
+    g = payload["groups"]["(all)"]
+    assert g["n"] == 50 and g["n_distinct"] == 1 and g["verdict"] == "fixed"
+    assert main(["resolution", str(path), "--score", "score", "--fail-on", "fixed"]) == 1
+    capsys.readouterr()
+
+
+def test_jsonl_with_nulls_and_labels(tmp_path, capsys):
+    path = tmp_path / "rows.jsonl"
+    rows = [{"score": 0.25, "y": True}, {"score": None, "y": True}, {"score": 0.75, "y": False}, {}]
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    code = main(["resolution", str(path), "--score", "score", "--label", "y", "--json"])
+    out = capsys.readouterr()
+    assert code == 2 and "blank" not in out.err  # the empty object has no label: rejected as not 0/1
+    path.write_text("\n".join(json.dumps(r) for r in rows[:3]) + "\n", encoding="utf-8")
+    code, payload = _run_json(capsys, "resolution", str(path), "--score", "score", "--label", "y")
+    g = payload["groups"]["(all)"]
+    assert code == 0 and g["n_nonfinite"] == 1 and g["exact_resolution"] == 1.0
+
+
+@pytest.mark.parametrize("content,message", [
+    ('{"score": 1}', "expected a list of objects"),
+    ("[]", "the list is empty"),
+    ('[{"id": 1}]', "no field 'score'"),
+    ("[{", "not valid JSON"),
+])
+def test_bad_json_exits_two(tmp_path, capsys, content, message):
+    path = tmp_path / "p.json"
+    path.write_text(content, encoding="utf-8")
+    assert main(["resolution", str(path), "--score", "score"]) == 2
+    assert message in capsys.readouterr().err

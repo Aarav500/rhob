@@ -44,12 +44,57 @@ class InputError(ValueError):
     """Bad input: reported on stderr with exit status 2."""
 
 
+def _cell(value) -> str:
+    """One JSON value as the text a CSV cell would hold. ``null`` becomes blank."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return repr(value)  # round-trips exactly, unlike str() on some platforms
+    return str(value)
+
+
+def _read_json_columns(path: str, wanted: Sequence[str]) -> dict[str, list[str]]:
+    """A ``.json`` list of objects, or ``.jsonl`` with one object per line.
+
+    This is the shape leaderboard prediction files commonly take -- RAID's
+    ``predictions.json`` is ``[{"id": ..., "score": ...}, ...]`` -- so a maintainer can run
+    the check on the file they already have.
+    """
+    with open(path, encoding="utf-8-sig") as fh:
+        if path.endswith(".jsonl"):
+            records = []
+            for i, line in enumerate(fh, start=1):
+                if line.strip():
+                    try:
+                        records.append(json.loads(line))
+                    except json.JSONDecodeError as exc:
+                        raise InputError(f"{path}: line {i} is not JSON: {exc.msg}") from None
+        else:
+            try:
+                records = json.load(fh)
+            except json.JSONDecodeError as exc:
+                raise InputError(f"{path}: not valid JSON: {exc.msg} at line {exc.lineno}") from None
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+        raise InputError(f"{path}: expected a list of objects, one per scored item")
+    if not records:
+        raise InputError(f"{path}: the list is empty")
+    for c in wanted:
+        if not any(c in r for r in records):
+            raise InputError(f"{path}: no field {c!r}; fields include {sorted(records[0])[:10]}")
+    return {c: [_cell(r.get(c)) for r in records] for c in wanted}
+
+
 def _read_columns(path: str, delimiter: str | None, wanted: Sequence[str]) -> dict[str, list[str]]:
     """Read the named columns. Lines starting with ``#`` are skipped only above the header.
 
     A ``#`` inside the data is data: a cell or item id may legitimately start with one,
-    and dropping such a row silently would hide a cell from ``--fail-on``.
+    and dropping such a row silently would hide a cell from ``--fail-on``. Files ending in
+    ``.json`` or ``.jsonl`` are read as records instead.
     """
+    if path.endswith((".json", ".jsonl")):
+        return _read_json_columns(path, wanted)
     if delimiter is None:
         delimiter = "\t" if path.endswith((".tsv", ".tab")) else ","
     with open(path, newline="", encoding="utf-8-sig") as fh:  # -sig: Excel writes a BOM
@@ -200,7 +245,8 @@ def _footer(results, summary, labelled: bool, args: argparse.Namespace) -> None:
     by = summary.by_verdict
     print(
         f"{summary.n_single_valued} of {n} {groups} {_plural(summary.n_single_valued, 'has', 'have')} "
-        "at most one distinct value, so any rank statistic over them is fixed at 0.5."
+        f"at most one distinct value, so any rank statistic over "
+        f"{_plural(summary.n_single_valued, 'it', 'them')} is fixed at 0.5."
     )
     other_fixed = by.get("fixed", 0) - summary.n_single_valued
     if other_fixed > 0:
@@ -307,7 +353,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("resolution", formatter_class=fmt,
                        help="D1: what range could a statistic over these scores take?")
-    r.add_argument("file", help="CSV or TSV with a header row; # lines above the header are skipped")
+    r.add_argument("file", help="CSV or TSV with a header row (# lines above it are skipped), "
+                   "or a .json list of objects / .jsonl, one object per scored item")
     r.add_argument("--score", required=True, help="column holding the scores")
     r.add_argument("--label", help="column holding the class of each row")
     r.add_argument("--positive", help="label value of the positive class; every other value is negative")
