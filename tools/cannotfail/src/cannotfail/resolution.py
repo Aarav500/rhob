@@ -1,27 +1,35 @@
 """D1, resolution: what range could the statistic have taken?
 
-A rank statistic cannot move further than its ties allow. Every tied cross-class pair
-contributes exactly 0.5 to an AUROC whatever the data are, so when a fraction ``1 - r``
-of the pairs is tied, the AUROC is pinned inside ``0.5 +/- r/2``. That is an identity,
-not a bound with slack. Its cheapest form is a count of distinct values: a score vector
-with one distinct value gives an AUROC of exactly 0.5, and any check built on that AUROC
-returns the same verdict on every dataset the design can produce.
+A rank statistic cannot move further than its ties allow. In a standard AUROC every
+cross-class pair of equal scores contributes exactly 0.5, whatever the data are, so when a
+fraction ``1 - r`` of the pairs is tied the AUROC is confined to ``0.5 +/- r/2``. That is an
+identity, not a bound with slack. Its cheapest form is a count of distinct values: a score
+vector with one distinct value gives an AUROC of exactly 0.5, and any check built on that
+AUROC returns the same verdict on every dataset the design can produce.
 
-This module computes both forms. The tie rule and its tolerances are the ones RHOB's
-admission gate uses (``rhob.v3.admission_gate._score_resolution``), and a parity test in
-the RHOB repository holds the two to bit-identical results. What differs is cost: the
-gate builds the full ``n x m`` comparison matrix, which is fine at 24 runs a side and
-needs about 800 MB at 10,000. This version sorts once and counts, so a maintainer can run
-it on a real benchmark's score vectors.
+Two resolutions, and why both
+-----------------------------
+:attr:`Resolution.exact_resolution` counts ties by exact equality over the finite scores.
+That is what ``sklearn.metrics.roc_auc_score`` and most harnesses compute, so the
+:attr:`Resolution.auroc_range` it implies holds for the AUROC a maintainer actually reports.
 
-Why a tolerance, not exact equality
------------------------------------
-Rounding error in a detector's own arithmetic can make identical inputs score
-differently in the 11th significant digit, and a rank statistic will happily rank that
-dust. Two scores count as tied when ``|a - b| <= max(ABS_TOL, REL_TOL * max(|a|, |b|))``.
-The tolerance is deliberately tiny: it exists to absorb arithmetic noise, not to decide
-whether a weak signal is real. Adding jitter one order of magnitude above it defeats it,
-which is why dispersion is reported separately rather than folded in.
+:attr:`Resolution.tolerance_resolution` counts ties the way RHOB's admission gate does
+(``rhob.v3.admission_gate._score_resolution``): two scores tie when
+``|a - b| <= max(ABS_TOL, REL_TOL * max(|a|, |b|))``, and any pair with a non-finite score
+ties. The tolerance exists because rounding error in a scorer's own arithmetic can make
+identical inputs score differently in the 11th significant digit, and a rank statistic
+will happily rank that dust. When the tolerance confines the AUROC and exact equality does
+not, the verdict is ``dust``: the scores differ, but only at a level the gate treats as
+noise, and whether those differences mean anything is a judgement about the scorer. It is
+not one this package can make. At large magnitudes the relative tolerance is not small
+(1e-9 of 12345 is 1.2e-5), which is why it is never allowed to turn a cell ``fixed``.
+
+The tolerance resolution is held to the gate's by a parity test in the RHOB repository. It
+is bit-identical except for pairs of finite scores whose difference overflows float64
+(``|a - b|`` above about 1.8e308): the gate's ``n x m`` matrix turns those into ``inf`` and
+counts them tied, and this counts them ordered, which is what they are. What differs in
+general is cost. The gate's matrix needs about 800 MB at 10,000 scores a side; this sorts
+once and counts.
 """
 
 from __future__ import annotations
@@ -49,9 +57,11 @@ __all__ = [
 REL_TOL = 1e-9
 #: Absolute tie tolerance, for scores near zero, from RHOB's admission gate.
 ABS_TOL = 1e-12
-#: The equivalence margin RHOB's gate ships with. An AUROC confined to ``0.5 +/- margin``
-#: cannot fail an equivalence test at that margin.
+#: The equivalence margin RHOB's gate ships with.
 EQUIVALENCE_MARGIN = 0.10
+
+_EPS = float(np.finfo(float).eps)
+_TINY = float(np.finfo(float).smallest_subnormal)
 
 
 def _floats(values: Iterable[float] | np.ndarray) -> np.ndarray:
@@ -63,9 +73,7 @@ def _floats(values: Iterable[float] | np.ndarray) -> np.ndarray:
 def n_distinct(values: Iterable[float]) -> int:
     """Number of distinct finite values, by exact equality.
 
-    The cheapest form of D1, and the statistic the paper's survey counts per cell. It
-    uses exact equality on purpose: "one distinct value" should mean what it says, and
-    the tolerance-aware question is :func:`tied_pair_count`'s job.
+    The cheapest form of D1, and the statistic the paper's survey counts per cell.
     """
     arr = _floats(values)
     return int(np.unique(arr[np.isfinite(arr)]).size)
@@ -85,10 +93,11 @@ def dispersion(values: Iterable[float]) -> float:
     arr = arr[np.isfinite(arr)]
     if arr.size < 2:
         return float("nan")
-    scale = float(np.abs(arr).mean())
-    if scale <= 0.0:
-        return 0.0
-    return float(arr.std(ddof=0)) / scale
+    with np.errstate(over="ignore", invalid="ignore"):  # near 1e308 the sums overflow
+        scale = float(np.abs(arr).mean())
+        if scale <= 0.0:
+            return 0.0
+        return float(arr.std(ddof=0)) / scale
 
 
 def tied_pair_count(
@@ -100,17 +109,20 @@ def tied_pair_count(
 ) -> int:
     """How many of the ``len(pos) * len(neg)`` cross-class pairs are tied.
 
-    A pair is tied when ``|a - b| <= max(abs_tol, rel_tol * max(|a|, |b|))``, or when
-    either score is non-finite -- a NaN is not an ordering. The count is exact and equal
-    to the brute-force ``n x m`` comparison, in ``O((n + m) log m)`` time and ``O(n + m)``
-    memory.
+    A pair is tied when either score is non-finite, or when both are finite and
+    ``|a - b| <= max(abs_tol, rel_tol * max(|a|, |b|))`` evaluated in float64. With
+    ``rel_tol = abs_tol = 0`` that is exact equality. The count equals the brute-force
+    ``n x m`` comparison of that rule.
 
     How it stays exact with a tolerance that depends on both scores: for each ``a``, every
-    ``b`` with ``|a - b| <= max(abs_tol, rel_tol * |a|)`` is certainly tied, and every tied
-    ``b`` satisfies ``|a - b| <= max(abs_tol, rel_tol * |a| / (1 - rel_tol))``. Scores in
-    the first window are counted with a binary search; the thin band between the two
-    windows is checked with the exact rule. Both windows are widened or shrunk by a margin
-    well above floating-point rounding, so a pair is never counted on the wrong side.
+    ``b`` equal to it, or within ``max(abs_tol, rel_tol * |a|)`` of it, is certainly tied;
+    every tied ``b`` lies within ``max(abs_tol, rel_tol * |a| / (1 - rel_tol))``. The first
+    set is counted with a binary search. Scores between the two are checked one by one with
+    the rule itself. Both windows are padded beyond what float64 rounding can move them,
+    including the ``1 / (1 - rel_tol)`` amplification at large tolerances and the absolute
+    spacing of subnormals. Cost is ``O((n + m) log m)`` plus one check per pair that falls
+    in that thin band, which is empty unless scores sit within a few rounding units of a
+    tolerance boundary.
     """
     if not (0.0 <= rel_tol < 1.0):
         raise ValueError(f"rel_tol must be in [0, 1), got {rel_tol}")
@@ -134,37 +146,44 @@ def tied_pair_count(
         return int(tied)
 
     absa = np.abs(a)
-    inner = np.maximum(abs_tol, rel_tol * absa)
-    outer = np.maximum(abs_tol, rel_tol * absa / (1.0 - rel_tol))
-    guard = 8.0 * np.finfo(float).eps * (absa + outer)
-
-    # Candidate window: contains every b that could be tied to a.
-    reach = outer + guard
+    # Near 1e308 with a large rel_tol the windows overflow to inf. That is safe: an infinite
+    # candidate window sends every pair to the exact check, it just costs time.
+    with np.errstate(over="ignore"):
+        inner = np.maximum(abs_tol, rel_tol * absa)
+        outer = np.maximum(abs_tol, rel_tol * absa / (1.0 - rel_tol))
+        guard = 8.0 * _EPS * (absa + outer)
+        # Candidate window: contains every b that could be tied to a.
+        reach = outer + (guard + 4.0 * _TINY) / (1.0 - rel_tol)
     c_lo = np.searchsorted(b, a - reach, side="left")
     c_hi = np.searchsorted(b, a + reach, side="right")
 
-    # Certain window: every b inside it is tied under the exact rule.
+    # Certain window: every b inside it is tied. Equal scores always are, so when the
+    # tolerance window is too narrow to trust it shrinks to exactly the equal ones.
     half = inner - guard
-    has_certain = half > 0.0
-    s_lo = c_lo.copy()
-    s_hi = c_lo.copy()
-    if has_certain.any():
-        s_lo[has_certain] = np.searchsorted(b, a[has_certain] - half[has_certain], side="left")
-        s_hi[has_certain] = np.searchsorted(b, a[has_certain] + half[has_certain], side="right")
+    wide = half > 0.0
+    s_lo = np.searchsorted(b, a, side="left")
+    s_hi = np.searchsorted(b, a, side="right")
+    if wide.any():
+        s_lo[wide] = np.searchsorted(b, a[wide] - half[wide], side="left")
+        s_hi[wide] = np.searchsorted(b, a[wide] + half[wide], side="right")
     tied += int((s_hi - s_lo).sum())
 
-    # The band between the windows is checked pair by pair. It is empty except for
-    # scores within a few ulps of a tolerance boundary, or when the tolerance is set so
-    # small that the certain window vanishes.
     band = (s_lo - c_lo) + (c_hi - s_hi)
     for i in np.nonzero(band)[0]:
         ai = a[i]
         cand = np.concatenate((b[c_lo[i]:s_lo[i]], b[s_hi[i]:c_hi[i]]))
-        diff = np.abs(ai - cand)
+        with np.errstate(over="ignore"):  # an overflowing difference is inf, so not a tie
+            diff = np.abs(ai - cand)
         tol = np.maximum(abs_tol, rel_tol * np.maximum(np.abs(ai), np.abs(cand)))
         tied += int(np.count_nonzero(diff <= tol))
 
     return int(tied)
+
+
+def _range(r: float | None) -> tuple[float, float] | None:
+    if r is None or r != r:
+        return None
+    return (0.5 - 0.5 * r, 0.5 + 0.5 * r)
 
 
 @dataclass(frozen=True)
@@ -175,11 +194,15 @@ class Resolution:
         n: Number of scores, finite or not.
         n_distinct: Distinct finite values, by exact equality.
         n_nonfinite: NaN or infinite scores.
-        n_pos, n_neg: Class sizes, or ``None`` when no labels were given.
-        resolution: Fraction of cross-class pairs that are strictly ordered, or ``None``
-            without labels. ``nan`` when a class is empty: there is nothing to order.
+        n_pos, n_neg: Class sizes, finite or not, or ``None`` without labels.
+        exact_resolution: Fraction of cross-class pairs of *finite* scores that are not
+            exactly equal -- what a standard AUROC can order. ``None`` without labels,
+            ``nan`` when a class has no finite score. When it is unknown but the gate's
+            tolerance resolution is (as for RHOB's ledger), set only that.
+        tolerance_resolution: The same fraction under RHOB's gate rule: tolerance ties,
+            and non-finite scores count as ties.
         dispersion: See :func:`dispersion`.
-        margin: The equivalence margin the ``pinned`` verdict is read against.
+        margin: The equivalence margin ``pinned`` is read against.
         dispersion_floor: If set, a vector whose dispersion is below it is ``dust``.
     """
 
@@ -188,37 +211,49 @@ class Resolution:
     n_nonfinite: int
     n_pos: int | None
     n_neg: int | None
-    resolution: float | None
+    exact_resolution: float | None
+    tolerance_resolution: float | None
     dispersion: float
     margin: float = EQUIVALENCE_MARGIN
     dispersion_floor: float | None = None
 
     @property
     def single_valued(self) -> bool:
-        """Every finite score is the same number, or there is no finite score."""
+        """At most one distinct finite score."""
         return self.n_distinct <= 1
 
     @property
+    def _r(self) -> float | None:
+        return self.exact_resolution if self.exact_resolution is not None else self.tolerance_resolution
+
+    @property
     def auroc_range(self) -> tuple[float, float] | None:
-        """The interval any AUROC over these scores must lie in, or ``None``."""
-        if self.resolution is None or self.resolution != self.resolution:
-            return None
-        half = 0.5 * self.resolution
-        return (0.5 - half, 0.5 + half)
+        """Where any standard AUROC over the finite scores must lie, or ``None``."""
+        return _range(self._r)
+
+    @property
+    def tolerance_auroc_range(self) -> tuple[float, float] | None:
+        """The same interval for an AUROC that ties scores the way RHOB's gate does."""
+        return _range(self.tolerance_resolution)
 
     @property
     def verdict(self) -> str:
         """``fixed``, ``dust``, ``pinned`` or ``ok``.
 
-        - ``fixed``: the statistic cannot move at all -- one distinct value, no ordered
-          pair, or an empty class.
-        - ``dust``: only when a dispersion floor was given and the spread is below it.
-        - ``pinned``: the AUROC cannot leave ``0.5 +/- margin``, so an equivalence test at
-          that margin passes whatever the data are.
-        - ``ok``: none of the above. This is not evidence the check is sound; it says only
-          that D1 found no reason it cannot fail.
+        - ``fixed``: a standard AUROC over these scores is 0.5 whatever the data are -- at
+          most one distinct value, no pair of unequal scores across the classes, or a class
+          with no finite score.
+        - ``dust``: the scores do differ, but either only by less than the gate's tie
+          tolerance (a standard AUROC ranks those differences; whether they are real is a
+          question about the scorer), or by less than a dispersion floor you set.
+        - ``pinned``: a standard AUROC cannot get further from 0.5 than ``margin``, so its
+          point estimate can never leave an equivalence band of that width. A test that
+          also needs its confidence interval inside the band can still fail on the
+          interval's width; a pass says the scores tie, not that the classes match.
+        - ``ok``: none of these. That is not evidence the check is sound; it says only that
+          D1 found no reason it cannot fail.
         """
-        r = self.resolution
+        r = self._r
         if self.single_valued or (r is not None and (r != r or r == 0.0)):
             return "fixed"
         if (
@@ -227,22 +262,51 @@ class Resolution:
             and self.dispersion < self.dispersion_floor
         ):
             return "dust"
+        t = self.tolerance_resolution
+        if r is not None and t is not None and t == t and 0.5 * t <= self.margin < 0.5 * r:
+            return "dust"
         if r is not None and 0.5 * r <= self.margin:
             return "pinned"
         return "ok"
 
+    @property
+    def why(self) -> str:
+        """One line saying what put the vector in its verdict."""
+        v, r, t = self.verdict, self._r, self.tolerance_resolution
+        if v == "fixed":
+            if self.n_distinct == 0:
+                return "no finite score"
+            if self.single_valued:
+                return "one distinct value"
+            if r != r:
+                return "a class has no finite score"
+            return "no pair of unequal scores across the classes"
+        if v == "dust":
+            if t is not None and r is not None and t == t and 0.5 * t <= self.margin < 0.5 * r:
+                return "differences only below the tie tolerance"
+            return "spread below the dispersion floor"
+        if v == "pinned":
+            return f"AUROC confined within 0.5 +/- {0.5 * r:.3g}"
+        return ""
+
     def as_dict(self) -> dict:
-        rng = self.auroc_range
+        def num(x):
+            return None if x is None or x != x else x
+
+        rng, trng = self.auroc_range, self.tolerance_auroc_range
         return {
             "n": self.n,
             "n_distinct": self.n_distinct,
             "n_nonfinite": self.n_nonfinite,
             "n_pos": self.n_pos,
             "n_neg": self.n_neg,
-            "resolution": self.resolution,
+            "exact_resolution": num(self.exact_resolution),
+            "tolerance_resolution": num(self.tolerance_resolution),
             "auroc_range": list(rng) if rng is not None else None,
-            "dispersion": self.dispersion,
+            "tolerance_auroc_range": list(trng) if trng is not None else None,
+            "dispersion": num(self.dispersion),
             "verdict": self.verdict,
+            "why": self.why,
         }
 
 
@@ -278,8 +342,8 @@ def resolution(
     """D1 for one score vector.
 
     Without labels this reports only what needs none: the distinct-value count and the
-    dispersion. With 0/1 labels it also reports the fraction of cross-class pairs that
-    are strictly ordered, and the AUROC range that fraction allows.
+    dispersion. With 0/1 labels it also reports both resolutions and the AUROC ranges they
+    allow. ``rel_tol`` and ``abs_tol`` affect only the tolerance resolution.
     """
     s = np.asarray(scores, dtype=float).ravel()
     common = dict(
@@ -291,15 +355,24 @@ def resolution(
         dispersion_floor=dispersion_floor,
     )
     if labels is None:
-        return Resolution(n_pos=None, n_neg=None, resolution=None, **common)
+        return Resolution(n_pos=None, n_neg=None, exact_resolution=None, tolerance_resolution=None, **common)
 
     pos, neg = _split(s, labels)
     if pos.size == 0 or neg.size == 0:
-        r = float("nan")
+        tol_r = float("nan")
     else:
-        tied = tied_pair_count(pos, neg, rel_tol=rel_tol, abs_tol=abs_tol)
-        r = 1.0 - tied / (pos.size * neg.size)
-    return Resolution(n_pos=int(pos.size), n_neg=int(neg.size), resolution=r, **common)
+        tol_r = 1.0 - tied_pair_count(pos, neg, rel_tol=rel_tol, abs_tol=abs_tol) / (pos.size * neg.size)
+
+    fpos, fneg = pos[np.isfinite(pos)], neg[np.isfinite(neg)]
+    if fpos.size == 0 or fneg.size == 0:
+        exact_r = float("nan")
+    else:
+        exact_r = 1.0 - tied_pair_count(fpos, fneg, rel_tol=0.0, abs_tol=0.0) / (fpos.size * fneg.size)
+
+    return Resolution(
+        n_pos=int(pos.size), n_neg=int(neg.size),
+        exact_resolution=exact_r, tolerance_resolution=tol_r, **common,
+    )
 
 
 def resolution_by_group(
@@ -341,7 +414,8 @@ class ResolutionSummary:
 
 
 def summarize(results: dict[Hashable, Resolution] | Iterable[Resolution]) -> ResolutionSummary:
-    """Totals over groups: the single-distinct-value count is the paper's class-B statistic."""
+    """Totals over groups. ``n_single_valued`` (at most one distinct value) is the paper's
+    class-B statistic."""
     items = list(results.values()) if isinstance(results, dict) else list(results)
     verdicts: dict[str, int] = {}
     for r in items:

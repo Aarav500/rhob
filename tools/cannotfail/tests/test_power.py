@@ -14,7 +14,7 @@ from cannotfail import (
     mann_whitney_null_sd,
     required_seeds_per_layout,
 )
-from cannotfail.power import ci_multiplier
+from cannotfail.power import ci_multiplier, min_two_sided_p
 
 pytest.importorskip("scipy")
 
@@ -85,3 +85,12 @@ def test_difference_power_matches_simulation(n, theta):
     auroc = u / (n * n)
     simulated = float(np.mean(np.abs(auroc - 0.5) > crit))
     assert difference_power(n, n, theta) == pytest.approx(simulated, abs=0.035)
+
+
+def test_no_test_can_reject_when_the_design_is_too_small():
+    """Found by review: 3 vs 3 used to report power 1.0, where the exact test never rejects."""
+    assert min_two_sided_p(3, 3) == pytest.approx(0.1)
+    assert min_two_sided_p(3, 4) == pytest.approx(2 / 35)
+    assert difference_power(3, 3, 1.0) == 0.0
+    assert difference_power(3, 4, 0.95) == 0.0
+    assert difference_power(4, 4, 0.9) > 0.0

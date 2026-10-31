@@ -17,8 +17,10 @@ precondition were violated by a stated amount. A difference test with 20% power 
 smallest violation anyone would care about is evidence of nothing when it fails to
 reject. :func:`difference_power` answers that; it is not in RHOB's gate.
 
-Both power figures assume no heterogeneity between layouts or clusters, so they are a
-ceiling: the power a real design achieves is at most this.
+The equivalence power assumes no heterogeneity between layouts, so it is a ceiling: a
+real design's layouts vary, its SE is larger, and its power is lower. The difference power
+assumes independent items. If items are clustered (several per prompt, task or seed), the
+real test is mis-sized in either direction, and this figure is not a bound on it.
 
 Only :func:`ci_multiplier` and what calls it need SciPy, for a Student-t quantile.
 Everything else uses the standard library's normal distribution.
@@ -32,6 +34,7 @@ from statistics import NormalDist
 
 __all__ = [
     "EquivalencePower",
+    "min_two_sided_p",
     "TOST_ALPHA",
     "TARGET_POWER",
     "ci_multiplier",
@@ -151,6 +154,19 @@ def required_seeds_per_layout(
     )
 
 
+def min_two_sided_p(n_pos: int, n_neg: int) -> float:
+    """The smallest two-sided p-value an exact Mann-Whitney test can return at this size.
+
+    It is reached when every score of one class exceeds every score of the other, and with
+    no ties it is ``2 / C(n + m, n)``. When it exceeds ``alpha`` no data can make the test
+    reject: at 3 vs 3 it is 0.10, at 3 vs 4 it is 0.057.
+    """
+    n, m = int(n_pos), int(n_neg)
+    if n < 1 or m < 1:
+        raise ValueError(f"class sizes must be at least 1, got {n} and {m}")
+    return min(1.0, 2.0 / math.comb(n + m, n))
+
+
 def difference_power(
     n_pos: int,
     n_neg: int,
@@ -166,12 +182,17 @@ def difference_power(
 
     Normal approximation: the rejection threshold uses the exact null SD, and the
     alternative uses the Hanley-McNeil variance of the AUROC. It is close at 20 or more a
-    side and indicative below 10, where the exact permutation distribution is lumpy.
+    side and only indicative below 10, where the exact permutation distribution is lumpy:
+    at 5 vs 5 and a true AUROC of 0.7 it gives 0.156 where a simulated exact test rejects
+    about 0.12 of the time. One small-sample case is exact rather than approximate: when no
+    arrangement of the data could reach ``alpha`` (:func:`min_two_sided_p`), the power is 0.
     """
     theta = float(true_auroc)
     if not 0.0 <= theta <= 1.0:
         raise ValueError(f"true_auroc must be in [0, 1], got {theta}")
     n, m = int(n_pos), int(n_neg)
+    if min_two_sided_p(n, m) > alpha:
+        return 0.0
     sd0 = mann_whitney_null_sd(n, m)
     crit = _NORMAL.inv_cdf(1.0 - alpha / 2.0) * sd0
 

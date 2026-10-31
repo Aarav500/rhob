@@ -2,9 +2,16 @@
 
 ``tools/cannotfail`` deliberately imports nothing from ``rhob``, so that someone else's
 benchmark can install it without RHOB's dependencies. That makes it a copy, and a copy
-can drift. These tests hold it to the original: bit-identical resolution on adversarial
-inputs, identical design arithmetic, and the same verdicts on the 50 cells of the
-committed admission ledger.
+can drift. These tests hold it to the original: the gate's tolerance resolution bit for
+bit on adversarial inputs, with one documented exception; identical design arithmetic;
+the verdict rule against the gate's own cut at the boundary; and, on the committed
+admission ledger, which cells the gate marks degenerate.
+
+What the ledger test does and does not show: it feeds the gate's *measured* resolution and
+informativeness into the tool's verdict rule, because the ledger stores aggregates, not
+score vectors. Those values sit far from the cut (at most 0.0035, or at least 0.874), so on
+their own they check the rule's direction, not where it cuts. The boundary tests below pin
+the cut.
 """
 
 from __future__ import annotations
@@ -38,7 +45,14 @@ def _cf_resolution(pos, neg) -> float:
         np.concatenate([np.asarray(pos, float), np.asarray(neg, float)]),
         [1] * len(pos) + [0] * len(neg),
     )
-    return r.resolution
+    return r.tolerance_resolution
+
+
+def _overflows(pos, neg) -> bool:
+    a = np.asarray(pos, float)[:, None]
+    b = np.asarray(neg, float)[None, :]
+    with np.errstate(over="ignore", invalid="ignore"):
+        return bool((np.isfinite(a) & np.isfinite(b) & ~np.isfinite(a - b)).any())
 
 
 def _cases(rng):
@@ -59,8 +73,21 @@ def _cases(rng):
 def test_resolution_is_bit_identical_to_the_gate(seed):
     rng = np.random.default_rng(seed)
     for pos, neg in _cases(rng):
+        assert not _overflows(pos, neg)
         g, c = _gate_resolution(pos, neg), _cf_resolution(pos, neg)
         assert (g == c) or (g != g and c != c), (g, c)
+
+
+def test_the_one_known_divergence_is_an_overflowing_difference():
+    """The gate ties a finite pair whose difference overflows float64; the tool orders it.
+
+    Found by review. The gate's matrix turns ``1e308 - (-1e308)`` into ``inf`` and its mask
+    reads a non-finite difference as a tie. The pair is perfectly ordered, and a standard
+    AUROC says so. The gate is left as it is -- no RHOB family produces scores near 1e308 --
+    and the divergence is pinned here rather than hidden.
+    """
+    assert _gate_resolution([1e308], [-1e308]) == 0.0
+    assert _cf_resolution([1e308], [-1e308]) == 1.0
 
 
 def test_the_tie_tolerances_are_the_gates():
@@ -108,7 +135,8 @@ def test_verdicts_on_the_ledger_match_the_gates_outcomes():
         m = cell["metrics"]["proxy_matched"]
         r = Resolution(
             n=2, n_distinct=2, n_nonfinite=0, n_pos=1, n_neg=1,
-            resolution=m["statistic_resolution"],
+            exact_resolution=None,
+            tolerance_resolution=m["statistic_resolution"],
             dispersion=m["proxy_informativeness"],
             margin=m["margin"],
             dispersion_floor=m["informativeness_floor"],
@@ -127,3 +155,27 @@ def test_onset_localizable_is_fixed_across_the_ledger():
     assert r.n_distinct == 1
     assert r.verdict == "fixed"
     assert all(c["outcomes"]["onset_localizable"] == "pass" for c in _ledger_cells())
+
+
+def _verdict_from(resolution, informativeness=1.0, margin=0.10, floor=1e-4):
+    return Resolution(
+        n=2, n_distinct=2, n_nonfinite=0, n_pos=1, n_neg=1,
+        exact_resolution=None, tolerance_resolution=resolution,
+        dispersion=informativeness, margin=margin, dispersion_floor=floor,
+    ).verdict
+
+
+@pytest.mark.parametrize("margin", [0.05, 0.10, 0.15])
+def test_the_resolution_cut_is_the_gates(margin):
+    """Either side of r/2 == margin, the tool and gate.is_degenerate must agree."""
+    cut = 2.0 * margin
+    for r in (np.nextafter(cut, 0.0), cut, np.nextafter(cut, 1.0), cut - 1e-9, cut + 1e-9):
+        tool = _verdict_from(float(r), margin=margin) in {"fixed", "pinned"}
+        assert tool == gate.is_degenerate(float(r), margin), r
+
+
+def test_the_informativeness_cut_is_the_gates():
+    floor = gate.PROXY_INFORMATIVENESS_FLOOR
+    for i in (np.nextafter(floor, 0.0), floor, np.nextafter(floor, 1.0)):
+        tool = _verdict_from(1.0, informativeness=float(i), floor=floor) == "dust"
+        assert tool == gate.is_uninformative(float(i), floor), i

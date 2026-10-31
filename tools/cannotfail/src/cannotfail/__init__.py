@@ -23,6 +23,7 @@ from cannotfail.power import (
     difference_power,
     equivalence_power,
     mann_whitney_null_sd,
+    min_two_sided_p,
     required_seeds_per_layout,
 )
 from cannotfail.resolution import (
@@ -45,6 +46,7 @@ __all__ = [
     "dispersion",
     "equivalence_power",
     "mann_whitney_null_sd",
+    "min_two_sided_p",
     "n_distinct",
     "required_seeds_per_layout",
     "resolution",
