@@ -186,15 +186,45 @@ def test_post_audit_rhob_clears_both_equivalence_criteria():
     assert sound == {"proxy_matched", "proxy_distribution_matched"}
 
 
-def test_post_audit_rhob_still_carries_undemonstrated_rows():
-    """The audit fixed the equivalence criteria and did not fix everything."""
+def test_post_audit_rhob_has_one_finding_left():
+    """Every criterion has a probe family that fails it, so none is merely undemonstrated.
+
+    An earlier coding said three were, which was wrong: the probes in
+    tests/test_v3/test_criteria_discriminate.py were committed before that coding. What the
+    audit did not fix is onset_localizable, which can fail on a probe and still cannot fail
+    on any cell the benchmark ships.
+    """
     result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))
-    undemonstrated = {f.criterion.criterion for f in result.undemonstrated}
-    assert undemonstrated == {
-        "behavioral_separated",
-        "true_reward_diverges",
-        "camping_quality",
-    }
+    assert not result.undemonstrated
+    assert {f.criterion.criterion for f in result.findings if f.is_finding} == {"onset_localizable"}
+    verdicts = {f.criterion.criterion: f.verdict for f in result.findings}
+    assert verdicts["behavioral_separated"] is Verdict.NOT_APPLICABLE
+    assert verdicts["camping_quality"] is Verdict.NOT_APPLICABLE
+
+
+def test_self_coding_sources_still_point_at_their_criteria():
+    """A row whose source is a README line must name its criterion on that line.
+
+    The README gained 87 lines above its criteria table on 2026-10-31 and every source in
+    this file silently went stale. A calibration whose citations do not resolve cannot be
+    checked by anyone, which is the property the coding exists to have.
+    """
+    import json
+    import re
+
+    readme = (SELF_CODING.parents[1] / "README.md").read_text(encoding="utf-8").splitlines()
+    data = json.loads(SELF_CODING.read_text(encoding="utf-8"))
+    checked = 0
+    for snapshot in data["snapshots"].values():
+        for row in snapshot["rows"]:
+            m = re.match(r"README\.md:(\d+)(?:-(\d+))?", row["source"])
+            if not m:
+                continue
+            lo = int(m.group(1)); hi = int(m.group(2) or lo)
+            span = "\n".join(readme[lo - 1:hi])
+            assert row["criterion"] in span, (row["criterion"], row["source"], readme[lo - 1][:80])
+            checked += 1
+    assert checked == 12
 
 
 def test_post_audit_onset_localizable_is_degenerate():

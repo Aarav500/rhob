@@ -15,12 +15,12 @@ this coding cannot conclude.
 
 | Benchmark | Criterion | Verdict | Why | Source |
 |---|---|---|---|---|
-| `rhob_pre_audit` | `behavioral_separated` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:114 |
-| `rhob_pre_audit` | `camping_quality` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:117 |
-| `rhob_pre_audit` | `onset_localizable` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:116 |
-| `rhob_pre_audit` | `proxy_distribution_matched` | inverted | asserts an equivalence but is tested with a difference test: failing to find a difference is reported as there being none, so noise makes the criterion easier to pass rather than harder | README.md:113 |
-| `rhob_pre_audit` | `proxy_matched` | inverted | asserts an equivalence but is tested with a difference test: failing to find a difference is reported as there being none, so noise makes the criterion easier to pass rather than harder | README.md:119-154 (describes the pre-audit form: abs(mean_auroc - 0.5) < 0.10) |
-| `rhob_pre_audit` | `true_reward_diverges` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:115 |
+| `rhob_pre_audit` | `behavioral_separated` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:212 |
+| `rhob_pre_audit` | `camping_quality` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:215 |
+| `rhob_pre_audit` | `onset_localizable` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:214 |
+| `rhob_pre_audit` | `proxy_distribution_matched` | inverted | asserts an equivalence but is tested with a difference test: failing to find a difference is reported as there being none, so noise makes the criterion easier to pass rather than harder | README.md:211 |
+| `rhob_pre_audit` | `proxy_matched` | inverted | asserts an equivalence but is tested with a difference test: failing to find a difference is reported as there being none, so noise makes the criterion easier to pass rather than harder | README.md:217-252 (describes the pre-audit form: abs(mean_auroc - 0.5) < 0.10) |
+| `rhob_pre_audit` | `true_reward_diverges` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:213 |
 
 **Inverted: 2 of 2 equivalence-shaped criteria.** (6 criteria scored in total; the other 4 are difference- or threshold-shaped, where a difference test is correct.)
 
@@ -29,12 +29,12 @@ this coding cannot conclude.
 
 | Benchmark | Criterion | Verdict | Why | Source |
 |---|---|---|---|---|
-| `rhob_post_audit` | `behavioral_separated` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:114 |
-| `rhob_post_audit` | `camping_quality` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:117 |
-| `rhob_post_audit` | `onset_localizable` | degenerate | D1, measured: the criterion's statistic took a single value across every cell of the shipped design, so its verdict is fixed by construction and says nothing about any cell | README.md:116 |
-| `rhob_post_audit` | `proxy_distribution_matched` | sound | equivalence claim, equivalence test, degeneracy guarded, and a demonstrated failure | README.md:113; admission/ADMISSION_LEDGER.md |
-| `rhob_post_audit` | `proxy_matched` | sound | equivalence claim, equivalence test, degeneracy guarded, and a demonstrated failure | README.md:112; src/rhob/v3/admission_gate.py |
-| `rhob_post_audit` | `true_reward_diverges` | undemonstrated | nothing published shows this criterion returning a negative verdict: no power curve, no adversarial probe that it rejects, no observed rejection reported alongside the passes | README.md:115; external/hvta/RESULTS.md |
+| `rhob_post_audit` | `behavioral_separated` | not_applicable | threshold claim with a demonstrated failure: failing is the safe direction here, so the equivalence diagnostics do not apply | README.md:212; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py |
+| `rhob_post_audit` | `camping_quality` | not_applicable | threshold claim with a demonstrated failure: failing is the safe direction here, so the equivalence diagnostics do not apply | README.md:215; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py |
+| `rhob_post_audit` | `onset_localizable` | degenerate | D1, measured: the criterion's statistic took a single value across every cell of the shipped design, so its verdict is fixed by construction and says nothing about any cell | README.md:214; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py |
+| `rhob_post_audit` | `proxy_distribution_matched` | sound | equivalence claim, equivalence test, degeneracy guarded, and a demonstrated failure | README.md:211; admission/ADMISSION_LEDGER.md |
+| `rhob_post_audit` | `proxy_matched` | sound | equivalence claim, equivalence test, degeneracy guarded, and a demonstrated failure | README.md:210; src/rhob/v3/admission_gate.py |
+| `rhob_post_audit` | `true_reward_diverges` | not_applicable | difference claim with a demonstrated failure: failing is the safe direction here, so the equivalence diagnostics do not apply | README.md:213; external/hvta/RESULTS.md; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py |
 
 **Inverted: 0 of 2 equivalence-shaped criteria.** (6 criteria scored in total; the other 4 are difference- or threshold-shaped, where a difference test is correct.)
 **Degenerate: 1 criterion** whose statistic was measured to take one value across the whole design. Its verdict is fixed by construction, whatever the claim shape, and counted separately from the inverted rate.

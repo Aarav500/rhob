@@ -8,11 +8,13 @@ classification", with the RHOB Transfer Score (RTS) as its headline number and a
 twice-yearly "RHOB Challenge" to give the field a reason to keep coming back. All three
 are withdrawn.
 
-- **RTS does not measure transfer.** It was 0.994 on held-out families. Once each
-  family's behavioural feature stopped carrying the label in its sign, it fell to 0.508,
-  chance. Even before that, the held-out families were written by one author under one
-  construction recipe, so the most RTS could show was transfer within a single authored
-  convention.
+- **The headline RTS did not measure transfer.** The top-5 ensemble's 0.994 on held-out
+  families fell to 0.508, chance, once each family's behavioural feature stopped carrying
+  the label in its sign. That is one run of three trials, and in it the label-fitted
+  Trajectory MLP kept 0.706 ([docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)),
+  so what survives is a label-fitted detector's transfer, not the headline. Even before
+  that, the held-out families were written by one author under one construction recipe, so
+  the most RTS could show was transfer within a single authored convention.
 - **RHOB cannot be the default measure of detection.** In 27 of its 33 families the hack
   itself is authored, and in all 33 so is the flaw it exploits. A benchmark built that way
   can say what a signal contains. It cannot say how well a detector catches hacking an
@@ -57,9 +59,11 @@ main evidence that the diagnostics find real defects.
 
 ## What RHOB itself is for now
 
-- **A fixture for the diagnostics.** Its admission ledger is the calibration set: the 30
-  degenerate `proxy_matched` cells and `onset_localizable`, whose statistic is exactly 0.0
-  in all 50 cells, are known positives that `cannotfail` must find.
+- **A fixture for the diagnostics.** Its admission ledger is the calibration set. Fed the
+  ledger's measured resolution and informativeness, `cannotfail` must mark the same 30
+  `proxy_matched` cells degenerate as the gate does, and it must call `onset_localizable`'s
+  statistic fixed: it is exactly 0.0 in all 50 cells. Recomputing the 30 from score vectors
+  would need the runs regenerated, since the ledger stores aggregates.
 - **A worked example of a check built so it can fail.** The matched-pair construction and
   the admission gate, whose nightly smoke screen rejected 12 of the 13 families it screens.
 - **Not a leaderboard to rank detectors on.** The old v1.5, v1.6 and v2.0 milestones —

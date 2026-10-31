@@ -38,9 +38,13 @@ nothing from RHOB, so it can be run on another benchmark's score vectors:
     cannotfail resolution scores.csv --score score --label is_hack --group cell
 
 It is lifted from the admission gate and held to it by
-[`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py): resolution is
-bit-identical, and fed the gate's own measurements it reproduces the gate's verdict on all
-50 cells of the admission ledger.
+[`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py). Its tolerance
+resolution is bit-identical to the gate's on adversarial inputs, except that a finite pair
+whose difference overflows float64 is ordered rather than tied. Its verdict cuts agree with
+the gate's at both boundaries. And fed the gate's measured resolution and informativeness,
+it marks the same 30 of the 50 ledger cells degenerate. Its primary resolution counts ties
+by exact equality, as a standard AUROC does, so the AUROC range it reports holds for the
+number a maintainer actually computes.
 
 **RHOB is the case study, not the subject.** It is 33 reward-hacking environment families
 over 123 cells with 30 detectors scored on them, audited exhaustively and replicated over
@@ -52,9 +56,9 @@ What the benchmark does **not** show matters as much. Its hacking is authored, n
 discovered. In 26 of the 33 families both arms are hand-written policies. In every family
 the author designed the exploitable flaw and assigned the label, and only in six
 (`gridworld_camping` and the five RLHF families) does an optimizer find the exploit
-itself. Against an external environment it did not build, the best detector's correlation with true hack
-onset is r = 0.43, and every detector that fires on a hack also fires on its matched
-legitimate twin. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) states what the construction
+itself. Against an external environment it did not build, the best correlation with true
+hack onset, among detectors that fire on most runs, is r = 0.43, and every detector that
+fires on a hack also fires on its matched legitimate twin. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) states what the construction
 can and cannot support.
 
 ### Does the class occur elsewhere?
@@ -84,11 +88,16 @@ equivalence test, over all preconditions" rate, for the reason in the paragraph 
     python scripts/coding_worksheet.py emit path/to/skeleton.csv --coders a,b
 
 RHOB codes itself as the calibration. Before the audit, both of its equivalence-shaped
-admission criteria come back `inverted`; after it, neither does. Three rows are still
-`undemonstrated`, and `onset_localizable` is `degenerate`: its statistic, `onset_std`, is
-exactly 0.0 in all 50 ledger cells, so it passes every one by construction. An earlier
-version of this tool coded that row as merely undemonstrated, because a threshold claim was
-never offered to the degeneracy check ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). The protocol a survey has
+admission criteria come back `inverted`; after it, neither does, and every other criterion
+is shown to fail by a probe family built for it
+([`tests/test_v3/test_criteria_discriminate.py`](tests/test_v3/test_criteria_discriminate.py)).
+The one finding left is `onset_localizable`, which is `degenerate`. A probe with diffuse
+onsets does fail it, but on the design that ships its statistic, `onset_std`, is exactly 0.0
+in all 50 ledger cells, because those families' onsets are authored, so it passes every
+shipped cell by construction ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). An earlier
+coding got this wrong twice: it called three probe-backed criteria undemonstrated, and it
+called `onset_localizable` merely undemonstrated, because a threshold claim was never
+offered to the degeneracy check. The protocol a survey has
 to follow, fixed before any coding, is [docs/SURVEY_PROTOCOL.md](docs/SURVEY_PROTOCOL.md).
 
 ## The paper
@@ -145,7 +154,9 @@ DOI is the paper named here; cite it by this title.
 > followed this banner were removed rather than left standing beside their
 > corrections, and replaced with the corrected figures from the 20-draw board. The L0
 > and L1 subsections still quote single-draw numbers from before the leaderboard
-> rebuild, and say so where they do.
+> rebuild, and say so where they do. Where this README and the paper now disagree on a
+> count, this README is the later correction: it gives 26 of 33 families with both arms
+> hand-written, where the paper says 28.
 
 
 **The benchmark: matched pairs, certified by an admission gate.** Each cell mints pairs of
@@ -589,8 +600,11 @@ ensemble. That is the headline the correction at the top retracts. Each family's
 behavioural feature was required to be anti-symmetric with positive meaning hacking, so
 the sign of the observation was the label. Randomizing that sign per family takes the
 score to **0.508**, chance, and the 0.994 reproduces exactly with the randomization
-switched off. The table is removed. `leaderboard/cross_family_transfer.json` is kept as
-the record of what was measured, and is not a transfer result.
+switched off. That is one run of three trials, not a replication, and in the same run the
+label-fitted Trajectory MLP keeps a held-out transfer AUROC of 0.706
+([`docs/figures/sign_randomization_impact.json`](docs/figures/sign_randomization_impact.json)).
+The table is removed. `leaderboard/cross_family_transfer.json` is kept as the record of what
+was measured, and is not a transfer result.
 
 Even before that defect, the held-out families were not novel mechanisms. All 14 train and
 test families were written by one author under one construction recipe, so the most the
