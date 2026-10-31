@@ -73,3 +73,12 @@ results/*
 # file that would be trusted forever once merged. CI restores it via actions/cache,
 # where a wrong key costs a recomputation rather than a wrong result.
 /.rhob_cache/
+
+# Committed on purpose: the one family where hacking is discovered rather than scheduled.
+!results/emergent_pilot/
+
+# Inspect eval run logs (outputs, not artifacts)
+inspect_eval/logs/
+
+# Committed on purpose: the measurements behind an xfail reason.
+!results/family_diagnostics/

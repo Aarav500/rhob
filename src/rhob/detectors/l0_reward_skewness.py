@@ -27,11 +27,22 @@ class RewardSkewnessDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward Skewness"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows have to fit: a baseline skew and a test skew need one each."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         """Score: difference in skewness between late and early windows."""
         rewards = run.proxy_rewards
-        if len(rewards) < self.baseline_window + self.test_window:
-            return 0.5
+        if len(rewards) < self.min_episodes:
+            # Not a measurement. This used to return 0.5, which is indistinguishable
+            # from a measured chance result and was averaged into the published L0 row
+            # as one on 24 of 33 families (leaderboard/v5_replicated.json, Reward
+            # Skewness: mean 0.500, SD 0.000). The harness checks ``min_episodes``
+            # before calling and marks the cell N/A; the NaN is for any caller that did
+            # not, and it is loud downstream where 0.5 was silent.
+            return float("nan")
 
         baseline_skew = float(stats.skew(rewards[:self.baseline_window]))
         test_skew = float(stats.skew(rewards[-self.test_window:]))

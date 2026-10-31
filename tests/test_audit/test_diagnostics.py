@@ -220,7 +220,8 @@ def test_self_coding_sources_still_point_at_their_criteria():
             m = re.match(r"README\.md:(\d+)(?:-(\d+))?", row["source"])
             if not m:
                 continue
-            lo = int(m.group(1)); hi = int(m.group(2) or lo)
+            lo = int(m.group(1))
+            hi = int(m.group(2) or lo)
             span = "\n".join(readme[lo - 1:hi])
             assert row["criterion"] in span, (row["criterion"], row["source"], readme[lo - 1][:80])
             checked += 1

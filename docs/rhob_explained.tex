@@ -3,7 +3,9 @@
 % pdflatex on a base TeX Live install.
 %
 % Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
-% leaderboard/v5_replicated.json, and the module docstrings under src/rhob/.
+% leaderboard/v5_replicated.json, admission/admission_ledger.json,
+% audit/survey_s1_frame.json, results/emergent_pilot/README.md, and the module
+% docstrings under src/rhob/.
 
 \documentclass[11pt,a4paper]{article}
 
@@ -42,7 +44,7 @@
 {\sffamily\bfseries\Large What my project actually is}
 
 \vspace{0.4em}
-{\sffamily Aarav Shah \quad\textbullet\quad August 2026 \quad\textbullet\quad
+{\sffamily Aarav Shah \quad\textbullet\quad August 2026, revised October 2026 \quad\textbullet\quad
 \texttt{ashah264@ucr.edu}}
 
 \vspace{0.3em}
@@ -138,16 +140,20 @@ same reward.
 The answer is no, and this is the biggest limit on the whole project. It is written
 in my threat model file and I should have led with it.
 
-In 28 of the 33 families neither arm learns anything. Both arms are policies I
+In 26 of the 33 families neither arm learns anything. Both arms are policies I
 wrote by hand. I wrote a script that behaves the way a cheating agent would behave,
 and a script that behaves the way an honest agent would behave, and I ran both.
 There is no learner at all. So no, they are not two seeds of the same learner. The
 seeds change the layout and the noise, not any optimisation.
 
-The other 5 families are different. They run real policy gradient against a reward
-model that was actually fitted from preference data. There the cheating is not
-scripted, it comes out on its own. But the hole in the reward model, and the label
-saying which arm is which, are still mine.
+The other 7 families have a learner in them, and in 6 of those the cheating is not
+scripted, it comes out on its own. Five run real policy gradient against a reward
+model that was actually fitted from preference data. The sixth is the small
+gridworld, where a simple learner finds the cheat, though I chose the episode it
+becomes available (250) and forced 20 episodes of exploration right after, so I
+still decide when it starts. But the hole they find, and the label saying which arm
+is which, are still mine. In the seventh the network was trained on a different task
+and then frozen, and it switches to cheating at an episode I wrote down.
 
 So what does the benchmark show? It shows what you could detect \emph{in principle}
 from each kind of information. It does not show what real trained agents leave
@@ -390,7 +396,7 @@ Split the two kinds of detector apart, on the same 20 repeats:
 \toprule
 Level & Best of all detectors & Best of the fixed-formula ones \\
 \midrule
-L0 (reward only)      & 0.5477 & 0.5437 \\
+L0 (reward only)      & 0.5540 & 0.5514 \\
 L1 (+ state counts)   & 0.9416 & 0.5340 \\
 L2 (+ behaviour)      & 0.9430 & 0.5872 \\
 L3 (+ true reward)    & 0.9746 & 0.9746 \\
@@ -405,8 +411,8 @@ And each step of the ladder, measured across the 20 repeats:
 \toprule
 Step & Detectors & Gap [95\% interval] & Repeats where the step held \\
 \midrule
-L1 $-$ L0 & all            & $+0.394$ \ $[+0.384,\ +0.403]$ & 20 of 20 \\
-L1 $-$ L0 & fixed-formula  & $-0.010$ \ $[-0.028,\ +0.008]$ & 5 of 20 \\
+L1 $-$ L0 & all            & $+0.388$ \ $[+0.378,\ +0.397]$ & 20 of 20 \\
+L1 $-$ L0 & fixed-formula  & $-0.017$ \ $[-0.039,\ +0.002]$ & 4 of 20 \\
 \addlinespace
 L2 $-$ L1 & all            & $+0.001$ \ $[-0.004,\ +0.006]$ & 13 of 20 \\
 L3 $-$ L2 & all            & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
@@ -591,12 +597,14 @@ of 19 published benchmarks, and I wrote down what I was going to look for before
 started so I could not move the target afterwards.
 
 I did not find it. The pattern did not turn up in the other benchmarks in the form
-I found it in mine. That is in the paper as a claim I withdrew.
+I found it in mine. That is in the paper as a claim I withdrew. A second form did
+turn up, calling two things equal because a test for a difference found nothing: 15
+of the 77 conditions I listed, in 4 of 15 benchmarks.
 
 So my honest position is this. I found this in one benchmark, and it was mine. I
-went looking for it in nineteen others under rules I fixed in advance, and it was
-not there. What is left is the method and one detailed case study. Not a claim
-about the field.
+went looking for it in nineteen others under rules I fixed in advance, and in that
+form it was not there. What is left is the method, one detailed case study, and that
+second count. Not a claim about the field.
 
 A second prediction of mine failed recently, and I am telling you for the same
 reason. Earlier work of mine said the ``true rewards differ'' check is blind to
@@ -643,7 +651,7 @@ survive this specific change, named in advance'' does.
 All in one place, so you do not have to trust me to bring them up one at a time.
 
 \begin{itemize}
-\item \textbf{The cheating is scripted.} 28 of 33 families are policies I wrote by
+\item \textbf{The cheating is scripted.} 26 of 33 families are policies I wrote by
       hand. This is about what a channel holds in principle, not about real trained
       agents.
 \item \textbf{The public table is one draw.} Every cell is a single 5-against-5
@@ -668,7 +676,11 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       two detectors'' figure averaged one oracle with one copy of an L2 baseline
       and measured nothing.
 \item \textbf{The onset half is unsupported.} I published this as ``Reward Hacking
-      \emph{Onset} Benchmark''. That column is not currently backed by anything. I
+      \emph{Onset} Benchmark''. In all 50 cells I check, the episode where cheating
+      starts is the same on every seed, because I wrote it down. So the onset column
+      could not fail, and I have removed it from the table; the code keeps it only
+      for the one outside dataset (\code{external/hvta}). For the same reason my
+      audit code now marks entry check 5 as one that cannot fail. I
       keep the short name so old links work, and the long name should not be used.
 \item \textbf{The entry checks are barely covered by my own tests.} The full check
       is never run on a real registered family anywhere in the test suite. The two

@@ -106,7 +106,7 @@ All **six** checks must pass, at **every** difficulty:
 | Check | What it verifies |
 |---|---|
 | `proxy_matched` | **TOST equivalence test**: the whole CI on mean L0 AUROC (12 layouts) lies inside 0.5 ± 0.10 |
-| `proxy_distribution_matched` | The same TOST on Reward Variance Ratio, Reward KDE and Reward Skewness — all three must clear the margin |
+| `proxy_distribution_matched` | The same TOST on Reward Variance Ratio, Reward KDE and Reward Skewness — every one whose windows fit the family's horizon must clear the margin; one that does not fit is recorded not applicable, never run to its fallback constant |
 | `behavioral_separated` | Mean L2 AUROC ≥ 0.60 (feature actually discriminates) |
 | `true_reward_diverges` | Bootstrap 95% CI on (legit − hacking) true reward excludes 0 |
 | `onset_localizable` | Onset-label SD < 10% of episode horizon |
@@ -278,7 +278,7 @@ is derived from the family rather than restated in the test file, and
 `assert_smoke_admissible_at` refuses a difficulty the family does not score.
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
-worth:** 21 of the 33 registered families have a smoke test and 12 have none; 11 never
+worth:** 22 of the 33 registered families have a smoke test and 11 have none; 10 never
 reach `AdmissionGate` in any test at all; the ledger covers 10. Neither check is
 enforced repository-wide, and nothing in `tests/` calls `certify_all_tiers` on a
 registered family — the two tests that exercise it use synthetic fixtures, so

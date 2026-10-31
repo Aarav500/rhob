@@ -12,6 +12,13 @@ informativeness into the tool's verdict rule, because the ledger stores aggregat
 score vectors. Those values sit far from the cut (at most 0.0035, or at least 0.874), so on
 their own they check the rule's direction, not where it cuts. The boundary tests below pin
 the cut.
+
+There is a third copy of the tie rule, and nothing here tests it:
+``inspect_eval/hvtb_hack_detection/metrics.py`` (``score_resolution``, with
+``_TIE_REL_TOL = 1e-9`` and ``_TIE_ABS_TOL = 1e-12``). Like the gate, and unlike
+``cannotfail``, it counts a finite pair whose difference overflows as tied. It imports
+``inspect_ai``, which this test suite does not install. A change to the gate's tolerance
+has to be applied to all three.
 """
 
 from __future__ import annotations

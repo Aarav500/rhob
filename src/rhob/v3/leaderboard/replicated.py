@@ -33,11 +33,12 @@ unusually precise estimate.
 
 **A level's maximum is not a detector's score.** ``access_levels.<L>.max_auroc`` is the
 mean over draws of the *best* detector at that level, and taking a maximum over N noisy
-estimates biases it upward: at L0 it lands at 0.548 while no individual L0 detector's
-point estimate reaches 0.507. Reading it as "the best reward-only detector scores 0.548"
-inverts the rung's meaning, which is a negative control -- reward-only detectors are
-*supposed* to sit at chance on a proxy certified to be indistinguishable between the
-variants, and the control is carried detector by detector, not by the max.
+estimates biases it upward: at L0 it lands at 0.554 while no individual L0 detector's
+point estimate reaches 0.507 (both after the 2026-09-03 Reward Skewness re-score).
+Reading it as "the best reward-only detector scores 0.554" inverts the rung's meaning,
+which is a negative control -- reward-only detectors are *supposed* to sit at chance on a
+proxy certified to be indistinguishable between the variants, and the control is carried
+detector by detector, not by the max.
 :meth:`ReplicatedLeaderboard.control_check` computes that per-detector statement from the
 artifact so a renderer can state it instead of inferring it from the level aggregate.
 """

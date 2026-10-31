@@ -1,6 +1,8 @@
 # RHOB Shared Task — Workshop Pitch (Draft) — WITHDRAWN
 
-> **Withdrawn 2026-10-31.** Kept as a record, not as a plan. Two of its premises are false:
+> **Withdrawn.** The roadmap retired this shared task on 2026-09-02 (`838a8d7`), and this
+> file was marked withdrawn on 2026-10-31. Kept as a record, not as a plan. Two of its
+> premises are false:
 >
 > - *"RHOB's matched-proxy construction makes reward-only detection* provably *impossible
 >   by design."* It is impossible only for proxies the family author chose to equalize. In

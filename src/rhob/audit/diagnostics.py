@@ -54,7 +54,6 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from rhob.audit.criterion import (
-    ClaimShape,
     CodedCriterion,
     CriterionFinding,
     FailureEvidence,
@@ -80,7 +79,10 @@ def diagnose_constant_statistic(row: CodedCriterion) -> CriterionFinding | None:
     Applies to every claim shape. A difference or threshold check is normally the safe
     direction, because noise pushes it toward failing -- but a constant has no noise,
     so a threshold on it passes in every cell or fails in every cell, and either way no
-    observation the design can produce changes the verdict.
+    observation the design can produce changes the verdict. A FAIL fixed this way is no
+    more a measurement than a pass: RHOB's ``true_reward_diverges`` reported "measured
+    and found not to diverge" on arms tied by arithmetic until ``584ba13``, after which
+    the gate reports that case as DEGENERATE.
     """
     if row.observed_distinct_values != 1:
         return None
@@ -146,9 +148,14 @@ def diagnose_direction(row: CodedCriterion) -> CriterionFinding | None:
 def diagnose_degeneracy(row: CodedCriterion) -> CriterionFinding | None:
     """Flag an equivalence test with nothing guarding that its statistic can vary.
 
-    Only equivalence tests carry this, for the reason ``README.md`` gives: on a
-    difference test ties push the statistic toward the null and therefore toward
-    failing, which is the safe direction.
+    Only equivalence tests carry this verdict. On a difference test ties push the
+    statistic toward the null and therefore toward failing, so a tie cannot certify a
+    false pass, which is the defect this check reads off the design. It can still
+    publish "measured and found false" when nothing was measured: RHOB's
+    ``true_reward_diverges`` did, on arms tied by arithmetic, and since ``584ba13`` the
+    gate reports that case as DEGENERATE. Finding it is not this function's job: a
+    coded row is flagged for it by :func:`diagnose_constant_statistic`, and only when
+    the coder recorded ``observed_distinct_values``.
     """
     if not row.is_equivalence_shaped:
         return None
@@ -220,12 +227,16 @@ def diagnose(row: CodedCriterion) -> CriterionFinding:
             return finding
 
     if not row.is_equivalence_shaped:
+        # A tie can still fix a difference or threshold check at FAIL with nothing
+        # measured. That case is reported only by diagnose_constant_statistic, from a
+        # measured observed_distinct_values.
         return CriterionFinding(
             criterion=row,
             verdict=Verdict.NOT_APPLICABLE,
             reason=(
-                f"{row.claim_shape} claim with a demonstrated failure: failing is the "
-                "safe direction here, so the equivalence diagnostics do not apply"
+                f"{row.claim_shape} claim with a demonstrated failure: noise pushes it "
+                "toward failing, not toward a false pass, so the equivalence diagnostics "
+                "do not apply"
             ),
         )
 

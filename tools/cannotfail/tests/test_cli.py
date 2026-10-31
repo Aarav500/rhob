@@ -147,7 +147,10 @@ def test_power_difference_needs_no_scipy(capsys):
 
 
 def test_a_leaderboard_predictions_json_is_one_command(tmp_path, capsys):
-    """RAID-style predictions.json: a list of {id, score}. The case that motivated JSON input."""
+    """A list of {id, score} objects, a common leaderboard predictions format.
+
+    The case that motivated JSON input.
+    """
     path = tmp_path / "predictions.json"
     path.write_text(json.dumps([{"id": f"x{i}", "score": 1.0} for i in range(50)]), encoding="utf-8")
     code, payload = _run_json(capsys, "resolution", str(path), "--score", "score")

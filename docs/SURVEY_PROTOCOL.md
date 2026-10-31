@@ -4,9 +4,10 @@
 
 This document fixes the decision rules *before* any benchmark is coded, so that the
 result is a measurement rather than a reading. It exists because the survey the paper
-describes currently has no machine-readable form in this repository — no benchmark
-list, no coding sheet, no runnable diagnostic — and a survey that names other people's
-work and cannot be re-run is the defect this project is about, pointed outward.
+describes has only a partial machine-readable form in this repository — the frame totals
+are in [`audit/survey_s1_frame.json`](../audit/survey_s1_frame.json), but there is no
+row-level coding sheet — and a survey that names other people's work and cannot be re-run
+is the defect this project is about, pointed outward.
 
 The thesis this survey is meant to test is the repository's own:
 
@@ -46,9 +47,12 @@ this is the *direction noise pushes the verdict*:
   `threshold`-shaped, and a difference test is the correct tool.
 
 This rule is what keeps the survey honest about difference tests. Four of RHOB's own
-six criteria are difference tests and should be: as `README.md` puts it, "ties push
-the statistic *toward* the null and therefore toward failing — the safe direction."
-A survey that counted those as defects would be wrong about its own author.
+six criteria are difference- or threshold-shaped and are tested that way, correctly. A tie
+on a difference test cannot certify a false pass, because ties push the statistic toward
+the null and so toward failing. It can still publish "measured and found false" when
+nothing was measured: `true_reward_diverges` reported FAIL on arms tied by arithmetic, and
+since `584ba13` the gate reports that case as DEGENERATE. A survey that counted correctly
+shaped difference tests as defects would be wrong about its own author.
 
 Worked calls:
 
@@ -69,10 +73,16 @@ statistical criteria would miss them.
 
 Implemented in `rhob.audit.diagnostics`, applied in order, first hit wins.
 
-**Note on provenance.** The paper names three diagnostics; this repository has never
-listed them. The three below are reconstructed from the defects the RHOB audit
-actually found. If the paper's three differ, these get renamed to match the paper —
-not the reverse.
+**Note on provenance (revised 2026-10-31).** The earlier note committed to renaming these
+to match the paper's three diagnostics, on the assumption that they were the same three.
+They are not the paper's D1–D3, so they keep their own names.
+The paper's three diagnostics (D1 resolution, D2 power, D3 channel digest) read a
+benchmark's *artifacts*: score vectors, designs, wiring. The checks below read *coded
+rows*, a person's reading of what a precondition asserts and what backs it. They are
+different layers (see the docstring of `src/rhob/audit/diagnostics.py`). One verdict runs
+before the three and consumes D1's measurement directly: `degenerate`, for a criterion
+whose statistic took one value across the whole shipped design, so that its verdict is
+fixed by construction whatever its claim shape (`diagnose_constant_statistic`).
 
 ### 3.1 Direction — `INVERTED`
 
@@ -178,14 +188,19 @@ The sequence:
   documented, and in scope. It is not representative of the field and no rate computed
   from it should be described as a rate in the field.
 
-## 8. What §5 does and does not already contain
+## 8. What §5 does and does not already contain (revised 2026-10-31)
 
-Two claims live in §5 and they have different statuses:
+Three claims live in §5 and they have different statuses:
 
-- **Withdrawn:** that the failure class — checks that cannot return a negative —
-  *generalizes* to other published benchmarks. The pre-registered survey did not find
-  it in the form first proposed. `README.md` records this, and nothing in a published
-  table may quietly reinstate it.
+- **Withdrawn:** sub-class B, a score vector with a single distinct value, as a
+  prevalence claim. It did not generalize: pooled 0.54%, CI [0.00%, 1.32%] (paper §5 and
+  App. F). `README.md` records this, and nothing in a published table may quietly
+  reinstate it.
+- **Not withdrawn:** sub-class A, an equivalence asserted from a non-significant
+  difference test: 15 of the 77 enumerated preconditions (19.5%), in 4 of 15 benchmarks
+  (26.7%). It stands subject to the axis-A remediation. The enumeration's search patterns
+  select against equivalence-test vocabulary, and the pre-registered remediation (revised
+  patterns, the three unaudited members, the power re-run) addresses that.
 - **Surviving:** the descriptive statistic that **zero of 77 preconditions across 15
   published benchmarks are supported by an equivalence test**, with a per-benchmark
   coding sheet in the paper.
@@ -239,7 +254,7 @@ over the wrong number of benchmarks, or a row for one of the three members the p
 audited (NINCO, MMTEB, Shifts), which would be new coding rather than a port. Run it
 before emitting worksheets. A port that does not reconcile is not the paper's survey.
 
-The paper's own reading already narrows the denominator: it reports the class-A rate as
-15/77 by claim and 4/15 by benchmark, and says the pooled 0/77 must never be quoted alone.
+The paper's own reading already narrows the denominator: it reports sub-class A by claim
+and by benchmark, as above, and says the pooled 0/77 must never be quoted alone.
 The two-coder pass in §5 narrows it once more, from all preconditions to the
 equivalence-shaped ones.

@@ -224,7 +224,8 @@ jobs:
             "1. A ref reaching \`$PIN\` was deleted or force-moved, so the collector can no" \
             "   longer fetch it. The register entry will read \`clone_failed\` after the next" \
             "   05:17 UTC run, and the install instructions on the listing page will stop" \
-            "   working. Restore reachability: the \`hvtb-register-pin\` tag exists for this." \
+            "   working. Restore a ref that reaches it: the \`inspect-eval\` branch, or the" \
+            "   \`hvtb-register-pin\` tag on \`$PIN\` (push the tag if origin does not have it)." \
             "2. Upstream's published result moved -- a different commit, repository or task" \
             "   path, or a rule that now fails. Read the step log for which assertion fired." \
             "3. \`checked_at\` is more than 48h old, which means upstream's own daily lint" \

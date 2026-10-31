@@ -58,9 +58,8 @@ def _cell(value) -> str:
 def _read_json_columns(path: str, wanted: Sequence[str]) -> dict[str, list[str]]:
     """A ``.json`` list of objects, or ``.jsonl`` with one object per line.
 
-    This is the shape leaderboard prediction files commonly take -- RAID's
-    ``predictions.json`` is ``[{"id": ..., "score": ...}, ...]`` -- so a maintainer can run
-    the check on the file they already have.
+    A list of ``{"id": ..., "score": ...}`` objects is a common leaderboard predictions
+    format, so a maintainer can run the check on the file they already have.
     """
     with open(path, encoding="utf-8-sig") as fh:
         if path.endswith(".jsonl"):

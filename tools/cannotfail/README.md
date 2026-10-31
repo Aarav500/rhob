@@ -134,9 +134,10 @@ $ cannotfail power difference --pos 3 --neg 3 --true-auroc 0.9
 No data can make a two-sided Mann-Whitney test reject at alpha 0.05 with 3 vs 3: the smallest attainable p-value is 0.100. Power is 0, and a non-significant result here is no evidence of anything.
 ```
 
-The first figure is a normal approximation. In 20,000 simulations of the exact test at
-that design, it rejected 12.2% of the time, so read 0.156 as "about one in seven, perhaps
-less". The second is exact.
+The first figure is a normal approximation. Simulating the exact test at that design, with
+unit-variance normal scores in both classes and the positive class shifted by
+√2·Φ⁻¹(0.7) ≈ 0.74 so that the true AUROC is 0.7, it rejects about 12% of the time, so read
+0.156 as "about one in seven, perhaps less". The second is exact.
 
 ## From Python
 
@@ -187,6 +188,12 @@ Because this package imports nothing from RHOB, it is a copy, and the RHOB repos
 
 The difference-power function, the exact-equality resolution and the `dust` verdict are
 new here, and are tested against brute force and simulation in this package's own tests.
+
+The tie tolerance has a third copy, in the RHOB repository's Inspect eval:
+`score_resolution` in `inspect_eval/hvtb_hack_detection/metrics.py`, with the same 1e-9
+and 1e-12. It treats an overflowing finite pair as tied, as the gate does, and no test
+holds it to either of the other two. A change to the gate's tolerance has to be applied to
+all three.
 
 ## Cite
 

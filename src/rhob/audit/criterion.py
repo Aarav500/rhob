@@ -36,6 +36,14 @@ So a difference test is a defect only where the claim is an equivalence -- where
 is :attr:`Verdict.INVERTED`, and the rate that means anything is inverted over
 *equivalence-shaped* criteria. :class:`~rhob.audit.diagnostics.SurveyResult` reports
 that denominator and declines to report the other one.
+
+The "safe direction" quoted above is safe against a false pass, and no more. A tie on
+a difference test cannot certify a false pass, but it can still publish "measured and
+found false" when nothing was measured: RHOB's ``true_reward_diverges`` did, on arms tied
+by arithmetic, and since ``584ba13`` the gate reports that case as DEGENERATE. That is a
+statement about one cell's verdict, not about which test fits the claim, so it does not
+move the denominator. Where the statistic was measured to be constant,
+:attr:`Verdict.DEGENERATE` reports it, on any claim shape.
 """
 
 from __future__ import annotations
@@ -57,7 +65,9 @@ class ClaimShape(str, Enum):
     EQUIVALENCE = "equivalence"
 
     #: "These two things differ" / "this quantity exceeds that one." Failing to show
-    #: it is the safe direction: noise pushes the verdict toward rejection.
+    #: it is the safe direction: noise pushes the verdict toward rejection, so a tie
+    #: cannot certify a false pass. It can still fix the verdict at FAIL with nothing
+    #: measured; :attr:`Verdict.DEGENERATE` reports that, from a measured constant.
     DIFFERENCE = "difference"
 
     #: "This quantity lies on this side of a fixed constant", with no comparison
@@ -147,8 +157,10 @@ class Verdict(str, Enum):
     #: margin, so the check cannot fail.
     DEGENERACY_UNGUARDED = "degeneracy_unguarded"
 
-    #: A difference- or threshold-shaped claim, where failing is the safe direction.
-    #: Carries no finding; excluded from the equivalence denominator.
+    #: A difference- or threshold-shaped claim, where failing is the safe direction: a
+    #: tie cannot certify a false pass. Carries no finding; excluded from the
+    #: equivalence denominator. It does not say the verdict was measured -- a tie can
+    #: still fix such a check at FAIL, which only ``DEGENERATE`` reports.
     NOT_APPLICABLE = "not_applicable"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
