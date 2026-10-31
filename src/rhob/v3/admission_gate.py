@@ -436,13 +436,20 @@ def attainable_auroc_half_range(resolution: float) -> float:
 
 
 def is_degenerate(resolution: float, margin: float = EQUIVALENCE_MARGIN) -> bool:
-    """True when an equivalence test at ``margin`` cannot fail whatever the family does.
+    """True when no dataset could put the test's point estimate outside ``0.5 +/- margin``.
 
     The test's acceptance region is ``0.5 +/- margin``; the statistic's attainable range
     is ``0.5 +/- resolution/2``. When the second sits inside the first, no realizable
     dataset produces a point estimate outside the band, so a pass certifies the tie
     convention rather than the family. NaN (no cross-variant pairs were scored at all)
     is degenerate by the same argument, taken to its limit.
+
+    This is a statement about the estimate, not the whole test. TOST also needs its
+    interval inside the band, so near the cut a degenerate cell can still fail on the
+    interval's width alone. What it cannot do is fail because the family differs, which
+    is why a pass here is not evidence and the outcome is DEGENERATE rather than PASS.
+    An earlier summary line said the test "cannot fail whatever the family does"; that
+    is true only at ``resolution == 0``, where the interval collapses too.
 
     At the shipped ``margin=0.10`` the cut is ``resolution <= 0.20``, and it is not doing
     delicate work. Over the ten families in ``admission/admission_ledger.json``, measured
