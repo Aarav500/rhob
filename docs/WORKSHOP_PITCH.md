@@ -1,4 +1,20 @@
-# RHOB Shared Task — Workshop Pitch (Draft)
+# RHOB Shared Task — Workshop Pitch (Draft) — WITHDRAWN
+
+> **Withdrawn 2026-10-31.** Kept as a record, not as a plan. Two of its premises are false:
+>
+> - *"RHOB's matched-proxy construction makes reward-only detection* provably *impossible
+>   by design."* It is impossible only for proxies the family author chose to equalize. In
+>   `rlhf_sparse_coverage_gaming`, for one, "matched" means two separately fitted reward
+>   models, with the hacking variant's mean proxy brought onto the legitimate one's by
+>   binary-searching a multiplicative scale (`calibrate_scale`). Nothing about that proves a
+>   different proxy could not separate the arms.
+> - *The task is built on RTS*, and its "near-perfect" best result is the 0.994 that fell to
+>   0.508, chance, once each family's behavioural feature stopped carrying the label in its
+>   sign.
+>
+> A shared task asks outside groups to spend their time on a ranking. Neither premise
+> survives, so this one should not be proposed. See [ROADMAP.md](../ROADMAP.md) for what
+> replaced it.
 
 A short pitch for proposing an RTS-based shared task at an ICML/NeurIPS
 safety/alignment workshop, once there's enough external submission activity to justify
