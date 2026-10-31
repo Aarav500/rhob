@@ -31,6 +31,17 @@ diagnostics that answer it from artifacts a benchmark already produces:
 - **D3, channel digest.** Did a parameter reach anything the evaluation reads, or is it
   wired to nothing? (paper §4.3)
 
+D1 and D2 are packaged as [`cannotfail`](tools/cannotfail), a standalone tool that imports
+nothing from RHOB, so it can be run on another benchmark's score vectors:
+
+    pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
+    cannotfail resolution scores.csv --score score --label is_hack --group cell
+
+It is lifted from the admission gate and held to it by
+[`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py): resolution is
+bit-identical, and fed the gate's own measurements it reproduces the gate's verdict on all
+50 cells of the admission ledger.
+
 **RHOB is the case study, not the subject.** It is 33 reward-hacking environment families
 over 123 cells with 30 detectors scored on them, audited exhaustively and replicated over
 20 draws. The audit found seven instances of the class, three of them introduced by the
@@ -63,7 +74,8 @@ is transcribed in [`audit/survey_s1_frame.json`](audit/survey_s1_frame.json).
 
 [`rhob.audit`](src/rhob/audit/) codes each precondition of a benchmark — what it asserts,
 what test backs it, whether a failure was ever shown — and returns a verdict per row:
-`inverted` (an equivalence claim backed by a difference test, or by nothing),
+`degenerate` (D1, measured: the criterion's statistic took one value across the whole
+design), `inverted` (an equivalence claim backed by a difference test, or by nothing),
 `degeneracy_unguarded`, `undemonstrated`, or `sound`. The rate it reports is inverted over
 *equivalence-shaped* preconditions only. It deliberately offers no "supported by an
 equivalence test, over all preconditions" rate, for the reason in the paragraph above.
@@ -72,8 +84,11 @@ equivalence test, over all preconditions" rate, for the reason in the paragraph 
     python scripts/coding_worksheet.py emit path/to/skeleton.csv --coders a,b
 
 RHOB codes itself as the calibration. Before the audit, both of its equivalence-shaped
-admission criteria come back `inverted`; after it, neither does, and four rows are still
-`undemonstrated` ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). The protocol a survey has
+admission criteria come back `inverted`; after it, neither does. Three rows are still
+`undemonstrated`, and `onset_localizable` is `degenerate`: its statistic, `onset_std`, is
+exactly 0.0 in all 50 ledger cells, so it passes every one by construction. An earlier
+version of this tool coded that row as merely undemonstrated, because a threshold claim was
+never offered to the degeneracy check ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). The protocol a survey has
 to follow, fixed before any coding, is [docs/SURVEY_PROTOCOL.md](docs/SURVEY_PROTOCOL.md).
 
 ## The paper

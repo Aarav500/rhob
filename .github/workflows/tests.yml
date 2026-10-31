@@ -138,3 +138,26 @@ jobs:
           assert 'gridworld_camping' in fams, fams
           print('OK:', fams)
           "
+
+  cannotfail:
+    # tools/cannotfail imports nothing from rhob, so it is tested on its own, installed
+    # the way an outside maintainer would install it rather than from this checkout's
+    # src/. The first pass has no SciPy, which holds D1 to its numpy-only promise; the
+    # power tests skip there and run in the second. Python 3.10 is the declared floor.
+    # Parity with the admission gate it was lifted from is tests/test_cannotfail_parity.py,
+    # which the pytest job above runs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: D1 with numpy only
+        run: |
+          pip install ./tools/cannotfail pytest
+          python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('scipy') is not None)"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: Everything, with SciPy
+        run: |
+          pip install "./tools/cannotfail[dev]"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
