@@ -891,8 +891,8 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7" },
-    { name = "rhob", marker = "extra == 'detectors'", git = "https://github.com/Aarav500/rhob?rev=cae08e4a70cb39054c134eda9ac6c4eb422fe1ae" },
-    { name = "rhob", marker = "extra == 'hvtb-hack-detection'", git = "https://github.com/Aarav500/rhob?rev=cae08e4a70cb39054c134eda9ac6c4eb422fe1ae" },
+    { name = "rhob", marker = "extra == 'detectors'", git = "https://github.com/Aarav500/rhob?rev=cfa8b2d08e960ee5c3e92f2dbfb28f217770377f" },
+    { name = "rhob", marker = "extra == 'hvtb-hack-detection'", git = "https://github.com/Aarav500/rhob?rev=cfa8b2d08e960ee5c3e92f2dbfb28f217770377f" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "scikit-learn", specifier = ">=1.3" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
@@ -2615,7 +2615,7 @@ wheels = [
 [[package]]
 name = "rhob"
 version = "1.8.0"
-source = { git = "https://github.com/Aarav500/rhob?rev=cae08e4a70cb39054c134eda9ac6c4eb422fe1ae#cae08e4a70cb39054c134eda9ac6c4eb422fe1ae" }
+source = { git = "https://github.com/Aarav500/rhob?rev=cfa8b2d08e960ee5c3e92f2dbfb28f217770377f#cfa8b2d08e960ee5c3e92f2dbfb28f217770377f" }
 dependencies = [
     { name = "click" },
     { name = "h5py" },
