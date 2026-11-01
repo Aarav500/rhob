@@ -362,8 +362,8 @@ against *large* leaks; where the screen and the ledger disagree, the ledger is
 authoritative.
 
 **Neither column is enforced over the registry, and the right-hand one is not exercised
-by the test suite at all.** 21 of the 33 registered families call
-`assert_smoke_admissible_at`, 12 do not, and 11 never reach `AdmissionGate` in any test.
+by the test suite at all.** 22 of the 33 registered families call
+`assert_smoke_admissible_at`, 11 do not, and 10 never reach `AdmissionGate` in any test.
 No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
 exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
 caller that certifies real families, and the ledger it writes covers 10 of 33. Read a

@@ -1,0 +1,260 @@
+# Survey protocol: coding benchmark preconditions for falsifiability
+
+**Status: draft, not yet executed. No external benchmark has been coded under it.**
+
+This document fixes the decision rules *before* any benchmark is coded, so that the
+result is a measurement rather than a reading. It exists because the survey the paper
+describes has only a partial machine-readable form in this repository — the frame totals
+are in [`audit/survey_s1_frame.json`](../audit/survey_s1_frame.json), but there is no
+row-level coding sheet — and a survey that names other people's work and cannot be re-run
+is the defect this project is about, pointed outward.
+
+The thesis this survey is meant to test is the repository's own:
+
+> A criterion is not a check until it is accompanied by a demonstration that it can
+> fail — a power curve, or an adversarial probe that passes it — and a negative
+> control is decorative unless the failures are published alongside the passes.
+
+---
+
+## 1. What gets coded
+
+The unit is a **precondition**: a criterion a benchmark states that a task, pair,
+instance, or split must satisfy before its results are reported. Not an evaluation
+metric, and not a result.
+
+A precondition is in scope if it is stated in the benchmark's paper, README, or code
+in a form specific enough to check. Aspirational language in a limitations section is
+not a precondition.
+
+One row per (benchmark, criterion). The row records five judgements and two
+provenance fields; the schema is `rhob.audit.criterion.CodedCriterion` and the
+on-disk form is JSON (`audit/*.json`).
+
+## 2. The judgement that decides everything: claim shape
+
+Every finding in this survey depends on one call, so it is the one with the most
+explicit rule and the only one requiring two independent coders.
+
+**A criterion is `equivalence`-shaped if passing it requires evidence that two
+quantities are the same, or that one quantity is near a fixed value.** The test for
+this is the *direction noise pushes the verdict*:
+
+- If more noise, fewer samples, or a weaker measurement makes the criterion **easier**
+  to pass, it is `equivalence`-shaped. Absence of evidence is being read as evidence
+  of absence.
+- If more noise makes it **harder** to pass, it is `difference`- or
+  `threshold`-shaped, and a difference test is the correct tool.
+
+This rule is what keeps the survey honest about difference tests. Four of RHOB's own
+six criteria are difference- or threshold-shaped and are tested that way, correctly. A tie
+on a difference test cannot certify a false pass, because ties push the statistic toward
+the null and so toward failing. It can still publish "measured and found false" when
+nothing was measured: `true_reward_diverges` reported FAIL on arms tied by arithmetic, and
+since `584ba13` the gate reports that case as DEGENERATE. A survey that counted correctly
+shaped difference tests as defects would be wrong about its own author.
+
+Worked calls:
+
+| Criterion | Shape | Why |
+|---|---|---|
+| "the two variants earn indistinguishable proxy reward" | `equivalence` | Noisier measurement → easier to pass |
+| "the true rewards differ (CI excludes 0)" | `difference` | Noisier measurement → harder to pass |
+| "mean AUROC ≥ 0.60" | `threshold` | Noisier measurement → harder to pass |
+| "the contamination rate is below 1%" | `equivalence` | A weaker detector finds less contamination and passes more easily |
+| "no task appears in the training set" | `equivalence` | A weaker search finds fewer matches and passes more easily |
+
+The last two matter: **decontamination and leakage checks are the most common
+equivalence-shaped preconditions in ML benchmarking**, and they are the place this
+survey is most likely to find something real. A survey that only looked at explicit
+statistical criteria would miss them.
+
+## 3. The three diagnostics
+
+Implemented in `rhob.audit.diagnostics`, applied in order, first hit wins.
+
+**Note on provenance (revised 2026-10-31).** The earlier note committed to renaming these
+to match the paper's three diagnostics, on the assumption that they were the same three.
+They are not the paper's D1–D3, so they keep their own names.
+The paper's three diagnostics (D1 resolution, D2 power, D3 channel digest) read a
+benchmark's *artifacts*: score vectors, designs, wiring. The checks below read *coded
+rows*, a person's reading of what a precondition asserts and what backs it. They are
+different layers (see the docstring of `src/rhob/audit/diagnostics.py`). One verdict runs
+before the three and consumes D1's measurement directly: `degenerate`, for a criterion
+whose statistic took one value across the whole shipped design, so that its verdict is
+fixed by construction whatever its claim shape (`diagnose_constant_statistic`).
+
+### 3.1 Direction — `INVERTED`
+
+An `equivalence`-shaped claim tested with a difference test, a point threshold, or
+nothing at all. The pass condition is "no difference was found", so the criterion
+cannot return a negative against a design with no power.
+
+*RHOB's own instance:* `proxy_matched` was `abs(mean_auroc - 0.5) < 0.10`. At four
+seeds per side the standard error is 0.0625, so a family whose true L0 AUROC was
+0.611 — clearly leaking — passed **43.5%** of the time.
+
+*Remedy offered:* an equivalence test at the margin the criterion already implies.
+The published claim does not change; the sample size does.
+
+### 3.2 Degeneracy — `DEGENERACY_UNGUARDED`
+
+An equivalence test with nothing checking that its statistic could have taken another
+value. Where every compared value ties, the interval collapses to a point and the
+criterion certifies against any margin.
+
+*RHOB's own instance:* an AUROC over a constant proxy is exactly 0.5 by the
+half-credit-per-tie convention. The bootstrap SE is 0, the interval is
+`[0.5000, 0.5000]`, and it fits inside any margin. **15 of the first 35 cells** passed
+this way, all of them families whose proxy is constant by construction.
+
+*Remedy offered:* a third outcome for "not measurable", and hold those cells out of
+any control that assumes the criterion was tested.
+
+### 3.3 Demonstrated failure — `UNDEMONSTRATED`
+
+Nothing published shows the criterion returning a negative: no power curve, no
+adversarial probe it rejects, no rejection reported alongside the passes.
+
+**This is the mildest verdict and is expected to be the majority one.** It is a
+statement about what was published, not about whether the check works. A benchmark
+may reject things routinely and simply never report it. The remedy is usually a
+reporting change.
+
+A table that presents `UNDEMONSTRATED` as equivalent to "this check cannot fail" is
+making this project's own error and must not be published.
+
+## 4. The denominator
+
+The headline statistic is **inverted criteria over equivalence-shaped criteria**.
+
+It is *not* "criteria supported by an equivalence test over all preconditions". That
+denominator mixes in criteria for which a difference test is correct, and it fails on
+its own author: post-audit RHOB scores 2 of 6 under it and looks mostly broken, while
+scoring 0 of 2 inverted — sound on both criteria where the distinction bites.
+
+`rhob.audit.diagnostics.SurveyResult.inverted_rate()` returns the defensible pair.
+There is deliberately no function returning the other one.
+
+If no equivalence-shaped criterion is found in a benchmark, the result is reported as
+**"no equivalence-shaped preconditions found"**, never as a rate of zero.
+
+## 5. Coding procedure
+
+1. **Pre-register the benchmark list before coding any of it.** Selection criteria
+   stated in advance, list frozen, and the frozen list published with the results —
+   including benchmarks that were coded and produced no findings. A survey that only
+   publishes the benchmarks where it found something has selected on its outcome.
+2. **Two independent coders per benchmark**, blind to each other, for `claim_shape`
+   at minimum. Disagreements are recorded in the row's `notes`, not resolved silently.
+   Report the disagreement rate.
+3. **Every row carries a source** precise enough for a third party to check: file and
+   line, or paper section. `CodedCriterion.is_admissible()` refuses rows without one,
+   and unscored rows are published with their reason rather than dropped.
+4. **Code RHOB first and publish the result**, including where it fails. The
+   worked example is `audit/rhob_self_coding.json`.
+
+## 6. Author contact, before publication
+
+Not a courtesy step — a correctness step. The authors of a benchmark are the people
+most able to tell you the coding is wrong, and the most likely to know about a power
+analysis or a rejection that exists but was never published. The survey is better for
+having asked.
+
+The sequence:
+
+1. Send each benchmark's authors **their own rows only**, with sources, the exact
+   diagnostic applied, and the remedy. Not the comparative table, and not other
+   benchmarks' rows.
+2. State plainly that RHOB failed the same diagnostics and link the self-coding.
+3. Ask two questions: *is this coding wrong?* and *is there a power analysis or a
+   published rejection we missed?*
+4. Give a stated window — **four weeks** is the working default — and honour it.
+5. Publish corrections and author responses **in the table**, next to the row, not in
+   an appendix.
+6. A benchmark whose every row comes back `SOUND` or `NOT_APPLICABLE` is named in the
+   frozen list and carries no finding. It does not get an email and does not appear in
+   a findings table.
+
+## 7. What this survey cannot conclude
+
+- **`UNDEMONSTRATED` is not "the check cannot fail".** It is "nothing published shows
+  it failing". Most rows will be this.
+- **It says nothing about whether the benchmark's results are wrong.** An
+  unfalsifiable precondition means a number is unsupported, not that it is false.
+- **Coding is a judgement**, concentrated in §2. The inter-coder disagreement rate is
+  part of the result and gets published with it.
+- **The frozen list is a convenience sample** of benchmarks that are public,
+  documented, and in scope. It is not representative of the field and no rate computed
+  from it should be described as a rate in the field.
+
+## 8. What §5 does and does not already contain (revised 2026-10-31)
+
+Three claims live in §5 and they have different statuses:
+
+- **Withdrawn:** sub-class B, a score vector with a single distinct value, as a
+  prevalence claim. It did not generalize: pooled 0.54%, CI [0.00%, 1.32%] (paper §5 and
+  App. F). `README.md` records this, and nothing in a published table may quietly
+  reinstate it.
+- **Not withdrawn:** sub-class A, an equivalence asserted from a non-significant
+  difference test: 15 of the 77 enumerated preconditions (19.5%), in 4 of 15 benchmarks
+  (26.7%). It stands subject to the axis-A remediation. The enumeration's search patterns
+  select against equivalence-test vocabulary, and the pre-registered remediation (revised
+  patterns, the three unaudited members, the power re-run) addresses that.
+- **Surviving:** the descriptive statistic that **zero of 77 preconditions across 15
+  published benchmarks are supported by an equivalence test**, with a per-benchmark
+  coding sheet in the paper.
+
+The surviving statistic is not the headline this protocol publishes, and **it cannot
+be converted into that headline by reformatting**. §5 records, per precondition,
+whether an equivalence test supports it. It does not record whether the precondition
+is equivalence-*shaped* — the §2 call — and that is the denominator §4 is computed
+over. The two fields are independent: a difference claim tested with a difference test
+has no equivalence test and is entirely correct.
+
+So porting §5 yields 77 rows with `test_used` known and `claim_shape` blank. Those
+rows are inadmissible under `CodedCriterion.is_admissible()` until a coder fills the
+shape in. **The port is a re-coding pass, not a format conversion**, and it is the
+work that stands between the paper and a publishable table.
+
+`scripts/coding_worksheet.py` is the paperwork for that pass: it emits one worksheet
+per coder with `test_used` pre-filled and `claim_shape` blank, reads them back, and
+reports the disagreement rate §5 requires be published.
+
+### What to expect from the narrower denominator
+
+It will almost certainly **strengthen** the finding rather than weaken it.
+
+"0 of 77 preconditions have an equivalence test" invites the reply that most of the 77
+never needed one — and that reply is correct, which is why the statistic is fragile.
+"*N* of *N* equivalence-shaped preconditions are inverted", with the shape call
+published per row and contestable by the benchmark's own authors, does not have that
+reply available to it.
+
+The equivalence-shaped subset is expected to be a minority of the 77 — decontamination
+and leakage checks, balance claims, "the distractors are indistinguishable", "human
+agreement is at ceiling". If the inverted rate over that subset is high, the finding
+is sharper than the original and survives the obvious rebuttal. If the subset turns
+out to be near-empty, that is also a result, and it is reported as
+**"no equivalence-shaped preconditions found"** — never as a rate of zero.
+
+### What the paper itself prints, and what it does not (added 2026-10-31)
+
+Appendix F of the paper prints the frame: all 19 members, each one's count of enumerated
+preconditions, and the split of the 77 by support — 0 equivalence test, 15 difference
+test, 40 descriptive, 22 no support, the 15 difference-test claims falling in 4
+benchmarks. That is transcribed in [`audit/survey_s1_frame.json`](../audit/survey_s1_frame.json).
+It does **not** print the rows: which criterion, from which source, under which test.
+Those come from the coding sheet, which is not in this repository.
+
+So the port has a check it did not write: `rhob.audit.frame.reconcile` takes the ported
+rows and names every way they fail to reproduce Appendix F — a missing or extra row per
+benchmark, a precondition moved between kinds of support, difference-test claims spread
+over the wrong number of benchmarks, or a row for one of the three members the paper never
+audited (NINCO, MMTEB, Shifts), which would be new coding rather than a port. Run it
+before emitting worksheets. A port that does not reconcile is not the paper's survey.
+
+The paper's own reading already narrows the denominator: it reports sub-class A by claim
+and by benchmark, as above, and says the pooled 0/77 must never be quoted alone.
+The two-coder pass in §5 narrows it once more, from all preconditions to the
+equivalence-shaped ones.

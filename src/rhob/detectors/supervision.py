@@ -20,21 +20,22 @@ question happened to produce the larger number at that level.
 
 Why this is load-bearing here
 -----------------------------
-On the 20-draw replication the access ladder's best detector is label-fitted at L1
+On the 20-draw replication (``leaderboard/v5_replicated.json``, after the 2026-09-03
+Reward Skewness re-score) the access ladder's best detector is label-fitted at L1
 (State Divergence) and at L2 (Trajectory MLP), and unsupervised at L0 and L3. Removing
 the five label-fitted detectors and re-deriving the ladder from the same draws:
 
 ===== ================= =====================
 level all detectors     unsupervised only
 ===== ================= =====================
-L0    0.5477            0.5437
+L0    0.5540            0.5514
 L1    0.9416            0.5340
 L2    0.9430            0.5872
 L3    0.9746            0.9746
 ===== ================= =====================
 
-The paired L1-L0 step goes from ``+0.394 [+0.384, +0.403]``, 20/20 draws, to
-``-0.0097 [-0.028, +0.009]``, 5/20 draws -- it reverses sign and stops separating. The
+The paired L1-L0 step goes from ``+0.388 [+0.378, +0.397]``, 20/20 draws, to
+``-0.017 [-0.039, +0.002]``, 4/20 draws -- it reverses sign and stops separating. The
 entire published climb from reward-only to state-visitation access is one supervised
 detector. That is a real result about RHOB, but it is not the result the ladder was
 being read as, and a reader cannot recover it from a single-column table.

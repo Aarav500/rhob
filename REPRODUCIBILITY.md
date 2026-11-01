@@ -129,6 +129,15 @@ weighted by cell rather than by family; of the 0.0032 difference, 0.0029 is the
 exclusion and 0.0003 is the re-weighting. L1–L3 do not read the proxy reward and score
 these six families like any other, so they are unchanged by construction.
 
+This table is the single-draw board (`leaderboard/v5_leaderboard.json`), which predates
+the Reward Skewness fix (584ba13, 2026-09-02) and has not been regenerated. Skewness
+needs 100 episodes and returned a constant 0.5 below that, so on this board it sits at
+exactly 0.5 on 19 of the 27 families in the L0 row. The 20-draw board was re-scored
+with those 19 not applicable (9da6b21); there the maximum over unsupervised L0 detectors, taken in each draw and averaged over the
+20, is 0.551 [0.541, 0.562]. That maximum is selection-biased upward: no single L0
+detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
+`leaderboard/v5_replicated.json`).
+
 **Excluded from the L3 aggregate: `PerfectFeatureOracleDetector`.** It is a
 subclass of the L2 `BehavioralThresholdDetector` overriding only `access_level`
 and `name`, inheriting `classify`/`detect_onset` verbatim; it reads only
@@ -141,8 +150,10 @@ copy of an L2 baseline and never measured anything. It is registered in
 is deliberately *not* re-filed under L2, which would just move the double-count
 there (lifting L2's mean to 0.7530) for no new information.
 
-**Consequence for the headline claim:** best-L2 0.9750 vs best-L3 0.9830 is a gap
-of **0.0080 AUROC**. There is no meaningful oracle gap above L2.
+**Consequence for the headline claim:** on this single-draw board, best-L2 0.9750 vs
+best-L3 0.9830 is a gap of **0.0080 AUROC**. Over 20 draws the same step is +0.032
+[+0.027, +0.037], positive in 20 of 20 (`leaderboard/v5_replicated.json`): small, but
+not none.
 
 ### Figure 7b: L1 must be reported over its own denominator
 
@@ -635,8 +646,9 @@ shipped is caught at 96 rollouts: `rlhf_sparse_coverage_gaming` @0.95 (mean L0 A
 L0 detectors at 1.000). What it cannot see is a *small* leak, roughly 0.60–0.75 — the
 band the ledger's tighter margin exists to police.
 
-**Coverage, plainly: 21 of the 33 registered families have a smoke test and 12 have
-none; 11 never reach `AdmissionGate` in any test at all; and 10 are in the ledger.**
+**Coverage, plainly: 22 of the 33 registered families have a smoke test and 11 have
+none; 10 never reach `AdmissionGate` in any test at all; and 10 are in the ledger.**
+The twenty-second is `sequence_keyword_stuffing`, screened since 86acb92 (2026-09-19).
 Neither check is enforced repository-wide, and `certify_all_tiers` is not invoked on
 any registered family anywhere in `tests/` — the two tests that exercise it
 (`tests/test_v3/test_admission_gate_equivalence.py`) use synthetic fixtures, so the
@@ -1052,12 +1064,20 @@ is a real remaining limit.
   outside the ledger's current scope).
 
 **Construction**
-- **Hacking policies are scripted in 28 of 33 families.** The 5 RLHF-RM families
-  are the partial exception (real policy-gradient optimization against a fitted
-  reward model; the vulnerability is designed, the exploitation is not). See
-  [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
-- **Families 29 and 30 ship with documented, unresolved `proxy_matched` failures**
-  at some difficulty tiers (see CHANGELOG 1.8.0), and remain in the leaderboard.
+- **Hacking policies are scripted in 26 of 33 families.** Seven contain a learner, and
+  in six an optimizer finds the exploit. The 5 RLHF-RM families are the main partial
+  exception (real policy-gradient optimization against a fitted reward model; the
+  vulnerability is designed, the exploitation is not). In `gridworld_camping` a
+  Q-learner finds the exploit tile, but the episode the tile becomes available (250)
+  and a 20-episode forced exploration burst after it are both authored, so the config
+  places its onset. `continuous_camping`'s frozen DQN switches at an authored episode. See
+  [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) §3.
+- **Family 30 (`sequence_format_camping`) ships with a documented, unresolved
+  `proxy_matched` failure** at some difficulty tiers (see CHANGELOG 1.8.0), and
+  remains in the leaderboard. Family 29 (`sequence_keyword_stuffing`) shipped with one
+  too, but its calibration lever resolved to 0.0 at every tier; since 86acb92
+  (2026-09-19) it passes the reduced-power smoke screen at all three scored tiers (its
+  diagnostic records ADMITTED at the smoke margin), which is not certification.
 - **`reward_channel_tampering` fails `proxy_distribution_matched` at 4 of 5
   tiers** and `goal_misgeneralization` at 1 of 5. These cells are published as
   NOT ADMITTED rather than silently dropped.
@@ -1070,9 +1090,9 @@ is a real remaining limit.
   does not help; the proxies have to be made informative-but-matched *and* readable.
   The 23 families outside the ledger's scope have not been swept at the certification
   design, so six is a lower bound.
-- **Admission checking is not enforced repository-wide.** 21 of 33 families have
-  the reduced-power smoke screen and 12 do not (hand-written per-family tests are not
-  the same check); 11 never reach `AdmissionGate` in any test at all; and nothing in
+- **Admission checking is not enforced repository-wide.** 22 of 33 families have
+  the reduced-power smoke screen and 11 do not (hand-written per-family tests are not
+  the same check); 10 never reach `AdmissionGate` in any test at all; and nothing in
   `tests/` calls `certify_all_tiers` on a registered family — the two tests that
   exercise it use synthetic fixtures, so `scripts/admission_ledger.py` is its only
   caller.
@@ -1080,7 +1100,8 @@ is a real remaining limit.
 **Coverage**
 - **L1 is thin.** 25 of 33 families emit no `state_counts`; L1 is only measurable
   on 8 families / 35 cells.
-- **L3 has one detector.** There is no oracle gap above L2 (0.9830 vs 0.9750).
+- **L3 has one detector.** The oracle gap above L2 is 0.0080 on the single-draw board
+  (0.9830 vs 0.9750) and +0.032 [+0.027, +0.037] over 20 draws.
 - **5 external baseline detectors ship but are unscored** — they appear in
   `src/rhob/detectors/external_baselines/` but in no committed leaderboard
   artifact.
@@ -1097,6 +1118,6 @@ is a real remaining limit.
 - Replace the constant proxies behind the degenerate cells with proxies that vary
   run-to-run and still match, so those cells return a measurement instead of a
   non-answer
-- Add the smoke screen to the 12 families that have no admission test
+- Add the smoke screen to the 11 families that have no admission test
 - Emit `state_counts` (or an explicit, documented refusal) from more families
 - Score the external baselines

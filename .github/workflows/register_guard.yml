@@ -1,0 +1,248 @@
+name: register-guard
+
+# Integrity guard for the HVTB entry in the Inspect Evals Register.
+#
+# This deliberately does NOT re-run the register lint. ArcadiaImpact/inspect-evals-actions
+# already runs it daily at 05:17 UTC against our pinned commit and publishes the result,
+# and both collection and publication are gated to that repository -- so we could not
+# republish our own row even if we wanted to. What this job does instead is (a) read
+# upstream's published result and fail when it moves, and (b) check the one thing upstream
+# cannot see on our behalf: whether the pinned commit is still fetchable from here.
+#
+# The reason (b) matters: the collector shallow-fetches a bare 40-char SHA
+# (`git fetch --depth 1 --no-tags origin <sha>`), which GitHub serves only while that SHA
+# is reachable from a ref in this repository. If it stops being reachable the entry flips
+# to `clone_failed` and the register's published install instructions stop working.
+#
+# The reason this file exists at all: upstream never installs or runs our code -- "No
+# upstream code is installed, imported or executed" (collect.py) -- so no upstream check
+# would ever notice an HVTB runtime regression. The weekly job below is the only thing
+# that would.
+
+on:
+  schedule:
+    # 06:40 UTC daily -- the pin and published-result checks.
+    #
+    # After upstream, not before. Their cron is nominally 05:17 UTC, but GitHub queues
+    # scheduled runs late: the 2026-10-30 run was created at 05:20 and published at
+    # 05:22:08 UTC, and their scheduled runs land anywhere from 05:20 to 05:35. 06:40
+    # leaves an hour of slack. It is also deliberately off the hour and half hour, where
+    # scheduled-run delays cluster -- and deliberately not 04:17, which is `tests.yml`:
+    # that slot runs BEFORE upstream publishes and would always read yesterday's result.
+    - cron: "40 6 * * *"
+    # 06:55 UTC Mondays -- the frozen-checkout test run (see the `pinned-suite` job).
+    - cron: "55 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: register-guard
+  cancel-in-progress: false
+
+env:
+  # The register entry, verbatim: register/hvtb/eval.yaml in UKGovernmentBEIS/inspect_evals.
+  # A full 40-char SHA, because the register accepts neither a tag nor a branch name.
+  PIN: a2c73417a79be65b802b2fbe62dc6fac03e9c3de
+  # The other SHA a user's install resolves: the `rhob` git dependency behind the pinned
+  # eval's [detectors] extra. Reachable from main, unlike PIN, but checked anyway because
+  # it is on the documented install path.
+  DETECTORS_PIN: cae08e4a70cb39054c134eda9ac6c4eb422fe1ae
+  TASK_PATH: hvtb_hack_detection/tasks.py
+  RESULTS_URL: https://raw.githubusercontent.com/ArcadiaImpact/inspect-evals-actions/register-lint/results/hvtb.json
+  BADGE_URL: https://raw.githubusercontent.com/ArcadiaImpact/inspect-evals-actions/register-lint/badges/hvtb/lint.json
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Replicates the collector's own fetch, byte for byte, including the two `config`
+      # calls -- the point is to reproduce upstream's exact failure mode here, a day
+      # before the register would show it. No checkout and no token: rhob is public and
+      # this is a fresh empty repo.
+      - name: Pinned commit is still fetchable
+        run: |
+          set -euo pipefail
+          for sha in "$PIN" "$DETECTORS_PIN"; do
+            d="$(mktemp -d)"
+            git -C "$d" init -q
+            git -C "$d" config core.symlinks false
+            git -C "$d" config core.hooksPath /dev/null
+            git -C "$d" remote add origin https://github.com/${{ github.repository }}
+            if git -C "$d" fetch -q --depth 1 --no-tags origin "$sha"; then
+              echo "OK   $sha is fetchable"
+            else
+              echo "::error::$sha is no longer fetchable from this repository."
+              echo "::error::This is the register's clone_failed state. A ref reaching it was deleted or force-moved."
+              exit 1
+            fi
+            git -C "$d" checkout -q --detach FETCH_HEAD
+            rm -rf "$d"
+          done
+
+      - name: Published lint result still describes our entry
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 3 --retry-delay 5 "$RESULTS_URL" -o results.json
+          curl -fsS --retry 3 --retry-delay 5 "$BADGE_URL" -o badge.json
+          python3 - <<'PY'
+          import json, os, sys, datetime
+
+          r = json.load(open("results.json"))
+          badge = json.load(open("badge.json"))
+          pin, task_path = os.environ["PIN"], os.environ["TASK_PATH"]
+          repo = "https://github.com/" + os.environ["GITHUB_REPOSITORY"]
+          fail, warn = [], []
+
+          # Hard invariants. Any of these means our row on the register's lint table has
+          # stopped saying what it said on 2026-10-30, and we want to know the same day.
+          if r.get("status") != "linted":
+              fail.append(f'status is {r.get("status")!r}, expected "linted"'
+                          f' (error: {r.get("error")!r})')
+          if r.get("error") is not None:
+              fail.append(f'error is {r.get("error")!r}, expected null')
+          if r.get("commit") != pin:
+              fail.append(f'linted commit is {r.get("commit")!r}, expected the pin {pin}')
+          if r.get("repository_url") != repo:
+              fail.append(f'repository_url is {r.get("repository_url")!r}, expected {repo}')
+          if r.get("task_paths") != [task_path]:
+              fail.append(f'task_paths is {r.get("task_paths")!r}, expected [{task_path!r}]')
+
+          score = r.get("score") or {}
+          # Asserted as invariants rather than as the literal string "21/21": `applicable`
+          # can legitimately rise to 22 through a change entirely on upstream's side (rule
+          # IECQ007 is skipped only because their lint runner has no ruff installed). What
+          # must not change is that nothing fails and everything applicable passes.
+          if score.get("fail", -1) != 0:
+              fail.append(f'score.fail is {score.get("fail")!r}, expected 0')
+          if score.get("passing") != score.get("applicable"):
+              fail.append(f'score.passing {score.get("passing")!r} != '
+                          f'score.applicable {score.get("applicable")!r}')
+
+          # Freshness. Upstream's own docs table marks a result out of date after seven
+          # days; 48h is tight enough to catch their daily lint silently breaking, which
+          # no check against our own repository would ever notice.
+          checked = datetime.datetime.fromisoformat(r["checked_at"])
+          age_h = (datetime.datetime.now(datetime.timezone.utc) - checked).total_seconds() / 3600
+          if age_h > 48:
+              fail.append(f"checked_at is {age_h:.1f}h old (>48h); upstream's daily lint may have stopped")
+
+          # Warn-only. These are advance notice, not breakage, and must never redden the
+          # build on their own -- see the comment on `applicable` above.
+          if score.get("applicable") != 21:
+              warn.append(f'score.applicable is {score.get("applicable")!r}, was 21 at the '
+                          "2026-10-30 baseline -- the rule set that applies to us changed")
+          if badge.get("message") != "21/21" or badge.get("color") != "brightgreen":
+              warn.append(f'badge now reads {badge.get("message")!r} / {badge.get("color")!r}, '
+                          'was "21/21" / "brightgreen"')
+          if score.get("warn") != 1:
+              warn.append(f'score.warn is {score.get("warn")!r}, was 1 (the custom_metric_tests rule)')
+
+          for w in warn:
+              print(f"::warning::{w}")
+          print(f"checked_at={r['checked_at']} ({age_h:.1f}h old) "
+                f"lint_version={r.get('lint_version')} score={score.get('passing')}/{score.get('applicable')}")
+          for f in fail:
+              print(f"::error::{f}")
+          sys.exit(1 if fail else 0)
+          PY
+
+      # Never fails. A newer linter on PyPI than the one that produced our published row
+      # is advance warning that the next 05:17 UTC run may score us differently -- time to
+      # re-lint locally, not a reason to go red.
+      - name: Linter version drift (warn only)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          ours="$(python3 -c 'import json;print(json.load(open("results.json"))["lint_version"])')"
+          latest="$(curl -fsS https://pypi.org/pypi/inspect-evals-lint/json | python3 -c 'import json,sys;print(json.load(sys.stdin)["info"]["version"])')"
+          echo "linted with $ours; latest on PyPI is $latest"
+          if [ "$ours" != "$latest" ]; then
+            echo "::warning::inspect-evals-lint $latest is newer than the $ours that linted us; re-lint locally before upstream's next run"
+          fi
+
+  pinned-suite:
+    # Weekly, not daily. The pinned tree and its uv.lock are both frozen, so this run is
+    # near-deterministic: what it actually catches is a yanked wheel, the `rhob` git
+    # dependency becoming unfetchable, or a runner-image change -- all slow-moving. Daily
+    # would be noise. It is the only check that proves the eval still RUNS, because
+    # upstream's lint is purely static and never imports our code.
+    #
+    # Needs no API key: tests/test_eval_runs.py drives `eval()` through `mockllm/model`.
+    # It does need egress to openaipublic.blob.core.windows.net, which the mockllm path
+    # hits via tiktoken -- fine on a GitHub-hosted runner, so do not move this to an
+    # egress-restricted one without allowlisting that host or pre-seeding TIKTOKEN_CACHE_DIR.
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '55 6 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the pinned commit
+        run: |
+          set -euo pipefail
+          git init -q pinned
+          git -C pinned remote add origin https://github.com/${{ github.repository }}
+          git -C pinned fetch -q --depth 1 --no-tags origin "$PIN"
+          git -C pinned checkout -q --detach FETCH_HEAD
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+      # `--extra dev` is load-bearing: pytest is in the dev extra, not in [project]
+      # dependencies, so a plain `uv run pytest` falls through to a system pytest and dies
+      # on ModuleNotFoundError: inspect_ai. `--extra detectors` covers the one test that
+      # otherwise skips on `rhob.detectors`.
+      - name: Install and test at the pin
+        working-directory: pinned
+        run: |
+          set -euo pipefail
+          uv sync --frozen --extra dev --extra detectors
+          uv run --frozen --extra dev --extra detectors pytest -q
+
+  report-failure:
+    needs: [guard, pinned-suite]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      # One rolling issue, reopened rather than duplicated, because a guard that files a
+      # fresh issue every morning is a guard everyone mutes. GITHUB_TOKEN is the only
+      # credential this workflow uses; there are no repository secrets.
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "register-guard: the HVTB register entry needs attention"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body="$(printf '%s\n' \
+            "The daily register guard failed: $RUN_URL" \
+            "" \
+            "Likely causes, in the order worth checking:" \
+            "" \
+            "1. A ref reaching \`$PIN\` was deleted or force-moved, so the collector can no" \
+            "   longer fetch it. The register entry will read \`clone_failed\` after the next" \
+            "   05:17 UTC run, and the install instructions on the listing page will stop" \
+            "   working. Restore a ref that reaches it: the \`inspect-eval\` branch, or the" \
+            "   \`hvtb-register-pin\` tag on \`$PIN\` (push the tag if origin does not have it)." \
+            "2. Upstream's published result moved -- a different commit, repository or task" \
+            "   path, or a rule that now fails. Read the step log for which assertion fired." \
+            "3. \`checked_at\` is more than 48h old, which means upstream's own daily lint" \
+            "   stopped publishing. Nothing to fix here; watch" \
+            "   https://ukgovernmentbeis.github.io/inspect_evals/register-lint.html" \
+            "" \
+            "Note the one case that is NOT a defect: for about 24h after a register pin bump" \
+            "merges, the docs registration is ahead of the published lint result and our row" \
+            "reads \"Out of date: registration changed\" with no score. Expect that, and update" \
+            "\`PIN\` in this workflow in the same change as the bump.")"
+          existing="$(gh issue list --state all --search "$TITLE in:title" --json number,state --jq '.[0]' || echo '')"
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            n="$(printf '%s' "$existing" | python3 -c 'import json,sys;print(json.load(sys.stdin)["number"])')"
+            gh issue reopen "$n" 2>/dev/null || true
+            gh issue comment "$n" --body "$body"
+          else
+            # No --label: this repository defines no labels, and a nonexistent one fails the call
+            # at exactly the moment the guard is trying to report a real problem.
+            gh issue create --title "$TITLE" --body "$body"
+          fi

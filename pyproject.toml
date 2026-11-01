@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rhob"
 version = "1.8.0"
-description = "Reward-Hacking Onset Benchmark (RHOB) - standardized evaluation for reward-hacking detection"
+description = "RHOB, the case study for 'Checks That Cannot Fail': reward-hacking environment families certified by a falsifiable admission gate"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

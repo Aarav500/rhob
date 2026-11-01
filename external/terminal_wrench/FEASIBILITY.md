@@ -74,11 +74,19 @@ flag. Whether that moment survives into the released traces as a step index or a
 timestamp is the open question, and it is now the ONLY route to an external corpus that
 labels onset rather than the episode. There is no fallback if the answer is no.
 
+**Follow-up:** answered from the task code. Each task's test.sh records the watcher as 0/1
+in reward.json and discards when it fired (`28415d5`), so the released traces cannot carry
+an onset; the traces themselves need a Harbor Hub account (`b7a0395`). Timestamps need the
+patch in [`external/hvtb`](../hvtb/), which is not submitted upstream.
+
 ## The finding: we may have invented the augment class
 
 The HVTA work concluded that RHOB's `true_reward_diverges` criterion recognises hacking
 that SUBSTITUTES for competence and is blind to hacking that AUGMENTS a competent agent.
-Two of HVTA's four channels are the augment kind, so the gate would reject them.
+Two of HVTA's four channels are the augment kind. The gate would once have reported them
+FAIL; since `584ba13` it returns DEGENERATE, because this port builds their true reward as a
+counterfactual that is identical across arms by construction, so neither verdict says
+anything about augmenting hacks.
 
 The prediction was that Terminal Wrench's `metric-spoofing` and `mutable-input-tampering`
 categories would be augment-type. Checked against the worked examples: they are not.

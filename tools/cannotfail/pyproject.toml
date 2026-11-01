@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cannotfail"
+version = "0.1.0"
+description = "Find benchmark checks that cannot fail: D1 resolution and D2 power from 'Checks That Cannot Fail'"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Aarav Shah", email = "aarav7.shah@gmail.com"}]
+
+# D1 needs nothing but numpy, deliberately: it is the check meant to run on someone
+# else's score vectors, and should install anywhere those vectors live. D2's equivalence
+# power needs a Student-t quantile, which numpy does not provide, so SciPy is an extra.
+dependencies = [
+    "numpy>=1.24,<3",
+]
+
+[project.optional-dependencies]
+power = ["scipy>=1.10,<2"]
+dev = ["pytest>=7", "scipy>=1.10,<2"]
+
+[project.scripts]
+cannotfail = "cannotfail.cli:main"
+
+[project.urls]
+Source = "https://github.com/Aarav500/rhob/tree/main/tools/cannotfail"
+Paper = "https://doi.org/10.5281/zenodo.22005218"
+
+[tool.setuptools.packages.find]
+where = ["src"]

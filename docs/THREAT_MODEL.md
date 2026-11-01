@@ -49,8 +49,8 @@ AUROC 0.98 here may still be useless at a 1-in-10,000 base rate.
 **RHOB is not an online or real-time detection benchmark.** Every detector is
 *post hoc*: `PosthocDetector.classify` receives a completed run and returns one
 score. The `detect_onset` method localizes onset *within an already-finished
-run*. Nothing is evaluated under a streaming constraint, a latency budget, or a
-decision cost.
+run*, and inside the benchmark its output is no longer scored (§6). Nothing is
+evaluated under a streaming constraint, a latency budget, or a decision cost.
 
 **RHOB is not adversarial.** No family is designed against a specific detector,
 and no hacking variant adapts to being watched. A detector that scores well here
@@ -70,15 +70,29 @@ about the *mechanism* they instantiate, not about language models.
 
 ## 3. The scripted-policy limitation (the big one)
 
-**In 28 of 33 families, both variants are hand-written policies.** The "hacking"
+**In 26 of 33 families, both variants are hand-written policies.** The "hacking"
 behavior is a script the family author wrote to game the proxy; the "legitimate"
-behavior is a second script. Neither is discovered by an optimizer. Concretely,
-`gridworld_camping` builds its two variants from `make_hacking_env` and
-`make_legitimate_env` — two separately authored environment/policy pairs — and
-the MuJoCo, PettingZoo and sequence-generation families follow the same pattern
-with a scripted exploit routine.
+behavior is a second script. Neither is discovered by an optimizer. The MuJoCo,
+PettingZoo and sequence-generation families all follow this pattern, with a scripted
+exploit routine.
 
-The five RLHF-RM families (19–23) are the partial exception and are worth stating
+This section previously said 28, and used `gridworld_camping` as its example of a
+scripted family. It is not one. Its two variants come from `make_hacking_env` and
+`make_legitimate_env`, two authored *environments*, but the agent in both is a
+`TabularQLearner` that learns from the proxy reward
+(`src/rhob/evaluation/eval_rollout.py`), so the camping is found by the learner. Two
+things there are still authored: when the exploit tile becomes available (episode 250)
+and a 20-episode forced exploration burst after it
+(`src/rhob/environments/pair_01/config.py`), so the config places its onset. With both
+set to 0 the learner still finds the tile on 40 of 40 seeds, and the onset label
+dissolves: SD 76.5 episodes, bimodal (`results/emergent_pilot/README.md`, c6bb6f6).
+`continuous_camping` contains a pre-trained DQN (`rhob.agents.dqn.train_camper`), but
+that network was trained on a generic navigate-and-hold task and then frozen, and the
+switch to camping is triggered at an authored `activation_episode`, so nothing discovers
+the hack there. Seven families contain a learner; in six of them (`gridworld_camping`
+and the five below) an optimizer finds the exploit.
+
+The five RLHF-RM families (19–23) are the main partial exception and are worth stating
 precisely, because "scripted" is not quite right for them: each runs **real
 policy-gradient ascent** against a **genuinely fitted** preference reward model,
 with a KL penalty to a reference policy (`src/rhob/environments/rlhf_rm/rollout.py`).
@@ -134,7 +148,14 @@ observation channel under a controlled proxy match; it does not establish what i
 RHOB's L0 (reward-only) detectors sit at chance: mean AUROC 0.4866 across 13
 detectors, best 0.5311 — over the 27 families whose proxy the gate can actually read.
 The six the ledger marks DEGENERATE are held out; with them in it reads 0.4895. See
-§4's last bullet.
+§4's last bullet. Those figures come from the single-draw board, which predates the
+Reward Skewness fix (584ba13, 2026-09-02) and has not been regenerated: Skewness needs
+100 episodes and returned a constant 0.5 below that, which on that board is 19 of
+those 27 families. The 20-draw board has been re-scored with those cells not applicable
+(9da6b21), and there the maximum over unsupervised L0 detectors, taken in each draw and averaged over the
+20, is 0.551 [0.541, 0.562]. That maximum is selection-biased upward: no single L0
+detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
+`leaderboard/v5_replicated.json`).
 
 **This is not a discovery that reward-only monitoring fails.** It is a
 manipulation check. The families are *built* so that the proxy reward carries no
@@ -169,7 +190,9 @@ matched" from "carries no information" has the same defect — a check nobody ca
 that the equivalence test was introduced to remove. The gate therefore checks both
 that the statistic could have come out differently and that the proxy carries signal
 above numerical dust (a scale-free relative SD above 1e-4); either failing makes the
-cell degenerate.
+cell degenerate. `true_reward_diverges` already returned DEGENERATE when the design
+supplied too few runs to resample. Since 584ba13 it does the same for arms tied by
+arithmetic, which it used to report as FAIL, "measured and found not to diverge".
 
 **As of the current run, of 50 cells in scope: 15 ADMITTED, 30 DEGENERATE, 5 NOT ADMITTED.**
 The 30 degenerate cells are every difficulty tier of six families:
@@ -202,7 +225,7 @@ For citation purposes this means:
 are **uncertified**, which is not the same as certified-and-passing. Any L0
 number on an uncertified family is uninterpretable in the above sense. Note also that
 what runs in CI for a family is a *reduced-power smoke screen* at equivalence margin
-±0.256, not certification at ±0.10; 21 of 33 families run even that, and 12 do not —
+±0.256, not certification at ±0.10; 22 of 33 families run even that, and 11 do not —
 most of those have hand-written per-family tests instead, which is not the same as the
 gate's six criteria. And no test anywhere in `tests/` calls
 `AdmissionGate.certify_all_tiers` on a *registered* family: the two tests that exercise
@@ -245,11 +268,17 @@ Stated here so they are not discovered mid-citation:
 - **L3 contains one detector.** "Perfect Feature Oracle" is a relabelled
   subclass of the L2 behavioral baseline that reads only `behav_trace`; it is
   retained as a cross-check and excluded from every access-level aggregate. The
-  real oracle gap above L2 is 0.9830 − 0.9750 = **0.0080 AUROC**, i.e. there is
-  effectively none.
-- **Some shipped families have known failing tiers.** Families 29 and 30
-  (sequence-generation) ship with documented, unresolved `proxy_matched` failures
-  at some difficulty tiers (CHANGELOG 1.8.0). They are in the leaderboard.
+  oracle gap above L2 on the single-draw board is 0.9830 − 0.9750 = **0.0080 AUROC**.
+  Over 20 draws, taking the best detector at each level, it is +0.032 [+0.027, +0.037],
+  positive in 20 of 20 (`leaderboard/v5_replicated.json`): small, but not none.
+- **Some shipped families have known failing tiers.** Family 30
+  (`sequence_format_camping`) ships with a documented, unresolved `proxy_matched`
+  failure at some difficulty tiers (CHANGELOG 1.8.0), and is in the leaderboard.
+  Family 29 (`sequence_keyword_stuffing`) shipped with one too, but its calibration
+  lever resolved to 0.0 at every tier; since 86acb92 (2026-09-19) it passes the
+  reduced-power smoke screen at all three scored tiers (its diagnostic records ADMITTED
+  at the smoke margin), which is not certification
+  (`results/family_diagnostics/sequence_keyword_stuffing_gate.json`).
 - **Some shipped families cannot be certified as built.** A proxy an L0 detector cannot
   read makes the matching criteria unmeasurable rather than satisfied. Six registered
   families are in that state — `distributional_shift`, `monitored_sandbagging`,
@@ -258,11 +287,20 @@ Stated here so they are not discovered mid-citation:
   of them inside the ledger's scope and all recorded DEGENERATE. The 23 uncertified
   families have not been swept at the certification design, so 30 is a lower bound.
   Fixing this needs a family redesign, not more compute.
-- **Admission checking is not enforced repository-wide.** 21 of 33 families have a
-  reduced-power smoke screen in CI and 12 have none; 11 never reach `AdmissionGate` in
+- **Admission checking is not enforced repository-wide.** 22 of 33 families have a
+  reduced-power smoke screen in CI and 11 have none; 10 never reach `AdmissionGate` in
   any test at all; 10 are in the ledger; and `certify_all_tiers` is never called on a
   registered family by any test. A family's presence in the leaderboard implies none of
   these.
+- **The onset label is authored, so nothing inside the benchmark scores it.** Every one
+  of the 50 admission-ledger cells has `onset_std` exactly 0.0
+  (`admission/admission_ledger.json`), because the family writes the onset down. Two
+  things follow. The leaderboard's internal onset column could not fail, and 584ba13
+  removed it: `CellResult` no longer carries it, and onset error is still computed only
+  for `external/hvta`, where the label was not written by us. And `rhob.audit` codes
+  `onset_localizable` as degenerate (e9a1ace), because a statistic that is constant on
+  the shipped design passes every cell by construction. The Pair 01 pilot in §3 shows
+  that the authoring is what pins it.
 - **Five external baseline detectors ship but are unscored.** The classical
   baselines under `src/rhob/detectors/external_baselines/` are implemented but do
   not appear in any committed leaderboard artifact.
@@ -285,7 +323,10 @@ Inappropriate uses:
 - Ranking two detectors whose scores differ by less than ~0.2 on the current
   single-draw leaderboard.
 - Citing the access-level ladder as evidence that more access monotonically buys
-  more detection power. It does between L1 and L2; it does not between L2 and L3.
+  more detection power. On the single-draw board it does between L1 and L2 and not
+  between L2 and L3. Over 20 draws neither holds: across all detectors L2−L1 is +0.001
+  [−0.004, +0.006] and L3−L2 is +0.032 [+0.027, +0.037]; without the five label-fitted
+  detectors L1−L0 is −0.017 [−0.039, +0.002] (`leaderboard/v5_replicated.json`).
 - Citing L0-at-chance as evidence that reward-only monitoring is insufficient in
   deployed systems. It is evidence that RHOB's proxy matching worked.
 - Citing an admitted-cell count without its degenerate count. "15 of 50 admitted"

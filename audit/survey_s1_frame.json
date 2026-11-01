@@ -1,0 +1,33 @@
+{
+  "source": "Checks That Cannot Fail (Zenodo 10.5281/zenodo.22005218), Appendix F, 'The S1 result table, as pre-registered', and the decomposition printed beneath it.",
+  "transcribed": "2026-10-31",
+  "what_this_is": "The survey frame and its per-benchmark totals, as the paper publishes them. It is NOT the row-level coding sheet: the paper gives how many preconditions each benchmark carries and how the 77 split by kind of support, but not which criterion, from which source, under which test. Those rows have to be supplied before the two-coder pass can run; rhob.audit.frame.reconcile checks that whatever is supplied reproduces these totals.",
+  "support_totals": {
+    "equivalence_test": 0,
+    "difference_test": 15,
+    "descriptive": 40,
+    "no_support": 22
+  },
+  "benchmarks_with_difference_test_claims": 4,
+  "frame": [
+    {"benchmark": "ProteinGym", "venue": "NeurIPS D&B 23", "axis2_claims": 1, "axis1_cells": 20615, "axis1_nd1": 0, "status": "complete, both arms"},
+    {"benchmark": "RAID", "venue": "ACL 24", "axis2_claims": 13, "axis1_cells": 140307, "axis1_nd1": 3264, "status": "complete; all cells decided"},
+    {"benchmark": "TSB-AD", "venue": "NeurIPS D&B 24", "axis2_claims": 11, "axis1_cells": 2345, "axis1_nd1": 22, "status": "partial (12.1% of cells)"},
+    {"benchmark": "SelfCheckGPT", "venue": "EMNLP 23", "axis2_claims": 3, "axis1_cells": 16, "axis1_nd1": 0, "status": "partial (30.8%); lower bound"},
+    {"benchmark": "FLIP", "venue": "NeurIPS D&B 21", "axis2_claims": 0, "axis1_cells": 15, "axis1_nd1": 0, "status": "target arm only; no claims"},
+    {"benchmark": "WikiMIA", "venue": "ICLR 24", "axis2_claims": 1, "axis1_cells": 1, "axis1_nd1": 0, "status": "partial (1.2%); lower bound"},
+    {"benchmark": "ADBench", "venue": "NeurIPS D&B 22", "axis2_claims": 13, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: score vector discarded"},
+    {"benchmark": "BOND", "venue": "NeurIPS D&B 22", "axis2_claims": 1, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: score vector discarded"},
+    {"benchmark": "GOOD", "venue": "NeurIPS D&B 22", "axis2_claims": 3, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: score vector discarded"},
+    {"benchmark": "PEER", "venue": "NeurIPS D&B 22", "axis2_claims": 3, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: score vector discarded"},
+    {"benchmark": "OpenOOD v1.0", "venue": "NeurIPS D&B 22", "axis2_claims": 1, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: aggregates only"},
+    {"benchmark": "OGB", "venue": "NeurIPS 20", "axis2_claims": 4, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: aggregates only"},
+    {"benchmark": "TDC", "venue": "NeurIPS D&B 21", "axis2_claims": 2, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: aggregates only"},
+    {"benchmark": "AMLB", "venue": "JMLR 24", "axis2_claims": 4, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: aggregates only"},
+    {"benchmark": "TAPE", "venue": "NeurIPS 19", "axis2_claims": 2, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: predictions not public"},
+    {"benchmark": "WILDS", "venue": "ICML 21", "axis2_claims": 15, "axis1_cells": 0, "axis1_nd1": null, "status": "A1 UNAVAIL: host returns HTTP 500"},
+    {"benchmark": "NINCO", "venue": "ICML 23", "axis2_claims": null, "axis1_cells": 0, "axis1_nd1": null, "status": "NOT_AUDITED - not a permitted exclusion"},
+    {"benchmark": "MMTEB", "venue": "ICLR 25", "axis2_claims": null, "axis1_cells": 0, "axis1_nd1": null, "status": "NOT_AUDITED"},
+    {"benchmark": "Shifts", "venue": "NeurIPS D&B 21", "axis2_claims": null, "axis1_cells": 0, "axis1_nd1": null, "status": "NOT_AUDITED"}
+  ]
+}

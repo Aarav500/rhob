@@ -278,7 +278,7 @@ is derived from the family rather than restated in the test file, and
 `assert_smoke_admissible_at` refuses a difficulty the family does not score.
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
-worth:** 21 of the 33 registered families have a smoke test and 12 have none; 11 never
+worth:** 22 of the 33 registered families have a smoke test and 11 have none; 10 never
 reach `AdmissionGate` in any test at all; the ledger covers 10. Neither check is
 enforced repository-wide, and nothing in `tests/` calls `certify_all_tiers` on a
 registered family — the two tests that exercise it use synthetic fixtures, so
