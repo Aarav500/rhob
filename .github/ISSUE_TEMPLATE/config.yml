@@ -3,3 +3,6 @@ contact_links:
   - name: Discussions (not sure which template fits?)
     url: https://github.com/Aarav500/rhob/discussions
     about: General questions, early-stage ideas, or anything that doesn't fit a template below.
+  - name: Private report (a cannotfail run, or a defect in another group's benchmark)
+    url: https://github.com/Aarav500/rhob/blob/main/SECURITY.md#private-reports-that-are-not-security-issues
+    about: Anything that should not be public yet goes by email to the contact address in SECURITY.md, not in an issue.

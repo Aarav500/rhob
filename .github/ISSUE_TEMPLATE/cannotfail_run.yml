@@ -1,0 +1,74 @@
+name: Report a cannotfail run
+description: Tell the author you ran cannotfail, on any benchmark, whatever it found. A run that came back ok is worth reporting too.
+title: "cannotfail run: "
+labels: ["cannotfail-run"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the first field is required. A report is useful whatever the tool said, `ok` included.
+
+        **Issues here are public.** If the run flagged a check in a benchmark that another group maintains, do not describe it here before that group has heard about it. Tell them first, or send this report privately instead, by email to aarav7.shah@gmail.com ([how private reports are handled](https://github.com/Aarav500/rhob/blob/main/SECURITY.md#private-reports-that-are-not-security-issues)). You can also file this form with the benchmark given as "prefer not to say" and leave the rest blank.
+
+  - type: input
+    id: benchmark
+    attributes:
+      label: What you ran it on
+      description: A benchmark name, or "prefer not to say".
+      placeholder: a benchmark name, or prefer not to say
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The command
+      description: As you ran it, and the output of `cannotfail --version` if you have it. A call into the Python API counts.
+      placeholder: cannotfail resolution scores.csv --score score --label is_hack --group cell
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: verdict
+    attributes:
+      label: The verdict summary
+      description: Paste what it printed. The summary lines at the end are enough. Take out anything that should not be public yet, such as the names of another group's cells.
+      render: text
+    validations:
+      required: false
+
+  - type: dropdown
+    id: flagged
+    attributes:
+      label: Was anything flagged, and was it real?
+      description: >-
+        From `resolution`, a flag is a `fixed`, `pinned` or `dust` verdict. From `power`, it is a
+        design that cannot certify equivalence, or a difference test with power below 0.8.
+        `ok` means the tool found no reason the check cannot fail. It is not evidence that the
+        check is sound. Pick more than one answer if several things were flagged.
+      multiple: true
+      options:
+        - Nothing was flagged
+        - Flagged, and it was a real defect
+        - Flagged, and it was a false alarm
+        - Flagged, and it is not yet known whether it is real
+    validations:
+      required: false
+
+  - type: textarea
+    id: more-useful
+    attributes:
+      label: What would have made it more useful
+      description: A statistic it does not cover, an input format it would not read, output you had to interpret, anything that got in the way.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Mentioning this run
+      description: This issue is public either way. The box is about the author citing the run elsewhere, in this repository or in the paper.
+      options:
+        - label: The author may mention this run publicly (by benchmark name)
+          required: false

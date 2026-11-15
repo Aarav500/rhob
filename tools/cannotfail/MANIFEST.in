@@ -1,0 +1,7 @@
+# The sdist. setuptools already adds README.md, LICENSE, pyproject.toml, the package under
+# src/ and tests/test*.py, and leaves out build/ and __pycache__; this adds the changelog and
+# the example the README runs. A file named here also goes into the wheel if it sits inside
+# src/cannotfail/, and neither does: the wheel holds the package alone, which the package
+# job in .github/workflows/cannotfail.yml checks on every build.
+include CHANGELOG.md
+include examples/scores.csv

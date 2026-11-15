@@ -8,8 +8,37 @@ version = "0.1.0"
 description = "Find benchmark checks that cannot fail: D1 resolution and D2 power from 'Checks That Cannot Fail'"
 readme = "README.md"
 requires-python = ">=3.10"
+# setuptools>=77 warns that this table form is deprecated and that builds using it stop
+# being supported after 2027-02-18. Moving to `license = "MIT"` also means dropping the
+# License classifier below, since setuptools refuses the two together. See
+# docs/RELEASING_CANNOTFAIL.md, "Before 2027-02-18". The weekly build in
+# .github/workflows/cannotfail.yml is what will notice if it breaks sooner.
 license = {text = "MIT"}
 authors = [{name = "Aarav Shah", email = "aarav7.shah@gmail.com"}]
+keywords = [
+    "benchmark",
+    "evaluation",
+    "auroc",
+    "ties",
+    "equivalence test",
+    "tost",
+    "statistical power",
+    "mann-whitney",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+]
 
 # D1 needs nothing but numpy, deliberately: it is the check meant to run on someone
 # else's score vectors, and should install anywhere those vectors live. D2's equivalence
@@ -25,9 +54,22 @@ dev = ["pytest>=7", "scipy>=1.10,<2"]
 [project.scripts]
 cannotfail = "cannotfail.cli:main"
 
+# Absolute, because PyPI shows these beside the README and resolves nothing relative.
 [project.urls]
+Homepage = "https://aarav500.github.io/rhob/"
+Documentation = "https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/README.md"
 Source = "https://github.com/Aarav500/rhob/tree/main/tools/cannotfail"
+Issues = "https://github.com/Aarav500/rhob/issues"
+Changelog = "https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/CHANGELOG.md"
 Paper = "https://doi.org/10.5281/zenodo.22005218"
 
+# `include` keeps the wheel to the one package: tests/, examples/ and a stale
+# src/cannotfail.egg-info are never packages, but naming the package makes that explicit.
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["cannotfail", "cannotfail.*"]
+
+# The package's own pytest config, so its tests never pick up RHOB's root one (which puts
+# the checkout's src/ on the path), in CI or when run from the sdist.
+[tool.pytest.ini_options]
+testpaths = ["tests"]

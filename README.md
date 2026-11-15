@@ -1,6 +1,6 @@
 # RHOB — checks that cannot fail, and the benchmark they were found in
 
-[![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml)
+[![tests](https://github.com/Aarav500/rhob/actions/workflows/tests.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/tests.yml) [![cannotfail](https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.22005218-blue.svg)](https://doi.org/10.5281/zenodo.22005218)
 
@@ -36,8 +36,12 @@ diagnostics that answer it from artifacts a benchmark already produces:
 D1 and D2 are packaged as [`cannotfail`](tools/cannotfail), a standalone tool that imports
 nothing from RHOB, so it can be run on another benchmark's score vectors:
 
-    pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
+    pip install cannotfail
     cannotfail resolution scores.csv --score score --label is_hack --group cell
+
+If pip finds no release yet, or for the development version, install from this repository:
+
+    pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
 
 It is lifted from the admission gate and held to it by
 [`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py). Its tolerance
@@ -47,6 +51,10 @@ the gate's at both boundaries. And fed the gate's measured resolution and inform
 it marks the same 30 of the 50 ledger cells degenerate. Its primary resolution counts ties
 by exact equality, as a standard AUROC does, so the AUROC range it reports holds for the
 number a maintainer actually computes.
+
+If you run it on a benchmark, please tell the author what it found, `ok` included:
+[report the run](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml), or
+email the address in [SECURITY.md](SECURITY.md#private-reports-that-are-not-security-issues) if the result should not be public yet.
 
 **RHOB is the case study, not the subject.** It is 33 reward-hacking environment families
 over 123 cells with 30 detectors scored on them, audited exhaustively and replicated over

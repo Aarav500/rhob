@@ -1,0 +1,61 @@
+# Changelog
+
+All notable changes to `cannotfail` are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). A release is the tag
+`cannotfail-vX.Y.Z` in the RHOB repository; how one is cut is in
+[docs/RELEASING_CANNOTFAIL.md](https://github.com/Aarav500/rhob/blob/main/docs/RELEASING_CANNOTFAIL.md).
+The RHOB benchmark keeps its own changelog, at the
+[repository root](https://github.com/Aarav500/rhob/blob/main/CHANGELOG.md).
+
+## [0.1.0] - Unreleased
+
+The first release on PyPI. It implements D1 (resolution) and D2 (power) from *Checks That
+Cannot Fail* (Shah, 2026, [doi:10.5281/zenodo.22005218](https://doi.org/10.5281/zenodo.22005218)).
+D3 is not included: it needs knowledge of a harness that a score file does not carry.
+Before this release the package was installable only with `git+https` from the RHOB
+repository, where it has lived in `tools/cannotfail` since 2026-10-31.
+
+### Added
+
+- `cannotfail resolution` (D1), NumPy only. It reads a CSV, a TSV, a `.json` list of
+  objects or a `.jsonl` file, one row per scored item, with an optional class label and an
+  optional cell. For each cell it reports the distinct values and, given labels, the
+  resolution `r` (the fraction of cross-class pairs that are strictly ordered), the AUROC
+  range `0.5 ± r/2` that `r` allows, and a verdict: `fixed`, `pinned`, `dust` or `ok`.
+  `ok` means D1 found no reason the check cannot fail; it is not evidence that the check
+  is sound.
+- Two resolutions per cell. The primary one counts ties by exact equality, which is what
+  `sklearn.metrics.roc_auc_score` ranks. The other uses the tie tolerance of RHOB's
+  admission gate, `|a − b| ≤ max(1e-12, 1e-9 · max(|a|, |b|))`. When only the tolerance
+  would confine the AUROC, the verdict is `dust`, never `fixed`.
+- Exact tie counting in `O((n + m) log m)`, plus one check per pair near the tolerance
+  boundary, so score vectors too large for an `n × m` comparison can be checked.
+- `cannotfail power equivalence` and `cannotfail power seeds` (D2): whether an equivalence
+  test (TOST) on a mean AUROC over independent blocks can pass at a given design, how
+  often, and how many items a side it needs. They assume no heterogeneity between blocks,
+  so the power is a ceiling. They need SciPy, installed by the `power` extra.
+- `cannotfail power difference` (D2), NumPy only: the power of a two-sided Mann-Whitney
+  test to detect a given true AUROC, by normal approximation, and 0 where no data can make
+  the exact test reject (3 against 3 at alpha 0.05).
+- For CI: `--json` (strict JSON), `--fail-on fixed pinned dust` and
+  `--fail-on-cannot-certify`. Exit status 0 on success, 1 when a named verdict occurred or
+  the design cannot certify, 2 on bad input or a missing optional dependency, and 3 on an
+  internal error.
+- A Python API: `resolution`, `resolution_by_group`, `summarize`, `equivalence_power`,
+  `required_seeds_per_layout`, `difference_power`, `min_two_sided_p` and the helpers they
+  use.
+- Packaging for PyPI: project URLs and classifiers, a README whose links are absolute, an
+  sdist with the licence, README, changelog, tests and example, and a wheel that holds the
+  `cannotfail` package alone. The package has its own CI,
+  [`cannotfail.yml`](https://github.com/Aarav500/rhob/blob/main/.github/workflows/cannotfail.yml),
+  separate from the benchmark's, and is released by PyPI Trusted Publishing from
+  [`cannotfail-release.yml`](https://github.com/Aarav500/rhob/blob/main/.github/workflows/cannotfail-release.yml).
+
+D1's tolerance rule and the equivalence half of D2 are copies of RHOB's admission gate.
+RHOB's
+[`tests/test_cannotfail_parity.py`](https://github.com/Aarav500/rhob/blob/main/tests/test_cannotfail_parity.py)
+holds them to it, with one documented exception: a finite pair whose difference overflows
+float64 is tied in the gate and ordered here.
+
+[0.1.0]: https://github.com/Aarav500/rhob/tree/cannotfail-v0.1.0/tools/cannotfail

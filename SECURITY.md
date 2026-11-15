@@ -18,6 +18,17 @@ detector's numbers look wrong" — use a
 [Benchmark Feedback issue](https://github.com/Aarav500/rhob/issues/new?template=benchmark_feedback.md)
 for those instead.
 
+## Private reports that are not security issues
+
+The same address, **aarav7.shah@gmail.com**, takes two kinds of report that should not be
+public yet:
+
+- a `cannotfail` run you would rather not post as an issue, and
+- a check that `cannotfail` flagged in a benchmark another group maintains.
+
+Neither will be made public without your consent. Nothing about another group's benchmark
+is published before that group has heard about it and had time to respond.
+
 ## Supported Versions
 
 Only the latest tagged release is actively supported. Older tags (`v1.0`,

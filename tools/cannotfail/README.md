@@ -1,5 +1,7 @@
 # cannotfail
 
+[![cannotfail CI](https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml/badge.svg)](https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml)
+
 A benchmark's headline usually rests on a claim about its own construction — *the two
 arms are matched*, *this control is at chance* — and a check in the harness guards it.
 `cannotfail` finds guards that **cannot return a negative verdict** under the design that
@@ -21,17 +23,48 @@ needs knowledge of your harness that a score file does not carry.
 ## Install
 
 ```bash
-pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
-pip install "cannotfail[power] @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"   # with D2
+pip install cannotfail              # D1
+pip install "cannotfail[power]"     # with D2
 ```
 
 Python 3.10 or later. The package imports nothing from the benchmark it was built in.
+
+Or let [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/) fetch it into a
+temporary environment and run it:
+
+```bash
+uvx cannotfail resolution scores.csv --score score
+pipx run cannotfail resolution scores.csv --score score
+uvx --from "cannotfail[power]" cannotfail power seeds --layouts 12 --tests 4   # D2 needs the extra
+```
+
+If pip or uv finds no release yet, or for the development version, install from the
+repository:
+
+```bash
+pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
+```
+
+The badge above is the package's own CI. It runs the tests on Python 3.10, 3.13 and 3.14, each
+with and without SciPy; builds the sdist and wheel; and, from the wheel alone, runs each
+example on this page that shows its output and compares the two. It also runs weekly, so
+a NumPy or SciPy release that breaks a test or an example turns it red with no change
+here. Green says the tool's tests pass and its examples print what this page shows. It
+says nothing about your checks.
+
+If you run it on your own benchmark, please tell the author, whatever it found, `ok`
+included: [a short form](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml),
+or email aarav7.shah@gmail.com if the result should not be public.
 
 ## D1: run it on your score vectors
 
 Give it a CSV or TSV with one row per scored item: the score, optionally its class, and
 optionally the cell it belongs to (a dataset, a detector-by-task pair, whatever your
-headline aggregates over).
+headline aggregates over). To try it on the example file first:
+
+```bash
+curl -O https://raw.githubusercontent.com/Aarav500/rhob/main/tools/cannotfail/examples/scores.csv
+```
 
 ```
 $ cannotfail resolution scores.csv --score score --label is_hack --group cell
@@ -44,12 +77,13 @@ behavioural       48        48      24      24       1.000   [0.000, 1.000]  ok
 1 of 3 groups is pinned: the AUROC cannot get further from 0.5 than 0.1, so its estimate cannot leave an equivalence band of that width. A test that also needs its interval inside the band can still fail, but only on the interval's width; a pass there says the scores tie.
 ```
 
-That output is from [`examples/scores.csv`](examples/scores.csv). The idea behind it: in a
-standard AUROC — the one `sklearn.metrics.roc_auc_score` computes — every cross-class pair
-of equal scores contributes exactly 0.5, whatever the data. So if a fraction `1 − r` of the
-pairs are equal, the AUROC is confined to `0.5 ± r/2`. That is an identity, not an
-estimate. `resolution` is that `r`, over the finite scores; blank or non-finite scores are
-left out and counted in the footer.
+That output is from
+[`examples/scores.csv`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/scores.csv).
+The idea behind it: in a standard AUROC — the one `sklearn.metrics.roc_auc_score`
+computes — every cross-class pair of equal scores contributes exactly 0.5, whatever the
+data. So if a fraction `1 − r` of the pairs are equal, the AUROC is confined to
+`0.5 ± r/2`. That is an identity, not an estimate. `resolution` is that `r`, over the
+finite scores; blank or non-finite scores are left out and counted in the footer.
 
 | Verdict | Meaning |
 |---|---|
@@ -170,7 +204,8 @@ cf.min_two_sided_p(3, 3)                   # 0.1: no test at this size can rejec
 D1's tolerance rule and the equivalence half of D2 are lifted from the admission gate of
 [RHOB](https://github.com/Aarav500/rhob), the benchmark the paper uses as its case study.
 Because this package imports nothing from RHOB, it is a copy, and the RHOB repository's
-`tests/test_cannotfail_parity.py` holds the copy to the original:
+[`tests/test_cannotfail_parity.py`](https://github.com/Aarav500/rhob/blob/main/tests/test_cannotfail_parity.py)
+holds the copy to the original:
 
 - The tolerance resolution is bit-identical to the gate's on adversarial inputs, with one
   documented exception. A pair of finite scores whose difference overflows float64
@@ -190,8 +225,9 @@ The difference-power function, the exact-equality resolution and the `dust` verd
 new here, and are tested against brute force and simulation in this package's own tests.
 
 The tie tolerance has a third copy, in the RHOB repository's Inspect eval:
-`score_resolution` in `inspect_eval/hvtb_hack_detection/metrics.py`, with the same 1e-9
-and 1e-12. It treats an overflowing finite pair as tied, as the gate does, and no test
+`score_resolution` in
+[`inspect_eval/hvtb_hack_detection/metrics.py`](https://github.com/Aarav500/rhob/blob/main/inspect_eval/hvtb_hack_detection/metrics.py),
+with the same 1e-9 and 1e-12. It treats an overflowing finite pair as tied, as the gate does, and no test
 holds it to either of the other two. A change to the gate's tolerance has to be applied to
 all three.
 

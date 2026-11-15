@@ -64,9 +64,20 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
 
 ## Milestones
 
-- **`cannotfail` 0.1 — done (2026-10-31).** D1 and D2 as a standalone package in
+- **`cannotfail` 0.1 — done (2026-10-31); its PyPI release prepared, not published
+  (2026-11-15).** D1 and D2 as a standalone package in
   [`tools/cannotfail`](tools/cannotfail), installable without RHOB and held to RHOB's
   admission gate by [`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py).
+  It is packaged for PyPI, so `pip install cannotfail` and `uvx cannotfail` work once 0.1.0
+  is uploaded; [docs/RELEASING_CANNOTFAIL.md](docs/RELEASING_CANNOTFAIL.md) holds the
+  steps. Until then it installs only from this repository, by the `git+https` line in its
+  [README](tools/cannotfail/README.md#install). Its own CI,
+  [`.github/workflows/cannotfail.yml`](.github/workflows/cannotfail.yml), installs the built
+  wheel the way an outside maintainer would and runs the README's examples from it. Green
+  says the tool's tests pass and its examples print what its README shows, nothing about the
+  checks it is run on. A run on another benchmark reaches the author through
+  [an issue form](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml),
+  or by email to the address in [SECURITY.md](SECURITY.md#private-reports-that-are-not-security-issues) when it should not be public.
 - **One convention for every published number — open; the 20-draw L0 re-score done
   (2026-09-03).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
   2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
@@ -164,8 +175,9 @@ substitutes for asking people directly.
 ## What would change or accelerate this
 
 - **One outside maintainer running the diagnostics on their own benchmark.** Every run so
-  far is the author's own, on a benchmark the author built. The first run by someone who
-  can contest the result is qualitatively different. This replaces, on purpose, the bar
+  far is the author's own: on RHOB, and in the survey on other groups' published scores. The
+  first run by a benchmark's own maintainer, who can contest the result, is qualitatively
+  different. This replaces, on purpose, the bar
   earlier versions of this file set, an external detector submission to RHOB.
 - **A co-author or named collaborator from an established lab**, which changes the
   project's provenance from one researcher's repository to something others have checked.
