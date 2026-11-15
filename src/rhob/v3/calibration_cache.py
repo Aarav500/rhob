@@ -33,13 +33,15 @@ dependencies:
   Python minor version and the machine architecture, because the same code under a new
   simulator is a different calibration.
 
-The last two were added after the cache served a wrong number for a week. The key used
-to hash the defining module alone, and CI installs unpinned dependencies. MuJoCo 4.0.0
-was published on 2026-11-06, and from the next nightly ``mujoco_joint_limit_gaming`` was
-rolled out under 4.0 with the hip amplitude calibrated under 3.17: its 0.9 tier stopped
-admitting (L0 AUROC 0.708) and a strict xfail at 0.7 started passing, on an unchanged
-commit. The key could not have changed, because nothing it read had. That is the failure
-this repository's paper is about, in the cache that guards its own numbers.
+The last two were added on 2026-11-15. The key used to hash the defining module alone,
+and CI installs unpinned dependencies. So once MuJoCo 4.0.0 was published on 2026-11-06,
+every nightly rolled ``mujoco_joint_limit_gaming`` out under 4.0 on a hip amplitude
+calibrated under 3.17. Those runs failed, but the cache was not the cause: recalibrated
+under 4.0 the family fails too, and ``pyproject.toml`` now excludes 4.x. What the cache
+did was make each run a mixture of two simulators, with nothing in its key able to
+notice. It would have done the same, silently, to an upgrade that moved the numbers
+without failing a test. That is the shape of the checks this repository's paper is
+about, here in infrastructure rather than in a benchmark check.
 
 Everything else fails safe. An unreadable, corrupt, or unparseable entry is a miss, not
 an error. Writes go to a temp file and are atomically replaced, so concurrent xdist

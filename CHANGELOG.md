@@ -35,8 +35,11 @@ the identical command admits 0.9 and fails 0.8 and 0.7 as documented. So:
 - The CI tarball key includes the same version token and all of `src/rhob`, with a
   prefix fallback that the complete per-entry keys make safe.
 
-A key that cannot change when the thing it guards changes is a check that cannot fail;
-this one guarded the calibrations under every MuJoCo number in the repository.
+The cache did not cause the failure, since a fresh calibration fails too. What it did
+was hide that each run mixed two simulators, and it would have hidden an upgrade that
+moved the numbers without failing a test. That is the shape of the checks the paper
+describes, here in infrastructure rather than in a benchmark's construction. It does not
+add to the paper's count of instances.
 
 ### Added: HVTB listed in the Inspect Evals Register
 
