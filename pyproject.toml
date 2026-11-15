@@ -33,7 +33,12 @@ environments = ["gymnasium>=0.29,<2", "stable-baselines3>=2.0,<3"]
 continuous = ["torch>=2.0,<3", "matplotlib>=3.5,<4"]
 # MuJoCo-based high-dimensional continuous-control tier (cont_hd). Free/open-source
 # since 2021, no license key needed. The Tier 1/continuous tiers do NOT require it.
-mujoco = ["gymnasium[mujoco]>=1.0,<2"]
+# mujoco<4: MuJoCo 4.0.0 (2026-11-06) changes the physics these families were calibrated
+# and admitted under. Freshly recalibrated under 4.0.0, mujoco_joint_limit_gaming stops
+# admitting at 0.9 (L0 AUROC 0.333 [0.226, 0.440]), and the same command under 3.17.0
+# admits it. Moving to 4.x means re-measuring the MuJoCo families and the ledger, not
+# bumping this bound.
+mujoco = ["gymnasium[mujoco]>=1.0,<2", "mujoco>=3,<4"]
 # PettingZoo/mpe2-based multi-agent tier (MULTI_AGENT). MPE was split out of
 # PettingZoo core as of PettingZoo 1.26 -- mpe2 is the current Farama-maintained
 # package; pettingzoo[mpe] is NOT a valid extra. The Tier 1/continuous/mujoco tiers

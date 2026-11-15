@@ -75,11 +75,18 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev,continuous,mujoco,pettingzoo]"
-      # The calibrations are pure functions of the family modules' source, and
-      # src/rhob/v3/calibration_cache.py keys entries on a hash of exactly that. Keying
-      # the restore on the same source means a stale entry is unreachable rather than
-      # merely unlikely: edit a family, get a new cache key, recompute. A miss costs a
-      # recomputation, never a wrong number.
+      # Validity is decided per entry, in src/rhob/v3/calibration_cache.py: each key
+      # hashes the family module, every rhob module it imports, and the installed
+      # versions of the numerical stack. This tarball key only chooses what to restore.
+      # It used to be the family sources alone, on the belief that the calibrations were
+      # pure functions of them -- and since this job installs unpinned, MuJoCo 4.0.0
+      # (2026-11-06) was served calibrations derived under 3.17, and the nightly went red
+      # on an unchanged commit. A key that cannot see a change cannot fail on it.
+      #
+      # Now: an exact key over the physics-stack token and all of src/rhob, and a prefix
+      # fallback so a source edit restores the previous tarball instead of starting
+      # cold. A fallback is safe only because the per-entry keys are complete. Entries
+      # the edit or upgrade made stale simply miss, and are recomputed and re-saved.
       #
       # Split restore/save, deliberately, rather than the combined `actions/cache@v4`.
       # The combined form saves in a post-job step that is SKIPPED when the job fails,
@@ -92,12 +99,20 @@ jobs:
       # "Cache not found for input keys: calib-Linux-py3.12-...". The calibrations are
       # correct work whether or not the assertions downstream pass, so they are saved
       # either way.
+      - name: Fingerprint the physics stack
+        id: physics
+        run: |
+          python -c "from rhob.v3.calibration_cache import physics_versions; print(physics_versions())"
+          echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
       - name: Restore calibration cache
         id: calib_cache
         uses: actions/cache/restore@v4
         with:
           path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+            calib-${{ runner.os }}-py3.12-
       # Serial, and NOT cheap on a cold cache -- generate_pair derives the calibration and
       # returns closures without rolling anything out, so this costs the calibrations
       # exactly, and some are minutes each: sequence_length_padding._legit_empty_rate is
@@ -138,7 +153,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ hashFiles('src/rhob/v3/families/*.py', 'src/rhob/v3/calibration_cache.py') }}
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
 
   no-torch-import-check:
     # Core dependencies (numpy, scipy, scikit-learn, pydantic, click) must be

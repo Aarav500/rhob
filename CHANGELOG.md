@@ -12,6 +12,32 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Fixed (2026-11-15): the calibration cache could not see a dependency upgrade
+
+From 2026-11-07 the nightly `admission-slow` job failed every night, on an unchanged
+commit. MuJoCo 4.0.0 was published on 2026-11-06. CI installs unpinned, and the cache
+that stores each family's calibration was keyed on the defining module's source alone,
+so `mujoco_joint_limit_gaming` ran under 4.0 with the hip amplitude calibrated under 3.17.
+Its 0.9 tier stopped admitting (L0 AUROC 0.708 [0.600, 0.817]), and a strict xfail at
+0.7 started passing.
+
+Recalibrating does not rescue it. Run with the cache off, the same three tiers under
+4.0.0 fail at 0.9 the other way (0.333 [0.226, 0.440]) and pass at 0.7. Under 3.17.0
+the identical command admits 0.9 and fails 0.8 and 0.7 as documented. So:
+
+- `mujoco<4` in the `mujoco` extra. Moving to 4.x is a re-measurement of the MuJoCo
+  families and the ledger, not a version bump.
+- Every cache key now also hashes the installed versions of the numerical stack (numpy,
+  scipy, mujoco, gymnasium, torch, pettingzoo, mpe2), the Python minor version and the
+  machine. It also hashes the source of every `rhob` module the family imports,
+  followed transitively. The key used to miss edits to `rhob.environments.calibration`,
+  where `calibrate_scale` lives.
+- The CI tarball key includes the same version token and all of `src/rhob`, with a
+  prefix fallback that the complete per-entry keys make safe.
+
+A key that cannot change when the thing it guards changes is a check that cannot fail;
+this one guarded the calibrations under every MuJoCo number in the repository.
+
 ### Added: HVTB listed in the Inspect Evals Register
 
 Unrelated to the audit above, and recorded here because it changes what this repository
