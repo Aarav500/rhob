@@ -75,7 +75,10 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   so the power is a ceiling. They need SciPy, installed by the `power` extra.
 - `cannotfail power difference` (D2), NumPy only: the power of a two-sided Mann-Whitney
   test to detect a given true AUROC, by normal approximation, and 0 where no data can make
-  the exact test reject (3 against 3 at alpha 0.05).
+  the exact test reject (3 against 3 at alpha 0.05). Any design size works:
+  `min_two_sided_p`, the smallest p-value the exact test can return, is computed exactly
+  where it fits in a float and rounded to 0.0 below that, instead of raising OverflowError
+  from 515 a side as it did before 2026-11-16.
 - For CI: `--json` (strict JSON), `--fail-on fixed pinned dust` and
   `--fail-on-cannot-certify`. Exit status 0 on success, 1 when a named verdict occurred or
   the design cannot certify, 2 on bad input or a missing optional dependency, and 3 on an

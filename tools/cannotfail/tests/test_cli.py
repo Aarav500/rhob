@@ -146,6 +146,13 @@ def test_power_difference_needs_no_scipy(capsys):
     assert "No data can make a two-sided Mann-Whitney test reject" in capsys.readouterr().out
 
 
+def test_power_difference_on_a_large_design(capsys):
+    """600 a side used to end in an OverflowError and exit 3."""
+    assert main(["power", "difference", "--pos", "600", "--neg", "600", "--true-auroc", "0.7", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["power"] == pytest.approx(1.0) and payload["min_two_sided_p"] == 0.0
+
+
 def test_a_leaderboard_predictions_json_is_one_command(tmp_path, capsys):
     """A list of {id, score} objects, a common leaderboard predictions format.
 

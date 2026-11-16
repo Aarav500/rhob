@@ -87,6 +87,17 @@ def test_difference_power_matches_simulation(n, theta):
     assert difference_power(n, n, theta) == pytest.approx(simulated, abs=0.035)
 
 
+def test_large_designs_do_not_overflow():
+    """Found by review: 2.0 / C(n + m, n) raised OverflowError from 515 a side."""
+    assert min_two_sided_p(514, 514) == 2.0 / math.comb(1028, 514)  # unchanged where it fit
+    assert 0.0 < min_two_sided_p(515, 515) < 1e-307
+    assert min_two_sided_p(1000, 1000) == 0.0
+    assert min_two_sided_p(1, 5000) == pytest.approx(2 / 5001)
+    assert difference_power(1000, 1000, 0.7) == pytest.approx(1.0)
+    assert difference_power(1000, 1000, 0.5) == pytest.approx(0.05)
+    assert 0.0 < difference_power(600, 600, 0.52) < 1.0
+
+
 def test_no_test_can_reject_when_the_design_is_too_small():
     """Found by review: 3 vs 3 used to report power 1.0, where the exact test never rejects."""
     assert min_two_sided_p(3, 3) == pytest.approx(0.1)

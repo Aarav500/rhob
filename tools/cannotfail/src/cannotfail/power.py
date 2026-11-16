@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from statistics import NormalDist
 
 __all__ = [
@@ -164,7 +165,13 @@ def min_two_sided_p(n_pos: int, n_neg: int) -> float:
     n, m = int(n_pos), int(n_neg)
     if n < 1 or m < 1:
         raise ValueError(f"class sizes must be at least 1, got {n} and {m}")
-    return min(1.0, 2.0 / math.comb(n + m, n))
+    arrangements = math.comb(n + m, n)
+    try:
+        return min(1.0, 2.0 / arrangements)
+    except OverflowError:
+        # C(n + m, n) is past the largest float, from 515 a side. The exact ratio, rounded
+        # once, is a float below 1e-300 there, and 0.0 once it is below the smallest one.
+        return float(Fraction(2, arrangements))
 
 
 def difference_power(
