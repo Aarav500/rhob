@@ -15,13 +15,19 @@ in docs/SURVEY_AXIS_A_PREREG.md before any row was filled. The arithmetic is
         --coder-sheets audit/private/axis_a_coder_1.csv audit/private/axis_a_coder_2.csv
     python scripts/survey_axis_a_power.py audit/private/axis_a_sheet.csv --aggregate-only ...
     python scripts/survey_axis_a_power.py audit/private/axis_a_sheet.csv --benchmark NAME
-    # a coder's own sheet, before its digest is recorded: prints only valid or the errors
+    # checks that compute nothing: the sealed record alone, before its digest is recorded;
+    # a coder's own sheet; the reconciled sheet against the record and both own sheets
+    python scripts/survey_axis_a_power.py --check --sealed-record audit/private/axis_a_sealed.txt
     python scripts/survey_axis_a_power.py audit/private/axis_a_coder_1.csv --check
+    python scripts/survey_axis_a_power.py audit/private/axis_a_sheet.csv --check \\
+        --sealed-record audit/private/axis_a_sealed.txt \\
+        --coder-sheets audit/private/axis_a_coder_1.csv audit/private/axis_a_coder_2.csv
 
 The default output is a per-row table, which names benchmarks, followed by the aggregate
 counts. ``--aggregate-only`` prints the counts alone: no benchmark, criterion, source,
 coder or claim id. ``--benchmark NAME`` prints one benchmark's rows, for that group's
-email, and no counts. ``--check`` validates one sheet and computes nothing. Until every
+email, and no counts. ``--check`` validates its inputs and prints only counts, never a
+value or a verdict. Until every
 group's outreach window has closed (docs/AUTHOR_OUTREACH.md), the default and
 ``--aggregate-only`` output stay with the two coders, the counts included, and
 ``--benchmark`` output goes only to that group: the paper puts the 15 claims in 4
@@ -594,6 +600,10 @@ def read_record(path: Path, frame: Frame) -> SealedRecord:
             if len(claims) != frame.expected_rows and not problems:
                 problems.append(f"sealed record: {len(claims)} claim(s); the paper counts "
                                 f"{frame.expected_rows}")
+            elif not problems:
+                # Its benchmarks must be the frame's, as the sheet's must be (prereg 13).
+                names = [ident[1] for ident, _ in claims.values()]
+                problems += [f"sealed record: {p}" for p in reconcile_names(names, frame)]
     if problems:
         raise SheetError(problems)
     return SealedRecord(
@@ -872,10 +882,16 @@ def reportable(blockers: list[str], confirmed: int, benchmarks: int, frame: Fram
 
 def reconcile(claims, frame: Frame) -> list[str]:
     """Every way the sheet fails to be the paper's sub-class A. Names no benchmark."""
+    return reconcile_names([c.benchmark for c in claims], frame)
+
+
+def reconcile_names(names, frame: Frame) -> list[str]:
+    """The same, for a list of benchmark names, one per row: the sheet's or the sealed
+    record's (prereg sections 7.1 and 13)."""
     problems = []
-    per_benchmark = Counter(c.benchmark.casefold() for c in claims)
-    if len(claims) != frame.expected_rows:
-        problems.append(f"{len(claims)} row(s); Appendix F counts {frame.expected_rows} claims")
+    per_benchmark = Counter(name.casefold() for name in names)
+    if len(names) != frame.expected_rows:
+        problems.append(f"{len(names)} row(s); Appendix F counts {frame.expected_rows} claims")
     if len(per_benchmark) != frame.expected_benchmarks:
         problems.append(
             f"{len(per_benchmark)} benchmark(s); the paper's section 5 counts "
@@ -895,8 +911,9 @@ def power_source_digest() -> str:
 
 
 def _coded_values(claim: Claim) -> tuple:
-    """The coded columns as compared (prereg section 9): ``defaults_applied`` and
-    ``other_tests`` as unordered lists, every other column as written."""
+    """The coded columns as compared (prereg section 9), as the script reads them:
+    ``defaults_applied`` and ``other_tests`` as unordered lists, numbers as numbers, text
+    ignoring case and surrounding spaces, and the two arms in the order written."""
     return (
         claim.sub_class_a, claim.test_used, claim.n_a, claim.n_b, claim.unit.casefold(),
         claim.alpha, claim.one_sided, claim.defaults, claim.exact_test, claim.scores,
@@ -911,6 +928,19 @@ def check_coders(claims, first, second, salt: str | None, paths,
     columns the own sheets hold differently, and every other coded column holds the value
     both own sheets hold. The second part is skipped after author responses, whose copy
     changes values by design (prereg section 7.4)."""
+    not_shared, mismatched = coder_counts(claims, first, second, after_responses)
+    return CoderCheck(
+        first_salted=salted_sha256(salt, paths[0]) if salt else None,
+        second_salted=salted_sha256(salt, paths[1]) if salt else None,
+        rows_not_shared=not_shared,
+        rows_mismatched=mismatched,
+        second=tuple(assess(c) for c in second),
+    )
+
+
+def coder_counts(claims, first, second, after_responses: bool = False) -> tuple[int, int]:
+    """Rows not shared between the sheet and the own sheets, and rows that do not match
+    them (prereg section 9). Counts only; it assesses nothing, so ``--check`` uses it."""
     sheet = {c.claim_id: c for c in claims}
     a = {c.claim_id: c for c in first}
     b = {c.claim_id: c for c in second}
@@ -930,13 +960,7 @@ def check_coders(claims, first, second, salt: str | None, paths,
         }
         if differ != set(claim.disagreed) or (changed and not after_responses):
             mismatched += 1
-    return CoderCheck(
-        first_salted=salted_sha256(salt, paths[0]) if salt else None,
-        second_salted=salted_sha256(salt, paths[1]) if salt else None,
-        rows_not_shared=not_shared,
-        rows_mismatched=mismatched,
-        second=tuple(assess(c) for c in second),
-    )
+    return not_shared, mismatched
 
 
 # --- output --------------------------------------------------------------------------
@@ -1206,7 +1230,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("sheet", help="a CSV in the format of audit/axis_a_sheet_TEMPLATE.csv")
+    parser.add_argument(
+        "sheet",
+        nargs="?",
+        help="a CSV in the format of audit/axis_a_sheet_TEMPLATE.csv (optional only for "
+        "--check --sealed-record, which then checks the record alone)",
+    )
     parser.add_argument(
         "--sealed-record",
         help="the private sealed record of prereg section 13, whose digest section 13 records",
@@ -1240,15 +1269,19 @@ def main(argv: list[str] | None = None) -> int:
         "--check",
         action="store_true",
         help=(
-            "validate this one sheet and print only 'valid' or its errors, computing nothing; "
-            "with --sealed-record, also count rows whose identification columns are not in it"
+            "validate the inputs and print only 'valid' or the errors, and counts: with "
+            "--sealed-record, the rows not in it and its claims the sheet lacks; with "
+            "--coder-sheets, the rows not shared with them and the rows that do not match "
+            "them. Computes nothing"
         ),
     )
     args = parser.parse_args(argv)
-    if args.check and (args.coder_sheets or args.after_responses):
-        parser.error("--check reads one sheet; check each coder's own sheet on its own")
+    if args.check and args.after_responses:
+        parser.error("--check does not take --after-responses")
+    if args.sheet is None and not (args.check and args.sealed_record and not args.coder_sheets):
+        parser.error("a sheet is required, except for --check --sealed-record alone")
 
-    labels = [("sheet", args.sheet)]
+    labels = [("sheet", args.sheet)] if args.sheet else []
     if args.sealed_record:
         labels.append(("sealed record", args.sealed_record))
     if args.coder_sheets:
@@ -1272,6 +1305,14 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
 
     frame = load_frame(FRAME)
+    if args.sheet is None:
+        # --check --sealed-record alone: the record, before its digest is recorded.
+        record = _read_or_exit(lambda: read_record(Path(args.sealed_record), frame),
+                               "sealed record")
+        if record is None:
+            return 1
+        print(f"sealed record: valid, {len(record.claims)} claims; nothing computed")
+        return 0
     sheet = Path(args.sheet)
     claims = _read_or_exit(lambda: read_sheet(sheet, frame), "sheet")
     if claims is None:
@@ -1279,17 +1320,32 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         print(f"valid: {len(claims)} rows; nothing computed")
-        if not args.sealed_record:
-            return 0
-        record = _read_or_exit(lambda: read_record(Path(args.sealed_record), frame),
-                               "sealed record")
-        if record is None:
-            return 1
-        sealed = {ident for ident, _ in record.claims.values()}
-        outside = sum(1 for c in claims if c.identification not in sealed)
-        print(f"rows whose identification columns are not in the sealed record: {outside} of "
-              f"{len(claims)}")
-        return 1 if outside else 0
+        failed = 0
+        if args.sealed_record:
+            record = _read_or_exit(lambda: read_record(Path(args.sealed_record), frame),
+                                   "sealed record")
+            if record is None:
+                return 1
+            sealed = {ident for ident, _ in record.claims.values()}
+            held = {c.identification for c in claims}
+            outside = sum(1 for c in claims if c.identification not in sealed)
+            absent = sum(1 for ident in sealed if ident not in held)
+            print("rows whose identification columns are not in the sealed record: "
+                  f"{outside} of {len(claims)}")
+            print(f"sealed-record claims this sheet does not hold: {absent} of {len(sealed)}")
+            failed += outside + absent
+        if args.coder_sheets:
+            own = []
+            for label, path in labels[-2:]:
+                parsed = _read_or_exit(lambda p=path: read_sheet(Path(p), frame), label)
+                if parsed is None:
+                    return 1
+                own.append(parsed)
+            not_shared, mismatched = coder_counts(claims, own[0], own[1])
+            print(f"coders' own sheets: rows not shared with this sheet {not_shared}; rows that "
+                  f"do not match them {mismatched}")
+            failed += not_shared + mismatched
+        return 1 if failed else 0
 
     if args.benchmark is not None:
         wanted = args.benchmark.strip().casefold()

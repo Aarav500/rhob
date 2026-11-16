@@ -99,10 +99,13 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
 - **The paper at a venue.** A submission to TMLR, after the paper's claims are made to
   match the repository's. The arXiv route has produced no endorsement; a journal needs
   none. Among those claims: App. G's thirty-second screen calls a design `CANNOT_FAIL`
-  when its minimum detectable effect exceeds the attainable range, which shows it is
-  underpowered at every attainable effect, not that no data can reject. Its own 5-vs-5
-  cell can reject: an exact two-sided test does at every complete separation, p = 0.0079
-  ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already known").
+  when a minimum detectable effect, computed with the null SD for the alternative too,
+  exceeds the attainable range. That is a normal-approximation screen, not a power bound,
+  and it does not show that no data can reject. Its own 5-vs-5 cell can reject: an exact
+  two-sided test does at every complete separation (p = 0.0079), and the power
+  computation the axis-A plan pins first reaches 0.80 at an AUROC of 0.944, inside the
+  range ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already
+  known").
 - **The survey: the port, then axis A — open; a pre-registration of axis A's power re-run
   written (2026-11-16), awaiting its sealed record and then a deposit dated by a third
   party.** The analysis plan for the re-run on the 15 sub-class A claims is written before

@@ -346,7 +346,7 @@ The files this plan pins, each by its SHA-256 with LF line endings:
 |---|---|
 | `tools/cannotfail/src/cannotfail/power.py` | `63a94676b51294cc9528b3c830d66e610b3f459893327edfa4675122a5429cd2` |
 | `audit/survey_s1_frame.json` | `4952ac6e2cfab407f68517c091ad839bd055c379070d298725fcdd80b4543936` |
-| `scripts/survey_axis_a_power.py` | `ad33cc10bde8246eb266579cd151dbbfa86cda3573c3a5c6162236ef540d69d3` |
+| `scripts/survey_axis_a_power.py` | `25d97fe6c2e9316b889ad0ea40eead5395904e137242b6d93cf1a7319f739946` |
 | `audit/axis_a_sheet_TEMPLATE.csv` | `27881e0fade52d1fbdd59d44b37863e5006b1e6e811186098ea57ac8da7e89a2` |
 
 The script prints the digest of the power.py and of the frame it read, and whether each
@@ -612,8 +612,8 @@ blank. That is the coder's own sheet. Both own sheets are kept privately, under
 `audit/private/` or outside the repository. Each coder runs `--check` on their own sheet,
 which prints only `valid` or the errors and computes nothing, and corrects every error it
 reports. The author, who holds the sealed record, also runs `--check --sealed-record` on
-each, which counts the rows whose identification columns are not the record's and prints
-nothing else. Then, before reconciliation starts, the salted SHA-256 of each is recorded in
+each, which counts the rows whose identification columns are not the record's, and the
+record's claims the sheet does not hold, and prints nothing else. Then, before reconciliation starts, the salted SHA-256 of each is recorded in
 §13, and both are published with the rows after every window has closed. If a recorded own
 sheet later proves invalid, or its identification columns differ from the record's, its
 coder corrects only what makes it so; §13 records the correction, dated, with both salted
@@ -623,12 +623,15 @@ Disagreements are resolved by discussion once both sheets are complete, never by
 file is read second. Where discussion does not settle a field, `coder_2`'s value stands. A
 value both own sheets hold is carried into the reconciled sheet unchanged. The reconciled
 sheet records which columns the two own sheets hold differently (`disagreed_fields`) and how
-each was resolved (`notes`). Columns are compared as values: `defaults_applied` and
-`other_tests` as unordered lists, every other column as written, so two arms entered in
-opposite orders are a difference. The script compares the two own sheets with the
-reconciled one, and reports no outcome if `disagreed_fields` does not name exactly the
-columns they hold differently, or if another coded column does not hold the value both
-hold. It also reports
+each was resolved (`notes`). Columns are compared as the script reads them:
+`defaults_applied` and `other_tests` as unordered lists, numbers as numbers, text ignoring
+case and surrounding spaces, and the two arms in the order written. So two arms entered in
+opposite orders are a difference, and `Item` against `item`, or `0.05` against `.05`, is
+not. The script compares the two own sheets with the reconciled one, and reports no outcome
+if `disagreed_fields` does not name exactly the columns they hold differently, or if
+another coded column does not hold the value both hold. Before its digest is recorded, the
+reconciled sheet passes `--check` against the sealed record and both own sheets, which
+prints counts only (§14 step 4). It also reports
 the membership count and the outcome on `coder_2`'s own sheet, beside the reconciled ones.
 The per-column disagreement counts are printed with the aggregate, and published with it,
 as the protocol requires.
@@ -736,7 +739,12 @@ by trial; the sealed record holds its own salt.
   written before any row is coded. `paper_20` is `underpowered` or `not_underpowered` for a
   claim among the paper's 20 designs, as the paper judged it; `no` for the rest; and
   `unknown` where the author's records cannot say. The four identification columns are the
-  ones the sheet will hold, from the author's §5 sheet. Once made, it is recorded here as
+  ones the sheet will hold: the rows of the author's §5 sheet, with `benchmark` spelled as
+  the frame names it (§3). Its benchmarks must reconcile with the frame as the sheet's must
+  (§7.1): every one an audited member, 4 of them, none with more of the 15 than Appendix F
+  enumerates for it. The script refuses a record that fails, reporting counts and no name,
+  so its step-5 outcome is none; `--check --sealed-record` alone checks the record before
+  its digest is recorded (§14 step 2). Once made, it is recorded here as
   **Sealed record: SHA-256 `<digest>`**, the digest of the file's bytes, which the script
   reads from this line. The record is published, salt included, when every window has
   closed. Until then its counts stay out of this file: 15 claims over 4 benchmarks are few
@@ -753,9 +761,17 @@ by trial; the sealed record holds its own salt.
 - **The coders' own sheets: not yet made.** Before reconciliation (§14 step 4), once each
   passes `--check` (§9): the salted digest of each. A later correction to one (§9) is
   recorded here too, dated, with the old and the new salted digest.
-- **The reconciled sheet: not yet made.** Before the first run at §14 step 5: its salted
-  digest, by the formula above, without the script. The run prints it again, and it must
-  equal this one. The outcome of step 5 on that sheet is the registered outcome (§7.4).
+- **The reconciled sheet: not yet made.** Before the first run at §14 step 5, once it
+  passes the check of §14 step 4: its salted digest, by the formula above. The run prints
+  it again, and it must equal this one. The outcome of step 5 on that sheet is the
+  registered outcome (§7.4). If the step-5 run refuses it, or reports that it does not
+  match the coders' own sheets, only what makes it so is corrected, and only from the own
+  sheets: a name is added to or removed from `disagreed_fields`, a value both own sheets
+  hold is restored, and an invalid entry takes the value both own sheets hold or, where
+  they differ, `coder_2`'s (§9). Every other value stays as recorded. §13 records the
+  correction, dated, with both salted digests; it is the one record made after step 5's
+  first run. Both versions are published, and the outcome of step 5 on the corrected sheet
+  is the registered outcome.
 
 **Amendments.** Every change to this file after the deposit is an amendment, except the
 records above. Each goes here, dated, with what had been seen when it was made and its
@@ -771,7 +787,11 @@ Amendments: none as of 2026-11-16.
 
 1. Commit this file. No row is filled.
 2. Write the sealed record (§13) privately, from the author's records of the paper's power
-   calculation and the §5 sheet. Record its digest in §13 and commit. Make the deposit of
+   calculation and the §5 sheet. Check it, correcting every error the check reports:
+
+       python scripts/survey_axis_a_power.py --check --sealed-record audit/private/axis_a_sealed.txt
+
+   Record its digest in §13 and commit. Make the deposit of
    that commit's files and record it in §13. PR #2 is merged when
    [RELEASING_CANNOTFAIL.md](RELEASING_CANNOTFAIL.md) says, with a merge commit (§13);
    coding need not wait for it.
@@ -788,8 +808,15 @@ Amendments: none as of 2026-11-16.
 
    The author also checks each own sheet with `--sealed-record audit/private/axis_a_sealed.txt`
    added. Record the salted digest of each own sheet in §13. The two then reconcile into
-   one sheet, recording `disagreed_fields` and `notes`. Record the reconciled sheet's
-   salted digest in §13 before step 5.
+   one sheet, recording `disagreed_fields` and `notes`. The author checks it against the
+   record and both own sheets, and the two correct it until it is valid and every count is
+   0. The check prints counts only, never a value or a verdict:
+
+       python scripts/survey_axis_a_power.py audit/private/axis_a_sheet.csv --check \
+           --sealed-record audit/private/axis_a_sealed.txt \
+           --coder-sheets audit/private/axis_a_coder_1.csv audit/private/axis_a_coder_2.csv
+
+   Then record the reconciled sheet's salted digest in §13, before step 5.
 5. Run, privately:
 
        python scripts/survey_axis_a_power.py audit/private/axis_a_sheet.csv \

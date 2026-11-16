@@ -21,7 +21,7 @@ difference test have caught a true AUROC of 0.7? `docs/SURVEY_AXIS_A_PREREG.md` 
 following before any row is filled:
 
 - the fields coded per claim, and fixed rules for a source that is silent or conflicts,
-  each with the way it leans;
+  each saying which side it favours where it sets a value that favours one;
 - the effect-size grid (0.7 primary, 0.6 and 0.8 secondary, power threshold 0.8);
 - the computation (`cannotfail`'s `difference_power` and `min_two_sided_p`), with
   `power.py`, the frame, the script and the template pinned by file digest;

@@ -1327,9 +1327,8 @@ def test_check_validates_one_sheet_and_computes_nothing(tmp_path):
     assert bad.returncode == 1
     assert "line 2: sidedness: must be one of" in bad.stderr
     assert bad.stdout == "" and _no_token(bad)
-    both = _run(_write(tmp_path, FIVE), "--check", "--coder-sheets", tmp_path / "bad.csv",
-                tmp_path / "bad.csv")
-    assert both.returncode == 2 and "--check reads one sheet" in both.stderr
+    labelled = _run(_write(tmp_path, FIVE), "--check", "--after-responses")
+    assert labelled.returncode == 2 and "--check does not take --after-responses" in labelled.stderr
 
 
 def test_check_counts_rows_that_are_not_the_sealed_records(tmp_path, monkeypatch, capsys):
@@ -1344,8 +1343,20 @@ def test_check_counts_rows_that_are_not_the_sealed_records(tmp_path, monkeypatch
                          "--sealed-record", record)
     assert code == 1
     assert "not in the sealed record: 1 of 15" in out
+    assert "sealed-record claims this sheet does not hold: 1 of 15" in out
     for computed in ("underpowered", "cannot reject", "outcome", "power", "paper_20"):
         assert computed not in out
+    code, out, _ = _main(capsys, _write(tmp_path, FIVE[:14], name="short.csv"), "--check",
+                         "--sealed-record", record)
+    assert code == 1
+    assert "not in the sealed record: 0 of 14" in out
+    assert "sealed-record claims this sheet does not hold: 1 of 15" in out
+    extra = [*FIVE, _row(99, benchmark=SYNTH_BENCHES[3])]
+    code, out, _ = _main(capsys, _write(tmp_path, extra, name="extra.csv"), "--check",
+                         "--sealed-record", record)
+    assert code == 1
+    assert "not in the sealed record: 1 of 16" in out
+    assert "sealed-record claims this sheet does not hold: 0 of 15" in out
 
 
 def test_one_file_cannot_stand_for_two_sheets(tmp_path):
@@ -1487,3 +1498,53 @@ def test_own_sheets_that_lack_a_row_give_no_outcome(registered):
     assert code == 0
     assert "coders' own sheets: rows not shared with this sheet 1;" in out
     assert "the coders' own sheets do not hold this sheet's rows (prereg 9)" in _last_line(out)
+
+
+# --- final pass: checks before the reconciled and sealed digests are recorded ----------
+
+
+def test_check_compares_the_reconciled_sheet_with_the_own_sheets(tmp_path, monkeypatch, capsys):
+    """Before its digest is recorded, and without computing anything (prereg 14, step 4)."""
+    monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
+    record = _write_record(tmp_path, FIVE)
+    first, second = _coder_sheets(tmp_path, FIVE)
+    code, out, err = _main(capsys, _write(tmp_path, FIVE), "--check", "--sealed-record", record,
+                           "--coder-sheets", first, second)
+    assert code == 0, err
+    assert "coders' own sheets: rows not shared with this sheet 0; rows that do not match them 0" in out
+    changed = [dict(r) for r in FIVE]
+    changed[0]["unit_of_replication"] = "prompt"  # an agreed value, retyped
+    code, out, _ = _main(capsys, _write(tmp_path, changed, name="changed.csv"), "--check",
+                         "--sealed-record", record, "--coder-sheets", first, second)
+    assert code == 1
+    assert "rows that do not match them 1" in out
+    for computed in ("underpowered", "cannot reject", "outcome", "power", "prompt"):
+        assert computed not in out
+
+
+def test_a_sealed_record_must_reconcile_with_the_frame(tmp_path, monkeypatch, capsys):
+    """Its benchmarks are audited frame members, 4 of them, none over its count; a failure
+    is reported as counts, naming no benchmark."""
+    monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
+    renamed = [dict(r) for r in FIVE]
+    renamed[0]["benchmark"] = f"SYNTH-{TOKEN}"
+    record = _write_record(tmp_path, renamed)
+    code, out, err = _main(capsys, "--check", "--sealed-record", record)
+    assert code == 1
+    assert "sealed record: 1 benchmark name(s) not in the frame" in err
+    assert TOKEN not in (out + err).lower()
+    code, out, err = _main(capsys, _write(tmp_path, renamed), "--aggregate-only",
+                           "--sealed-record", record)
+    assert code == 1 and out == ""
+
+
+def test_check_reads_the_sealed_record_alone(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
+    record = _write_record(tmp_path, FIVE)
+    code, out, err = _main(capsys, "--check", "--sealed-record", record)
+    assert code == 0, err
+    assert out.strip() == "sealed record: valid, 15 claims; nothing computed"
+    with pytest.raises(SystemExit) as stop:
+        ax.main(["--aggregate-only", "--sealed-record", str(record)])
+    assert stop.value.code == 2
+    assert "a sheet is required" in capsys.readouterr().err
