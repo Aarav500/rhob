@@ -934,7 +934,7 @@ pip install -e ".[dev]"
 ```
 
 Requires Python ≥ 3.10 to install; **≥ 3.11 to reproduce the published numbers** (the
-locked numeric stack cannot be installed on 3.10 — see
+numeric versions in `requirements-lock.txt` cannot be installed on 3.10 — see
 [REPRODUCIBILITY.md](REPRODUCIBILITY.md)). Core dependencies: `numpy`, `scipy`,
 `scikit-learn`, `pydantic`. See [docs/INSTALL.md](docs/INSTALL.md) for Docker, Colab,
 and troubleshooting.

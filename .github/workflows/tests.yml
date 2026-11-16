@@ -73,13 +73,67 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # From a hashed lock, not from pyproject.toml's ranges. This job is the physics
+      # screen, and its verdicts move with the simulator: installing unpinned, it met MuJoCo
+      # 4.0.0 the night that was published and went red on an unchanged commit
+      # (2026-11-07, docs/postmortems/2026-11-mujoco-calibration-cache.md). On the lock,
+      # the same commit gets the same distributions every night. A new release reaches
+      # this job only when someone regenerates requirements/ci-admission-linux-py312.txt
+      # with scripts/update_ci_lock.sh, which is a diff a person reviews. What still
+      # floats is the CPython 3.12 patch release, pip and the runner image. New releases
+      # are tried weekly by .github/workflows/drift.yml, before anyone adopts them.
+      #
+      # Two pip commands, because hash-checking mode cannot install an editable checkout
+      # (there is no single file to hash). rhob goes in second with --no-deps, so nothing
+      # outside the lock is installed. The one unpinned piece is the build backend
+      # (setuptools, wheel), which pip fetches into an isolated build environment to build
+      # rhob's own editable wheel and then discards. `pip check` confirms the installed set
+      # is consistent. It reads only base requirements, not extras, so the last command
+      # checks that the lock still satisfies every requirement pyproject.toml declares for
+      # these four extras. Without it, a bound tightened in pyproject.toml and not carried
+      # into the lock would be ignored here without a word.
+      #
+      # The calibration-cache steps below need no change: "Fingerprint the physics stack"
+      # reads the installed versions, and on the lock those are the same every night, so
+      # its token is too. A regenerated lock that moves one of those versions starts a new
+      # tarball, and that night recalibrates from cold.
+      #
+      # The `pytest` matrix above stays unpinned, on purpose. It runs on every push, takes
+      # minutes, covers three Pythons the lock does not, and is how a new release that
+      # breaks the fast suite shows up the day it ships rather than at the next lock bump.
       - name: Install
-        run: pip install -e ".[dev,continuous,mujoco,pettingzoo]"
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python - <<'EOF'
+          import sys
+          from importlib import metadata
+          from packaging.requirements import Requirement
+
+          extras = ("dev", "continuous", "mujoco", "pettingzoo")
+          unmet = []
+          for line in metadata.requires("rhob") or []:
+              req = Requirement(line)
+              if req.marker and not any(req.marker.evaluate({"extra": e}) for e in ("", *extras)):
+                  continue
+              try:
+                  have = metadata.version(req.name)
+              except metadata.PackageNotFoundError:
+                  unmet.append(f"{req}: not installed")
+                  continue
+              if not req.specifier.contains(have, prereleases=True):
+                  unmet.append(f"{req}: the lock has {have}")
+          if unmet:
+              sys.exit("The lock no longer satisfies pyproject.toml; run scripts/update_ci_lock.sh:\n  "
+                       + "\n  ".join(unmet))
+          print("The lock satisfies every rhob requirement for", ", ".join(extras))
+          EOF
       # Validity is decided per entry, in src/rhob/v3/calibration_cache.py: each key
       # hashes the family module, every rhob module it imports, and the installed
       # versions of the numerical stack. This tarball key only chooses what to restore.
       # It used to be the family sources alone, on the belief that the calibrations were
-      # pure functions of them -- and since this job installs unpinned, MuJoCo 4.0.0
+      # pure functions of them -- and since this job then installed unpinned, MuJoCo 4.0.0
       # (2026-11-06) was served calibrations derived under 3.17, and the nightly went red
       # on an unchanged commit. A key that cannot see a change cannot fail on it.
       #

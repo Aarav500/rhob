@@ -14,7 +14,8 @@ authors = [{name = "Aarav Shah", email = "aarav7.shah@gmail.com"}]
 # Version policy: floors state the oldest supported release; upper bounds cap the
 # next major so a dependency's breaking release cannot silently change benchmark
 # numbers. These ranges make RHOB installable; they do NOT reproduce a result.
-# The exact verified stack is in `requirements-lock.txt` -- use that to reproduce.
+# To reproduce a number, match the versions in that artifact's provenance block;
+# REPRODUCIBILITY.md (Environment Setup) describes the two pinned files and their limits.
 dependencies = [
     "numpy>=1.24,<3",
     "scipy>=1.10,<2",

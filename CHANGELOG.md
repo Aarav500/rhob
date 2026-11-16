@@ -12,6 +12,38 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Changed (2026-11-16): the nightly physics screen installs a hashed lock
+
+The nightly `admission-slow` job installed `pip install -e ".[dev,continuous,mujoco,pettingzoo]"`
+unpinned, so it met each release the night it shipped. That is how MuJoCo 4.0.0 reached it
+on 2026-11-07, on an unchanged commit. It now installs
+`requirements/ci-admission-linux-py312.txt`, then `pip install --no-deps -e .`. The lock
+holds 81 distributions for CPython 3.12 on Linux x86_64, each at one version with the sha256
+of every file PyPI holds for it, torch and its CUDA wheels included. It is resolved as PyPI
+stood at 2026-11-15T05:00:20Z, so it is exactly the stack the 2026-11-15 verification run
+(43679157068) installed and passed every slow screen on. A new release now reaches the
+nightly only through a regeneration of the lock, which someone reviews; the CPython patch
+release, pip and the runner image still float. The install step also fails, naming the
+requirement, if the lock no longer satisfies something `pyproject.toml` declares for those
+extras, which `pip check` does not read.
+
+- `scripts/update_ci_lock.sh` regenerates the lock with `uv pip compile --exclude-newer` and
+  writes the cutoff into the header, so rerunning with that cutoff reproduces the file.
+  `--check` tests this.
+- `.github/workflows/drift.yml` runs weekly. It installs the newest releases `pyproject.toml`
+  allows, tabulates every version that differs from the lock, and runs the fast suite and
+  the four MuJoCo families' slow screens with every calibration derived fresh. A scheduled
+  failure shows on its own page and in one tracking issue, kept by a job that holds only
+  `issues: write`. It does not run the PettingZoo, RLHF reward-model or sequence screens.
+- The per-push `pytest` matrix stays unpinned on purpose. It is the daily check that a new
+  release breaks the fast suite.
+- REPRODUCIBILITY.md no longer calls `requirements-lock.txt` "the exact verified stack". It
+  lists the direct dependencies of one Windows, Python 3.13 environment on 2026-07-29, has
+  no hashes, and no CI job installs it. Neither file is in any tag.
+
+No CI run has installed the lock yet; the first `admission-slow` run on it is that test.
+Details: [requirements/README.md](requirements/README.md).
+
 ### Added (2026-11-16): `cannotfail` reads the files maintainers already have
 
 `cannotfail resolution` now reads nested fields by dotted path in JSON, JSONL and Parquet

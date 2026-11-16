@@ -1,0 +1,194 @@
+name: dependency drift
+
+# What the newest releases would change, found before anyone adopts them.
+#
+# The nightly `admission-slow` job in tests.yml installs requirements/ci-admission-linux-
+# py312.txt, a hashed lock, so a new release reaches it only through the lock. That gives
+# up the one thing its old unpinned install did well, which was to meet each release the
+# night it shipped (MuJoCo 4.0.0, published 2026-11-06 and met by the nightly on
+# 2026-11-07). This workflow keeps that signal without
+# letting it decide the nightly. Weekly, it installs what
+#     pip install -e ".[dev,continuous,mujoco,pettingzoo]"
+# resolves to today, on the lock's Python, prints every version that differs from the lock,
+# then runs the fast suite and the MuJoCo families' slow smoke screens on that stack.
+#
+# pyproject.toml's upper bounds still apply (mujoco<4 among them), so this tests what pip
+# installs for a user today, not every release that exists. A red run means "regenerating
+# the lock now would break something", and the table says which releases are new. It is
+# not a failure of the code at its lock. Nothing here edits the lock, the README badges or
+# any other workflow; a red run shows only on this workflow's own page and in the one
+# tracking issue the `report` job keeps.
+#
+# What it does not cover: the slow screens of the PettingZoo, RLHF reward-model and
+# sequence families. pettingzoo, mpe2, torch and scipy are in the calibration key too, but
+# those screens meet a new release only at the workflow_dispatch run of tests.yml that
+# requirements/README.md asks for after a regeneration. The fast-suite step repeats what
+# the nightly unpinned pytest (3.12) job already runs; it is here so one run's page answers
+# the whole question.
+#
+# Cost, per run, on a standard ubuntu-latest runner: about 40 minutes, estimated rather
+# than yet observed. Install and the fast suite took about 2 and 4 minutes in the
+# 2026-11-06 nightly. The MuJoCo screens took 21 minutes cold on a 4-core scratch machine
+# on 2026-11-16. The same tests ran about 1.55 times slower on the CI runner than there,
+# so expect about 32 minutes for them in CI. That is about three hours of runner time a
+# month, billed only if the repository is private. The job's 120-minute timeout is three
+# times the estimate.
+
+on:
+  schedule:
+    # Mondays 05:43 UTC, clear of the 04:17 nightly.
+    - cron: "43 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    # Read-only. This job runs code from releases nobody has reviewed yet, so it holds no
+    # token that can write anything; the issue is written by `report` below.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      install: ${{ steps.install.outcome }}
+      changed: ${{ steps.table.outputs.changed }}
+      fast: ${{ steps.fast.outcome }}
+      mujoco: ${{ steps.mujoco.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the newest releases, unpinned
+        id: install
+        run: pip install -e ".[dev,continuous,mujoco,pettingzoo]"
+      # A table, in the log and on the run's summary page. "in calibration key" marks the
+      # distributions whose version is part of every calibration-cache key: a change there
+      # means the nightly would recalibrate from cold after the lock is regenerated.
+      - name: Versions that differ from the lock
+        id: table
+        run: |
+          python - <<'EOF'
+          import os
+          import re
+          from importlib import metadata
+
+          from rhob.v3.calibration_cache import PHYSICS_DISTRIBUTIONS
+
+          def norm(name):
+              return re.sub(r"[-_.]+", "-", name).lower()
+
+          lock = {}
+          with open("requirements/ci-admission-linux-py312.txt", encoding="utf-8") as fh:
+              for line in fh:
+                  m = re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s\\;]+)", line)
+                  if m:
+                      lock[norm(m.group(1))] = m.group(2)
+          today = {norm(d.metadata["Name"]): d.version for d in metadata.distributions()}
+          for own in ("rhob", "pip"):  # the project and the installer are not in the lock
+              today.pop(own, None)
+
+          keyed = {norm(n) for n in PHYSICS_DISTRIBUTIONS}
+          rows = []
+          for name in sorted(set(lock) | set(today)):
+              old, new = lock.get(name, "not in lock"), today.get(name, "not installed")
+              if old != new:
+                  rows.append(f"| {name} | {old} | {new} | {'yes' if name in keyed else ''} |")
+
+          if rows:
+              head = (f"{len(rows)} of {len(lock)} locked distributions differ from what "
+                      "pip installs today.")
+              table = "\n".join(["| distribution | lock | today | in calibration key |",
+                                 "|---|---|---|---|", *rows])
+          else:
+              head, table = f"All {len(lock)} locked distributions match what pip installs today.", ""
+          out = f"### Dependency drift against the CI lock\n\n{head}\n\n{table}\n"
+          print(out)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write(out)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"changed={len(rows)}\n")
+          EOF
+      # The same command as the per-push matrix. The two test steps run whenever the
+      # install succeeded, so one failing does not hide whether the other passes.
+      - name: Fast suite
+        id: fast
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pytest tests/ -q -n auto
+      # Uncached on purpose, and with no warm step. No calibration cache is restored, so
+      # .rhob_cache/ starts empty in this fresh checkout and every MuJoCo calibration is
+      # derived under the newest releases. Restoring the nightly's tarball would be safe,
+      # since every entry key carries the stack's versions, but this job asks what new
+      # physics would do, and a calibration computed under the lock's stack says nothing
+      # about that. Nothing is saved.
+      #
+      # admission-slow warms serially because most of its cache is restored and only a
+      # few entries are cold. Here every entry is cold, and these four families calibrate
+      # mostly per tier, so the xdist workers deriving them side by side beat one process
+      # deriving them in turn. Measured cold on a 4-core machine on 2026-11-16, with the
+      # same outcome both ways (10 passed, 12 xfailed as marked): the serial warm then the
+      # tests took 39 min, of which mujoco_sensor_decoupling's warm was 22.5; the tests
+      # alone took 21.
+      - name: MuJoCo slow smoke screens
+        id: mujoco
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: >-
+          pytest -q -m slow -n auto --durations=15
+          tests/test_v3/test_family_mujoco_camping.py
+          tests/test_v3/test_family_mujoco_goal_misgeneralization.py
+          tests/test_v3/test_family_mujoco_joint_limit_gaming.py
+          tests/test_v3/test_family_mujoco_sensor_decoupling.py
+
+  report:
+    # One tracking issue, found by its exact title: opened or commented on when a scheduled
+    # run does not pass, closed when one passes again. Scheduled runs only, so a manual
+    # run on a branch never touches it. Its own job, so `issues: write` is the only
+    # permission it holds and it never shares a runner with the code `drift` installed.
+    needs: drift
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: Weekly dependency drift check is failing
+          RESULT: ${{ needs.drift.result }}
+          INSTALL: ${{ needs.drift.outputs.install }}
+          CHANGED: ${{ needs.drift.outputs.changed }}
+          FAST: ${{ needs.drift.outputs.fast }}
+          MUJOCO: ${{ needs.drift.outputs.mujoco }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number="$(gh issue list --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "Passing again: $RUN_URL"
+            fi
+            exit 0
+          fi
+          body="$(cat <<EOF
+          The weekly run against the newest releases did not pass: $RUN_URL
+
+          - job result: $RESULT
+          - install: ${INSTALL:-not reached}
+          - distributions differing from requirements/ci-admission-linux-py312.txt: ${CHANGED:-unknown} (table on the run's summary page)
+          - fast suite: ${FAST:-not reached}
+          - MuJoCo slow smoke screens: ${MUJOCO:-not reached}
+
+          This is what regenerating the lock today would bring in, not a failure of the code at its lock; the nightly admission-slow job is unaffected. requirements/README.md says what to check before regenerating.
+          EOF
+          )"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

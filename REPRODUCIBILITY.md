@@ -17,23 +17,64 @@ This document explains how to reproduce every result RHOB publishes.
 ```bash
 git clone https://github.com/Aarav500/rhob.git
 cd rhob
-git checkout v1.0  # or main
-pip install -r requirements-lock.txt   # exact verified versions
-pip install -e ".[dev]" --no-deps
-python -m pytest tests/  # verify all tests pass (207+ tests, ~5 min)
 ```
 
-To install without pinning (development, not reproduction), use
-`pip install -e ".[dev]"` alone and accept whatever the ranges resolve to.
+Then pick one of the three installs below. Options 1 and 2 need `main`: no tag carries
+either file (`requirements-lock.txt` was added on 2026-07-29 and the CI lock on
+2026-11-16, both after the last release tag). At a tag such as `v1.0`, use option 3 and
+compare against the artifact's provenance block. None of the three is the environment of every
+committed result. An artifact that records its environment does so in its own
+`provenance` block, and to reproduce a specific number you match that block, not this
+section.
+
+**1. The CI physics stack, exactly. Linux x86_64 and CPython 3.12 only.**
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+pip install --no-deps -e .
+```
+
+This is the stack the nightly `admission-slow` job runs on. It holds every transitive
+dependency of the `dev`, `continuous`, `mujoco` and `pettingzoo` extras at one version,
+with sha256 hashes, including torch from PyPI. It does not install on macOS, Windows, ARM
+or another Python. It is the stack the 2026-11-15 verification run (43679157068) installed
+and passed every slow screen on. [requirements/README.md](requirements/README.md) says how it is generated,
+what was checked and how to regenerate it.
+
+**2. `requirements-lock.txt`, a record of direct dependencies from July 2026.**
+
+```bash
+pip install -r requirements-lock.txt
+pip install -e ".[dev]" --no-deps
+```
+
+This is not a lock in the sense of option 1, and no CI job installs it. It lists the
+versions of RHOB's direct dependencies found in one Windows environment under Python 3.13
+on 2026-07-29. Transitive dependencies are unpinned, and there are no hashes.
+`admission/admission_ledger.json` records nine package versions in its provenance block,
+and the eight besides rhob itself all match it, which makes it the closest available match for the ledger. It is not a
+record of what produced the committed `leaderboard/*.json`, which carry no environment
+metadata. Its header states both limits.
+
+**3. Unpinned, for development rather than reproduction.** Run `pip install -e ".[dev]"`
+alone and accept whatever the ranges in `pyproject.toml` resolve to. The per-push CI
+matrix also installs unpinned, so it meets each new release the day it ships.
+
+With any of the three:
+
+```bash
+python -m pytest tests/  # the fast suite; the slow tier is `-m slow` (see pyproject.toml)
+```
 
 All experiments use:
-- **Python 3.11+ for the verified stack.** `pyproject.toml` still declares
-  `requires-python = ">=3.10"` and CI tests 3.10, but numpy 2.4.3, scipy 1.17.1
-  and scikit-learn 1.8.0 each require Python >= 3.11, so the locked stack cannot
-  be installed on 3.10. A green CI run on 3.10 resolves older numeric libraries
-  than the ones used here and is **not** evidence that these numbers reproduce.
-  Reconciling the declared support surface with reality is an open decision — see
-  the header of `requirements-lock.txt`.
+- **Python 3.11+ for `requirements-lock.txt`, and 3.12 for the CI lock.** `pyproject.toml`
+  still declares `requires-python = ">=3.10"` and CI tests 3.10. But numpy 2.4.3, scipy
+  1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt`, each require
+  Python >= 3.11, so that stack cannot be installed on 3.10. A green CI run on 3.10
+  resolves older numeric libraries than the ones used here and is **not** evidence that
+  these numbers reproduce. Reconciling the declared support surface with reality is an
+  open decision. See the header of `requirements-lock.txt`.
 - **Seed strategy**: Deterministic global RNG seeding via `numpy.random.default_rng(seed)` per run
 - **Reproducibility**: All experiments are fully deterministic given a seed
 
@@ -1012,26 +1053,21 @@ could test for it.
    export CUDA_DETERMINISTIC=1
    ```
 
-2. **Pin versions**: Install the exact verified stack from `requirements-lock.txt`:
-
-   ```bash
-   pip install -r requirements-lock.txt
-   pip install -e ".[dev]" --no-deps
-   ```
-
+2. **Pin versions**: pick from the three installs in Environment Setup.
    `pyproject.toml` declares only ranges (floors plus major-version caps). Ranges
-   make RHOB *installable*; they do not pin a run to the stack these results were
-   computed against. `requirements-lock.txt` does.
+   make RHOB *installable*; they do not pin a run to the stack a result was computed
+   against. To reproduce a specific number, match the versions in that artifact's own
+   `provenance` block.
 
-   Two limits of that file, stated so they are not discovered mid-reproduction:
-   - It records the versions **verified present on 2026-07-29**, not a certified
-     provenance chain. The committed `leaderboard/*.json` carry no environment
-     metadata, so the versions behind those specific numbers were never captured.
-     Artifacts regenerated from this commit onward embed a `provenance` block (see
-     above), so the gap closes prospectively but not retroactively;
-     `admission/admission_ledger.json` already carries one.
-   - It locks direct dependencies only. For a full transitive lock, run
-     `pip freeze` inside a clean virtualenv built from it.
+   - `requirements/ci-admission-linux-py312.txt` is the nightly physics screen's stack,
+     exact and hashed, for Linux x86_64 and CPython 3.12.
+   - `requirements-lock.txt` is the closest record for the admission ledger. It lists
+     the direct dependencies **found present on 2026-07-29**, not a certified
+     provenance chain, and it pins nothing transitive.
+   - The committed `leaderboard/*.json` carry no environment metadata, so the versions
+     behind those specific numbers were never captured. Artifacts regenerated since
+     embed a `provenance` block (see above), so the gap closes prospectively but not
+     retroactively.
 
    (This item previously pointed at `setup.py` for exact versions. There is no
    `setup.py` in this repository — the build is configured entirely in
@@ -1041,7 +1077,8 @@ could test for it.
 3. **Run on CPU**: While RHOB has no GPU dependencies, CPU ensures exact floating-point reproducibility (GPU arithmetic may vary slightly)
 
 4. **Report metadata**: When publishing results, include:
-   - Python version (3.11+ for the locked stack; see Environment Setup)
+   - Python version (3.11+ for `requirements-lock.txt`, 3.12 for the CI lock; see
+     Environment Setup)
    - Git commit hash (`git rev-parse HEAD`)
    - `pip freeze` output
    - Exact command used (with seed/sample-size arguments)
