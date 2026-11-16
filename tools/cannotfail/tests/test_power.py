@@ -68,7 +68,7 @@ def test_difference_power_is_alpha_at_the_null_and_grows_with_effect_and_size():
 
 
 def test_five_a_side_cannot_reliably_see_a_real_violation():
-    """The survey's 'underpowered' case: at 5 vs 5, AUROC 0.7 is caught well under half the time."""
+    """At 5 vs 5, the paper's own App. G cell, AUROC 0.7 is caught well under half the time."""
     assert difference_power(5, 5, 0.7) < 0.5
 
 
@@ -93,6 +93,7 @@ def test_large_designs_do_not_overflow():
     assert 0.0 < min_two_sided_p(515, 515) < 1e-307
     assert min_two_sided_p(1000, 1000) == 0.0
     assert min_two_sided_p(1, 5000) == pytest.approx(2 / 5001)
+    assert min_two_sided_p(1, 39) == 0.05  # exactly at alpha, so not 'cannot reject'
     assert difference_power(1000, 1000, 0.7) == pytest.approx(1.0)
     assert difference_power(1000, 1000, 0.5) == pytest.approx(0.05)
     assert 0.0 < difference_power(600, 600, 0.52) < 1.0
