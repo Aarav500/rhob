@@ -9,8 +9,8 @@ installs. It is uv's resolution of `pip install -e ".[dev,continuous,mujoco,pett
 every distribution that install pulls in, transitively, at one exact version, with the sha256
 of every file PyPI holds for that version. Generated on 2026-11-16, it is resolved as PyPI
 stood at 2026-11-15T05:00:20Z, the moment the 2026-11-15 verification run (43679157068)
-began installing. That run warmed every family and passed every slow screen, and the lock
-is exactly the 81 distributions it installed, read from its job log. Among them are numpy
+began installing. That run passed every slow screen, and the lock is exactly the 81
+distributions it installed, read from its job log. Among them are numpy
 2.5.4, torch 2.15.0 from PyPI with the CUDA wheels it depends on, and mujoco 3.17.0 under
 the `mujoco<4` bound. Releases since then, numpy 2.5.5 among them, wait for `drift.yml` and
 a reviewed regeneration. rhob itself is not in it. CI installs it
@@ -35,9 +35,16 @@ identically. `ubuntu-latest` was `ubuntu-26.04` in the 2026-11-07 run logs. The 
 for macOS, Windows, ARM or another Python, and it is not the environment of any committed
 artifact. Each artifact that records one says so in its own provenance block.
 
-**What was checked, 2026-11-16.** All in scratch environments, not in CI. Most of it was
-first run on a draft resolved at 2026-11-16T06:54:00Z, which differed from this file only in
-numpy 2.5.5; the draft was dropped so the first lock is a stack CI has already passed on.
+**What was checked, 2026-11-16.** In CI, `workflow_dispatch` run 43836925199 of `tests.yml`
+on the branch at `6ae7d7f` was the first to install this file. Its Install step passed:
+pip's hash-checking install of all 81 lines, `pip install --no-deps -e .`, `pip check` and
+the lock-satisfies-pyproject check. Its slow tier passed as 43679157068's did, 73 passed and
+21 xfailed as marked. The warm step had left 23 families cold and the runner was about half
+as fast (`mujoco_sensor_decoupling`'s calibration took 1662 s, against 804 s on 2026-11-15),
+so the job took 153 of its 180 minutes, and its timeout is now 240. The rest was done in
+scratch environments. Some of it was first run on a draft resolved at 2026-11-16T06:54:00Z,
+which differed from this file only in numpy 2.5.5; the draft was dropped so the first lock
+is a stack CI has already passed on.
 
 - **It is the last green stack.** At this file's cutoff the script gives exactly the 81
   distributions that 43679157068 installed.
@@ -45,21 +52,17 @@ numpy 2.5.5; the draft was dropped so the first lock is a stack CI has already p
   on Python 3.12 picked the same 81 versions, plus rhob. A pip 26.3
   `install --dry-run --require-hashes -r` of the draft downloaded and hash-checked every
   wheel, torch's CUDA wheels included, and exited 0.
-- **It installs.** `uv pip install --dry-run --require-hashes -r` this file succeeds. So does
-  a real `uv pip install --require-hashes` into a fresh 3.12 venv, which checks the hash of
-  every file it installs. The job's install step, run as written in that venv, passes:
-  pip's hash mode reads all 81 hashed lines, `pip install --no-deps -e .` succeeds,
-  `pip check` is clean, and the lock-satisfies-pyproject check passes. With
-  `mujoco>=3,<3.17` and an extra requirement written into a scratch copy of
-  `pyproject.toml`, that last check fails and names both, while `pip check` stays clean.
-- **The suites pass on it.** On the draft, the fast suite gave 846 passed and 23 xfailed,
-  on the working tree of 2026-11-16, and the four MuJoCo families' slow smoke screens, run
-  cold, gave 10 passed and 12 xfailed as marked. On this file's numpy, the slow tier is
-  43679157068's result; the fast suite gave 846 passed and 23 xfailed in a venv with the same
-  calibration-key versions.
-- **Not done: a real install through pip.** The dry run above checks every hash but installs
-  nothing. The first nightly on the lock, or a workflow_dispatch run of `tests.yml` on the
-  branch, is the full test.
+- **The check script catches what it should.** `uv pip sync --require-hashes` of this file
+  made a Python 3.12 venv exactly these 81 distributions, hash-checking each file. There
+  `scripts/check_ci_lock.py --installed` passes, and with imageio hidden from it, it fails
+  and names `imageio>=2.14.1` from `gymnasium[mujoco]`, which `pip check` does not read.
+  The static check fails on a scratch `pyproject.toml` with `mujoco>=3,<3.17`, or with a
+  requirement the lock lacks, and names it (`tests/test_ci_lock.py`).
+- **The suites pass on it.** In that venv, with rhob added by `pip install --no-deps -e .`
+  as CI does, the fast suite gave 799 passed and 23 xfailed on the tree of the 2026-11-16
+  fixes. On the draft, the four MuJoCo families' slow smoke screens, run cold, gave 10
+  passed and 12 xfailed as marked. On this file, the slow tier is 43679157068's result and
+  43836925199's.
 - **It reproduces past nightlies.** Resolving with a past cutoff reproduces that night's
   install. At `2026-11-06T12:03:42Z`, the moment the last green run (42214775392) began
   installing, the script gives exactly the 81 distributions that run installed. At
@@ -84,8 +87,12 @@ runner.
 
 When to regenerate:
 
-- **After a dependency change in `pyproject.toml`.** The nightly's install step fails if the
-  lock no longer satisfies a requirement of the four extras, and names the requirement.
+- **After a dependency change in `pyproject.toml`.** `scripts/check_ci_lock.py` compares the
+  two, and the fast suite runs it (`tests/test_ci_lock.py`), so a pull request that changes a
+  requirement of the four extras without regenerating the lock fails its own `pytest` jobs on
+  3.11 and 3.12, naming the requirement. That check reads only names and version bounds. The
+  nightly's install step runs the script again with `--installed`, which also follows the
+  extras a requirement asks for, such as `gymnasium[mujoco]`.
 - **To adopt new releases.** Read the latest run of `.github/workflows/drift.yml` first. Its
   table is the diff that a regeneration would make, and its tests say whether that stack
   passes the fast suite and the MuJoCo screens. It does not run the PettingZoo, RLHF
@@ -96,8 +103,12 @@ Before committing a regenerated lock:
 1. Read `git diff requirements/`, since the pins that moved are the change under review. A
    move in any calibration-key distribution (numpy, scipy, mujoco, mujoco-core, gymnasium,
    torch, pettingzoo, mpe2, marked in the drift table) changes the cache token, so the next
-   nightly recalibrates from cold. The 2026-11-15 verification run took 37 minutes to do that,
-   inside the warm step's 45-minute budget.
+   nightly recalibrates from cold, and that does not fit the warm step's 45-minute budget.
+   The 2026-11-15 verification run, which did it, spent 37 minutes of that budget deriving 8
+   families and then stopped rather than start one that could overrun, leaving 11 more
+   families' calibrations for the slow screens to derive. Those screens passed in 31
+   minutes, and the job took 71. The next cold run, 43836925199, got a runner about half as
+   fast and took 153.
 2. A new MuJoCo major is a re-measurement of the MuJoCo families and the ledger, not a lock
    bump. See the comment on `mujoco<4` in `pyproject.toml`.
 3. Run `tests.yml` by hand (workflow_dispatch) on the branch, so the nightly that sees the
@@ -118,12 +129,14 @@ on one issue, "Weekly dependency drift check is failing", and closes it when a l
 run passes. The job that runs the new releases has read-only access to the repository. Only
 the issue job, which installs nothing, holds `issues: write`.
 
-Cost per run is about 40 minutes on a standard runner, estimated rather than yet observed.
-Install and the fast suite take about 2 and 4 minutes (the 2026-11-06 nightly). The MuJoCo
-screens take about 32: the 21 measured here, times the roughly 1.55 by which the same tests
-ran slower on the CI runner than on that machine. That comes to about three hours of runner
-time a month, billed only if the repository is private. The header of `drift.yml` has the
-breakdown.
+Cost per run is about 25 to 40 minutes on a standard runner, estimated rather than yet
+observed. Install and the fast suite take about 2 and 4 minutes (the 2026-11-06 nightly).
+The MuJoCo screens took 21 minutes on that machine. On the CI runner the same tests ran
+about 1.55 times slower than there in the 2026-11-06 nightly, beside the rest of the slow
+tier, and at about the same speed in the 2026-11-15 run, so expect 20 to 35 minutes, and
+up to about twice that on a slow runner (one on 2026-11-16 calibrated about half as fast).
+That comes to two to three hours of runner time a month, billed only if the repository is
+private. The header of `drift.yml` has the breakdown.
 
 ## Not to be confused with requirements-lock.txt
 

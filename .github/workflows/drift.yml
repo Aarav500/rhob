@@ -26,13 +26,16 @@ name: dependency drift
 # the nightly unpinned pytest (3.12) job already runs; it is here so one run's page answers
 # the whole question.
 #
-# Cost, per run, on a standard ubuntu-latest runner: about 40 minutes, estimated rather
-# than yet observed. Install and the fast suite took about 2 and 4 minutes in the
+# Cost, per run, on a standard ubuntu-latest runner: about 25 to 40 minutes, estimated
+# rather than yet observed. Install and the fast suite took about 2 and 4 minutes in the
 # 2026-11-06 nightly. The MuJoCo screens took 21 minutes cold on a 4-core scratch machine
-# on 2026-11-16. The same tests ran about 1.55 times slower on the CI runner than there,
-# so expect about 32 minutes for them in CI. That is about three hours of runner time a
-# month, billed only if the repository is private. The job's 120-minute timeout is three
-# times the estimate.
+# on 2026-11-16. How that translates to CI depends on the run: the same tests ran about
+# 1.55 times slower than there in the 2026-11-06 nightly, beside the rest of the slow
+# tier, and at about the same speed in the 2026-11-15 run. So expect 20 to 35 minutes for
+# them, and up to about twice that on a slow runner: on 2026-11-16 one calibrated about
+# half as fast as on 2026-11-15. That is two to three hours of runner time a month, billed
+# only if the repository is private. The job's 120-minute timeout is three times the upper
+# estimate.
 
 on:
   schedule:
@@ -100,8 +103,12 @@ jobs:
                   rows.append(f"| {name} | {old} | {new} | {'yes' if name in keyed else ''} |")
 
           if rows:
-              head = (f"{len(rows)} of {len(lock)} locked distributions differ from what "
-                      "pip installs today.")
+              moved = sum(1 for n in lock if n in today and lock[n] != today[n])
+              new = sum(1 for n in today if n not in lock)
+              gone = sum(1 for n in lock if n not in today)
+              head = (f"{moved} of the {len(lock)} locked distributions are at another version "
+                      f"today; {new} not in the lock would be installed, and {gone} in it would "
+                      "not.")
               table = "\n".join(["| distribution | lock | today | in calibration key |",
                                  "|---|---|---|---|", *rows])
           else:

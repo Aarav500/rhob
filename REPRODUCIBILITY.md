@@ -19,10 +19,11 @@ git clone https://github.com/Aarav500/rhob.git
 cd rhob
 ```
 
-Then pick one of the three installs below. Options 1 and 2 need `main`: no tag carries
-either file (`requirements-lock.txt` was added on 2026-07-29 and the CI lock on
-2026-11-16, both after the last release tag). At a tag such as `v1.0`, use option 3 and
-compare against the artifact's provenance block. None of the three is the environment of every
+Then pick one of the three installs below. Options 1 and 2 need a commit that has their
+file, such as `main`, not a release tag: no tag carries either file (`requirements-lock.txt`
+was added on 2026-07-29 and the CI lock on 2026-11-16, both after the last release tag). At
+a tag such as `v1.0`, use option 3 and compare against the artifact's provenance block.
+None of the three is the environment of every
 committed result. An artifact that records its environment does so in its own
 `provenance` block, and to reproduce a specific number you match that block, not this
 section.
@@ -59,7 +60,8 @@ metadata. Its header states both limits.
 
 **3. Unpinned, for development rather than reproduction.** Run `pip install -e ".[dev]"`
 alone and accept whatever the ranges in `pyproject.toml` resolve to. The per-push CI
-matrix also installs unpinned, so it meets each new release the day it ships.
+matrix also installs unpinned, and runs nightly too, so it meets each new release within a
+day of it shipping.
 
 With any of the three:
 

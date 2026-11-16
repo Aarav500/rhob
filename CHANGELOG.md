@@ -23,9 +23,12 @@ of every file PyPI holds for it, torch and its CUDA wheels included. It is resol
 stood at 2026-11-15T05:00:20Z, so it is exactly the stack the 2026-11-15 verification run
 (43679157068) installed and passed every slow screen on. A new release now reaches the
 nightly only through a regeneration of the lock, which someone reviews; the CPython patch
-release, pip and the runner image still float. The install step also fails, naming the
+release, pip and the runner image still float. `scripts/check_ci_lock.py` fails, naming the
 requirement, if the lock no longer satisfies something `pyproject.toml` declares for those
-extras, which `pip check` does not read.
+extras, which `pip check` does not read. It runs in the fast suite on every pull request
+(`tests/test_ci_lock.py`, names and version bounds), so a dependency change that skips the
+regeneration fails there rather than on main's next nightly, and again in the nightly's
+install step, where it also follows the extras a requirement asks for (`gymnasium[mujoco]`).
 
 - `scripts/update_ci_lock.sh` regenerates the lock with `uv pip compile --exclude-newer` and
   writes the cutoff into the header, so rerunning with that cutoff reproduces the file.
@@ -41,7 +44,10 @@ extras, which `pip check` does not read.
   lists the direct dependencies of one Windows, Python 3.13 environment on 2026-07-29, has
   no hashes, and no CI job installs it. Neither file is in any tag.
 
-No CI run has installed the lock yet; the first `admission-slow` run on it is that test.
+The first CI install of the lock was `workflow_dispatch` run 43836925199 on the branch, on
+2026-11-16: the hash-checked install passed, and the slow tier gave 73 passed and 21
+xfailed, as 43679157068 did. Started cold on a slow runner, it took 153 of the job's 180
+minutes, so `admission-slow`'s timeout is now 240.
 Details: [requirements/README.md](requirements/README.md).
 
 ### Added (2026-11-16): `cannotfail` reads the files maintainers already have

@@ -6,7 +6,9 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # 04:17 UTC daily -- for the `admission-slow` job only (see its `if:`).
+    # 04:17 UTC daily (GitHub often starts it hours late). Every job runs; `admission-slow`
+    # runs only on this and on workflow_dispatch (see its `if:`), and the unpinned `pytest`
+    # matrix running here too is what meets each new release within a day of it shipping.
     - cron: "17 4 * * *"
   workflow_dispatch:
 
@@ -65,9 +67,14 @@ jobs:
     # This is the *screen*, not certification: the +/-0.10 matched-proxy claim comes from
     # `python scripts/admission_ledger.py`, which is run by hand and committed to
     # `admission/`.
+    #
+    # 240 minutes. A cold run on a slow runner, the first on the CI lock (43836925199,
+    # 2026-11-16), took 153 and passed. Main's first nightly after a merge is always cold,
+    # because a workflow on main cannot restore a cache saved on another branch, so 180
+    # left too little margin.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -88,47 +95,29 @@ jobs:
       # outside the lock is installed. The one unpinned piece is the build backend
       # (setuptools, wheel), which pip fetches into an isolated build environment to build
       # rhob's own editable wheel and then discards. `pip check` confirms the installed set
-      # is consistent. It reads only base requirements, not extras, so the last command
-      # checks that the lock still satisfies every requirement pyproject.toml declares for
-      # these four extras. Without it, a bound tightened in pyproject.toml and not carried
-      # into the lock would be ignored here without a word.
+      # is consistent. It reads only base requirements, not extras, so
+      # scripts/check_ci_lock.py --installed then checks every requirement pyproject.toml
+      # declares for these four extras, and the extras those ask for in turn
+      # (gymnasium[mujoco]). Without it, a bound tightened in pyproject.toml and not carried
+      # into the lock would be ignored here without a word. The same script's static check
+      # runs in the fast suite (tests/test_ci_lock.py), so such a change fails its own pull
+      # request first.
       #
       # The calibration-cache steps below need no change: "Fingerprint the physics stack"
       # reads the installed versions, and on the lock those are the same every night, so
       # its token is too. A regenerated lock that moves one of those versions starts a new
       # tarball, and that night recalibrates from cold.
       #
-      # The `pytest` matrix above stays unpinned, on purpose. It runs on every push, takes
-      # minutes, covers three Pythons the lock does not, and is how a new release that
-      # breaks the fast suite shows up the day it ships rather than at the next lock bump.
+      # The `pytest` matrix above stays unpinned, on purpose. It runs on every push and
+      # nightly, takes minutes, covers 3.10 and 3.11, which the lock does not, as well as
+      # 3.12, and is how a new release that breaks the fast suite shows up within a day of
+      # shipping rather than at the next lock bump.
       - name: Install
         run: |
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
           pip check
-          python - <<'EOF'
-          import sys
-          from importlib import metadata
-          from packaging.requirements import Requirement
-
-          extras = ("dev", "continuous", "mujoco", "pettingzoo")
-          unmet = []
-          for line in metadata.requires("rhob") or []:
-              req = Requirement(line)
-              if req.marker and not any(req.marker.evaluate({"extra": e}) for e in ("", *extras)):
-                  continue
-              try:
-                  have = metadata.version(req.name)
-              except metadata.PackageNotFoundError:
-                  unmet.append(f"{req}: not installed")
-                  continue
-              if not req.specifier.contains(have, prereleases=True):
-                  unmet.append(f"{req}: the lock has {have}")
-          if unmet:
-              sys.exit("The lock no longer satisfies pyproject.toml; run scripts/update_ci_lock.sh:\n  "
-                       + "\n  ".join(unmet))
-          print("The lock satisfies every rhob requirement for", ", ".join(extras))
-          EOF
+          python scripts/check_ci_lock.py --installed
       # Validity is decided per entry, in src/rhob/v3/calibration_cache.py: each key
       # hashes the family module, every rhob module it imports, and the installed
       # versions of the numerical stack. This tarball key only chooses what to restore.
@@ -177,7 +166,7 @@ jobs:
       #
       # Budgeted at 45 min, and non-fatal. Warming is an optimisation, and an optimisation
       # must never be the reason a job reports nothing: measured cold, the full sweep can
-      # approach this job's whole 180-minute timeout, which would kill it in a step that
+      # approach this job's whole timeout, which would kill it in a step that
       # produces no test results at all -- strictly worse than having no warm step. Past
       # the budget the script names what it left cold and the tests derive those
       # themselves, less efficiently but correctly.

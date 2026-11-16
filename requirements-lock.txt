@@ -1,4 +1,4 @@
-# RHOB — verified dependency lock
+# RHOB — direct-dependency versions found on 2026-07-29 (not a lock; see requirements/README.md)
 #
 # Generated: 2026-07-29
 # Commit:    ea24683604ffe01e8a3a76f588fcdf7e9abedc08 (main)
@@ -8,8 +8,8 @@
 # -----------------
 # The exact versions of RHOB's *direct* declared dependencies, read from the
 # environment in which `rhob` is installed editable and the test suite collects.
-# It exists because `pyproject.toml` declares only floors (`>=`), which do not
-# constrain a reproduction run to the stack these results were computed against.
+# It exists because `pyproject.toml` declares only ranges (floors and major-version
+# caps), and the versions the admission ledger records, rhob aside, match these.
 #
 # WHAT THIS FILE IS NOT
 # ---------------------

@@ -933,9 +933,9 @@ cd rhob
 pip install -e ".[dev]"
 ```
 
-Requires Python ≥ 3.10 to install; **≥ 3.11 to reproduce the published numbers** (the
-numeric versions in `requirements-lock.txt` cannot be installed on 3.10 — see
-[REPRODUCIBILITY.md](REPRODUCIBILITY.md)). Core dependencies: `numpy`, `scipy`,
+Requires Python ≥ 3.10 to install; ≥ 3.11 for the versions the admission ledger records
+(those in `requirements-lock.txt` cannot be installed on 3.10), and 3.12 for the CI lock —
+see [REPRODUCIBILITY.md](REPRODUCIBILITY.md). Core dependencies: `numpy`, `scipy`,
 `scikit-learn`, `pydantic`. See [docs/INSTALL.md](docs/INSTALL.md) for Docker, Colab,
 and troubleshooting.
 
