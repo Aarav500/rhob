@@ -12,6 +12,21 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Added (2026-11-16): `cannotfail` reads the files maintainers already have
+
+`cannotfail resolution` now reads nested fields by dotted path in JSON, JSONL and Parquet
+(`--score output.probs.1`, where an integer indexes a list). It takes `--group` more than
+once (`--group task --group model`, never comma-separated, since metric names such as
+`acc,none` contain commas). It reads Parquet through the `cannotfail[parquet]` extra, and
+Inspect logs through `cannotfail[inspect]` with `--format inspect`, via inspect_ai's own
+`samples_df`. The package README has a tested recipe for an lm-evaluation-harness
+`--log_samples` file, a leaderboard predictions JSON, a Parquet file and an Inspect log. The
+first two files are synthetic; the Inspect log was written offline by inspect_ai with its
+mock model. The base install is still NumPy only: the package's CI asserts that SciPy,
+pyarrow, pandas and inspect_ai are all absent from it, then reruns the tests with each
+extra. All of this lands in `cannotfail` 0.1.0, which is still unreleased; see
+[tools/cannotfail/CHANGELOG.md](tools/cannotfail/CHANGELOG.md).
+
 ### Fixed (2026-11-15): the calibration cache could not see a dependency upgrade
 
 From 2026-11-07 the nightly `admission-slow` job failed every night, on an unchanged

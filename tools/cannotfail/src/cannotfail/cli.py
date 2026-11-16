@@ -1,6 +1,8 @@
 """``cannotfail``: run D1 on a score file, or D2 on a design, from the command line.
 
     cannotfail resolution scores.csv --score score --label is_hack --group cell
+    cannotfail resolution preds.jsonl --score scores.detector.value --group task --group model
+    cannotfail resolution logs/ --format inspect --score score_includes --group model
     cannotfail power equivalence --per-side 4 --layouts 12
     cannotfail power seeds --layouts 12 --tests 4
     cannotfail power difference --pos 5 --neg 5 --true-auroc 0.7
@@ -13,13 +15,11 @@ missing optional dependency. 3 on an internal error, which is a bug worth report
 from __future__ import annotations
 
 import argparse
-import csv
-import io
 import json
 import math
 import sys
 import traceback
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 
 from cannotfail import __version__
 from cannotfail.power import (
@@ -29,6 +29,7 @@ from cannotfail.power import (
     min_two_sided_p,
     required_seeds_per_layout,
 )
+from cannotfail.readers import FORMATS, InputError, read_columns
 from cannotfail.resolution import (
     EQUIVALENCE_MARGIN,
     resolution,
@@ -38,84 +39,6 @@ from cannotfail.resolution import (
 
 _TRUE = {"1", "true", "t", "yes", "y"}
 _FALSE = {"0", "false", "f", "no", "n"}
-
-
-class InputError(ValueError):
-    """Bad input: reported on stderr with exit status 2."""
-
-
-def _cell(value) -> str:
-    """One JSON value as the text a CSV cell would hold. ``null`` becomes blank."""
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, float):
-        return repr(value)  # round-trips exactly, unlike str() on some platforms
-    return str(value)
-
-
-def _read_json_columns(path: str, wanted: Sequence[str]) -> dict[str, list[str]]:
-    """A ``.json`` list of objects, or ``.jsonl`` with one object per line.
-
-    A list of ``{"id": ..., "score": ...}`` objects is a common leaderboard predictions
-    format, so a maintainer can run the check on the file they already have.
-    """
-    with open(path, encoding="utf-8-sig") as fh:
-        if path.endswith(".jsonl"):
-            records = []
-            for i, line in enumerate(fh, start=1):
-                if line.strip():
-                    try:
-                        records.append(json.loads(line))
-                    except json.JSONDecodeError as exc:
-                        raise InputError(f"{path}: line {i} is not JSON: {exc.msg}") from None
-        else:
-            try:
-                records = json.load(fh)
-            except json.JSONDecodeError as exc:
-                raise InputError(f"{path}: not valid JSON: {exc.msg} at line {exc.lineno}") from None
-    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
-        raise InputError(f"{path}: expected a list of objects, one per scored item")
-    if not records:
-        raise InputError(f"{path}: the list is empty")
-    for c in wanted:
-        if not any(c in r for r in records):
-            raise InputError(f"{path}: no field {c!r}; fields include {sorted(records[0])[:10]}")
-    return {c: [_cell(r.get(c)) for r in records] for c in wanted}
-
-
-def _read_columns(path: str, delimiter: str | None, wanted: Sequence[str]) -> dict[str, list[str]]:
-    """Read the named columns. Lines starting with ``#`` are skipped only above the header.
-
-    A ``#`` inside the data is data: a cell or item id may legitimately start with one,
-    and dropping such a row silently would hide a cell from ``--fail-on``. Files ending in
-    ``.json`` or ``.jsonl`` are read as records instead.
-    """
-    if path.endswith((".json", ".jsonl")):
-        return _read_json_columns(path, wanted)
-    if delimiter is None:
-        delimiter = "\t" if path.endswith((".tsv", ".tab")) else ","
-    with open(path, newline="", encoding="utf-8-sig") as fh:  # -sig: Excel writes a BOM
-        text = fh.read()
-    lines = text.splitlines(keepends=True)
-    start = 0
-    while start < len(lines) and (lines[start].lstrip().startswith("#") or not lines[start].strip()):
-        start += 1
-    reader = csv.DictReader(io.StringIO("".join(lines[start:])), delimiter=delimiter)
-    header = reader.fieldnames or []
-    if not header:
-        raise InputError(f"{path}: no header row")
-    missing = [c for c in wanted if c not in header]
-    if missing:
-        raise InputError(f"{path}: no column {missing[0]!r}; columns are {header}")
-    cols: dict[str, list[str]] = {c: [] for c in wanted}
-    for row in reader:
-        for c in wanted:
-            cols[c].append((row.get(c) or "").strip())
-    if not cols[wanted[0]]:
-        raise InputError(f"{path}: the header is there but there are no data rows")
-    return cols
 
 
 def _parse_scores(raw: list[str]) -> list[float]:
@@ -186,33 +109,61 @@ def _plural(n: int, one: str, many: str) -> str:
     return one if n == 1 else many
 
 
+#: Joins the parts of a group label when --group is given more than once.
+GROUP_JOIN = " | "
+
+
+def _group_labels(parts: list[tuple[str, ...]]) -> dict[tuple[str, ...], str]:
+    """One readable label per distinct tuple of group values: the values joined by `` | ``.
+
+    If a value itself contains `` | `` so that two different tuples would print the same,
+    every label is written as a JSON list instead, so no two groups can share one.
+    """
+    distinct = list(dict.fromkeys(parts))
+    labels = {t: GROUP_JOIN.join(t) for t in distinct}
+    if len(set(labels.values())) < len(distinct):
+        labels = {t: json.dumps(list(t), ensure_ascii=False) for t in distinct}
+    return labels
+
+
 def _cmd_resolution(args: argparse.Namespace) -> int:
-    wanted = [args.score] + ([args.label] if args.label else []) + ([args.group] if args.group else [])
-    cols = _read_columns(args.file, args.delimiter, wanted)
+    group_by = args.group or []
+    wanted = [args.score] + ([args.label] if args.label else []) + group_by
+    cols = read_columns(args.file, wanted, fmt=args.format, delimiter=args.delimiter, score=args.score)
     scores = _parse_scores(cols[args.score])
     labels = _parse_labels(cols[args.label], args.positive) if args.label else None
     kw = dict(margin=args.margin, dispersion_floor=args.dispersion_floor)
 
-    if args.group:
-        results = resolution_by_group(scores, cols[args.group], labels, **kw)
+    parts_of: dict[Hashable, dict[str, str]] = {}
+    if len(group_by) == 1:
+        results = resolution_by_group(scores, cols[group_by[0]], labels, **kw)
+    elif group_by:
+        tuples = list(zip(*(cols[g] for g in group_by)))
+        names = _group_labels(tuples)
+        parts_of = {names[t]: dict(zip(group_by, t)) for t in names}
+        results = resolution_by_group(scores, [names[t] for t in tuples], labels, **kw)
     else:
         results = {"(all)": resolution(scores, labels, **kw)}
     summary = summarize(results)
 
     if args.json:
-        _dump({
-            "file": args.file,
-            "margin": args.margin,
-            "groups": {str(k): v.as_dict() for k, v in results.items()},
-            "summary": {
-                "n_groups": summary.n_groups,
-                "n_single_valued": summary.n_single_valued,
-                "by_verdict": summary.by_verdict,
-            },
-        })
+        payload = {"file": args.file, "margin": args.margin}
+        groups = {str(k): v.as_dict() for k, v in results.items()}
+        if parts_of:  # only with several --group columns, so a single one prints as before
+            payload["group_by"] = group_by
+            for k, d in groups.items():
+                d["group"] = parts_of[k]
+        payload["groups"] = groups
+        payload["summary"] = {
+            "n_groups": summary.n_groups,
+            "n_single_valued": summary.n_single_valued,
+            "by_verdict": summary.by_verdict,
+        }
+        _dump(payload)
     else:
-        width = max([5] + [len(str(k)) for k in results])
-        head = f"{'group':<{width}}  {'n':>7}  {'distinct':>8}"
+        title = GROUP_JOIN.join(group_by) if len(group_by) > 1 else "group"
+        width = max([len(title)] + [len(str(k)) for k in results])
+        head = f"{title:<{width}}  {'n':>7}  {'distinct':>8}"
         if labels is not None:
             head += f"  {'pos':>6}  {'neg':>6}  {'resolution':>10}  {'AUROC range':>15}"
         head += "  verdict"
@@ -352,12 +303,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("resolution", formatter_class=fmt,
                        help="D1: what range could a statistic over these scores take?")
-    r.add_argument("file", help="CSV or TSV with a header row (# lines above it are skipped), "
-                   "or a .json list of objects / .jsonl, one object per scored item")
-    r.add_argument("--score", required=True, help="column holding the scores")
-    r.add_argument("--label", help="column holding the class of each row")
+    r.add_argument("file", help="CSV or TSV with a header row (# lines above it are skipped), a .json "
+                   "list of objects, .jsonl, .parquet, or with --format inspect an Inspect log "
+                   "or a directory of them; one row, object or sample per scored item")
+    r.add_argument("--score", required=True,
+                   help="column holding the scores; in JSON, JSONL and Parquet a dotted path such as "
+                   "scores.detector.value, where an integer indexes a list")
+    r.add_argument("--label", help="column or dotted path holding the class of each row")
     r.add_argument("--positive", help="label value of the positive class; every other value is negative")
-    r.add_argument("--group", help="column naming the cell each score belongs to")
+    r.add_argument("--group", action="append", metavar="COLUMN",
+                   help="column or dotted path naming the cell each score belongs to; repeat it to group "
+                   "by several (--group task --group model), never comma-separated, since names "
+                   "such as 'acc,none' contain commas")
+    r.add_argument("--format", choices=FORMATS,
+                   help="how to read the file (default: from its extension, csv otherwise); an "
+                   "Inspect log always needs --format inspect")
     r.add_argument("--margin", type=float, default=EQUIVALENCE_MARGIN,
                    help="equivalence margin the 'pinned' verdict is read against")
     r.add_argument("--dispersion-floor", type=float, default=None,

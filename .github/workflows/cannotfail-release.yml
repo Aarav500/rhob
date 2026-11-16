@@ -112,7 +112,10 @@ jobs:
                       if junk(n) or not n.startswith(("cannotfail/", f"cannotfail-{version}.dist-info/"))]
           problems += [f"sdist: {n}" for n in in_sdist if junk(n)]
           problems += [f"sdist is missing {n}" for n in ("LICENSE", "README.md", "CHANGELOG.md",
-                       "pyproject.toml", "examples/scores.csv", "src/cannotfail/__init__.py")
+                       "pyproject.toml", "src/cannotfail/__init__.py", "examples/scores.csv",
+                       "examples/scores.parquet", "examples/predictions.json",
+                       "examples/samples_toy_arith.jsonl", "examples/hack_probe.eval",
+                       "examples/hack_probe.py")
                        if n not in in_sdist]
           for p in problems:
               print(f"::error::{p}")

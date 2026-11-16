@@ -120,9 +120,12 @@ repository:</p>
 
 <p>The file needs one row per scored item: the score, optionally its class, and optionally
 the cell it belongs to (a dataset, a detector-by-task pair, whatever your headline
-aggregates over). It reads CSV and TSV, a <code>.json</code> list of objects and a
-<code>.jsonl</code> file, so a leaderboard prediction file can be checked as it was
-submitted. Here it is on
+aggregates over). It reads CSV and TSV, a <code>.json</code> list of objects, a
+<code>.jsonl</code> file, Parquet with the <code>[parquet]</code> extra, and Inspect logs
+with the <code>[inspect]</code> extra and <code>--format inspect</code>; a nested field is
+named by a dotted path, and <code>--group</code> can be given more than once, so a
+leaderboard prediction file or an evaluation harness's per-sample log can be checked as it
+is. Here it is on
 <a href="https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/scores.csv">examples/scores.csv</a>,
 three cells of 48 items each:</p>
 <pre class="out"><code>$ cannotfail resolution scores.csv --score score --label is_hack --group cell
@@ -140,9 +143,11 @@ distinct values only, which is enough to find a cell whose scores are all one nu
 <h3>How the tool itself is tested</h3>
 <p>The package has its own CI, separate from the benchmark's. It runs on every push and pull
 request that touches <code>tools/cannotfail</code>, every Monday, and on demand. It tests on
-Python 3.10, 3.13 and 3.14, each once with NumPy only, which holds D1 to its NumPy-only
-promise, and once with SciPy. It also builds the sdist and wheel, installs the wheel on its
-own, and checks that every example in the package's README prints what the README shows.
+Python 3.10, 3.13 and 3.14, each first with NumPy only, asserting that SciPy, pyarrow,
+pandas and inspect_ai are all absent, which holds D1 to its NumPy-only promise, and then
+with SciPy, with pyarrow and with the Inspect extra in turn. It also builds the sdist and
+wheel, installs the wheel on its own, and checks that every example in the package's README
+prints what the README shows, with NumPy only and then with every extra.
 Separately, <code class="path">tests/test_cannotfail_parity.py</code> runs in the benchmark's
 test suite on every push to <code>main</code> and holds the tool to the admission gate it was
 lifted from. Its tolerance resolution is bit-identical to the gate's on adversarial inputs,

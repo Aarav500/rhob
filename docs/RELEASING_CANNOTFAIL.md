@@ -239,11 +239,12 @@ its metadata. If setuptools drops the table form sooner, the weekly run of
 - [`cannotfail.yml`](../.github/workflows/cannotfail.yml), the README badge. On pushes to
   `main` and pull requests that touch `tools/cannotfail/**` or the workflow, weekly on
   Mondays, and on demand. `test` runs the tool's tests on Python 3.10, 3.13 and 3.14, first
-  with numpy only (asserting SciPy is absent) and then with SciPy. `package` builds the
-  sdist and wheel, runs `twine check --strict`, checks their contents, and installs the
-  wheel alone into a fresh Python 3.10 venv. From there it runs the README's examples
-  against the output the README prints, first with numpy only and then with the `power`
-  extra, and then the tool's tests against that installed wheel.
+  with numpy only (asserting SciPy, pyarrow, pandas and inspect_ai are absent), then with
+  SciPy, then pyarrow, then the `inspect` extra. `package` builds the sdist and wheel, runs
+  `twine check --strict`, checks their contents, and installs the wheel alone into a fresh
+  Python 3.10 venv. From there it runs the README's examples against the output the README
+  prints, first with numpy only (skipping the Parquet and Inspect recipes) and then with
+  `[power,parquet,inspect]`, and then the tool's tests against that installed wheel.
 - [`cannotfail-release.yml`](../.github/workflows/cannotfail-release.yml), above.
 - [`tests.yml`](../.github/workflows/tests.yml) keeps
   [`tests/test_cannotfail_parity.py`](../tests/test_cannotfail_parity.py) in its pytest

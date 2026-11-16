@@ -34,7 +34,7 @@ diagnostics that answer it from artifacts a benchmark already produces:
   wired to nothing? (paper §4.3)
 
 D1 and D2 are packaged as [`cannotfail`](tools/cannotfail), a standalone tool that imports
-nothing from RHOB, so it can be run on another benchmark's score vectors:
+nothing from RHOB, so it can be run on another benchmark's scores (CSV, JSON, JSONL, Parquet or an Inspect log):
 
     pip install cannotfail
     cannotfail resolution scores.csv --score score --label is_hack --group cell

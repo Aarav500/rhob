@@ -25,9 +25,12 @@ needs knowledge of your harness that a score file does not carry.
 ```bash
 pip install cannotfail              # D1
 pip install "cannotfail[power]"     # with D2
+pip install "cannotfail[parquet]"   # to read Parquet files (adds pyarrow)
+pip install "cannotfail[inspect]"   # to read Inspect logs (adds inspect_ai, pandas, pyarrow)
 ```
 
-Python 3.10 or later. The package imports nothing from the benchmark it was built in.
+Python 3.10 or later. The package imports nothing from the benchmark it was built in, and
+the base install needs nothing but NumPy: the extras are imported only when they are used.
 
 Or let [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/) fetch it into a
 temporary environment and run it:
@@ -45,11 +48,12 @@ repository:
 pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"
 ```
 
-The badge above is the package's own CI. It runs the tests on Python 3.10, 3.13 and 3.14, each
-with and without SciPy; builds the sdist and wheel; and, from the wheel alone, runs each
-example on this page that shows its output and compares the two. It also runs weekly, so
-a NumPy or SciPy release that breaks a test or an example turns it red with no change
-here. Green says the tool's tests pass and its examples print what this page shows. It
+The badge above is the package's own CI. It runs the tests on Python 3.10, 3.13 and 3.14,
+first with NumPy alone, which it checks by asserting that SciPy, pyarrow, pandas and
+inspect_ai are absent, then adding SciPy, then pyarrow, then the `inspect` extra. It builds
+the sdist and wheel and, from the wheel alone, runs each example on this page that shows its
+output and compares the two. It also runs weekly, so a NumPy, SciPy, pyarrow, pandas or
+inspect_ai release that breaks a test or an example turns it red with no change here. Green says the tool's tests pass and its examples print what this page shows. It
 says nothing about your checks.
 
 If you run it on your own benchmark, please tell the author, whatever it found, `ok`
@@ -114,13 +118,9 @@ resolutions are in `--json`.
 - `dust`: decide whether those differences are signal or rounding, and say which in your
   write-up.
 
-It also reads a `.json` list of objects or a `.jsonl` file, one object per scored item —
-the shape leaderboard prediction files usually take — so a submission can be checked as it
-was submitted:
-
-```
-$ cannotfail resolution predictions.json --score score --fail-on fixed
-```
+It also reads a `.json` list of objects, a `.jsonl` file, Parquet and Inspect logs, where a
+nested field is named by a dotted path (`--score output.probs.1`), and `--group` can be given
+more than once. The Recipes section below has one tested command for each.
 
 Without `--label` it counts distinct values only, which is enough to find a cell whose
 scores are all one number. Use `--positive VALUE` when your labels are words: every row
@@ -131,6 +131,148 @@ skipped only above the header; Excel's UTF-8 files are fine.
 The tie count is exact. It costs `O((n + m) log m)` plus one check per pair that falls
 within a few rounding units of the tolerance boundary, so it handles score vectors far too
 large for an `n × m` comparison.
+
+## Recipes: the files you already have
+
+Each command below runs in [`examples/`](https://github.com/Aarav500/rhob/tree/main/tools/cannotfail/examples)
+and prints exactly what is shown under it; the package's CI checks that it still does. The
+data in every file there is made up. The Inspect log is real in the sense that inspect_ai
+itself wrote it, with a mock model.
+
+**Naming a column.** In CSV and TSV it is the header's name, taken literally, dots and all.
+In JSON, JSONL and Parquet it is a dotted path: `scores.detector.value` is the field `value`
+inside `detector` inside `scores`, and an integer indexes a list, so `output.probs.1` is the
+second probability. A key that itself contains a dot is matched whole before the path is
+split there. A path that resolves in some records and not others is blank in the others (a
+blank score is left out and counted in the footer). One that resolves in none exits 2,
+naming the path and the keys at the deepest level it reached. In an Inspect log a column is
+one of `samples_df`'s, such as `score_includes`.
+
+**Several groups.** Repeat `--group` to group by several columns:
+`--group task --group model`. A comma never separates them, because names such as
+`acc,none` contain commas. Each group's label is its values joined by ` | `, in the order
+the flags were given, and the first column of the table is headed by the column names joined
+the same way. With `--json` the groups are keyed by those labels, and each also carries its
+values by column under `"group"`, with the columns listed once under `"group_by"`. If a value
+itself contains ` | `, so that two groups would print alike, every label is written as a JSON
+list instead. A single `--group` over scalar values prints as it always has. A group or score
+field that holds a list or an object is refused, with the path to index it by.
+
+**The format** comes from the extension, in any letter case (`.json`; `.jsonl` or `.ndjson`;
+`.parquet` or `.pq`; `.tsv` or `.tab`; and CSV otherwise). `--format` overrides it, and an Inspect log always needs `--format inspect`.
+
+### lm-evaluation-harness `--log_samples`
+
+The harness writes one JSONL file per task, `samples_<task>_<timestamp>.jsonl`, with a line
+per document and answer filter and each per-sample metric as a top-level field.
+[`examples/samples_toy_arith.jsonl`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/samples_toy_arith.jsonl)
+is a synthetic file in that shape, as lm-evaluation-harness 0.4.13 builds it: twelve made-up
+arithmetic questions on a `generate_until` task with two answer filters, `strict-match`,
+which wants `#### <answer>`, and `flexible-extract`, which takes the last number. The
+filtered answers and `exact_match` are computed as the harness's regex filter and
+exact-match metric compute them. The made-up responses never write `#### <answer>`, so
+`strict-match` extracts nothing:
+
+```
+$ cannotfail resolution samples_toy_arith.jsonl --score exact_match --group filter
+group                   n  distinct  verdict
+strict-match           12         1  fixed (one distinct value)
+flexible-extract       12         2  ok
+
+1 of 2 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
+No --label given, so only distinct values were counted; pass one for resolution.
+```
+
+Per-sample `exact_match`, like `acc`, is 0 or 1, and the file holds no class label, so D1
+can only count distinct values here, and the one thing it can flag is `fixed`: a cell in
+which every document scored the same. `strict-match` is 0.0 on all twelve because the filter
+never matched, and no change in which answers were right could have moved it. `ok` means
+only that both values occur. Fields of the dataset row are under `doc`, so
+`--group doc.<field>` groups by one where the dataset has it.
+
+### A leaderboard predictions JSON
+
+[`examples/predictions.json`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/predictions.json)
+is a synthetic submission: a list of objects, one per item, with the positive-class
+probability second in `output.probs` and the class in `gold.is_hack`, for two tasks by two
+models:
+
+```
+$ cannotfail resolution predictions.json --score output.probs.1 --label gold.is_hack --group task --group model
+task | model          n  distinct     pos     neg  resolution      AUROC range  verdict
+qa | model-a         12        12       6       6       1.000   [0.000, 1.000]  ok
+qa | model-b         12         1       6       6       0.000   [0.500, 0.500]  fixed (one distinct value)
+code | model-a       12        12       6       6       1.000   [0.000, 1.000]  ok
+code | model-b       12         2       6       6       0.167   [0.417, 0.583]  pinned (AUROC confined within 0.5 +/- 0.0833)
+
+1 of 4 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
+1 of 4 groups is pinned: the AUROC cannot get further from 0.5 than 0.1, so its estimate cannot leave an equivalence band of that width. A test that also needs its interval inside the band can still fail, but only on the interval's width; a pass there says the scores tie.
+```
+
+`model-b` returns 0.5 on every `qa` item, as a fallback that never moved would. On `code`
+it leaves the fallback for one item, so 6 of its 36 cross-class pairs are ordered and its
+AUROC cannot get further from 0.5 than 0.083, whatever the items are. In CI, add
+`--fail-on fixed pinned`. If your file is one object holding the list, the error names the
+key that holds it.
+
+### Parquet
+
+Needs `pip install "cannotfail[parquet]"`; without pyarrow, a `.parquet` file exits 2 with
+that line.
+[`examples/scores.parquet`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/scores.parquet)
+holds the 144 rows of `scores.csv` with the score inside a struct column, `detector`, so it
+prints the same table:
+
+```
+$ cannotfail resolution scores.parquet --score detector.score --label is_hack --group cell
+group              n  distinct     pos     neg  resolution      AUROC range  verdict
+reward_only       48         1      24      24       0.000   [0.500, 0.500]  fixed (one distinct value)
+mostly_tied       48         2      24      24       0.042   [0.479, 0.521]  pinned (AUROC confined within 0.5 +/- 0.0208)
+behavioural       48        48      24      24       1.000   [0.000, 1.000]  ok
+
+1 of 3 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
+1 of 3 groups is pinned: the AUROC cannot get further from 0.5 than 0.1, so its estimate cannot leave an equivalence band of that width. A test that also needs its interval inside the band can still fail, but only on the interval's width; a pass there says the scores tie.
+```
+
+A struct is read as an object and a list column as a list, so a nested field has the path it
+would have in JSON. Only the top-level columns the paths start in are read, unless one of
+those names itself contains a dot, when the whole file is read and the rest dropped.
+Not read: a partitioned dataset directory, as Spark or `pyarrow.parquet.write_to_dataset`
+writes (point it at one file), and map columns (convert them to structs first).
+
+### Inspect logs
+
+Needs `pip install "cannotfail[inspect]"`, which adds inspect_ai, pandas and pyarrow.
+inspect_ai 0.3.281 and later need Python 3.11, so on 3.10 pip installs 0.3.280. With
+`--format inspect`, the file, or a directory of logs, is read by inspect_ai's own
+`samples_df`, one row per sample and epoch. Its columns are named as `samples_df` names
+them: `score_<scorer>`, `metadata_<field>`, `id` and `epoch`, and from the eval `task_name`
+and `model`.
+[`examples/hack_probe.eval`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/hack_probe.eval)
+is a real log, written offline by inspect_ai 0.3.290 with its `mockllm/model` given a fixed
+reply per sample, by
+[`examples/hack_probe.py`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/hack_probe.py).
+The probe states a probability, and on family `b` it says 0.5 every time:
+
+```
+$ cannotfail resolution hack_probe.eval --format inspect --score score_stated_probability --label metadata_is_hack --group metadata_family
+group        n  distinct     pos     neg  resolution      AUROC range  verdict
+a            4         4       2       2       1.000   [0.000, 1.000]  ok
+b            4         1       2       2       0.000   [0.500, 0.500]  fixed (one distinct value)
+
+1 of 2 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
+```
+
+In the score column, Inspect's letter grades become what its own metrics average: `C` 1,
+`I` 0, `P` 0.5 and `N` 0, and a boolean 1 or 0. Any other string that is not a number is an
+error, where Inspect's `value_to_float` would quietly make it 0. Across a directory of logs:
+
+```bash
+cannotfail resolution logs/ --format inspect --score score_includes --group task_name --group model
+```
+
+For a column `samples_df` gives only with other arguments, export the frame yourself, with
+`samples_df(...).to_csv("samples.csv")`, and run `cannotfail` on the CSV.
 
 ## D2: could the precondition have failed?
 

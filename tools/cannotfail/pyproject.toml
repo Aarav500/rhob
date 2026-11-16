@@ -24,6 +24,8 @@ keywords = [
     "tost",
     "statistical power",
     "mann-whitney",
+    "parquet",
+    "inspect",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -43,12 +45,23 @@ classifiers = [
 # D1 needs nothing but numpy, deliberately: it is the check meant to run on someone
 # else's score vectors, and should install anywhere those vectors live. D2's equivalence
 # power needs a Student-t quantile, which numpy does not provide, so SciPy is an extra.
+# So are the readers for Parquet and Inspect logs, which are imported only when such a
+# file is read. The numpy-only pass in .github/workflows/cannotfail.yml checks that none
+# of them is installed by the base install.
 dependencies = [
     "numpy>=1.24,<3",
 ]
 
 [project.optional-dependencies]
 power = ["scipy>=1.10,<2"]
+# The floors are the oldest versions the tests have passed with, beside NumPy 2 on Python
+# 3.10 (2026-11-16): pyarrow 15 requires numpy<2, and pandas 2.1 fails to import beside it.
+parquet = ["pyarrow>=16"]
+# inspect_ai.analysis.samples_df needs pandas and pyarrow but does not install them.
+# 0.3.179 is the first inspect_ai that reads the zstd-compressed logs current releases
+# write, which is what examples/hack_probe.eval is; 0.3.172 cannot. inspect_ai 0.3.281
+# and later need Python 3.11, so on 3.10 pip resolves to 0.3.280.
+inspect = ["inspect_ai>=0.3.179", "pandas>=2.2.2", "pyarrow>=16"]
 dev = ["pytest>=7", "scipy>=1.10,<2"]
 
 [project.scripts]

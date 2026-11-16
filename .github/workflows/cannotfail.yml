@@ -33,10 +33,13 @@ jobs:
     # Installed the way an outside maintainer would install it, not from this checkout's
     # src/. The package's own [tool.pytest.ini_options] stops pytest at tools/cannotfail,
     # so RHOB's root config, which puts the checkout's src/ on the path, never applies. The
-    # first pass has no SciPy, which holds D1 to its numpy-only promise; the power tests
-    # skip there and run in the second. 3.10 is the declared floor, and 3.14 the newest
-    # Python in the classifiers, which is what `uvx cannotfail` picks on a fresh machine.
-    # Change this matrix and the classifiers together.
+    # first pass is the base install alone, and fails if it brought SciPy, pyarrow, pandas
+    # or inspect_ai with it, which holds D1 to its numpy-only promise; the tests that need
+    # them skip there. Each later pass adds one extra and runs every test again, after
+    # checking the extra imports, so the tests it enables cannot quietly skip. 3.10 is the
+    # declared floor, and 3.14 the newest Python in the classifiers, which is what
+    # `uvx cannotfail` picks on a fresh machine. Change this matrix and the classifiers
+    # together.
     name: test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
@@ -51,11 +54,23 @@ jobs:
       - name: D1 with numpy only
         run: |
           pip install ./tools/cannotfail pytest
-          python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('scipy') is not None)"
+          python -c "import importlib.util as u, sys; extra = [m for m in ('scipy', 'pyarrow', 'pandas', 'inspect_ai') if u.find_spec(m)]; sys.exit(f'not numpy-only: {extra}' if extra else 0)"
           cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
-      - name: Everything, with SciPy
+      - name: D2, with SciPy
         run: |
           pip install "./tools/cannotfail[dev]"
+          python -c "import scipy.stats"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: Parquet, with pyarrow
+        run: |
+          pip install "./tools/cannotfail[parquet]"
+          python -c "import pyarrow.parquet"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: Inspect logs, with inspect_ai
+        # On 3.10 this resolves to inspect_ai 0.3.280, the last release that supports it.
+        run: |
+          pip install "./tools/cannotfail[inspect]"
+          python -c "import inspect_ai.analysis, pandas, pyarrow; print('inspect_ai', inspect_ai.__version__)"
           cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
 
   package:
@@ -102,7 +117,10 @@ jobs:
                       if junk(n) or not n.startswith(("cannotfail/", f"cannotfail-{version}.dist-info/"))]
           problems += [f"sdist: {n}" for n in in_sdist if junk(n)]
           problems += [f"sdist is missing {n}" for n in ("LICENSE", "README.md", "CHANGELOG.md",
-                       "pyproject.toml", "examples/scores.csv", "src/cannotfail/__init__.py")
+                       "pyproject.toml", "src/cannotfail/__init__.py", "examples/scores.csv",
+                       "examples/scores.parquet", "examples/predictions.json",
+                       "examples/samples_toy_arith.jsonl", "examples/hack_probe.eval",
+                       "examples/hack_probe.py")
                        if n not in in_sdist]
           for p in problems:
               print(f"::error::{p}")
@@ -112,7 +130,7 @@ jobs:
         run: |
           python3.10 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
-          "$RUNNER_TEMP/venv/bin/python" -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('scipy') is not None)"
+          "$RUNNER_TEMP/venv/bin/python" -c "import importlib.util as u, sys; extra = [m for m in ('scipy', 'pyarrow', 'pandas', 'inspect_ai') if u.find_spec(m)]; sys.exit(f'not numpy-only: {extra}' if extra else 0)"
           wheel_version=$(basename "$RUNNER_TEMP"/dist/*.whl | cut -d- -f2)
           test "$("$RUNNER_TEMP/venv/bin/cannotfail" --version)" = "cannotfail $wheel_version"
       - name: Write the README example checker
@@ -120,13 +138,20 @@ jobs:
         # what it prints, stdout and stderr together, must equal the lines below it up to the
         # next "$ " or code fence, with exit status 0. An example with no output under it is
         # skipped. Arguments after the first three name the subcommands to check; none
-        # means all of them.
+        # means all of them. "--skip TEXT" leaves out every example whose line contains TEXT.
         run: |
           cat > "$RUNNER_TEMP/readme_examples.py" <<'EOF'
           import shlex, subprocess, sys
           from pathlib import Path
 
-          readme, exe, cwd, *only = sys.argv[1:]
+          readme, exe, cwd, *rest = sys.argv[1:]
+          only, skip = [], []
+          args = iter(rest)
+          for a in args:
+              if a == "--skip":
+                  skip.append(next(args))
+              else:
+                  only.append(a)
           lines = Path(readme).read_text(encoding="utf-8").splitlines()
           checked = failed = 0
           for i, line in enumerate(lines):
@@ -138,6 +163,9 @@ jobs:
               expected = "\n".join(lines[i + 1:end]).rstrip("\n")
               argv = shlex.split(line[2:])
               if not expected or (only and not any(" ".join(argv[1:]).startswith(o) for o in only)):
+                  continue
+              if any(t in line for t in skip):
+                  print(f"skipped: {line}")
                   continue
               run = subprocess.run([exe, *argv[1:]], cwd=cwd, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, text=True)
@@ -153,12 +181,13 @@ jobs:
           sys.exit(1 if failed or not checked else 0)
           EOF
       - name: The README's examples, numpy only
+        # The Parquet and Inspect recipes need their extras, so they wait for the next step.
         working-directory: tools/cannotfail/examples
-        run: python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" . resolution "power difference"
-      - name: Add the power extra, then every README example and the tests, from the wheel
+        run: python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" . resolution "power difference" --skip .parquet --skip "--format inspect"
+      - name: Add every extra, then every README example and the tests, from the wheel
         run: |
           wheel=$(ls "$RUNNER_TEMP"/dist/*.whl)
-          "$RUNNER_TEMP/venv/bin/python" -m pip install "${wheel}[power]" pytest
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "${wheel}[power,parquet,inspect]" pytest
           cd tools/cannotfail/examples
           python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" .
           cd /tmp && "$RUNNER_TEMP/venv/bin/python" -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q

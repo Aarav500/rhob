@@ -19,12 +19,45 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
 ### Added
 
 - `cannotfail resolution` (D1), NumPy only. It reads a CSV, a TSV, a `.json` list of
-  objects or a `.jsonl` file, one row per scored item, with an optional class label and an
-  optional cell. For each cell it reports the distinct values and, given labels, the
-  resolution `r` (the fraction of cross-class pairs that are strictly ordered), the AUROC
+  objects or a `.jsonl` file, and with an extra a Parquet file or an Inspect log, one row
+  per scored item, with an optional class label and optional cells. For each cell it
+  reports the distinct values and, given labels, the resolution `r` (the fraction of
+  cross-class pairs that are strictly ordered), the AUROC
   range `0.5 ± r/2` that `r` allows, and a verdict: `fixed`, `pinned`, `dust` or `ok`.
   `ok` means D1 found no reason the check cannot fail; it is not evidence that the check
   is sound.
+- Nested fields by dotted path, in JSON, JSONL and Parquet: `--score scores.detector.value`,
+  where an integer segment indexes a list (`output.probs.1`) and a key that itself contains a
+  dot is matched whole first. A path that resolves in some records and not others is blank
+  in the others; one that resolves in none exits 2, naming the path and the keys at the
+  deepest level it reached. CSV and TSV columns stay literal header names.
+- Several grouping columns: `--group` can be repeated (`--group task --group model`), and is
+  never split on commas, because metric names such as `acc,none` contain them. A group's
+  label is its values joined by ` | `; with `--json` each group also lists its values by
+  column under `"group"`, and the columns are listed once under `"group_by"`. Where a value
+  contains ` | ` and two labels would coincide, every label is written as a JSON list. A
+  single `--group` over scalar values prints exactly as it did before the flag could be
+  repeated.
+- A group or score field in JSON or JSONL that holds a list or an object is now refused
+  (exit 2) with the path to index it by. It used to be grouped by its Python repr.
+- The extension is matched in any letter case, and `.ndjson` and `.pq` are recognised.
+  `.JSON` and `.ndjson` used to be read as CSV.
+- `--format csv|tsv|json|jsonl|parquet|inspect`, which overrides the extension. An `.eval`
+  file without `--format inspect` exits 2 and says to pass it.
+- Parquet, through the `parquet` extra (pyarrow 16 or later). A struct column is read by the
+  dotted path it would have in JSON, and only the top-level columns the paths start in are
+  read, unless one of those names contains a dot. Without pyarrow, a `.parquet` file exits 2 with the install line.
+- Inspect logs, through the `inspect` extra (inspect_ai 0.3.179 or later, pandas 2.2.2,
+  pyarrow 16) and `--format inspect`: a log or a directory of them, read by
+  `inspect_ai.analysis.samples_df`, with the task and model columns. In the score column
+  Inspect's letter grades become the numbers its metrics average (`C` 1, `I` 0, `P` 0.5,
+  `N` 0); any other string that is not a number is refused rather than made 0. Tested
+  against `examples/hack_probe.eval`, a real log written offline by inspect_ai 0.3.290 with
+  its mock model, and on Python 3.10 against inspect_ai 0.3.179 and 0.3.280.
+- Recipes in the README for an lm-evaluation-harness `--log_samples` file, a leaderboard
+  predictions JSON, a Parquet file and an Inspect log, each run on a file in `examples/`.
+  The lm-evaluation-harness and leaderboard files are synthetic. Per-sample accuracy is 0 or
+  1, so on such a file without a class label D1 can flag only `fixed`.
 - Two resolutions per cell. The primary one counts ties by exact equality, which is what
   `sklearn.metrics.roc_auc_score` ranks. The other uses the tie tolerance of RHOB's
   admission gate, `|a − b| ≤ max(1e-12, 1e-9 · max(|a|, |b|))`. When only the tolerance
@@ -46,8 +79,9 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   `required_seeds_per_layout`, `difference_power`, `min_two_sided_p` and the helpers they
   use.
 - Packaging for PyPI: project URLs and classifiers, a README whose links are absolute, an
-  sdist with the licence, README, changelog, tests and example, and a wheel that holds the
-  `cannotfail` package alone. The package has its own CI,
+  sdist with the licence, README, changelog, tests and examples, and a wheel that holds the
+  `cannotfail` package alone. The base install is NumPy alone, and the extras are imported
+  only when used. The package has its own CI,
   [`cannotfail.yml`](https://github.com/Aarav500/rhob/blob/main/.github/workflows/cannotfail.yml),
   separate from the benchmark's, and is released by PyPI Trusted Publishing from
   [`cannotfail-release.yml`](https://github.com/Aarav500/rhob/blob/main/.github/workflows/cannotfail-release.yml).
