@@ -94,6 +94,24 @@ def test_large_designs_do_not_overflow():
     assert min_two_sided_p(1000, 1000) == 0.0
     assert min_two_sided_p(1, 5000) == pytest.approx(2 / 5001)
     assert min_two_sided_p(1, 39) == 0.05  # exactly at alpha, so not 'cannot reject'
+
+
+def test_a_huge_design_returns_at_once():
+    """From 541 a side the floor is 0.0, which the logarithm shows without building C(n + m, n)."""
+    import time
+
+    start = time.perf_counter()
+    assert min_two_sided_p(10**7, 10**7) == 0.0
+    assert time.perf_counter() - start < 1.0
+    assert min_two_sided_p(540, 540) == 5e-324 and min_two_sided_p(541, 541) == 0.0
+
+
+def test_a_certain_separation_is_always_rejected_when_any_data_can_be():
+    """At a true AUROC of 0 or 1 every sample is a complete separation, whose exact p is the floor."""
+    assert difference_power(1, 5000, 1.0) == 1.0 and difference_power(1, 5000, 0.0) == 1.0
+    assert difference_power(1, 39, 1.0) == 1.0  # floor exactly 0.05
+    assert difference_power(1, 38, 1.0) == 0.0  # floor 2/39, above 0.05
+    assert difference_power(3, 3, 1.0) == 0.0
     assert difference_power(1000, 1000, 0.7) == pytest.approx(1.0)
     assert difference_power(1000, 1000, 0.5) == pytest.approx(0.05)
     assert 0.0 < difference_power(600, 600, 0.52) < 1.0

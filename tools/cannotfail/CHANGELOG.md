@@ -79,8 +79,10 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   the exact test reject (3 against 3 at alpha 0.05). Any design size works. Where
   C(n + m, n) fits in a float, `min_two_sided_p`, the smallest p-value the exact test can
   return, is computed as before; past that, from 515 a side, it is the exact ratio rounded
-  once, a subnormal float and 0.0 from 541 a side. Before 2026-11-16 it raised
-  OverflowError there.
+  once, a subnormal float and 0.0 from 541 a side, which the logarithm settles without
+  building the integer. Before 2026-11-16 it raised OverflowError there. At a true AUROC of
+  exactly 0 or 1 the power is 1 wherever the exact test can reject at all; it used to
+  follow the normal threshold, which at 1 vs N lies past 0.5 and gave 0.
 - For CI: `--json` (strict JSON), `--fail-on fixed pinned dust` and
   `--fail-on-cannot-certify`. Exit status 0 on success, 1 when a named verdict occurred or
   the design cannot certify, 2 on bad input or a missing optional dependency, and 3 on an

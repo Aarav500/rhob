@@ -165,12 +165,17 @@ def min_two_sided_p(n_pos: int, n_neg: int) -> float:
     n, m = int(n_pos), int(n_neg)
     if n < 1 or m < 1:
         raise ValueError(f"class sizes must be at least 1, got {n} and {m}")
+    # From 541 a side the exact ratio rounds to 0.0. Skip building a C(n + m, n) of
+    # hundreds of thousands of digits when its logarithm already says so, with a margin
+    # far wider than lgamma's error.
+    if math.lgamma(n + m + 1) - math.lgamma(n + 1) - math.lgamma(m + 1) > 1076 * math.log(2) + 1:
+        return 0.0
     arrangements = math.comb(n + m, n)
     try:
         return min(1.0, 2.0 / arrangements)
     except OverflowError:
         # C(n + m, n) is past the largest float, from 515 a side. The exact ratio, rounded
-        # once, is a float below 1e-300 there, and 0.0 once it is below the smallest one.
+        # once, is a subnormal float there, and 0.0 from 541 a side.
         return float(Fraction(2, arrangements))
 
 
@@ -209,9 +214,11 @@ def difference_power(
     if theta == 0.5:
         return float(alpha)
     if var1 <= 0.0:
-        # theta at 0 or 1: the AUROC is certain to be extreme, so the test rejects
-        # whenever the extreme lies beyond the threshold at all.
-        return 1.0 if abs(theta - 0.5) > crit else 0.0
+        # theta at 0 or 1: every sample is a complete separation, the most extreme
+        # arrangement, and its exact p-value is min_two_sided_p, which reached alpha above.
+        # So the exact test always rejects. (The normal threshold can lie past 0.5 at 1 vs
+        # N and would say 0.)
+        return 1.0
     sd1 = math.sqrt(var1)
     upper = 1.0 - _NORMAL.cdf((0.5 + crit - theta) / sd1)
     lower = _NORMAL.cdf((0.5 - crit - theta) / sd1)
