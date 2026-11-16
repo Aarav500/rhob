@@ -52,9 +52,10 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   read, unless one of those names contains a dot. Without pyarrow, a `.parquet` file exits 2 with the install line.
 - Inspect logs, through the `inspect` extra (inspect_ai 0.3.179 or later, pandas 2.2.2,
   pyarrow 16) and `--format inspect`: a log or a directory of them, read by
-  `inspect_ai.analysis.samples_df`, with the task and model columns. A single log is read
-  whatever its name; a directory holding a log that `samples_df` would skip for its name
-  exits 2 and names it. In the score column
+  `inspect_ai.analysis.samples_df`, with the task and model columns. A single local log is
+  read whatever its name; a local directory holding a log that `samples_df` would skip,
+  under any name, exits 2 and names it. A URL is passed to `samples_df` as it is. In the
+  score column
   Inspect's letter grades become the numbers its metrics average (`C` 1, `I` 0, `P` 0.5,
   `N` 0); any other string that is not a number is refused rather than made 0. Tested
   against `examples/hack_probe.eval`, a real log written offline by inspect_ai 0.3.290 with
@@ -75,10 +76,11 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   so the power is a ceiling. They need SciPy, installed by the `power` extra.
 - `cannotfail power difference` (D2), NumPy only: the power of a two-sided Mann-Whitney
   test to detect a given true AUROC, by normal approximation, and 0 where no data can make
-  the exact test reject (3 against 3 at alpha 0.05). Any design size works:
-  `min_two_sided_p`, the smallest p-value the exact test can return, is computed exactly
-  where it fits in a float and rounded to 0.0 below that, instead of raising OverflowError
-  from 515 a side as it did before 2026-11-16.
+  the exact test reject (3 against 3 at alpha 0.05). Any design size works. Where
+  C(n + m, n) fits in a float, `min_two_sided_p`, the smallest p-value the exact test can
+  return, is computed as before; past that, from 515 a side, it is the exact ratio rounded
+  once, a subnormal float and 0.0 from 541 a side. Before 2026-11-16 it raised
+  OverflowError there.
 - For CI: `--json` (strict JSON), `--fail-on fixed pinned dust` and
   `--fail-on-cannot-certify`. Exit status 0 on success, 1 when a named verdict occurred or
   the design cannot certify, 2 on bad input or a missing optional dependency, and 3 on an

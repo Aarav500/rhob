@@ -28,8 +28,6 @@ import io
 import json
 import os
 import re
-import urllib.parse
-import urllib.request
 import warnings
 from collections.abc import Sequence
 
@@ -350,11 +348,12 @@ def _read_inspect(path: str, wanted: Sequence[str], score: str | None) -> dict[s
         return InputError(f"{path}: inspect_ai could not read it as an Inspect log: {type(exc).__name__}: {exc}")
 
     # samples_df filters by file name even when given a single file: it keeps a lower-case
-    # .eval, and a .json only under the timestamped name Inspect gave it. A renamed log
-    # (log.json, RUN.EVAL) comes back empty, or raises on older releases. For a single
-    # file that is not a reason to refuse it, so such a file is loaded by read_eval_log,
-    # which does not care about the name, and the loaded log is passed on instead. A file
-    # samples_df reads by name takes the first path, which reads only the summaries.
+    # .eval, and a .json only under a name that starts with a timestamp, as Inspect's own
+    # names do. A renamed log (log.json, RUN.EVAL) comes back empty, or raises on older
+    # releases. For a single local file that is not a reason to refuse it, so such a file
+    # is loaded by read_eval_log, which does not care about the name, and the loaded log is
+    # passed on instead. A file samples_df reads by name takes the first path, which reads
+    # only the summaries. A URL is passed to samples_df as it is.
     try:
         df = frame(path)
     except Exception as exc:  # whatever inspect_ai raises on a file it cannot read
@@ -375,8 +374,8 @@ def _read_inspect(path: str, wanted: Sequence[str], score: str | None) -> dict[s
             raise InputError(
                 f"{path}: inspect_ai would skip {len(skipped)} Inspect log(s) here because of "
                 f"their names: {shown}. Inside a directory it reads an .eval log only with a "
-                "lower-case extension, and a .json log only under the timestamped name Inspect "
-                "gave it. Rename them, or pass each file on its own."
+                "lower-case extension, and a .json log only under a name that starts with a "
+                "timestamp, as Inspect writes them. Rename them, or pass each file on its own."
             )
     if df is None or len(df) == 0:
         where = "any log there" if local and os.path.isdir(path) else "the log"
@@ -418,21 +417,32 @@ def _inspect_format(path: str) -> str:
 def _skipped_inspect_logs(directory: str, list_eval_logs, read_eval_log) -> list[str]:
     """Inspect logs under ``directory`` that samples_df, given the directory, leaves out.
 
-    Those are the files ``list_eval_logs`` does not list, whose name ends in .eval or .json
-    in any letter case, and that ``read_eval_log`` reads as a log header. Other JSON, such
-    as the logs.json listing Inspect writes beside its logs, is not a log and is not counted.
+    Those are the files ``list_eval_logs`` does not list, whatever their name or extension,
+    that start like a zip or a JSON object and that ``read_eval_log`` reads as a log header.
+    Other JSON, such as the logs.json listing Inspect writes beside its logs, is not a log
+    and is not counted.
     """
     listed = set()
     for info in list_eval_logs(directory, recursive=True):
         name = info.name
-        if name.startswith("file:"):
-            name = urllib.request.url2pathname(urllib.parse.urlparse(name).path)
+        if name.startswith("file://"):
+            # inspect_ai prefixes the raw path; it does not percent-encode it.
+            name = name[len("file://"):]
+            if re.match(r"/[A-Za-z]:[/\\]", name):  # file:///C:/... on Windows
+                name = name[1:]
         listed.add(os.path.realpath(name))
     skipped = []
     for root, _dirs, files in os.walk(directory):
         for f in files:
             full = os.path.join(root, f)
-            if not f.lower().endswith((".eval", ".json")) or os.path.realpath(full) in listed:
+            if os.path.realpath(full) in listed:
+                continue
+            try:
+                with open(full, "rb") as fh:
+                    head = fh.read(64)
+            except OSError:
+                continue
+            if not (head.startswith(b"PK\x03\x04") or head.lstrip().startswith(b"{")):
                 continue
             try:
                 read_eval_log(full, header_only=True, format=_inspect_format(full))

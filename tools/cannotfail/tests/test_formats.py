@@ -433,6 +433,35 @@ def test_a_directory_is_refused_rather_than_read_in_part(tmp_path, capsys):
     assert "pass each file on its own" in err
 
 
+def test_a_log_renamed_without_its_extension_is_still_caught(tmp_path, capsys):
+    """The guard reads every file that starts like a log, not only .eval and .json names."""
+    _needs_inspect()
+    shutil.copy(EXAMPLES / "hack_probe.eval", tmp_path / "hack_probe.eval")
+    shutil.copy(EXAMPLES / "hack_probe.eval", tmp_path / "run_b")
+    _as_json_log(tmp_path, "run_c.log")
+    (tmp_path / "notes.txt").write_text("not a log", encoding="utf-8")
+    err = _error(capsys, "resolution", str(tmp_path), "--format", "inspect", "--score", "s")
+    assert "inspect_ai would skip 2 Inspect log(s) here" in err
+    assert "run_b" in err and "run_c.log" in err and "notes.txt" not in err
+
+
+def test_a_percent_sign_in_a_path_is_not_read_as_an_escape(tmp_path):
+    """list_eval_logs gives file:// plus the raw path, so %41 must not be decoded to A.
+
+    (samples_df itself cannot read such a directory from inspect_ai 0.3.280 on, which
+    cannotfail reports as unreadable; this checks only cannotfail's own guard.)
+    """
+    _needs_inspect()
+    from inspect_ai.log import list_eval_logs, read_eval_log
+
+    from cannotfail.readers import _skipped_inspect_logs
+
+    d = tmp_path / "d%41 é"
+    d.mkdir()
+    shutil.copy(EXAMPLES / "hack_probe.eval", d / "run%41b.eval")
+    assert _skipped_inspect_logs(str(d), list_eval_logs, read_eval_log) == []
+
+
 def test_an_empty_directory_has_no_samples(tmp_path, capsys):
     _needs_inspect()
     err = _error(capsys, "resolution", str(tmp_path), "--format", "inspect", "--score", "s")

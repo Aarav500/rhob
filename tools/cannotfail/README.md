@@ -250,11 +250,12 @@ inspect_ai 0.3.281 and later need Python 3.11, so on 3.10 pip installs 0.3.280. 
 `--format inspect`, the file, or a directory of logs, is read by inspect_ai's own
 `samples_df`, one row per sample and epoch. Its columns are named as `samples_df` names
 them: `score_<scorer>`, `metadata_<field>`, `id` and `epoch`, and from the eval `task_name`
-and `model`. `samples_df` reads a log only under a name Inspect itself would give it: a
-lower-case `.eval`, or a `.json` whose name starts with the run's timestamp. A single file
-is read whatever its name, by loading it with `read_eval_log` first. A directory holding a
-renamed log exits 2 and names the file, rather than giving a verdict on the logs it could
-read.
+and `model`. `samples_df` reads a log only under a name like the ones Inspect gives: a
+lower-case `.eval`, or a `.json` whose name starts with a timestamp such as
+`2026-11-16T10-00-00`. A single local file is read whatever its name, by loading it with
+`read_eval_log` first. A local directory holding a log `samples_df` would skip, whatever
+the file is called, exits 2 and names the file, rather than giving a verdict on the logs it
+could read. A URL is passed to `samples_df` as it is, with its rules.
 [`examples/hack_probe.eval`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/hack_probe.eval)
 is a real log, written offline by inspect_ai 0.3.290 with its `mockllm/model` given a fixed
 reply per sample, by
