@@ -82,3 +82,6 @@ inspect_eval/logs/
 
 # Committed on purpose: the measurements behind an xfail reason.
 !results/family_diagnostics/
+
+# MuJoCo writes its warnings here, into whatever directory the process runs in.
+MUJOCO_LOG.TXT

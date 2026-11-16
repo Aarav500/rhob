@@ -59,6 +59,18 @@ pyarrow, pandas and inspect_ai are all absent from it, then reruns the tests wit
 extra. All of this lands in `cannotfail` 0.1.0, which is still unreleased; see
 [tools/cannotfail/CHANGELOG.md](tools/cannotfail/CHANGELOG.md).
 
+### Changed (2026-11-16): provenance records the simulator versions
+
+`rhob.v3.provenance` recorded numpy, scipy, scikit-learn, torch and rhob, but not the
+simulators that step the rollouts. Of the committed artifacts only the admission ledger says
+which MuJoCo produced it, because its script added the simulators itself; the 20-draw
+replication does not. Every provenance block now also records mujoco, mujoco-core,
+gymnasium, pettingzoo and mpe2, as null when not installed. A test fails if the calibration
+cache keys on a version that provenance does not record. Artifacts written under the old
+list are not rewritten and still read: no reader requires the new names, and both report
+renderers reproduce their committed package lines
+(`tests/test_v3/test_na_channels_and_provenance.py`).
+
 ### Fixed (2026-11-15): the calibration cache could not see a dependency upgrade
 
 From 2026-11-07 the nightly `admission-slow` job failed every night, on an unchanged
@@ -75,10 +87,10 @@ the identical command admits 0.9 and fails 0.8 and 0.7 as documented. So:
 - `mujoco<4` in the `mujoco` extra. Moving to 4.x is a re-measurement of the MuJoCo
   families and the ledger, not a version bump.
 - Every cache key now also hashes the installed versions of the numerical stack (numpy,
-  scipy, mujoco, gymnasium, torch, pettingzoo, mpe2), the Python minor version and the
-  machine. It also hashes the source of every `rhob` module the family imports,
-  followed transitively. The key used to miss edits to `rhob.environments.calibration`,
-  where `calibrate_scale` lives.
+  scipy, mujoco, mujoco-core, gymnasium, torch, pettingzoo, mpe2), the Python minor
+  version and the machine. It also hashes the source of every `rhob` module the family
+  imports, followed transitively. The key used to miss edits to
+  `rhob.environments.calibration`, where `calibrate_scale` lives.
 - The CI tarball key includes the same version token and all of `src/rhob`, with a
   prefix fallback that the complete per-entry keys make safe.
 
@@ -87,6 +99,8 @@ was hide that each run mixed two simulators, and it would have hidden an upgrade
 moved the numbers without failing a test. That is the shape of the checks the paper
 describes, here in infrastructure rather than in a benchmark's construction. It does not
 add to the paper's count of instances.
+
+Post-mortem, with the runs, the controlled experiment and what is still open: [docs/postmortems/2026-11-mujoco-calibration-cache.md](docs/postmortems/2026-11-mujoco-calibration-cache.md).
 
 ### Added: HVTB listed in the Inspect Evals Register
 

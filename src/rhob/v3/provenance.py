@@ -30,8 +30,36 @@ from typing import Any, Optional
 # Packages whose versions can change a reported AUROC. numpy/scipy affect the
 # environment rollouts and the JS-divergence/statistical primitives; scikit-learn
 # owns ``roc_auc_score`` and the MLP detectors; torch is optional (only the
-# neural-net detectors import it) and is reported as null when absent.
-_TRACKED_PACKAGES = ("numpy", "scipy", "scikit-learn", "torch", "rhob")
+# neural-net detectors import it).
+#
+# The simulators were added on 2026-11-16. mujoco steps the four MuJoCo families,
+# through gymnasium's environments; mujoco-core is new with MuJoCo 4.0 and is installed
+# alongside it (None under 3.x). mpe2 supplies the scenarios of the five PettingZoo
+# families and builds them on pettingzoo. Before this, only scripts/admission_ledger.py
+# added them, to its own block, so no other committed artifact, the 20-draw replication
+# included, says which simulator produced it. Rendering-only dependencies (imageio,
+# pygame-ce) are left out: no rollout renders.
+#
+# Every distribution the calibration cache keys on
+# (``rhob.v3.calibration_cache.PHYSICS_DISTRIBUTIONS``) must appear here too, and
+# tests/test_v3/test_na_channels_and_provenance.py fails if one does not. See
+# docs/postmortems/2026-11-mujoco-calibration-cache.md for why both lists exist.
+#
+# A package that is not installed is recorded as None (JSON null), never omitted. That
+# a run had no MuJoCo is a fact about the run, and a missing key would look the same as
+# an artifact written before the key existed.
+_TRACKED_PACKAGES = (
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "torch",
+    "rhob",
+    "mujoco",
+    "mujoco-core",
+    "gymnasium",
+    "pettingzoo",
+    "mpe2",
+)
 
 # The repo root, resolved from this file: src/rhob/v3/provenance.py -> ../../..
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -126,7 +154,14 @@ def git_provenance() -> dict[str, Any]:
 
 
 def package_versions() -> dict[str, Optional[str]]:
-    """Installed versions of the packages that can move a reported number."""
+    """Installed versions of the packages that can move a reported number.
+
+    Every name in :data:`_TRACKED_PACKAGES` is a key; a package that is not installed
+    maps to None. Artifacts written before 2026-11-16 carry only the first five names
+    (plus, in ``admission/admission_ledger.json``, the four simulators that
+    ``scripts/admission_ledger.py`` added itself), so a reader must treat a missing
+    name as "not recorded", which is different from None, "recorded as not installed".
+    """
     versions: dict[str, Optional[str]] = {}
     for pkg in _TRACKED_PACKAGES:
         try:

@@ -12,9 +12,14 @@ Also covers the provenance block that every result JSON now carries.
 
 from __future__ import annotations
 
+import json
+from importlib.metadata import PackageNotFoundError
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+import rhob.v3.provenance as provenance_module
 from rhob.detectors.posthoc import PosthocDetector, RunData
 from rhob.v3.benchmark import (
     BenchmarkResults,
@@ -23,7 +28,25 @@ from rhob.v3.benchmark import (
     missing_channels,
     required_channels,
 )
-from rhob.v3.provenance import _git, git_provenance, provenance_block, sampling_block
+from rhob.v3.provenance import (
+    _TRACKED_PACKAGES,
+    _git,
+    git_provenance,
+    package_versions,
+    provenance_block,
+    sampling_block,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: The tracked list as it stood until 2026-11-16. Every committed artifact carries these.
+_PRE_2026_11_16_PACKAGES = ("numpy", "scipy", "scikit-learn", "torch", "rhob")
+
+#: Added on 2026-11-16; see docs/postmortems/2026-11-mujoco-calibration-cache.md.
+_SIMULATOR_PACKAGES = ("mujoco", "mujoco-core", "gymnasium", "pettingzoo", "mpe2")
+
+#: Where committed result artifacts live.
+_ARTIFACT_DIRS = ("admission", "results", "docs/figures", "leaderboard")
 
 
 class _FakeL1(PosthocDetector):
@@ -159,6 +182,119 @@ def test_provenance_block_carries_commit_versions_and_timestamp():
     # the discriminator has to be present.
     assert "source" in block["git"]
     assert block["git"]["source"] in {"git", "env:RHOB_SOURCE_COMMIT", None}
+
+
+def test_provenance_records_the_simulators_that_step_the_rollouts():
+    """MuJoCo 4.0.0 moved a family out of its admission band, and no artifact said which
+    MuJoCo it had run under. Every tracked name is a key, installed or not."""
+    packages = package_versions()
+    assert tuple(packages) == _TRACKED_PACKAGES
+    assert set(_SIMULATOR_PACKAGES) <= set(packages)
+    assert set(_PRE_2026_11_16_PACKAGES) <= set(packages)
+    for name, value in packages.items():
+        assert value is None or (isinstance(value, str) and value), (name, value)
+
+
+def test_an_absent_package_is_recorded_as_null_not_dropped(monkeypatch):
+    """A run without MuJoCo must say so. Omitting the key would make it look like an
+    artifact written before the key existed, which is a different fact."""
+    real = provenance_module._pkg_version
+
+    def without_mujoco(name: str) -> str:
+        if name in {"mujoco", "mujoco-core"}:
+            raise PackageNotFoundError(name)
+        return real(name)
+
+    monkeypatch.setattr(provenance_module, "_pkg_version", without_mujoco)
+    packages = json.loads(json.dumps(provenance_block()))["packages"]
+    assert "mujoco" in packages and packages["mujoco"] is None
+    assert "mujoco-core" in packages and packages["mujoco-core"] is None
+    # The calibration cache hashes the string "absent"; provenance writes JSON null, as
+    # it always has for torch. The two spellings must not leak into each other.
+    assert "absent" not in packages.values()
+    assert packages["numpy"] == real("numpy")
+
+
+def test_every_distribution_the_calibration_cache_keys_on_is_recorded():
+    """The cache invalidates on these because they move a calibration. A version that can
+    move a number must also be readable from the artifact that published it."""
+    from rhob.v3.calibration_cache import PHYSICS_DISTRIBUTIONS
+
+    missing = sorted(set(PHYSICS_DISTRIBUTIONS) - set(_TRACKED_PACKAGES))
+    assert not missing, f"calibration_cache keys on {missing}, provenance does not record it"
+
+
+def _committed_package_blocks() -> list[tuple[str, dict]]:
+    """Every provenance ``packages`` block in a committed artifact, nested ones included
+    (a re-scored replicate carries its source run's provenance inside its own)."""
+    found: list[tuple[str, dict]] = []
+    for folder in _ARTIFACT_DIRS:
+        for path in sorted((_REPO_ROOT / folder).rglob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            where = path.relative_to(_REPO_ROOT).as_posix()
+            stack = [data]
+            while stack:
+                node = stack.pop()
+                if isinstance(node, dict):
+                    if isinstance(node.get("packages"), dict) and "generated_utc" in node:
+                        found.append((where, node["packages"]))
+                    stack.extend(node.values())
+                elif isinstance(node, list):
+                    stack.extend(node)
+    return found
+
+
+def test_artifacts_written_under_the_old_list_still_read():
+    """Committed artifacts carry the five-name list (the admission ledger also the four
+    simulators its script added). Nothing may require the new names, and no recorded
+    name may be renamed or dropped, or old and new artifacts stop comparing key by key."""
+    blocks = _committed_package_blocks()
+    assert len(blocks) >= 23, "the scan found fewer provenance blocks than are committed"
+    for where, packages in blocks:
+        assert set(_PRE_2026_11_16_PACKAGES) <= set(packages), where
+        assert set(packages) <= set(_TRACKED_PACKAGES), (where, sorted(packages))
+        for name, value in packages.items():
+            assert value is None or isinstance(value, str), (where, name, value)
+
+
+@pytest.mark.parametrize(
+    ("script", "artifact", "report"),
+    [
+        (
+            "scripts/admission_ledger.py",
+            "admission/admission_ledger.json",
+            "admission/ADMISSION_LEDGER.md",
+        ),
+        (
+            "scripts/measure_difficulty_calibration.py",
+            "results/difficulty_calibration/difficulty_calibration.json",
+            "results/difficulty_calibration/DIFFICULTY_CALIBRATION.md",
+        ),
+    ],
+)
+def test_the_report_renderers_still_read_an_old_packages_block(script, artifact, report):
+    """The two scripts that render a packages block, run on artifacts written under the old
+    list, must reproduce the committed report's line. A renderer that indexed the new
+    names would raise KeyError here."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_renderer_under_test", _REPO_ROOT / script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payload = json.loads((_REPO_ROOT / artifact).read_text(encoding="utf-8"))
+    rendered = [
+        line for line in module.render_markdown(payload).splitlines()
+        if line.startswith("- Packages:")
+    ]
+    committed = [
+        line for line in (_REPO_ROOT / report).read_text(encoding="utf-8").splitlines()
+        if line.startswith("- Packages:")
+    ]
+    assert rendered and rendered == committed
 
 
 def test_dirty_file_paths_are_not_truncated():
