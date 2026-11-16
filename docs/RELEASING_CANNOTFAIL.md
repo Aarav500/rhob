@@ -114,7 +114,8 @@ Expect `build` and `publish-testpypi` to pass and `publish-pypi` to be skipped. 
 checks that `pyproject.toml` and `src/cannotfail/__init__.py` agree on the version and
 that CHANGELOG.md has an entry for it, builds the sdist and wheel, runs
 `twine check --strict`, checks that the wheel holds the `cannotfail` package alone, and
-runs the tool's tests against the wheel it is about to upload.
+runs the tool's tests against the wheel it is about to upload, installed with every extra
+so that the Parquet and Inspect tests run rather than skip.
 
 Then install from TestPyPI in a fresh venv and run the README's first example. Take
 `cannotfail` alone from TestPyPI, with `--no-deps`, and its dependencies from PyPI: with
@@ -243,8 +244,10 @@ its metadata. If setuptools drops the table form sooner, the weekly run of
   SciPy, then pyarrow, then the `inspect` extra. `package` builds the sdist and wheel, runs
   `twine check --strict`, checks their contents, and installs the wheel alone into a fresh
   Python 3.10 venv. From there it runs the README's examples against the output the README
-  prints, first with numpy only (skipping the Parquet and Inspect recipes) and then with
-  `[power,parquet,inspect]`, and then the tool's tests against that installed wheel.
+  prints, first with numpy only (the `resolution` and `power difference` examples, minus
+  the Parquet and Inspect recipes; `power equivalence` and `power seeds` need SciPy) and
+  then all of them with `[power,parquet,inspect]`, and then the tool's tests against that
+  installed wheel.
 - [`cannotfail-release.yml`](../.github/workflows/cannotfail-release.yml), above.
 - [`tests.yml`](../.github/workflows/tests.yml) keeps
   [`tests/test_cannotfail_parity.py`](../tests/test_cannotfail_parity.py) in its pytest

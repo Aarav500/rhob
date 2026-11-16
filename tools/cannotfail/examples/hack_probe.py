@@ -5,10 +5,12 @@ is called. Each reply carries its own token usage, because without one mockllm c
 tokens with a tokenizer it downloads. Samples run one at a time, so reply ``i`` goes to
 sample ``i``, and the script checks that it did.
 
-    uv run --python 3.12 --with inspect_ai==0.3.290 python hack_probe.py OUT_DIR
+    uv run --no-project --python 3.12 --with inspect_ai==0.3.290 python hack_probe.py OUT_DIR
 
-(the versions that wrote the committed file; on Python 3.10, inspect_ai 0.3.280's eval()
-fails to import beside agent-client-protocol 1.0.0, though reading logs is unaffected)
+(the versions that wrote the committed file). ``--no-project`` stops uv from building
+cannotfail into tools/cannotfail/.venv and writing a uv.lock there; the script does not
+import it. On Python 3.10, inspect_ai 0.3.280's eval() fails to import beside
+agent-client-protocol 1.0.0, though reading logs is unaffected.
 
 The probe "answers" family ``a`` with probabilities that separate the classes and
 family ``b`` with 0.5 every time, as a probe that falls back to a default would.

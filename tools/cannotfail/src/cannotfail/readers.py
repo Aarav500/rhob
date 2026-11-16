@@ -28,6 +28,8 @@ import io
 import json
 import os
 import re
+import urllib.parse
+import urllib.request
 import warnings
 from collections.abc import Sequence
 
@@ -324,29 +326,65 @@ def _read_inspect(path: str, wanted: Sequence[str], score: str | None) -> dict[s
         import pandas as pd
         import pyarrow  # noqa: F401  (samples_df needs it, and says so less plainly)
         from inspect_ai.analysis import EvalModel, EvalTask, SampleSummary, samples_df
+        from inspect_ai.log import list_eval_logs, read_eval_log
         from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, PARTIAL, value_to_float
     except ImportError as exc:
         raise InputError(f"{path}: {_INSPECT_HINT} ({exc})") from None
     except Exception as exc:  # installed, but built for another NumPy, say
         raise InputError(f"{path}: inspect_ai, pandas or pyarrow is installed but failed to import "
                          f"({type(exc).__name__}: {exc}); {_INSPECT_HINT}") from None
-    if "://" not in path and not os.path.exists(path):
+    local = "://" not in path
+    if local and not os.path.exists(path):
         raise InputError(f"{path}: no such file or directory")
-    try:
+    columns = EvalTask + EvalModel + SampleSummary
+
+    def frame(logs):
         with warnings.catch_warnings():
             # Deprecations inside inspect_ai's own use of pandas are for its developers,
             # not for someone reading a log, and would land in the middle of the report.
             warnings.simplefilter("ignore", DeprecationWarning)
             warnings.simplefilter("ignore", FutureWarning)
-            df = samples_df(path, columns=EvalTask + EvalModel + SampleSummary, quiet=True)
+            return samples_df(logs, columns=columns, quiet=True)
+
+    def unreadable(exc):
+        return InputError(f"{path}: inspect_ai could not read it as an Inspect log: {type(exc).__name__}: {exc}")
+
+    # samples_df filters by file name even when given a single file: it keeps a lower-case
+    # .eval, and a .json only under the timestamped name Inspect gave it. A renamed log
+    # (log.json, RUN.EVAL) comes back empty, or raises on older releases. For a single
+    # file that is not a reason to refuse it, so such a file is loaded by read_eval_log,
+    # which does not care about the name, and the loaded log is passed on instead. A file
+    # samples_df reads by name takes the first path, which reads only the summaries.
+    try:
+        df = frame(path)
     except Exception as exc:  # whatever inspect_ai raises on a file it cannot read
-        raise InputError(f"{path}: inspect_ai could not read it as an Inspect log: {type(exc).__name__}: {exc}") from None
-    if len(df) == 0:
-        raise InputError(f"{path}: no samples in the log")
-    columns = [str(c) for c in df.columns]
-    missing = [c for c in wanted if c not in columns]
+        # Older releases (0.3.179 among them) raise, rather than return no rows, for a renamed
+        # file and for a directory holding no log; both are handled below.
+        if not local or (os.path.isdir(path) and list_eval_logs(path, recursive=True)):
+            raise unreadable(exc) from None
+        df = None
+    if local and os.path.isfile(path) and (df is None or len(df) == 0):
+        try:
+            df = frame(read_eval_log(path, format=_inspect_format(path)))
+        except Exception as exc:
+            raise unreadable(exc) from None
+    if local and os.path.isdir(path):
+        skipped = _skipped_inspect_logs(path, list_eval_logs, read_eval_log)
+        if skipped:
+            shown = ", ".join(skipped[:3]) + (f" and {len(skipped) - 3} more" if len(skipped) > 3 else "")
+            raise InputError(
+                f"{path}: inspect_ai would skip {len(skipped)} Inspect log(s) here because of "
+                f"their names: {shown}. Inside a directory it reads an .eval log only with a "
+                "lower-case extension, and a .json log only under the timestamped name Inspect "
+                "gave it. Rename them, or pass each file on its own."
+            )
+    if df is None or len(df) == 0:
+        where = "any log there" if local and os.path.isdir(path) else "the log"
+        raise InputError(f"{path}: no samples in {where}")
+    names = [str(c) for c in df.columns]
+    missing = [c for c in wanted if c not in names]
     if missing:
-        raise InputError(f"{path}: no column {missing[0]!r} in samples_df; its columns are {columns}")
+        raise InputError(f"{path}: no column {missing[0]!r} in samples_df; its columns are {names}")
 
     grades = {CORRECT, INCORRECT, PARTIAL, NOANSWER}
     to_float = value_to_float()
@@ -369,3 +407,36 @@ def _read_inspect(path: str, wanted: Sequence[str], score: str | None) -> dict[s
                       for v in values]
         cols[name] = [_cell(v) for v in values]
     return cols
+
+
+def _inspect_format(path: str) -> str:
+    """``"eval"`` for a zip (what an .eval log is), else ``"json"``, whatever the name says."""
+    with open(path, "rb") as fh:
+        return "eval" if fh.read(4) == b"PK\x03\x04" else "json"
+
+
+def _skipped_inspect_logs(directory: str, list_eval_logs, read_eval_log) -> list[str]:
+    """Inspect logs under ``directory`` that samples_df, given the directory, leaves out.
+
+    Those are the files ``list_eval_logs`` does not list, whose name ends in .eval or .json
+    in any letter case, and that ``read_eval_log`` reads as a log header. Other JSON, such
+    as the logs.json listing Inspect writes beside its logs, is not a log and is not counted.
+    """
+    listed = set()
+    for info in list_eval_logs(directory, recursive=True):
+        name = info.name
+        if name.startswith("file:"):
+            name = urllib.request.url2pathname(urllib.parse.urlparse(name).path)
+        listed.add(os.path.realpath(name))
+    skipped = []
+    for root, _dirs, files in os.walk(directory):
+        for f in files:
+            full = os.path.join(root, f)
+            if not f.lower().endswith((".eval", ".json")) or os.path.realpath(full) in listed:
+                continue
+            try:
+                read_eval_log(full, header_only=True, format=_inspect_format(full))
+            except Exception:
+                continue
+            skipped.append(full)
+    return sorted(skipped)

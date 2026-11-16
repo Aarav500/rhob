@@ -146,8 +146,9 @@ request that touches <code>tools/cannotfail</code>, every Monday, and on demand.
 Python 3.10, 3.13 and 3.14, each first with NumPy only, asserting that SciPy, pyarrow,
 pandas and inspect_ai are all absent, which holds D1 to its NumPy-only promise, and then
 with SciPy, with pyarrow and with the Inspect extra in turn. It also builds the sdist and
-wheel, installs the wheel on its own, and checks that every example in the package's README
-prints what the README shows, with NumPy only and then with every extra.
+wheel, installs the wheel on its own, and checks that the examples in the package's README
+print what the README shows: those that need no extra with NumPy only, then all of them
+with every extra.
 Separately, <code class="path">tests/test_cannotfail_parity.py</code> runs in the benchmark's
 test suite on every push to <code>main</code> and holds the tool to the admission gate it was
 lifted from. Its tolerance resolution is bit-identical to the gate's on adversarial inputs,

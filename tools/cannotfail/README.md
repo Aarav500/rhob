@@ -155,8 +155,11 @@ the flags were given, and the first column of the table is headed by the column 
 the same way. With `--json` the groups are keyed by those labels, and each also carries its
 values by column under `"group"`, with the columns listed once under `"group_by"`. If a value
 itself contains ` | `, so that two groups would print alike, every label is written as a JSON
-list instead. A single `--group` over scalar values prints as it always has. A group or score
-field that holds a list or an object is refused, with the path to index it by.
+list instead. A single `--group` over scalar values prints the table it did before `--group`
+could be repeated, except that in JSON and JSONL a dotted name now also reaches the nested
+field in a record that has no key of that literal name. In JSON, JSONL and Parquet, a score,
+label or group field that holds a list or an object is refused, with the path to index it
+by. An Inspect log's `samples_df` gives such a field as JSON text, and a group is that text.
 
 **The format** comes from the extension, in any letter case (`.json`; `.jsonl` or `.ndjson`;
 `.parquet` or `.pq`; `.tsv` or `.tab`; and CSV otherwise). `--format` overrides it, and an Inspect log always needs `--format inspect`.
@@ -247,7 +250,11 @@ inspect_ai 0.3.281 and later need Python 3.11, so on 3.10 pip installs 0.3.280. 
 `--format inspect`, the file, or a directory of logs, is read by inspect_ai's own
 `samples_df`, one row per sample and epoch. Its columns are named as `samples_df` names
 them: `score_<scorer>`, `metadata_<field>`, `id` and `epoch`, and from the eval `task_name`
-and `model`.
+and `model`. `samples_df` reads a log only under a name Inspect itself would give it: a
+lower-case `.eval`, or a `.json` whose name starts with the run's timestamp. A single file
+is read whatever its name, by loading it with `read_eval_log` first. A directory holding a
+renamed log exits 2 and names the file, rather than giving a verdict on the logs it could
+read.
 [`examples/hack_probe.eval`](https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/hack_probe.eval)
 is a real log, written offline by inspect_ai 0.3.290 with its `mockllm/model` given a fixed
 reply per sample, by

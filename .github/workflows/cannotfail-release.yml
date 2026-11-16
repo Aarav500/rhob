@@ -122,7 +122,9 @@ jobs:
           sys.exit(1 if problems else 0)
           EOF
       - name: Test the wheel that will be uploaded
-        # The exact file, in a fresh venv with nothing from the checkout on the path.
+        # The exact file, in a fresh venv with nothing from the checkout on the path, with
+        # every extra so that no reader test skips. Keep the extras in step with the
+        # package job in cannotfail.yml.
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -130,7 +132,7 @@ jobs:
           test -f "dist/cannotfail-$VERSION.tar.gz"
           test "$(find dist -type f | wc -l)" -eq 2
           python -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/python" -m pip install "dist/cannotfail-$VERSION-py3-none-any.whl[power]" pytest
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "dist/cannotfail-$VERSION-py3-none-any.whl[power,parquet,inspect]" pytest
           test "$("$RUNNER_TEMP/venv/bin/cannotfail" --version)" = "cannotfail $VERSION"
           cd /tmp && "$RUNNER_TEMP/venv/bin/python" -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
       - uses: actions/upload-artifact@v4

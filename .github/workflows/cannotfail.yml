@@ -75,8 +75,9 @@ jobs:
 
   package:
     # What PyPI would receive, met the way a stranger meets it. Build the sdist and wheel
-    # as cannotfail-release.yml does, have twine check the metadata and that the README
-    # renders, look inside both, then install the wheel alone into a fresh Python 3.10 venv
+    # as cannotfail-release.yml does, have twine check the metadata (twine does not render
+    # a Markdown README; the examples below are what holds it to the tool), look inside
+    # both, then install the wheel alone into a fresh Python 3.10 venv
     # and run the README's examples from it. Each example that shows its output must print
     # exactly that output, so the README cannot drift from the tool unnoticed.
     runs-on: ubuntu-latest
@@ -181,7 +182,8 @@ jobs:
           sys.exit(1 if failed or not checked else 0)
           EOF
       - name: The README's examples, numpy only
-        # The Parquet and Inspect recipes need their extras, so they wait for the next step.
+        # Only the examples that need no extra: the Parquet and Inspect recipes, and
+        # `power equivalence` and `power seeds`, which need SciPy, wait for the next step.
         working-directory: tools/cannotfail/examples
         run: python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" . resolution "power difference" --skip .parquet --skip "--format inspect"
       - name: Add every extra, then every README example and the tests, from the wheel

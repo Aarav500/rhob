@@ -389,6 +389,56 @@ def test_a_directory_of_inspect_logs_groups_by_model_and_task(tmp_path, capsys):
     assert payload["groups"]["hack_probe | mockllm/model"]["n"] == 8
 
 
+def _as_json_log(tmp_path, name):
+    """examples/hack_probe.eval rewritten as a JSON-form log under ``name``."""
+    from inspect_ai.log import read_eval_log, write_eval_log
+    path = tmp_path / name
+    write_eval_log(read_eval_log(str(EXAMPLES / "hack_probe.eval")), str(path), format="json")
+    return path
+
+
+def _verdicts(payload):
+    return {k: (v["verdict"], v["n"]) for k, v in payload["groups"].items()}
+
+
+def test_a_renamed_inspect_log_is_read_whatever_its_name(tmp_path, capsys):
+    """samples_df skips a log whose name is not Inspect's own, even when given the file itself."""
+    _needs_inspect()
+    args = ["--score", "score_stated_probability", *INSPECT]
+    expected = _verdicts(_json(capsys, "resolution", str(EXAMPLES / "hack_probe.eval"), *args))
+    assert expected == {"a": ("ok", 4), "b": ("fixed", 4)}
+    renamed = _as_json_log(tmp_path, "log.json")
+    upper = tmp_path / "RUN.EVAL"
+    shutil.copy(EXAMPLES / "hack_probe.eval", upper)
+    for path in (renamed, upper):
+        assert _verdicts(_json(capsys, "resolution", str(path), *args)) == expected, path.name
+    # Without --format inspect, the JSON form is recognised and the advice works.
+    err = _error(capsys, "resolution", str(renamed), "--score", "score")
+    assert "it looks like an Inspect log, which --format inspect reads" in err
+
+
+def test_a_directory_is_refused_rather_than_read_in_part(tmp_path, capsys):
+    """Inside a directory samples_df skips a renamed log silently; that would be a subset."""
+    _needs_inspect()
+    shutil.copy(EXAMPLES / "hack_probe.eval", tmp_path / "hack_probe.eval")
+    (tmp_path / "logs.json").write_text('{"x.eval": {"status": "success"}}', encoding="utf-8")
+    args = ["--format", "inspect", "--score", "score_stated_probability", "--group", "task_name"]
+    assert _json(capsys, "resolution", str(tmp_path), *args)["groups"]["hack_probe"]["n"] == 8  # logs.json is not a log
+    sub = tmp_path / "more"
+    sub.mkdir()
+    _as_json_log(sub, "renamed.json")
+    err = _error(capsys, "resolution", str(tmp_path), *args)
+    assert "inspect_ai would skip 1 Inspect log(s) here because of their names" in err
+    assert "renamed.json" in err and "logs.json" not in err
+    assert "pass each file on its own" in err
+
+
+def test_an_empty_directory_has_no_samples(tmp_path, capsys):
+    _needs_inspect()
+    err = _error(capsys, "resolution", str(tmp_path), "--format", "inspect", "--score", "s")
+    assert "no samples in any log there" in err
+
+
 def test_inspect_errors(tmp_path, capsys):
     _needs_inspect()
     err = _error(capsys, "resolution", str(EXAMPLES / "hack_probe.eval"), "--format", "inspect", "--score", "score")

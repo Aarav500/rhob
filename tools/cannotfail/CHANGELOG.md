@@ -36,12 +36,15 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   label is its values joined by ` | `; with `--json` each group also lists its values by
   column under `"group"`, and the columns are listed once under `"group_by"`. Where a value
   contains ` | ` and two labels would coincide, every label is written as a JSON list. A
-  single `--group` over scalar values prints exactly as it did before the flag could be
-  repeated.
-- A group or score field in JSON or JSONL that holds a list or an object is now refused
-  (exit 2) with the path to index it by. It used to be grouped by its Python repr.
+  single `--group` over scalar values prints as it did before the flag could be repeated,
+  except that in JSON and JSONL a dotted name now also reaches the nested field in a record
+  that has no key of that literal name.
+- A score, label or group field in JSON, JSONL or Parquet that holds a list or an object is
+  now refused (exit 2) with the path to index it by. A group field used to be grouped by its
+  Python repr; a score field already exited 2.
 - The extension is matched in any letter case, and `.ndjson` and `.pq` are recognised.
-  `.JSON` and `.ndjson` used to be read as CSV.
+  Before, only lower-case `.json`, `.jsonl`, `.tsv` and `.tab` were recognised, and every
+  other file, `.parquet` and `.eval` included, was read as comma-separated CSV.
 - `--format csv|tsv|json|jsonl|parquet|inspect`, which overrides the extension. An `.eval`
   file without `--format inspect` exits 2 and says to pass it.
 - Parquet, through the `parquet` extra (pyarrow 16 or later). A struct column is read by the
@@ -49,7 +52,9 @@ repository, where it has lived in `tools/cannotfail` since 2026-10-31.
   read, unless one of those names contains a dot. Without pyarrow, a `.parquet` file exits 2 with the install line.
 - Inspect logs, through the `inspect` extra (inspect_ai 0.3.179 or later, pandas 2.2.2,
   pyarrow 16) and `--format inspect`: a log or a directory of them, read by
-  `inspect_ai.analysis.samples_df`, with the task and model columns. In the score column
+  `inspect_ai.analysis.samples_df`, with the task and model columns. A single log is read
+  whatever its name; a directory holding a log that `samples_df` would skip for its name
+  exits 2 and names it. In the score column
   Inspect's letter grades become the numbers its metrics average (`C` 1, `I` 0, `P` 0.5,
   `N` 0); any other string that is not a number is refused rather than made 0. Tested
   against `examples/hack_probe.eval`, a real log written offline by inspect_ai 0.3.290 with
