@@ -1,7 +1,7 @@
 # Post-mortem: the calibration cache could not see a MuJoCo upgrade
 
-Written 2026-11-16 from facts checked on 2026-11-15 against the GitHub Actions runs named
-below. The fix is `9cc96e2`, on the branch of [PR #2](https://github.com/Aarav500/rhob/pull/2);
+Written 2026-11-16 from facts checked on 2026-11-15 and 2026-11-16 against the GitHub Actions
+runs named below. The fix is `9cc96e2`, on the branch of [PR #2](https://github.com/Aarav500/rhob/pull/2);
 until that merges, `main` runs the old key. The paper asks of a check *what observation would
 have had to exist for this to report failure?* This is that question, asked of our own harness.
 
@@ -24,7 +24,7 @@ to notice.
 | 2026-11-06 15:39 | mujoco 4.0.0 is uploaded to PyPI, with the new mujoco-core 4.0.0 and mujoco-studio 4.0.0. |
 | 2026-11-07 11:01 | First red run, [42366363571](https://github.com/Aarav500/rhob/actions/runs/42366363571), installs mujoco 4.0.0. |
 | 2026-11-07 to 11-15 | Red every night on the same commit. Later runs install 4.0.1. |
-| 2026-11-15 | Controlled experiment; fix `9cc96e2`; wording correction `b70d258`; verification run [43679157068](https://github.com/Aarav500/rhob/actions/runs/43679157068) on the branch. The scheduled nightly on `main` ([43711218047](https://github.com/Aarav500/rhob/actions/runs/43711218047)) is red again, since `main` keeps the old key until the merge. |
+| 2026-11-15 | Controlled experiment; fix `9cc96e2`; wording correction `b70d258`; verification run [43679157068](https://github.com/Aarav500/rhob/actions/runs/43679157068) on the branch. The scheduled nightly on `main` ([43711218047](https://github.com/Aarav500/rhob/actions/runs/43711218047)) is red again: until the merge, `main` has neither the `mujoco<4` pin nor the new key, so it installs MuJoCo 4.0.1 and serves it the 3.17 calibration. |
 | 2026-11-16 | On the branch: provenance records the simulator versions; `admission-slow` moves to a hashed lock, with a weekly drift check; this write-up. |
 
 ## Evidence
@@ -95,17 +95,17 @@ cache miss instead of a silent mixture, pinned or not.
 `b70d258` corrected the wording about what the cache did. The `workflow_dispatch` run
 43679157068 on the branch succeeded. It started cold. The warm step spent 37 minutes of its
 45-minute budget deriving 8 families and then stopped rather than start one that could
-overrun, leaving 11 more families' calibrations for the slow smoke screens, which derived
-them and passed in 31 minutes; the cache was saved. On 2026-11-16 `rhob.v3.provenance`
+overrun, leaving 17 families cold, 11 of them with cached calibrations, for the slow smoke
+screens, which derived them and passed in 31 minutes; the cache was saved. On 2026-11-16 `rhob.v3.provenance`
 began recording the simulator versions; a test fails if the cache keys on one it does not
 record.
 
-Also on 2026-11-16, the branch changed `admission-slow` to stop installing unpinned. Like the
-key fix, this reaches the nightly when PR #2 merges; until then the nightly on `main`
-installs unpinned. On the branch it installs
-`requirements/ci-admission-linux-py312.txt`, a hashed lock of all 81 distributions, resolved as
-PyPI stood when 43679157068 began installing, so it is exactly the stack that run passed on. A
-new release reaches the nightly only through `scripts/update_ci_lock.sh` and a reviewed diff.
+Also on 2026-11-16, the branch changed `admission-slow` to stop installing unpinned. Like
+the key fix, this reaches the nightly when PR #2 merges; until then the nightly on `main`
+installs unpinned. On the branch it installs `requirements/ci-admission-linux-py312.txt`, a
+hashed lock of all 81 distributions, resolved as PyPI stood when 43679157068 began
+installing, so it is exactly the stack that run passed on. A new release reaches the
+nightly only through `scripts/update_ci_lock.sh` and a reviewed diff.
 `.github/workflows/drift.yml` installs the newest allowed releases each week, tabulates what
 differs from the lock, and runs the fast suite and the MuJoCo screens on them. The per-push
 `pytest` matrix still installs unpinned, on purpose. See
@@ -142,8 +142,7 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
 - **The lock has been installed by CI on the branch only.** `workflow_dispatch` run
   [43836925199](https://github.com/Aarav500/rhob/actions/runs/43836925199) installed it on
   2026-11-16, hash-checking every file, and its slow tier passed as 43679157068's did (73
-  passed, 21 xfailed). The nightly on `main`
-  meets it only after the merge.
+  passed, 21 xfailed). The nightly on `main` meets it only after the merge.
 - **The drift check covers the MuJoCo families only.** The PettingZoo, RLHF reward-model and
   sequence families' slow screens meet a new release only at the dispatched run after a
   regeneration.

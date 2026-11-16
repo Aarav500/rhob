@@ -69,14 +69,15 @@ With any of the three:
 python -m pytest tests/  # the fast suite; the slow tier is `-m slow` (see pyproject.toml)
 ```
 
-All experiments use:
+Versions and seeds:
 - **Python 3.11+ for `requirements-lock.txt`, and 3.12 for the CI lock.** `pyproject.toml`
   still declares `requires-python = ">=3.10"` and CI tests 3.10. But numpy 2.4.3, scipy
-  1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt`, each require
-  Python >= 3.11, so that stack cannot be installed on 3.10. A green CI run on 3.10
-  resolves older numeric libraries than the ones used here and is **not** evidence that
-  these numbers reproduce. Reconciling the declared support surface with reality is an
-  open decision. See the header of `requirements-lock.txt`.
+  1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt` and in the
+  admission ledger's provenance, each require Python >= 3.11, so that stack cannot be
+  installed on 3.10. A green CI run on 3.10 resolves older numeric libraries than the
+  ledger records and is **not** evidence that the ledger's numbers reproduce. Reconciling
+  the declared support surface with reality is an open decision. See the header of
+  `requirements-lock.txt`.
 - **Seed strategy**: Deterministic global RNG seeding via `numpy.random.default_rng(seed)` per run
 - **Reproducibility**: All experiments are fully deterministic given a seed
 

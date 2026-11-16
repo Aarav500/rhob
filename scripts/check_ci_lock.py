@@ -38,7 +38,8 @@ from packaging.utils import canonicalize_name
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = ROOT / "requirements" / "ci-admission-linux-py312.txt"
 PYPROJECT = ROOT / "pyproject.toml"
-# Keep in step with `extras` in scripts/update_ci_lock.sh and the nightly's install line.
+# Keep in step with `extras` in scripts/update_ci_lock.sh and drift.yml's install line
+# (tests/test_ci_lock.py checks both).
 EXTRAS = ("dev", "continuous", "mujoco", "pettingzoo")
 TARGET = {
     "implementation_name": "cpython",
@@ -63,15 +64,30 @@ def lock_pins(lock: Path = LOCK) -> dict[str, str]:
     return pins
 
 
+class UndefinedExtra(ValueError):
+    """An extra the lock is built for, or one rhob asks of itself, that pyproject.toml lacks."""
+
+
 def declared(pyproject: Path = PYPROJECT, extras: tuple[str, ...] = EXTRAS) -> list[tuple[Requirement, str]]:
-    """Each requirement of the base install and of ``extras``, with where it is declared."""
+    """Each requirement of the base install and of ``extras``, with where it is declared.
+
+    Raises UndefinedExtra for an extra pyproject.toml does not define: read as empty, it
+    would pass the check while checking nothing (an extra renamed without a regeneration).
+    """
     import tomllib  # Python 3.11+; the lock is for 3.12
 
     project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
     name = canonicalize_name(project["name"])
     optional = project.get("optional-dependencies", {})
+
+    def lines_of(extra):
+        if extra not in optional:
+            raise UndefinedExtra(f"pyproject.toml defines no extra {extra!r}; the lock is built for "
+                                 f"{', '.join(extras)} (scripts/update_ci_lock.sh)")
+        return optional[extra]
+
     out: list[tuple[Requirement, str]] = []
-    todo = [("", project.get("dependencies", []))] + [(e, optional.get(e, [])) for e in extras]
+    todo = [("", project.get("dependencies", []))] + [(e, lines_of(e)) for e in extras]
     done = set()
     while todo:
         where, lines = todo.pop(0)
@@ -83,7 +99,7 @@ def declared(pyproject: Path = PYPROJECT, extras: tuple[str, ...] = EXTRAS) -> l
             if req.marker is not None and not req.marker.evaluate({**TARGET, "extra": ""}):
                 continue
             if canonicalize_name(req.name) == name:  # rhob[...] inside its own extras
-                todo += [(e, optional.get(e, [])) for e in sorted(req.extras)]
+                todo += [(e, lines_of(e)) for e in sorted(req.extras)]
                 continue
             out.append((req, f"[{where}]" if where else "dependencies"))
     return out
@@ -92,7 +108,11 @@ def declared(pyproject: Path = PYPROJECT, extras: tuple[str, ...] = EXTRAS) -> l
 def static_unmet(pyproject: Path = PYPROJECT, lock: Path = LOCK) -> list[str]:
     pins = lock_pins(lock)
     unmet = []
-    for req, where in declared(pyproject):
+    try:
+        reqs = declared(pyproject)
+    except UndefinedExtra as exc:
+        return [str(exc)]
+    for req, where in reqs:
         have = pins.get(canonicalize_name(req.name))
         if have is None:
             unmet.append(f"{req} ({where}): not in the lock")
@@ -102,7 +122,8 @@ def static_unmet(pyproject: Path = PYPROJECT, lock: Path = LOCK) -> list[str]:
 
 
 def installed_unmet(extras: tuple[str, ...] = EXTRAS) -> list[str]:
-    unmet = []
+    provided = {canonicalize_name(e) for e in metadata.metadata("rhob").get_all("Provides-Extra") or []}
+    unmet = [f"rhob as installed provides no extra {e!r}" for e in extras if canonicalize_name(e) not in provided]
     todo: list[tuple[Requirement, str]] = []
     for line in metadata.requires("rhob") or []:
         req = Requirement(line)

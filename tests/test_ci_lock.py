@@ -63,6 +63,13 @@ def test_a_new_requirement_is_caught(tmp_path):
         "not-a-real-package-xyz>=1 ([pettingzoo]): not in the lock"]
 
 
+def test_a_renamed_or_missing_extra_is_caught_not_read_as_empty(tmp_path):
+    path = _pyproject(tmp_path, "pettingzoo = [", "multiagent = [")
+    assert check.static_unmet(pyproject=path) == [
+        "pyproject.toml defines no extra 'pettingzoo'; the lock is built for dev, continuous, "
+        "mujoco, pettingzoo (scripts/update_ci_lock.sh)"]
+
+
 def test_extras_outside_the_lock_and_other_platforms_are_not_checked(tmp_path):
     path = _pyproject(tmp_path, '"gradio>=4.0,<7"', '"gradio>=4.0,<7", "unlocked-thing>=1"')
     assert check.static_unmet(pyproject=path) == []  # `space` is not one of the four

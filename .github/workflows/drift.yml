@@ -29,13 +29,13 @@ name: dependency drift
 # Cost, per run, on a standard ubuntu-latest runner: about 25 to 40 minutes, estimated
 # rather than yet observed. Install and the fast suite took about 2 and 4 minutes in the
 # 2026-11-06 nightly. The MuJoCo screens took 21 minutes cold on a 4-core scratch machine
-# on 2026-11-16. How that translates to CI depends on the run: the same tests ran about
-# 1.55 times slower than there in the 2026-11-06 nightly, beside the rest of the slow
-# tier, and at about the same speed in the 2026-11-15 run. So expect 20 to 35 minutes for
+# on 2026-11-16. How that translates to CI depends on the runner: in two runs of the same
+# full slow tier, the same tests ran about 1.55 times slower than there (2026-11-06) and
+# at about the same speed (2026-11-15). So expect 20 to 35 minutes for
 # them, and up to about twice that on a slow runner: on 2026-11-16 one calibrated about
-# half as fast as on 2026-11-15. That is two to three hours of runner time a month, billed
-# only if the repository is private. The job's 120-minute timeout is three times the upper
-# estimate.
+# half as fast as on 2026-11-15. That is two to three hours of runner time a month, up to
+# about five on slow runners, billed only if the repository is private. The job's
+# 120-minute timeout is three times the normal estimate and about 1.6 times the slow case.
 
 on:
   schedule:

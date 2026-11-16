@@ -69,9 +69,11 @@ jobs:
     # `admission/`.
     #
     # 240 minutes. A cold run on a slow runner, the first on the CI lock (43836925199,
-    # 2026-11-16), took 153 and passed. Main's first nightly after a merge is always cold,
-    # because a workflow on main cannot restore a cache saved on another branch, so 180
-    # left too little margin.
+    # 2026-11-16), took 153 and passed. Main's first nightly after PR #2 merges will be
+    # cold too: a workflow on main cannot restore a cache saved on this branch, and main's
+    # own tarball holds entries under the old key, which all miss. Later merges restore
+    # main's previous tarball and recompute only what they invalidate, but a lock bump or an
+    # edit to calibration_cache.py is cold again, so 180 left too little margin.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 240

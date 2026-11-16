@@ -8,8 +8,9 @@
 # -----------------
 # The exact versions of RHOB's *direct* declared dependencies, read from the
 # environment in which `rhob` is installed editable and the test suite collects.
-# It exists because `pyproject.toml` declares only ranges (floors and major-version
-# caps), and the versions the admission ledger records, rhob aside, match these.
+# It was written because `pyproject.toml` declares only ranges (floors and major-version
+# caps). The versions the admission ledger later recorded (2026-08-03) match these, rhob
+# aside.
 #
 # WHAT THIS FILE IS NOT
 # ---------------------
@@ -37,13 +38,13 @@
 #     scikit-learn==1.8.0 requires-python >=3.11
 #
 # Consequence: this stack CANNOT be installed on Python 3.10. The CI 3.10 job
-# therefore resolves older numpy/scipy/scikit-learn than the ones the benchmark
-# is actually developed and run against, and a green 3.10 build is not evidence
-# that the reported numbers reproduce.
+# therefore resolves older numpy/scipy/scikit-learn than these, which are the ones
+# the admission ledger records, and a green 3.10 build is not evidence that the
+# ledger's numbers reproduce.
 #
 # This is left as-is deliberately: raising `requires-python` to >=3.11 and
 # dropping 3.10 from the CI matrix changes RHOB's declared support surface,
-# which is a maintainer decision, not a lockfile's to make. UNRESOLVED.
+# which is a maintainer decision, not this file's to make. UNRESOLVED.
 
 # --- core (project.dependencies) ---
 numpy==2.4.3

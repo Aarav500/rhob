@@ -23,7 +23,8 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 lock="$repo/requirements/ci-admission-linux-py312.txt"
 
-# What the admission-slow job installs. Keep in step with tests.yml.
+# The extras the admission-slow lock is built for. Keep in step with scripts/check_ci_lock.py
+# and drift.yml's install line (tests/test_ci_lock.py checks both).
 extras=(dev continuous mujoco pettingzoo)
 python_version="3.12"
 # The lock is resolved for glibc 2.28, so it also installs on older Linux, and then

@@ -39,8 +39,8 @@ artifact. Each artifact that records one says so in its own provenance block.
 on the branch at `6ae7d7f` was the first to install this file. Its Install step passed:
 pip's hash-checking install of all 81 lines, `pip install --no-deps -e .`, `pip check` and
 the lock-satisfies-pyproject check. Its slow tier passed as 43679157068's did, 73 passed and
-21 xfailed as marked. The warm step had left 23 families cold and the runner was about half
-as fast (`mujoco_sensor_decoupling`'s calibration took 1662 s, against 804 s on 2026-11-15),
+21 xfailed as marked. The warm step had left 23 families cold, 15 of them with cached
+calibrations, and the runner was about half as fast (`mujoco_sensor_decoupling`'s calibration took 1662 s, against 804 s on 2026-11-15),
 so the job took 153 of its 180 minutes, and its timeout is now 240. The rest was done in
 scratch environments. Some of it was first run on a draft resolved at 2026-11-16T06:54:00Z,
 which differed from this file only in numpy 2.5.5; the draft was dropped so the first lock
@@ -56,11 +56,13 @@ is a stack CI has already passed on.
   made a Python 3.12 venv exactly these 81 distributions, hash-checking each file. There
   `scripts/check_ci_lock.py --installed` passes, and with imageio hidden from it, it fails
   and names `imageio>=2.14.1` from `gymnasium[mujoco]`, which `pip check` does not read.
-  The static check fails on a scratch `pyproject.toml` with `mujoco>=3,<3.17`, or with a
-  requirement the lock lacks, and names it (`tests/test_ci_lock.py`).
+  The static check fails on a scratch `pyproject.toml` with `mujoco>=3,<3.17`, with a
+  requirement the lock lacks, or with one of the four extras renamed, and names it
+  (`tests/test_ci_lock.py`).
 - **The suites pass on it.** In that venv, with rhob added by `pip install --no-deps -e .`
-  as CI does, the fast suite gave 799 passed and 23 xfailed on the tree of the 2026-11-16
-  fixes. On the draft, the four MuJoCo families' slow smoke screens, run cold, gave 10
+  as CI does, a clean checkout of `9b9031d` gives 798 passed, 1 skipped and 23 xfailed in the
+  fast suite. The skip is `test_dirty_file_paths_are_not_truncated`, which runs only in a
+  dirty working tree. On the draft, the four MuJoCo families' slow smoke screens, run cold, gave 10
   passed and 12 xfailed as marked. On this file, the slow tier is 43679157068's result and
   43836925199's.
 - **It reproduces past nightlies.** Resolving with a past cutoff reproduces that night's
@@ -105,9 +107,9 @@ Before committing a regenerated lock:
    torch, pettingzoo, mpe2, marked in the drift table) changes the cache token, so the next
    nightly recalibrates from cold, and that does not fit the warm step's 45-minute budget.
    The 2026-11-15 verification run, which did it, spent 37 minutes of that budget deriving 8
-   families and then stopped rather than start one that could overrun, leaving 11 more
-   families' calibrations for the slow screens to derive. Those screens passed in 31
-   minutes, and the job took 71. The next cold run, 43836925199, got a runner about half as
+   families and then stopped rather than start one that could overrun, leaving 17 families
+   cold, 11 of them with cached calibrations, for the slow screens to derive. Those screens
+   passed in 31 minutes, and the job took 71. The next cold run, 43836925199, got a runner about half as
    fast and took 153.
 2. A new MuJoCo major is a re-measurement of the MuJoCo families and the ledger, not a lock
    bump. See the comment on `mujoco<4` in `pyproject.toml`.
@@ -131,12 +133,12 @@ the issue job, which installs nothing, holds `issues: write`.
 
 Cost per run is about 25 to 40 minutes on a standard runner, estimated rather than yet
 observed. Install and the fast suite take about 2 and 4 minutes (the 2026-11-06 nightly).
-The MuJoCo screens took 21 minutes on that machine. On the CI runner the same tests ran
-about 1.55 times slower than there in the 2026-11-06 nightly, beside the rest of the slow
-tier, and at about the same speed in the 2026-11-15 run, so expect 20 to 35 minutes, and
+The MuJoCo screens took 21 minutes on that machine. In two CI runs of the same full slow
+tier the same tests ran about 1.55 times slower than there (2026-11-06) and at about the
+same speed (2026-11-15), so the runner made the difference. Expect 20 to 35 minutes, and
 up to about twice that on a slow runner (one on 2026-11-16 calibrated about half as fast).
-That comes to two to three hours of runner time a month, billed only if the repository is
-private. The header of `drift.yml` has the breakdown.
+That comes to two to three hours of runner time a month, up to about five on slow runners,
+billed only if the repository is private. The header of `drift.yml` has the breakdown.
 
 ## Not to be confused with requirements-lock.txt
 
