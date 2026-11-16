@@ -23,9 +23,9 @@ to notice.
 | 2026-11-06 12:03 | Last green run, [42214775392](https://github.com/Aarav500/rhob/actions/runs/42214775392), installs mujoco 3.17.0. |
 | 2026-11-06 15:39 | mujoco 4.0.0 is uploaded to PyPI, with the new mujoco-core 4.0.0 and mujoco-studio 4.0.0. |
 | 2026-11-07 11:01 | First red run, [42366363571](https://github.com/Aarav500/rhob/actions/runs/42366363571), installs mujoco 4.0.0. |
-| 2026-11-07 to 11-14 | Red every night on the same commit. Later runs install 4.0.1. |
-| 2026-11-15 | Controlled experiment; fix `9cc96e2`; wording correction `b70d258`; verification run [43679157068](https://github.com/Aarav500/rhob/actions/runs/43679157068). |
-| 2026-11-16 | Provenance records the simulator versions; the nightly moves to a hashed lock, with a weekly drift check; this write-up. |
+| 2026-11-07 to 11-15 | Red every night on the same commit. Later runs install 4.0.1. |
+| 2026-11-15 | Controlled experiment; fix `9cc96e2`; wording correction `b70d258`; verification run [43679157068](https://github.com/Aarav500/rhob/actions/runs/43679157068) on the branch. The scheduled nightly on `main` ([43711218047](https://github.com/Aarav500/rhob/actions/runs/43711218047)) is red again, since `main` keeps the old key until the merge. |
+| 2026-11-16 | On the branch: provenance records the simulator versions; `admission-slow` moves to a hashed lock, with a weekly drift check; this write-up. |
 
 ## Evidence
 
@@ -93,11 +93,16 @@ fail against the old module. The pin is a stopgap. The key is what makes the nex
 cache miss instead of a silent mixture, pinned or not.
 
 `b70d258` corrected the wording about what the cache did. The `workflow_dispatch` run
-43679157068 on the branch succeeded: `admission-slow` warmed from cold in 37 minutes, the slow
-smoke screens took 31, and the cache was saved. On 2026-11-16 `rhob.v3.provenance` began
-recording the simulator versions; a test fails if the cache keys on one it does not record.
+43679157068 on the branch succeeded. It started cold. The warm step spent 37 minutes of its
+45-minute budget deriving 8 families and then stopped rather than start one that could
+overrun, leaving 11 more families' calibrations for the slow smoke screens, which derived
+them and passed in 31 minutes; the cache was saved. On 2026-11-16 `rhob.v3.provenance`
+began recording the simulator versions; a test fails if the cache keys on one it does not
+record.
 
-Also on 2026-11-16, `admission-slow` stopped installing unpinned. It now installs
+Also on 2026-11-16, the branch changed `admission-slow` to stop installing unpinned. Like the
+key fix, this reaches the nightly when PR #2 merges; until then the nightly on `main`
+installs unpinned. On the branch it installs
 `requirements/ci-admission-linux-py312.txt`, a hashed lock of all 81 distributions, resolved as
 PyPI stood when 43679157068 began installing, so it is exactly the stack that run passed on. A
 new release reaches the nightly only through `scripts/update_ci_lock.sh` and a reviewed diff.
@@ -134,9 +139,11 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
 - **The replication does not say which simulator it ran.** The 20 committed replicates were
   written under the old list (numpy, scipy, scikit-learn, torch, rhob), so the MuJoCo they ran
   under cannot be recovered from them. Artifacts written from 2026-11-16 on record it.
-- **The lock has not yet been installed by CI.** Its hashes were checked in a dry run, but the
-  first real install is the first `admission-slow` run on it, nightly after the merge or by
-  `workflow_dispatch` on the branch before it.
+- **The lock has been installed by CI on the branch only.** `workflow_dispatch` run
+  [43836925199](https://github.com/Aarav500/rhob/actions/runs/43836925199) installed it on
+  2026-11-16, hash-checking every file, and its slow tier passed as 43679157068's did (73
+  passed, 21 xfailed). The nightly on `main`
+  meets it only after the merge.
 - **The drift check covers the MuJoCo families only.** The PettingZoo, RLHF reward-model and
   sequence families' slow screens meet a new release only at the dispatched run after a
   regeneration.

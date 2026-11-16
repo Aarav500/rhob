@@ -34,7 +34,7 @@ dependencies:
   simulator is a different calibration.
 
 The last two were added on 2026-11-15. The key used to hash the defining module alone,
-and CI installs unpinned dependencies. So once MuJoCo 4.0.0 was published on 2026-11-06,
+and the nightly then installed unpinned dependencies. So once MuJoCo 4.0.0 was published on 2026-11-06,
 every nightly rolled ``mujoco_joint_limit_gaming`` out under 4.0 on a hip amplitude
 calibrated under 3.17. Those runs failed, but the cache was not the cause: recalibrated
 under 4.0 the family fails too, and ``pyproject.toml`` now excludes 4.x. What the cache

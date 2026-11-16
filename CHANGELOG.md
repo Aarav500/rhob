@@ -80,7 +80,7 @@ renderers reproduce their committed package lines
 ### Fixed (2026-11-15): the calibration cache could not see a dependency upgrade
 
 From 2026-11-07 the nightly `admission-slow` job failed every night, on an unchanged
-commit. MuJoCo 4.0.0 was published on 2026-11-06. CI installs unpinned, and the cache
+commit. MuJoCo 4.0.0 was published on 2026-11-06. CI installed unpinned, and the cache
 that stores each family's calibration was keyed on the defining module's source alone,
 so `mujoco_joint_limit_gaming` ran under 4.0 with the hip amplitude calibrated under 3.17.
 Its 0.9 tier stopped admitting (L0 AUROC 0.708 [0.600, 0.817]), and a strict xfail at

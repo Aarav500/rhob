@@ -246,7 +246,7 @@ def test_editing_a_module_the_calibration_imports_changes_its_fingerprint(tmp_pa
 
 def test_the_key_changes_when_a_physics_library_changes_version(monkeypatch):
     """The failure that motivated this: MuJoCo 4.0.0 replaced 3.17.0 overnight, CI
-    installs unpinned, and the cache served the 3.17 calibration under 4.0 physics."""
+    installed unpinned, and the cache served the 3.17 calibration under 4.0 physics."""
     calibrate, _ = _counting_fn()
     fn = calibrate.__wrapped__
     real = cc.physics_versions()

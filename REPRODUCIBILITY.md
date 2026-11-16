@@ -383,30 +383,40 @@ number, and it is now recorded in the artifact itself:
 committed do not yet carry these blocks** — they predate the module and acquire
 them on the next regeneration. `admission/admission_ledger.json` carries them now.
 
+A block as the module writes it today (Linux, the CI lock's versions):
+
 ```json
 "provenance": {
-  "generated_utc": "2026-08-03T01:24:19.364367Z",
+  "generated_utc": "2026-11-16T10:28:27.141637Z",
   "git": {
     "commit": "<40-hex SHA>",
     "short_commit": "<12-hex>",
-    "branch": "feature/audit-remediation",
-    "dirty": true,
-    "dirty_files": ["docs/figures/...", "src/rhob/..."]
+    "branch": "main",
+    "dirty": false,
+    "dirty_files": [],
+    "source": "git"
   },
-  "python": "3.13.14",
+  "python": "3.12.3",
   "python_implementation": "CPython",
-  "platform": "Windows-11-10.0.26200-SP0",
-  "packages": {"numpy": "2.4.3", "scipy": "1.17.1", "scikit-learn": "1.8.0",
-               "torch": "2.11.0", "rhob": "1.8.0"},
+  "platform": "Linux-...-x86_64-with-glibc2.39",
+  "packages": {"numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1",
+               "torch": "2.15.0", "rhob": "1.8.0", "mujoco": "3.17.0",
+               "mujoco-core": null, "gymnasium": "1.4.0", "pettingzoo": "1.27.0",
+               "mpe2": "1.1.1"},
   "argv": ["..."],
-  "script": "scripts/v5_leaderboard_and_transfer.py"
+  "script": "scripts/..."
 }
 ```
 
 `dirty` is `true` when `git status --porcelain` reports anything **including
 untracked files**; a dirty artifact is not necessarily wrong, but it is not
-reproducible from the recorded SHA alone. Any package not installed is reported as
-`null` rather than omitted.
+reproducible from the recorded SHA alone. Every tracked package is a key, and one not
+installed is `null` rather than omitted (`mujoco-core` exists only from MuJoCo 4.0).
+Artifacts written before 2026-11-16 carry only the first five names; the admission
+ledger, written 2026-08-03, also carries gymnasium, mujoco, pettingzoo and mpe2, which
+`scripts/admission_ledger.py` added itself, and has no `git.source`. In an older block a
+missing name means "not recorded", which is not the same as `null`, "recorded as not
+installed".
 
 ```json
 "sampling": {
