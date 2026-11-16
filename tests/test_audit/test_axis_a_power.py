@@ -1538,6 +1538,46 @@ def test_a_sealed_record_must_reconcile_with_the_frame(tmp_path, monkeypatch, ca
     assert code == 1 and out == ""
 
 
+def test_check_ignores_only_case_and_surrounding_space_in_text(tmp_path, monkeypatch, capsys):
+    """Prereg 9: text is compared ignoring case and surrounding spaces, nothing else."""
+    monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
+    record = _write_record(tmp_path, FIVE)
+    first, second = _coder_sheets(tmp_path, FIVE)
+    recased = [dict(r) for r in FIVE]
+    recased[0]["unit_of_replication"] = "  " + FIVE[0]["unit_of_replication"].upper() + " "
+    code, out, err = _main(capsys, _write(tmp_path, recased, name="recased.csv"), "--check",
+                           "--sealed-record", record, "--coder-sheets", first, second)
+    assert code == 0, err
+    assert "rows that do not match them 0" in out
+    respaced = [dict(r) for r in FIVE]
+    respaced[0]["unit_of_replication"] = FIVE[0]["unit_of_replication"].replace("", " ").strip()
+    code, out, _ = _main(capsys, _write(tmp_path, respaced, name="respaced.csv"), "--check",
+                         "--sealed-record", record, "--coder-sheets", first, second)
+    assert code == 1 and "rows that do not match them 1" in out
+
+
+@pytest.mark.parametrize("counts, problem", [
+    ({"SYNTH-BENCH-A": 6, "SYNTH-BENCH-B": 3, "SYNTH-BENCH-C": 3, "SYNTH-BENCH-D": 3},
+     "1 benchmark(s) with more rows than Appendix F enumerates for them"),
+    ({"SYNTH-BENCH-A": 4, "SYNTH-BENCH-B": 4, "SYNTH-BENCH-C": 4, "SYNTH-UNAUDITED": 3},
+     "1 benchmark name(s) not in the frame"),
+    ({"SYNTH-BENCH-A": 5, "SYNTH-BENCH-B": 5, "SYNTH-BENCH-C": 5}, "3 benchmark(s)"),
+])
+def test_each_frame_check_on_the_sealed_record_is_enforced(tmp_path, monkeypatch, capsys,
+                                                           counts, problem):
+    """Each of read_record's frame checks alone refuses the record, by count."""
+    monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
+    rows, i = [], 0
+    for bench, k in counts.items():
+        for _ in range(k):
+            rows.append(dict(FIVE[i], benchmark=bench))
+            i += 1
+    code, out, err = _main(capsys, "--check", "--sealed-record", _write_record(tmp_path, rows))
+    assert code == 1
+    assert problem in err
+    assert "SYNTH-" not in err
+
+
 def test_check_reads_the_sealed_record_alone(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(ax, "FRAME", _synthetic_frame(tmp_path))
     record = _write_record(tmp_path, FIVE)

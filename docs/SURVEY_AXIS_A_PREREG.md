@@ -631,8 +631,8 @@ not. The script compares the two own sheets with the reconciled one, and reports
 if `disagreed_fields` does not name exactly the columns they hold differently, or if
 another coded column does not hold the value both hold. Before its digest is recorded, the
 reconciled sheet passes `--check` against the sealed record and both own sheets, which
-prints counts only (§14 step 4). It also reports
-the membership count and the outcome on `coder_2`'s own sheet, beside the reconciled ones.
+prints counts only (§14 step 4). The step-5 run, not `--check`, also reports the membership
+count and the outcome on `coder_2`'s own sheet, beside the reconciled ones.
 The per-column disagreement counts are printed with the aggregate, and published with it,
 as the protocol requires.
 
