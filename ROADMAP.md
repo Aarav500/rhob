@@ -98,8 +98,24 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   2026-12-15.** A run of the diagnostics on a benchmark the author did not build.
 - **The paper at a venue.** A submission to TMLR, after the paper's claims are made to
   match the repository's. The arXiv route has produced no endorsement; a journal needs
-  none.
-- **The survey: the port, then axis A.** First the port: the paper's 77 preconditions as
+  none. Among those claims: App. G's thirty-second screen calls a design `CANNOT_FAIL`
+  when its minimum detectable effect exceeds the attainable range, which shows it is
+  underpowered at every attainable effect, not that no data can reject. Its own 5-vs-5
+  cell can reject: an exact two-sided test does at every complete separation, p = 0.0079
+  ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already known").
+- **The survey: the port, then axis A — open; a pre-registration of axis A's power re-run
+  written (2026-11-16), awaiting its sealed record and then a deposit dated by a third
+  party.** The analysis plan for the re-run on the 15 sub-class A claims is written before
+  any row is filled, and before the computation it fixes has been run on them
+  ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md)). It is not the first power
+  figure on the survey: the paper already reports 15 of 20 recoverable designs
+  underpowered, 0.750 [0.500, 0.958]. How many of the 15 claims are among those 20 the
+  author commits to before registration, in a sealed record that is published with the
+  results. The rows await the author's §5 coding sheet and a second human coder. The port
+  is not a prerequisite for the re-run: the sealed record fixes which 15 rows it reads.
+  Nothing from the re-run, aggregate counts included, is made public until each group's
+  outreach window has closed.
+  First the port: the paper's 77 preconditions as
   rows, reconciled against its Appendix F by `rhob.audit.frame.reconcile`, coded twice for
   claim shape per [docs/SURVEY_PROTOCOL.md](docs/SURVEY_PROTOCOL.md). Authors are contacted
   per [docs/AUTHOR_OUTREACH.md](docs/AUTHOR_OUTREACH.md) before any table naming them is

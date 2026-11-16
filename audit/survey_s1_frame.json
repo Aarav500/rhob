@@ -1,5 +1,5 @@
 {
-  "source": "Checks That Cannot Fail (Zenodo 10.5281/zenodo.22005218), Appendix F, 'The S1 result table, as pre-registered', and the decomposition printed beneath it.",
+  "source": "Checks That Cannot Fail (Zenodo 10.5281/zenodo.22005218), Appendix F, 'The S1 result table, as pre-registered', and the decomposition printed beneath it (the 0/15/40/22 split by support); and the 4 benchmarks the 15 difference-test claims fall in, which only \u00a75 states.",
   "transcribed": "2026-10-31",
   "what_this_is": "The survey frame and its per-benchmark totals, as the paper publishes them. It is NOT the row-level coding sheet: the paper gives how many preconditions each benchmark carries and how the 77 split by kind of support, but not which criterion, from which source, under which test. Those rows have to be supplied before the two-coder pass can run; rhob.audit.frame.reconcile checks that whatever is supplied reproduces these totals.",
   "support_totals": {

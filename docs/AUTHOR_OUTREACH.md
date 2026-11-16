@@ -5,7 +5,8 @@
 This is step 6 of `SURVEY_PROTOCOL.md`, written out. It is a correctness step before
 it is a courtesy one: the authors of a benchmark are the people most likely to know
 about a power analysis, a rejection log, or a decontamination audit that exists and
-was never published. Every such reply removes a row from the table. A table that did
+was never published. Every such reply removes a row from the table (for axis A, the row
+stays, with the reply cited beside it: SURVEY_AXIS_A_PREREG.md §7.4). A table that did
 not go through this is measuring what people wrote down, and quietly reporting it as
 what they did.
 
@@ -21,7 +22,7 @@ pre-audit with both of its equivalence-shaped criteria inverted.
 | When | What |
 |---|---|
 | Day 0 | Send each author group **their rows only**. Never the comparative table. |
-| Day 0–28 | Corrections arrive. Apply them to the sheet as they land. |
+| Day 0–28 | Corrections arrive. Apply them to the sheet as they land (for axis A, to a copy: [SURVEY_AXIS_A_PREREG.md](SURVEY_AXIS_A_PREREG.md) §7.4). |
 | Day 28 | Window closes. Publish, with responses next to the rows. |
 | After | Corrections keep being applied. The sheet is versioned, not frozen. |
 
@@ -94,6 +95,9 @@ league table they did not ask to be in.
 > Thanks for reading,
 > Aarav Shah
 
+For axis A ([SURVEY_AXIS_A_PREREG.md](SURVEY_AXIS_A_PREREG.md) §7.4), question 2 ends
+"If so I'd like to cite it beside the row": the row stays.
+
 ---
 
 ## Template: a criterion coded UNDEMONSTRATED
@@ -123,6 +127,9 @@ accusation it isn't.
 > Thanks,
 > Aarav Shah
 
+For axis A (§7.4 of the pre-registration), the last question ends "If so I'll cite it
+beside the row": the row stays.
+
 ---
 
 ## Handling replies
@@ -131,7 +138,10 @@ accusation it isn't.
 who corrected it and when, and thank them. If you disagree, the row stays with *both*
 readings printed — yours and theirs — not yours alone.
 
-**"Here's the power analysis."** The row comes out. Cite what they sent.
+**"Here's the power analysis."** The row comes out. Cite what they sent. For axis A,
+[SURVEY_AXIS_A_PREREG.md](SURVEY_AXIS_A_PREREG.md) §7.4 replaces this: the row stays, with
+what they sent cited beside it, or is set to `sub_class_a = no` if it shows the claim is
+outside sub-class A.
 
 **"Why are you doing this?"** Answer plainly: you found the defect in your own
 benchmark, wanted to know whether it was a general pattern, pre-registered a survey

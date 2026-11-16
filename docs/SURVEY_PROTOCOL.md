@@ -2,6 +2,13 @@
 
 **Status: draft, not yet executed. No external benchmark has been coded under it.**
 
+**Axis A (2026-11-16):** a pre-registration of the power re-run on the 15 sub-class A
+claims is written in [SURVEY_AXIS_A_PREREG.md](SURVEY_AXIS_A_PREREG.md) and awaits its
+sealed record, then a deposit dated by a third party. No row is filled, and the
+computation it fixes has not been run on them; the rows await the §5 sheet and a second
+human coder. The paper's own D2 result, 15 of 20 recoverable designs underpowered, is set
+out there under "What is already known".
+
 This document fixes the decision rules *before* any benchmark is coded, so that the
 result is a measurement rather than a reading. It exists because the survey the paper
 describes has only a partial machine-readable form in this repository — the frame totals
@@ -146,8 +153,9 @@ If no equivalence-shaped criterion is found in a benchmark, the result is report
    including benchmarks that were coded and produced no findings. A survey that only
    publishes the benchmarks where it found something has selected on its outcome.
 2. **Two independent coders per benchmark**, blind to each other, for `claim_shape`
-   at minimum. Disagreements are recorded in the row's `notes`, not resolved silently.
-   Report the disagreement rate.
+   at minimum. An AI assistant does not count as an independent coder. Disagreements
+   are recorded in the row's `notes`, not resolved silently. Report the disagreement
+   rate.
 3. **Every row carries a source** precise enough for a third party to check: file and
    line, or paper section. `CodedCriterion.is_admissible()` refuses rows without one,
    and unscored rows are published with their reason rather than dropped.
@@ -242,7 +250,7 @@ out to be near-empty, that is also a result, and it is reported as
 
 Appendix F of the paper prints the frame: all 19 members, each one's count of enumerated
 preconditions, and the split of the 77 by support — 0 equivalence test, 15 difference
-test, 40 descriptive, 22 no support, the 15 difference-test claims falling in 4
+test, 40 descriptive, 22 no support. §5 puts the 15 difference-test claims in 4
 benchmarks. That is transcribed in [`audit/survey_s1_frame.json`](../audit/survey_s1_frame.json).
 It does **not** print the rows: which criterion, from which source, under which test.
 Those come from the coding sheet, which is not in this repository.

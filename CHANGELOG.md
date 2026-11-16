@@ -12,6 +12,47 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Added (2026-11-16): an analysis plan for axis A's power re-run, before any row exists
+
+The paper's surviving prevalence claim is sub-class A: an equivalence asserted from a
+non-significant difference test, in 15 of 77 preconditions across 4 of 15 benchmarks. The
+plan is to re-run it under D2: at the design each claim shipped, how often would its
+difference test have caught a true AUROC of 0.7? `docs/SURVEY_AXIS_A_PREREG.md` fixes the
+following before any row is filled:
+
+- the fields coded per claim, and fixed rules for a source that is silent or conflicts,
+  each with the way it leans;
+- the effect-size grid (0.7 primary, 0.6 and 0.8 secondary, power threshold 0.8);
+- the computation (`cannotfail`'s `difference_power` and `min_two_sided_p`), with
+  `power.py`, the frame, the script and the template pinned by file digest;
+- the per-claim rules, under which "cannot reject at any data" needs an exact test and a
+  stated level and sidedness;
+- six analyses, all of which a strengthening outcome must survive;
+- what each outcome does to the sub-class A wording, including the two outcomes that weaken
+  it: fewer than 15 confirmed on re-coding, and "most adequately powered", more of the
+  computed claims adequately powered than not (A > W), however few were computed;
+- how replies from the groups are reported: beside the registered outcome, never in its
+  place.
+
+It states what is already known. The paper's §5 found 15 of 20 recoverable designs
+underpowered, and does not say by what criterion. The author has seen that result, and how
+many of the 15 sub-class A claims are among those 20 cannot be told from committed
+material. So the author commits to it first, in a private sealed record that also holds
+the paper's criterion and its verdict on each claim. Only the record's SHA-256 goes in the
+plan, and the record is published with the results. The plan also finds that the paper's
+App. G screen does not establish its own bar: its `CANNOT_FAIL` verdict on its own 5-vs-5
+cell does not hold, and the paper needs correcting there.
+
+`scripts/survey_axis_a_power.py` applies the rules to a sheet in the format of
+`audit/axis_a_sheet_TEMPLATE.csv`, and reports an outcome only on the registered inputs.
+The document is written, not yet registered: it counts as registered once a deposit of it
+exists whose date a third party sets, an OSF registration or a Zenodo deposit. A git tag is
+not one; its date is set by whoever makes it. No row exists. The 15 await the
+author's §5 sheet and a second human coder, and they live outside the repository or under
+the gitignored `audit/private/`. Nothing computed from them, aggregate counts included, is
+published before every group's outreach window has closed; before then only salted digests
+are committed.
+
 ### Changed (2026-11-16): the nightly physics screen installs a hashed lock
 
 The nightly `admission-slow` job installed `pip install -e ".[dev,continuous,mujoco,pettingzoo]"`
