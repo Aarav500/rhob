@@ -1,0 +1,182 @@
+name: cannotfail-release
+
+# Publishes tools/cannotfail by PyPI Trusted Publishing. PyPI and TestPyPI are told once,
+# by the owner, to trust this workflow file in this repository when it runs in a named
+# environment, and the publish jobs prove that with a short-lived OIDC token. No API token
+# is stored anywhere. The one-time setup, and how to cut a release, are in
+# docs/RELEASING_CANNOTFAIL.md.
+#
+#   push of a tag cannotfail-vX.Y.Z   build -> TestPyPI -> PyPI
+#   workflow_dispatch                 build -> TestPyPI. A dry run: it never reaches PyPI.
+#
+# The file name is part of the trust: PyPI's publisher entries name
+# "cannotfail-release.yml", so renaming this file stops publishing until they are updated.
+
+on:
+  push:
+    tags: ["cannotfail-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cannotfail-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the version
+        # pyproject.toml and __init__.py each carry the version, and both must agree. On a
+        # tag push the tag must name that version, the tagged commit must be on main, and
+        # CHANGELOG.md must date the version's entry, so nothing unreviewed or unrecorded
+        # reaches PyPI. A dry run checks only that the entry exists.
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'EOF'
+          import os, re, sys, tomllib
+          from pathlib import Path
+
+          root = Path("tools/cannotfail")
+          version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+          init = re.search(r'^__version__ = "([^"]+)"$',
+                           (root / "src/cannotfail/__init__.py").read_text(), re.M)
+          changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+          heading = rf"^## \[{re.escape(version)}\]"
+          errors = []
+          if init is None or init.group(1) != version:
+              errors.append(f"__init__.py has {init and init.group(1)!r}, pyproject.toml has {version!r}")
+          if os.environ["EVENT"] == "push":
+              if os.environ["REF_NAME"] != f"cannotfail-v{version}":
+                  errors.append(f"tag {os.environ['REF_NAME']} does not name version {version}")
+              if not re.search(heading + r" - \d{4}-\d{2}-\d{2}$", changelog, re.M):
+                  errors.append(f"CHANGELOG.md has no dated entry '## [{version}] - YYYY-MM-DD'")
+          elif not re.search(heading, changelog, re.M):
+              errors.append(f"CHANGELOG.md has no entry '## [{version}]'")
+          for e in errors:
+              print(f"::error::{e}")
+          if errors:
+              sys.exit(1)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"version={version}\n")
+          print(f"version {version}")
+          EOF
+          if [ "$EVENT" = push ]; then
+            # "identical" or "behind": the tagged commit is main's head or an ancestor of it.
+            status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$GITHUB_SHA" --jq .status)
+            case "$status" in
+              identical|behind) echo "tagged commit $GITHUB_SHA is on main" ;;
+              *) echo "::error::tagged commit $GITHUB_SHA is not on main (compare status: $status)"; exit 1 ;;
+            esac
+          fi
+      - name: Build the sdist and wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build tools/cannotfail --outdir dist
+      - name: twine check
+        run: twine check --strict dist/*
+      - name: Check what is in them
+        # Keep in step with the same step in cannotfail.yml.
+        run: |
+          python - dist <<'EOF'
+          import sys, tarfile, zipfile
+          from pathlib import Path
+
+          dist = Path(sys.argv[1])
+          (wheel,) = dist.glob("*.whl")
+          (sdist,) = dist.glob("*.tar.gz")
+          version = wheel.name.split("-")[1]
+          in_wheel = sorted(zipfile.ZipFile(wheel).namelist())
+          root = f"cannotfail-{version}/"
+          in_sdist = sorted(m[len(root):] for m in tarfile.open(sdist).getnames() if m.startswith(root))
+          print(wheel.name, *(f"  {n}" for n in in_wheel), sdist.name, *(f"  {n}" for n in in_sdist), sep="\n")
+
+          def junk(name):
+              return "__pycache__" in name or name.endswith((".pyc", ".pyo")) or name.startswith("build/")
+
+          problems = [f"wheel: {n}" for n in in_wheel
+                      if junk(n) or not n.startswith(("cannotfail/", f"cannotfail-{version}.dist-info/"))]
+          problems += [f"sdist: {n}" for n in in_sdist if junk(n)]
+          problems += [f"sdist is missing {n}" for n in ("LICENSE", "README.md", "CHANGELOG.md",
+                       "pyproject.toml", "src/cannotfail/__init__.py", "examples/scores.csv",
+                       "examples/scores.parquet", "examples/predictions.json",
+                       "examples/samples_toy_arith.jsonl", "examples/hack_probe.eval",
+                       "examples/hack_probe.py")
+                       if n not in in_sdist]
+          for p in problems:
+              print(f"::error::{p}")
+          sys.exit(1 if problems else 0)
+          EOF
+      - name: Test the wheel that will be uploaded
+        # The exact file, in a fresh venv with nothing from the checkout on the path, with
+        # every extra so that no reader test skips. Keep the extras in step with the
+        # package job in cannotfail.yml.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          test -f "dist/cannotfail-$VERSION-py3-none-any.whl"
+          test -f "dist/cannotfail-$VERSION.tar.gz"
+          test "$(find dist -type f | wc -l)" -eq 2
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "dist/cannotfail-$VERSION-py3-none-any.whl[power,parquet,inspect]" pytest
+          test "$("$RUNNER_TEMP/venv/bin/cannotfail" --version)" = "cannotfail $VERSION"
+          cd /tmp && "$RUNNER_TEMP/venv/bin/python" -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cannotfail-dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-testpypi:
+    needs: build
+    # A dispatch from any other branch would upload that branch's build under this
+    # version, and skip-existing below would keep it there for good.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cannotfail-v')
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/cannotfail/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cannotfail-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          # TestPyPI only. A dry run of a version already uploaded there, and the tag push
+          # that follows a dry run, skip the files TestPyPI already has instead of failing.
+          # PyPI below never skips: a file it already has is an error worth seeing.
+          skip-existing: true
+
+  publish-pypi:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/cannotfail-v')
+    needs: [build, publish-testpypi]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cannotfail/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cannotfail-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

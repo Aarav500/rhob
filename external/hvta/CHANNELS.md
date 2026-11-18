@@ -19,8 +19,10 @@ Both two-player channels raise the proxy without moving true reward at all. The
 agent is not degraded, it is augmented -- with a corrupted counterparty or with
 information it should not have. RHOB's own `true_reward_diverges` admission
 criterion recognises only hacking that *substitutes* for competence, so it would
-reject both families. That is correct by its own definition, and it is the point:
-the definition is narrower than the phenomenon.
+once have reported FAIL on both families. Since `584ba13` it returns DEGENERATE:
+this port builds their true reward as a counterfactual that is identical across
+arms by construction, so the zero gap is not evidence about augmenting hacks. That
+the definition is narrower than the phenomenon is an argument, not a measurement.
 
 A consequence worth stating before any L3 number is read: with no true-reward
 divergence there is nothing for the True Reward Oracle to discriminate, so it

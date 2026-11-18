@@ -203,6 +203,105 @@ def test_editing_the_defining_module_changes_its_fingerprint(tmp_path, monkeypat
     )
 
 
+def _fresh_import(tmp_path, package: str, files: dict[str, str]):
+    """Write a throwaway package and import its ``fam`` module from scratch."""
+    import importlib  # noqa: PLC0415
+    import linecache  # noqa: PLC0415
+
+    pkg = tmp_path / package
+    pkg.mkdir(exist_ok=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    for name, body in files.items():
+        (pkg / f"{name}.py").write_text(textwrap.dedent(body), encoding="utf-8")
+    for mod in [m for m in sys.modules if m == package or m.startswith(package + ".")]:
+        sys.modules.pop(mod)
+    importlib.invalidate_caches()
+    linecache.clearcache()
+    return importlib.import_module(f"{package}.fam")
+
+
+def test_editing_a_module_the_calibration_imports_changes_its_fingerprint(tmp_path, monkeypatch):
+    """The helper a family calls is part of its calibration.
+
+    Before 2026-11-15 the key hashed the defining module alone, so editing
+    ``rhob.environments.calibration`` -- where ``calibrate_scale`` itself lives -- left
+    every cached calibration in place. The import here sits inside the function body, the
+    form a top-level-only scan would miss.
+    """
+    monkeypatch.syspath_prepend(str(tmp_path))
+    fam = """
+        def calibrate():
+            from _calibprobe_pkg.helper import AMPLITUDE
+            return AMPLITUDE
+    """
+    before = cc._module_fingerprint(
+        _fresh_import(tmp_path, "_calibprobe_pkg", {"fam": fam, "helper": "AMPLITUDE = 0.20\n"}).calibrate
+    )
+    after = cc._module_fingerprint(
+        _fresh_import(tmp_path, "_calibprobe_pkg", {"fam": fam, "helper": "AMPLITUDE = 0.21\n"}).calibrate
+    )
+    assert before and after
+    assert before != after, "a helper the calibration imports changed and the fingerprint did not"
+
+
+def test_the_key_changes_when_a_physics_library_changes_version(monkeypatch):
+    """The failure that motivated this: MuJoCo 4.0.0 replaced 3.17.0 overnight, CI
+    installed unpinned, and the cache served the 3.17 calibration under 4.0 physics."""
+    calibrate, _ = _counting_fn()
+    fn = calibrate.__wrapped__
+    real = cc.physics_versions()
+
+    def versions(mujoco):
+        return lambda: {**real, "mujoco": mujoco}
+
+    try:
+        monkeypatch.setattr(cc, "physics_versions", versions("3.17.0"))
+        cc.environment_token.cache_clear()
+        old = cc._key(fn, "same-source", (1,), {})
+        monkeypatch.setattr(cc, "physics_versions", versions("4.0.0"))
+        cc.environment_token.cache_clear()
+        new = cc._key(fn, "same-source", (1,), {})
+    finally:
+        cc.environment_token.cache_clear()
+    assert old != new
+
+
+def test_a_version_change_turns_a_warm_entry_into_a_miss(monkeypatch):
+    """End to end through the memoizer, not just the key function."""
+    calibrate, calls = _counting_fn()
+    real = cc.physics_versions()
+    try:
+        calibrate(2)
+        calibrate.cache_clear()
+        calibrate(2)
+        assert calls["n"] == 1, "precondition: the entry is warm"
+
+        monkeypatch.setattr(cc, "physics_versions", lambda: {**real, "numpy": "99.0.0"})
+        cc.environment_token.cache_clear()
+        calibrate.cache_clear()
+        calibrate(2)
+        assert calls["n"] == 2, "a numpy upgrade was served the old entry"
+    finally:
+        cc.environment_token.cache_clear()
+
+
+def test_every_physics_distribution_is_reported():
+    versions = cc.physics_versions()
+    assert set(versions) == set(cc.PHYSICS_DISTRIBUTIONS)
+    assert versions["numpy"] != "absent"
+
+
+def test_a_shipped_mujoco_family_hashes_the_helpers_it_calibrates_with():
+    """Pinned on the family whose stale calibration turned the nightly red."""
+    import importlib  # noqa: PLC0415
+
+    name = "rhob.v3.families.mujoco_joint_limit_gaming"
+    reached = cc.reachable_sources(name, importlib.import_module(name))
+    assert reached is not None
+    assert {"rhob.environments.mujoco.rollout", "rhob.environments.calibration"} <= set(reached)
+    assert not [m for m in reached if not m.startswith("rhob.")], "only rhob's own source is hashed"
+
+
 # --------------------------------------------------------------- against a real family
 
 

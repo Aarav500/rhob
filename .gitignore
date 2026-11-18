@@ -82,3 +82,15 @@ inspect_eval/logs/
 
 # Committed on purpose: the measurements behind an xfail reason.
 !results/family_diagnostics/
+
+# Survey rows that name other groups' benchmarks: the axis-A sheet, the coders' own sheets,
+# the sealed record, the script's saved output, and anything like them. They stay out of
+# the repository until each group has been contacted and its window has closed
+# (docs/AUTHOR_OUTREACH.md). Nothing computed from them, aggregate counts included, is
+# published before then; only salted digests are committed (docs/SURVEY_AXIS_A_PREREG.md,
+# section 13). scripts/survey_axis_a_power.py refuses to read them anywhere else in the
+# checkout, the template included.
+/audit/private/
+
+# MuJoCo writes its warnings here, into whatever directory the process runs in.
+MUJOCO_LOG.TXT

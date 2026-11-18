@@ -436,13 +436,20 @@ def attainable_auroc_half_range(resolution: float) -> float:
 
 
 def is_degenerate(resolution: float, margin: float = EQUIVALENCE_MARGIN) -> bool:
-    """True when an equivalence test at ``margin`` cannot fail whatever the family does.
+    """True when no dataset could put the test's point estimate outside ``0.5 +/- margin``.
 
     The test's acceptance region is ``0.5 +/- margin``; the statistic's attainable range
     is ``0.5 +/- resolution/2``. When the second sits inside the first, no realizable
     dataset produces a point estimate outside the band, so a pass certifies the tie
     convention rather than the family. NaN (no cross-variant pairs were scored at all)
     is degenerate by the same argument, taken to its limit.
+
+    This is a statement about the estimate, not the whole test. TOST also needs its
+    interval inside the band, so near the cut a degenerate cell can still fail on the
+    interval's width alone. What it cannot do is fail because the family differs, which
+    is why a pass here is not evidence and the outcome is DEGENERATE rather than PASS.
+    An earlier summary line said the test "cannot fail whatever the family does"; that
+    is true only at ``resolution == 0``, where the interval collapses too.
 
     At the shipped ``margin=0.10`` the cut is ``resolution <= 0.20``, and it is not doing
     delicate work. Over the ten families in ``admission/admission_ledger.json``, measured
@@ -462,11 +469,14 @@ def is_degenerate(resolution: float, margin: float = EQUIVALENCE_MARGIN) -> bool
     ``physics_exploitation``          0.007    ..
     ========================================  =====================================
 
-    ``continuous_camping`` is the mixed case the panel logic exists for: Reward
-    Threshold, Variance Ratio and KDE all resolve at 1.000 while Reward Skewness
-    resolves at 0.000, so its ``proxy_distribution_matched`` is degenerate on one
-    detector even though ``proxy_matched`` is fully measurable. (Three MuJoCo families
-    show the same split on Reward Skewness.)
+    ``continuous_camping`` (40 episodes) and three MuJoCo families (40 or 60) used to
+    look like the mixed case the panel logic exists for: Reward Threshold, Variance
+    Ratio and KDE all resolved at 1.000 while Reward Skewness resolved at 0.000, so
+    ``proxy_distribution_matched`` came out degenerate on one detector even though
+    ``proxy_matched`` was fully measurable. Skewness resolved at 0.000 there only
+    because it needs 100 episodes and below that returned a constant 0.5 on every run.
+    Since ``584ba13`` it is recorded not applicable at those horizons and left out of
+    the panel (see :func:`_check_proxy_distribution_matched`).
 
     Resolution is only half the guard: it asks whether the scores *differ*, and a proxy
     of ``constant + N(0, 1e-7)`` makes them differ without meaning anything. See

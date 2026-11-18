@@ -40,10 +40,12 @@ See [REPRODUCIBILITY.md](../../REPRODUCIBILITY.md) for step-by-step instructions
 If you use RHOB supplementary material, please cite the main paper:
 
 ```bibtex
-@article{shah2026rhob,
-  title={RHOB v1.0: Generalizable Reward Hacking Detection Through Matched-Proxy Benchmarking},
+@misc{shah2026rhob,
+  title={Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three Diagnostics That Find Them},
   author={Shah, Aarav},
-  journal={TMLR},
-  year={2026}
+  year={2026},
+  howpublished={Zenodo},
+  doi={10.5281/zenodo.22005218},
+  url={https://doi.org/10.5281/zenodo.22005218}
 }
 ```

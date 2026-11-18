@@ -111,10 +111,11 @@ from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 DEFAULT_OUT_DIR = _REPO_ROOT / "admission"
 
-#: Simulator packages that can move a rollout, on top of the numeric stack that
-#: :func:`rhob.v3.provenance.package_versions` already tracks. A mujoco or pettingzoo
-#: bump changes the physics/agent dynamics underneath a third of the families, so a
-#: ledger that omitted them could not explain a disagreement with a later re-run.
+#: Simulator packages that can move a rollout. A mujoco or pettingzoo bump changes the
+#: physics/agent dynamics underneath a third of the families, so a ledger that omitted
+#: them could not explain a disagreement with a later re-run. Since 2026-11-16
+#: :func:`rhob.v3.provenance.package_versions` records these itself (with mujoco-core);
+#: the loop below is kept so the ledger states them even if that list changes again.
 _SIMULATOR_PACKAGES = ("gymnasium", "mujoco", "pettingzoo", "mpe2")
 
 

@@ -151,6 +151,6 @@ cd "$HVTA" && PYTHONUTF8=1 .venv/bin/python -m pytest tests/test_onset_logging.p
 
 This rests on [MajoRoth/hack-verifiable-environments#2](https://github.com/MajoRoth/hack-verifiable-environments/pull/2) (`onset-logging`, commit `87949b26f63f`), which adds per-step onset logging to `FilesystemWrapper`: `step_index` per step, and `solution_read_step` / `opponent_prompt_read_step` / `write_hack_step` / `logical_bug_step` / `hack_onset_step` / `n_steps` in `close()`'s `game_info`. Purely additive — 74 lines in the wrapper, no deletions, no change to any existing key.
 
-**The PR is open, not merged.** Until it lands, reproducing this requires the branch. `None` means *did not fire*, never *fired at step 0*; a consumer treating a missing value as 0 reads every clean episode as hacking on its first action.
+**Merged** on 2026-08-19 as [`ae668a5`](https://github.com/MajoRoth/hack-verifiable-environments/commit/ae668a52b56fc5552b7a6b5751567b8965545c70), so a plain clone of `main` carries it; the `87949b26f63f` above is the branch tip these artifacts were generated against. `None` means *did not fire*, never *fired at step 0*; a consumer treating a missing value as 0 reads every clean episode as hacking on its first action.
 
 **Provenance.** Generation: Python 3.12.13 (Windows-11-10.0.26200-SP0), numpy 2.5.2, HVTA `87949b26f63f`, RHOB `eb575f0abfd7`. Scoring: Python 3.13.14, numpy 2.4.3.

@@ -17,23 +17,67 @@ This document explains how to reproduce every result RHOB publishes.
 ```bash
 git clone https://github.com/Aarav500/rhob.git
 cd rhob
-git checkout v1.0  # or main
-pip install -r requirements-lock.txt   # exact verified versions
-pip install -e ".[dev]" --no-deps
-python -m pytest tests/  # verify all tests pass (207+ tests, ~5 min)
 ```
 
-To install without pinning (development, not reproduction), use
-`pip install -e ".[dev]"` alone and accept whatever the ranges resolve to.
+Then pick one of the three installs below. Options 1 and 2 need a commit that has their
+file, such as `main`, not a release tag: no tag carries either file (`requirements-lock.txt`
+was added on 2026-07-29 and the CI lock on 2026-11-16, both after the last release tag). At
+a tag such as `v1.0`, use option 3 and compare against the artifact's provenance block.
+None of the three is the environment of every
+committed result. An artifact that records its environment does so in its own
+`provenance` block, and to reproduce a specific number you match that block, not this
+section.
 
-All experiments use:
-- **Python 3.11+ for the verified stack.** `pyproject.toml` still declares
-  `requires-python = ">=3.10"` and CI tests 3.10, but numpy 2.4.3, scipy 1.17.1
-  and scikit-learn 1.8.0 each require Python >= 3.11, so the locked stack cannot
-  be installed on 3.10. A green CI run on 3.10 resolves older numeric libraries
-  than the ones used here and is **not** evidence that these numbers reproduce.
-  Reconciling the declared support surface with reality is an open decision — see
-  the header of `requirements-lock.txt`.
+**1. The CI physics stack, exactly. Linux x86_64 and CPython 3.12 only.**
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+pip install --no-deps -e .
+```
+
+This is the stack the nightly `admission-slow` job runs on. It holds every transitive
+dependency of the `dev`, `continuous`, `mujoco` and `pettingzoo` extras at one version,
+with sha256 hashes, including torch from PyPI. It does not install on macOS, Windows, ARM
+or another Python. It is the stack the 2026-11-15 verification run (43679157068) installed
+and passed every slow screen on. [requirements/README.md](requirements/README.md) says how it is generated,
+what was checked and how to regenerate it.
+
+**2. `requirements-lock.txt`, a record of direct dependencies from July 2026.**
+
+```bash
+pip install -r requirements-lock.txt
+pip install -e ".[dev]" --no-deps
+```
+
+This is not a lock in the sense of option 1, and no CI job installs it. It lists the
+versions of RHOB's direct dependencies found in one Windows environment under Python 3.13
+on 2026-07-29. Transitive dependencies are unpinned, and there are no hashes.
+`admission/admission_ledger.json` records nine package versions in its provenance block,
+and the eight besides rhob itself all match it, which makes it the closest available match for the ledger. It is not a
+record of what produced the committed `leaderboard/*.json`, which carry no environment
+metadata. Its header states both limits.
+
+**3. Unpinned, for development rather than reproduction.** Run `pip install -e ".[dev]"`
+alone and accept whatever the ranges in `pyproject.toml` resolve to. The per-push CI
+matrix also installs unpinned, and runs nightly too, so it meets each new release within a
+day of it shipping.
+
+With any of the three:
+
+```bash
+python -m pytest tests/  # the fast suite; the slow tier is `-m slow` (see pyproject.toml)
+```
+
+Versions and seeds:
+- **Python 3.11+ for `requirements-lock.txt`, and 3.12 for the CI lock.** `pyproject.toml`
+  still declares `requires-python = ">=3.10"` and CI tests 3.10. But numpy 2.4.3, scipy
+  1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt` and in the
+  admission ledger's provenance, each require Python >= 3.11, so that stack cannot be
+  installed on 3.10. A green CI run on 3.10 resolves older numeric libraries than the
+  ledger records and is **not** evidence that the ledger's numbers reproduce. Reconciling
+  the declared support surface with reality is an open decision. See the header of
+  `requirements-lock.txt`.
 - **Seed strategy**: Deterministic global RNG seeding via `numpy.random.default_rng(seed)` per run
 - **Reproducibility**: All experiments are fully deterministic given a seed
 
@@ -129,6 +173,15 @@ weighted by cell rather than by family; of the 0.0032 difference, 0.0029 is the
 exclusion and 0.0003 is the re-weighting. L1–L3 do not read the proxy reward and score
 these six families like any other, so they are unchanged by construction.
 
+This table is the single-draw board (`leaderboard/v5_leaderboard.json`), which predates
+the Reward Skewness fix (584ba13, 2026-09-02) and has not been regenerated. Skewness
+needs 100 episodes and returned a constant 0.5 below that, so on this board it sits at
+exactly 0.5 on 19 of the 27 families in the L0 row. The 20-draw board was re-scored
+with those 19 not applicable (9da6b21); there the maximum over unsupervised L0 detectors, taken in each draw and averaged over the
+20, is 0.551 [0.541, 0.562]. That maximum is selection-biased upward: no single L0
+detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
+`leaderboard/v5_replicated.json`).
+
 **Excluded from the L3 aggregate: `PerfectFeatureOracleDetector`.** It is a
 subclass of the L2 `BehavioralThresholdDetector` overriding only `access_level`
 and `name`, inheriting `classify`/`detect_onset` verbatim; it reads only
@@ -141,8 +194,10 @@ copy of an L2 baseline and never measured anything. It is registered in
 is deliberately *not* re-filed under L2, which would just move the double-count
 there (lifting L2's mean to 0.7530) for no new information.
 
-**Consequence for the headline claim:** best-L2 0.9750 vs best-L3 0.9830 is a gap
-of **0.0080 AUROC**. There is no meaningful oracle gap above L2.
+**Consequence for the headline claim:** on this single-draw board, best-L2 0.9750 vs
+best-L3 0.9830 is a gap of **0.0080 AUROC**. Over 20 draws the same step is +0.032
+[+0.027, +0.037], positive in 20 of 20 (`leaderboard/v5_replicated.json`): small, but
+not none.
 
 ### Figure 7b: L1 must be reported over its own denominator
 
@@ -329,30 +384,40 @@ number, and it is now recorded in the artifact itself:
 committed do not yet carry these blocks** — they predate the module and acquire
 them on the next regeneration. `admission/admission_ledger.json` carries them now.
 
+A block as the module writes it today (Linux, the CI lock's versions):
+
 ```json
 "provenance": {
-  "generated_utc": "2026-08-03T01:24:19.364367Z",
+  "generated_utc": "2026-11-16T10:28:27.141637Z",
   "git": {
     "commit": "<40-hex SHA>",
     "short_commit": "<12-hex>",
-    "branch": "feature/audit-remediation",
-    "dirty": true,
-    "dirty_files": ["docs/figures/...", "src/rhob/..."]
+    "branch": "main",
+    "dirty": false,
+    "dirty_files": [],
+    "source": "git"
   },
-  "python": "3.13.14",
+  "python": "3.12.3",
   "python_implementation": "CPython",
-  "platform": "Windows-11-10.0.26200-SP0",
-  "packages": {"numpy": "2.4.3", "scipy": "1.17.1", "scikit-learn": "1.8.0",
-               "torch": "2.11.0", "rhob": "1.8.0"},
+  "platform": "Linux-...-x86_64-with-glibc2.39",
+  "packages": {"numpy": "2.5.4", "scipy": "1.18.1", "scikit-learn": "1.9.1",
+               "torch": "2.15.0", "rhob": "1.8.0", "mujoco": "3.17.0",
+               "mujoco-core": null, "gymnasium": "1.4.0", "pettingzoo": "1.27.0",
+               "mpe2": "1.1.1"},
   "argv": ["..."],
-  "script": "scripts/v5_leaderboard_and_transfer.py"
+  "script": "scripts/..."
 }
 ```
 
 `dirty` is `true` when `git status --porcelain` reports anything **including
 untracked files**; a dirty artifact is not necessarily wrong, but it is not
-reproducible from the recorded SHA alone. Any package not installed is reported as
-`null` rather than omitted.
+reproducible from the recorded SHA alone. Every tracked package is a key, and one not
+installed is `null` rather than omitted (`mujoco-core` exists only from MuJoCo 4.0).
+Artifacts written before 2026-11-16 carry only the first five names; the admission
+ledger, written 2026-08-03, also carries gymnasium, mujoco, pettingzoo and mpe2, which
+`scripts/admission_ledger.py` added itself, and has no `git.source`. In an older block a
+missing name means "not recorded", which is not the same as `null`, "recorded as not
+installed".
 
 ```json
 "sampling": {
@@ -635,8 +700,9 @@ shipped is caught at 96 rollouts: `rlhf_sparse_coverage_gaming` @0.95 (mean L0 A
 L0 detectors at 1.000). What it cannot see is a *small* leak, roughly 0.60–0.75 — the
 band the ledger's tighter margin exists to police.
 
-**Coverage, plainly: 21 of the 33 registered families have a smoke test and 12 have
-none; 11 never reach `AdmissionGate` in any test at all; and 10 are in the ledger.**
+**Coverage, plainly: 22 of the 33 registered families have a smoke test and 11 have
+none; 10 never reach `AdmissionGate` in any test at all; and 10 are in the ledger.**
+The twenty-second is `sequence_keyword_stuffing`, screened since 86acb92 (2026-09-19).
 Neither check is enforced repository-wide, and `certify_all_tiers` is not invoked on
 any registered family anywhere in `tests/` — the two tests that exercise it
 (`tests/test_v3/test_admission_gate_equivalence.py`) use synthetic fixtures, so the
@@ -1000,26 +1066,21 @@ could test for it.
    export CUDA_DETERMINISTIC=1
    ```
 
-2. **Pin versions**: Install the exact verified stack from `requirements-lock.txt`:
-
-   ```bash
-   pip install -r requirements-lock.txt
-   pip install -e ".[dev]" --no-deps
-   ```
-
+2. **Pin versions**: pick from the three installs in Environment Setup.
    `pyproject.toml` declares only ranges (floors plus major-version caps). Ranges
-   make RHOB *installable*; they do not pin a run to the stack these results were
-   computed against. `requirements-lock.txt` does.
+   make RHOB *installable*; they do not pin a run to the stack a result was computed
+   against. To reproduce a specific number, match the versions in that artifact's own
+   `provenance` block.
 
-   Two limits of that file, stated so they are not discovered mid-reproduction:
-   - It records the versions **verified present on 2026-07-29**, not a certified
-     provenance chain. The committed `leaderboard/*.json` carry no environment
-     metadata, so the versions behind those specific numbers were never captured.
-     Artifacts regenerated from this commit onward embed a `provenance` block (see
-     above), so the gap closes prospectively but not retroactively;
-     `admission/admission_ledger.json` already carries one.
-   - It locks direct dependencies only. For a full transitive lock, run
-     `pip freeze` inside a clean virtualenv built from it.
+   - `requirements/ci-admission-linux-py312.txt` is the nightly physics screen's stack,
+     exact and hashed, for Linux x86_64 and CPython 3.12.
+   - `requirements-lock.txt` is the closest record for the admission ledger. It lists
+     the direct dependencies **found present on 2026-07-29**, not a certified
+     provenance chain, and it pins nothing transitive.
+   - The committed `leaderboard/*.json` carry no environment metadata, so the versions
+     behind those specific numbers were never captured. Artifacts regenerated since
+     embed a `provenance` block (see above), so the gap closes prospectively but not
+     retroactively.
 
    (This item previously pointed at `setup.py` for exact versions. There is no
    `setup.py` in this repository — the build is configured entirely in
@@ -1029,7 +1090,8 @@ could test for it.
 3. **Run on CPU**: While RHOB has no GPU dependencies, CPU ensures exact floating-point reproducibility (GPU arithmetic may vary slightly)
 
 4. **Report metadata**: When publishing results, include:
-   - Python version (3.11+ for the locked stack; see Environment Setup)
+   - Python version (3.11+ for `requirements-lock.txt`, 3.12 for the CI lock; see
+     Environment Setup)
    - Git commit hash (`git rev-parse HEAD`)
    - `pip freeze` output
    - Exact command used (with seed/sample-size arguments)
@@ -1052,12 +1114,20 @@ is a real remaining limit.
   outside the ledger's current scope).
 
 **Construction**
-- **Hacking policies are scripted in 28 of 33 families.** The 5 RLHF-RM families
-  are the partial exception (real policy-gradient optimization against a fitted
-  reward model; the vulnerability is designed, the exploitation is not). See
-  [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
-- **Families 29 and 30 ship with documented, unresolved `proxy_matched` failures**
-  at some difficulty tiers (see CHANGELOG 1.8.0), and remain in the leaderboard.
+- **Hacking policies are scripted in 26 of 33 families.** Seven contain a learner, and
+  in six an optimizer finds the exploit. The 5 RLHF-RM families are the main partial
+  exception (real policy-gradient optimization against a fitted reward model; the
+  vulnerability is designed, the exploitation is not). In `gridworld_camping` a
+  Q-learner finds the exploit tile, but the episode the tile becomes available (250)
+  and a 20-episode forced exploration burst after it are both authored, so the config
+  places its onset. `continuous_camping`'s frozen DQN switches at an authored episode. See
+  [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) §3.
+- **Family 30 (`sequence_format_camping`) ships with a documented, unresolved
+  `proxy_matched` failure** at some difficulty tiers (see CHANGELOG 1.8.0), and
+  remains in the leaderboard. Family 29 (`sequence_keyword_stuffing`) shipped with one
+  too, but its calibration lever resolved to 0.0 at every tier; since 86acb92
+  (2026-09-19) it passes the reduced-power smoke screen at all three scored tiers (its
+  diagnostic records ADMITTED at the smoke margin), which is not certification.
 - **`reward_channel_tampering` fails `proxy_distribution_matched` at 4 of 5
   tiers** and `goal_misgeneralization` at 1 of 5. These cells are published as
   NOT ADMITTED rather than silently dropped.
@@ -1070,9 +1140,9 @@ is a real remaining limit.
   does not help; the proxies have to be made informative-but-matched *and* readable.
   The 23 families outside the ledger's scope have not been swept at the certification
   design, so six is a lower bound.
-- **Admission checking is not enforced repository-wide.** 21 of 33 families have
-  the reduced-power smoke screen and 12 do not (hand-written per-family tests are not
-  the same check); 11 never reach `AdmissionGate` in any test at all; and nothing in
+- **Admission checking is not enforced repository-wide.** 22 of 33 families have
+  the reduced-power smoke screen and 11 do not (hand-written per-family tests are not
+  the same check); 10 never reach `AdmissionGate` in any test at all; and nothing in
   `tests/` calls `certify_all_tiers` on a registered family — the two tests that
   exercise it use synthetic fixtures, so `scripts/admission_ledger.py` is its only
   caller.
@@ -1080,7 +1150,8 @@ is a real remaining limit.
 **Coverage**
 - **L1 is thin.** 25 of 33 families emit no `state_counts`; L1 is only measurable
   on 8 families / 35 cells.
-- **L3 has one detector.** There is no oracle gap above L2 (0.9830 vs 0.9750).
+- **L3 has one detector.** The oracle gap above L2 is 0.0080 on the single-draw board
+  (0.9830 vs 0.9750) and +0.032 [+0.027, +0.037] over 20 draws.
 - **5 external baseline detectors ship but are unscored** — they appear in
   `src/rhob/detectors/external_baselines/` but in no committed leaderboard
   artifact.
@@ -1097,6 +1168,6 @@ is a real remaining limit.
 - Replace the constant proxies behind the degenerate cells with proxies that vary
   run-to-run and still match, so those cells return a measurement instead of a
   non-answer
-- Add the smoke screen to the 12 families that have no admission test
+- Add the smoke screen to the 11 families that have no admission test
 - Emit `state_counts` (or an explicit, documented refusal) from more families
 - Score the external baselines

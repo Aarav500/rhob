@@ -12,6 +12,228 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Added (2026-11-16): an analysis plan for axis A's power re-run, before any row exists
+
+The paper's surviving prevalence claim is sub-class A: an equivalence asserted from a
+non-significant difference test, in 15 of 77 preconditions across 4 of 15 benchmarks. The
+plan is to re-run it under D2: at the design each claim shipped, how often would its
+difference test have caught a true AUROC of 0.7? `docs/SURVEY_AXIS_A_PREREG.md` fixes the
+following before any row is filled:
+
+- the fields coded per claim, and fixed rules for a source that is silent or conflicts,
+  each saying which side it favours where it sets a value that favours one;
+- the effect-size grid (0.7 primary, 0.6 and 0.8 secondary, power threshold 0.8);
+- the computation (`cannotfail`'s `difference_power` and `min_two_sided_p`), with
+  `power.py`, the frame, the script and the template pinned by file digest;
+- the per-claim rules, under which "cannot reject at any data" needs an exact test and a
+  stated level and sidedness;
+- six analyses, all of which a strengthening outcome must survive;
+- what each outcome does to the sub-class A wording, including the two outcomes that weaken
+  it: fewer than 15 confirmed on re-coding, and "most adequately powered", more of the
+  computed claims adequately powered than not (A > W), however few were computed;
+- how replies from the groups are reported: beside the registered outcome, never in its
+  place.
+
+It states what is already known. The paper's §5 found 15 of 20 recoverable designs
+underpowered, and does not say by what criterion. The author has seen that result, and how
+many of the 15 sub-class A claims are among those 20 cannot be told from committed
+material. So the author commits to it first, in a private sealed record that also holds
+the paper's criterion and its verdict on each claim. Only the record's SHA-256 goes in the
+plan, and the record is published with the results. The plan also finds that the paper's
+App. G screen does not establish its own bar: its `CANNOT_FAIL` verdict on its own 5-vs-5
+cell does not hold, and the paper needs correcting there.
+
+`scripts/survey_axis_a_power.py` applies the rules to a sheet in the format of
+`audit/axis_a_sheet_TEMPLATE.csv`, and reports an outcome only on the registered inputs.
+The document is written, not yet registered: it counts as registered once a deposit of it
+exists whose date a third party sets, an OSF registration or a Zenodo deposit. A git tag is
+not one; its date is set by whoever makes it. No row exists. The 15 await the
+author's §5 sheet and a second human coder, and they live outside the repository or under
+the gitignored `audit/private/`. Nothing computed from them, aggregate counts included, is
+published before every group's outreach window has closed; before then only salted digests
+are committed.
+
+### Changed (2026-11-16): the nightly physics screen installs a hashed lock
+
+The nightly `admission-slow` job installed `pip install -e ".[dev,continuous,mujoco,pettingzoo]"`
+unpinned, so it met each release the night it shipped. That is how MuJoCo 4.0.0 reached it
+on 2026-11-07, on an unchanged commit. It now installs
+`requirements/ci-admission-linux-py312.txt`, then `pip install --no-deps -e .`. The lock
+holds 81 distributions for CPython 3.12 on Linux x86_64, each at one version with the sha256
+of every file PyPI holds for it, torch and its CUDA wheels included. It is resolved as PyPI
+stood at 2026-11-15T05:00:20Z, so it is exactly the stack the 2026-11-15 verification run
+(43679157068) installed and passed every slow screen on. A new release now reaches the
+nightly only through a regeneration of the lock, which someone reviews; the CPython patch
+release, pip and the runner image still float. `scripts/check_ci_lock.py` fails, naming the
+requirement, if the lock no longer satisfies something `pyproject.toml` declares for those
+extras, which `pip check` does not read. It runs in the fast suite on every pull request
+(`tests/test_ci_lock.py`, names and version bounds), so a dependency change that skips the
+regeneration fails there rather than on main's next nightly, and again in the nightly's
+install step, where it also follows the extras a requirement asks for (`gymnasium[mujoco]`).
+
+- `scripts/update_ci_lock.sh` regenerates the lock with `uv pip compile --exclude-newer` and
+  writes the cutoff into the header, so rerunning with that cutoff reproduces the file.
+  `--check` tests this.
+- `.github/workflows/drift.yml` runs weekly. It installs the newest releases `pyproject.toml`
+  allows, tabulates every version that differs from the lock, and runs the fast suite and
+  the four MuJoCo families' slow screens with every calibration derived fresh. A scheduled
+  failure shows on its own page and in one tracking issue, kept by a job that holds only
+  `issues: write`. It does not run the PettingZoo, RLHF reward-model or sequence screens.
+- The per-push `pytest` matrix stays unpinned on purpose. It is the daily check that a new
+  release breaks the fast suite.
+- REPRODUCIBILITY.md no longer calls `requirements-lock.txt` "the exact verified stack". It
+  lists the direct dependencies of one Windows, Python 3.13 environment on 2026-07-29, has
+  no hashes, and no CI job installs it. Neither file is in any tag.
+
+The first CI install of the lock was `workflow_dispatch` run 43836925199 on the branch, on
+2026-11-16: the hash-checked install passed, and the slow tier gave 73 passed and 21
+xfailed, as 43679157068 did. Started cold on a slow runner, it took 153 of the job's 180
+minutes, so `admission-slow`'s timeout is now 240.
+Details: [requirements/README.md](requirements/README.md).
+
+### Added (2026-11-16): `cannotfail` reads the files maintainers already have
+
+`cannotfail resolution` now reads nested fields by dotted path in JSON, JSONL and Parquet
+(`--score output.probs.1`, where an integer indexes a list). It takes `--group` more than
+once (`--group task --group model`, never comma-separated, since metric names such as
+`acc,none` contain commas). It reads Parquet through the `cannotfail[parquet]` extra, and
+Inspect logs through `cannotfail[inspect]` with `--format inspect`, via inspect_ai's own
+`samples_df`. The package README has a tested recipe for an lm-evaluation-harness
+`--log_samples` file, a leaderboard predictions JSON, a Parquet file and an Inspect log. The
+first two files are synthetic; the Inspect log was written offline by inspect_ai with its
+mock model. The base install is still NumPy only: the package's CI asserts that SciPy,
+pyarrow, pandas and inspect_ai are all absent from it, then reruns the tests with each
+extra. All of this lands in `cannotfail` 0.1.0, which is still unreleased; see
+[tools/cannotfail/CHANGELOG.md](tools/cannotfail/CHANGELOG.md).
+
+### Changed (2026-11-16): provenance records the simulator versions
+
+`rhob.v3.provenance` recorded numpy, scipy, scikit-learn, torch and rhob, but not the
+simulators that step the rollouts. Of the committed artifacts only the admission ledger says
+which MuJoCo produced it, because its script added the simulators itself; the 20-draw
+replication does not. Every provenance block now also records mujoco, mujoco-core,
+gymnasium, pettingzoo and mpe2, as null when not installed. A test fails if the calibration
+cache keys on a version that provenance does not record. Artifacts written under the old
+list are not rewritten and still read: no reader requires the new names, and both report
+renderers reproduce their committed package lines
+(`tests/test_v3/test_na_channels_and_provenance.py`).
+
+### Fixed (2026-11-15): the calibration cache could not see a dependency upgrade
+
+From 2026-11-07 the nightly `admission-slow` job failed every night, on an unchanged
+commit. MuJoCo 4.0.0 was published on 2026-11-06. CI installed unpinned, and the cache
+that stores each family's calibration was keyed on the defining module's source alone,
+so `mujoco_joint_limit_gaming` ran under 4.0 with the hip amplitude calibrated under 3.17.
+Its 0.9 tier stopped admitting (L0 AUROC 0.708 [0.600, 0.817]), and a strict xfail at
+0.7 started passing.
+
+Recalibrating does not rescue it. Run with the cache off, the same three tiers under
+4.0.0 fail at 0.9 the other way (0.333 [0.226, 0.440]) and pass at 0.7. Under 3.17.0
+the identical command admits 0.9 and fails 0.8 and 0.7 as documented. So:
+
+- `mujoco<4` in the `mujoco` extra. Moving to 4.x is a re-measurement of the MuJoCo
+  families and the ledger, not a version bump.
+- Every cache key now also hashes the installed versions of the numerical stack (numpy,
+  scipy, mujoco, mujoco-core, gymnasium, torch, pettingzoo, mpe2), the Python minor
+  version and the machine. It also hashes the source of every `rhob` module the family
+  imports, followed transitively. The key used to miss edits to
+  `rhob.environments.calibration`, where `calibrate_scale` lives.
+- The CI tarball key includes the same version token and all of `src/rhob`, with a
+  prefix fallback that the complete per-entry keys make safe.
+
+The cache did not cause the failure, since a fresh calibration fails too. What it did
+was hide that each run mixed two simulators, and it would have hidden an upgrade that
+moved the numbers without failing a test. That is the shape of the checks the paper
+describes, here in infrastructure rather than in a benchmark's construction. It does not
+add to the paper's count of instances.
+
+Post-mortem, with the runs, the controlled experiment and what is still open: [docs/postmortems/2026-11-mujoco-calibration-cache.md](docs/postmortems/2026-11-mujoco-calibration-cache.md).
+
+### Added: HVTB listed in the Inspect Evals Register
+
+Unrelated to the audit above, and recorded here because it changes what this repository
+publishes rather than what it measures. The HVTB hack-rate eval on the `inspect-eval` branch
+(also `inspect_eval/` on main, since `b083e55`) is listed in the [Inspect Evals
+Register](https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/), pinned at
+`a2c73417a79be65b802b2fbe62dc6fac03e9c3de`. What is listed is HVTB's hack rate, not RHOB's
+detector suite, and the listing publishes no results. The register lists for discoverability
+and does not review methodology; its structural lint "describe[s] structure and conventions,
+not whether the evaluation measures what it claims."
+
+Added `.github/workflows/register_guard.yml`, which checks daily that the pinned commit is
+still fetchable and that the register's published result still describes this entry, and
+weekly that the pinned tree still installs and passes its tests. Nothing upstream installs or
+executes the code, so no upstream check would catch a regression.
+
+### Corrected (2026-09-03): Reward Skewness padded the L0 negative control
+
+Reward Skewness needs `baseline_window + test_window` = 100 episodes, and 19 of the 33
+families run 40 or 60. Below that horizon it returned the constant 0.5 for every run on
+both arms, and `leaderboard/v5_replicated.json` published that as "at chance": the defect
+the L1 entry below records, from a different cause, in the row the paper calls its
+negative control. `584ba13` (2026-09-02) gave `PosthocDetector` a `min_episodes` horizon,
+which Reward Skewness declares as 100. A shorter cell is recorded as not applicable,
+excluded and never imputed, and the detector returns NaN below its horizon, so a path
+that skips the guard fails loudly. `9da6b21` (2026-09-03) re-scored the row on the same 20
+draws:
+
+- Before: 123 cells on 33 families, **24 of the 33 at exactly 0.500** (SD 0.000).
+- After: **0.504 [0.494, 0.514] over 64 cells on 14 families**; the other 19 families are
+  N/A. Five of the 14 are still at exactly 0.500 (`distributional_shift`,
+  `monitored_sandbagging`, `orbit_chirality`, `rlhf_reward_model_overopt`,
+  `shortcut_exploitation`), from a near-constant proxy rather than the horizon. That is
+  disclosed, not fixed.
+
+`scripts/merge_rescored_detector.py` refuses a re-scored draw unless every cell the old
+record scored comes back with the same AUROC, or is admitted by name. 1,279 of 1,280 came
+back the same; the one admitted by name (replicate 7, `eval_probe_sandbagging` @0.8, 0.60
+→ 0.58) is written into that replicate's provenance with both values.
+
+The ladder moves with the row: the unsupervised L0 rung is now 0.551 [0.541, 0.562], the
+unsupervised L1−L0 step −0.017 [−0.039, +0.002] (positive in 4 of 20 draws), and the step
+counting the label-fitted detectors +0.388 [+0.378, +0.397] (positive in 20 of 20),
+replacing the pre-re-score 0.544, −0.010 and +0.394. No ledger verdict changes, because
+the ten ledger families run 100 to 200 episodes.
+
+The nightly smoke screen had seen the same tie: 33 of its 36 DEGENERATE cells were this
+(`tests/test_v3/test_gate_honest_verdicts.py`). Re-measured with the horizon declared, 19
+short-horizon cells admit and 14 fail on a real late-window density leak, now marked
+`xfail(strict=True)` per tier with the measured AUROC in the reason.
+
+### Corrected (2026-09-02): `true_reward_diverges` reported a tie as a measured FAIL
+
+It had a run-count guard and an effect-size guard but no tie guard, so on arms tied by
+arithmetic it reported FAIL, "measured and found not to diverge", when nothing had been
+measured; the HVTA two-player port shipped exactly that construction. `584ba13` adds a
+resolution guard mirroring `_score_resolution`: tied arms now return DEGENERATE, a gap
+below the effect floor FAIL, and a gap above it PASS.
+
+### Removed (2026-09-02): the internal onset column
+
+Every one of the 50 admission-ledger cells has `onset_std` exactly 0.0, because those
+onsets are authored, so a constant prediction equal to the label scored a perfect 0.000
+and the column could not fail. `584ba13` removed it from the leaderboard: `CellResult` no
+longer carries it, and it is still computed only for `external/hvta`, where the label was
+not written by us. The same fact is why `rhob.audit` codes `onset_localizable` as
+degenerate (`e9a1ace`).
+
+### Fixed (2026-09-19): `sequence_keyword_stuffing` never emitted its keyword
+
+Its calibration lever resolved to exactly 0.0 at every scored tier, so the branch that
+emits the keyword was dead code and the family's documented exploit never happened.
+`86acb92` points the lever at the secondary keyword, and the family's new smoke screen
+admits all three scored tiers
+(`results/family_diagnostics/sequence_keyword_stuffing_gate.json`).
+
+### Changed (2026-09-19): `pettingzoo_fixed_opponent_exploitation` is marked failing per tier
+
+The nightly fails it at all three scored tiers on Reward KDE: AUROC 0.234 / 0.849 / 0.833
+at 0.9 / 0.8 / 0.7, against a 0.5 ± 0.256 smoke band, at resolution 1.000, so these are
+measurements. The mean proxy is matched and the per-episode SD is not, and the family's
+variance constant cannot be retuned to match both (`results/family_diagnostics/`).
+`a7b9cba` marks each tier `xfail(strict=True)` rather than patching it; closing the leak
+needs a construction change.
+
 ### Corrected: the L3 "oracle ceiling" was an L2 detector counted twice
 
 `PerfectFeatureOracleDetector` is a subclass of the L2 `BehavioralThresholdDetector`
@@ -465,7 +687,8 @@ parsers, including the Gradio Space). New top-level `families_evaluated`;
   are scripted, not emergent** (in 28 of 33 families; the 5 RLHF-RM families are a
   partial exception, running real policy-gradient optimization against a genuinely
   fitted reward model, so the vulnerability is designed but the exploitation is
-  not), and what that does and does not license concluding.
+  not), and what that does and does not license concluding. *(Corrected to 26 of 33 in
+  `9e2f068`; see `docs/THREAT_MODEL.md` §3.)*
 - **`docs/site/index.html`**: replaced a **retracted 0.95 L2 held-out transfer
   number** and a wrong 0.87 "L3 ceiling", and refreshed the stale v1.4 / 14-family
   / 35-detector badges, the 3-family transfer split, and the transfer cards
@@ -513,7 +736,8 @@ Stated because the point of this entry is not to claim the benchmark is now soun
   design, so six is a lower bound.
 - **Neither admission check is enforced repository-wide.** 21 of 33 families have a
   smoke test; **12 have none**, so nothing admission-related runs for them in CI, and
-  **11 never reach `AdmissionGate` in any test**. No test calls `certify_all_tiers` on
+  **11 never reach `AdmissionGate` in any test**. *(22, 11 and 10 since `86acb92` gave
+  `sequence_keyword_stuffing` a smoke screen.)* No test calls `certify_all_tiers` on
   a registered family — the two that exercise it use synthetic fixtures, so the ledger
   script is its only caller.
 - **The leaderboard is still one unreplicated 5-vs-5 draw** with no confidence
@@ -524,12 +748,14 @@ Stated because the point of this entry is not to claim the benchmark is now soun
   than dropped. `tests/test_v3/test_family_reward_channel_tampering.py` fails; the
   test is correct and the family is not.
 - **Families 29 and 30 still ship with documented, unresolved `proxy_matched`
-  failures** at some tiers (see 1.8.0 below).
+  failures** at some tiers (see 1.8.0 below). *(Family 29, `sequence_keyword_stuffing`,
+  was resolved in `86acb92`; see the entry above.)*
 - **The committed leaderboard artifacts still contain the imputed 0.5 L1 cells and
   carry no provenance**, pending regeneration.
 - **Five external baseline detectors ship but are scored nowhere.**
 - **Hacking policies remain scripted** in 28 of 33 families. Nothing in this
-  remediation changes what that limits RHOB to concluding.
+  remediation changes what that limits RHOB to concluding. *(Corrected to 26 of 33 in
+  `9e2f068`; see `docs/THREAT_MODEL.md` §3.)*
 
 ## [1.8.0] — Sequence-Generation Extension: 5 New SEQUENTIAL Families
 

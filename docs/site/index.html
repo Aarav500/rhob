@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RHOB — Reward Hacking Onset Benchmark</title>
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Benchmark checks that cannot return a negative verdict under the design that ships, and cannotfail, a tool that runs two diagnostics for them on your score file.">
+<title>Checks That Cannot Fail: cannotfail and RHOB</title>
 <style>
   :root {
     --bg: #ffffff; --fg: #1a1a1a; --muted: #666; --accent: #b3261e;
@@ -18,200 +20,300 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.6; }
   .wrap { max-width: 880px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
-  h1 { font-size: 2.2rem; margin-bottom: 0.25rem; }
+  h1 { font-size: 2.2rem; line-height: 1.2; margin-bottom: 0.5rem; }
   .tagline { color: var(--muted); font-size: 1.15rem; margin-top: 0; }
-  h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h2 { margin-top: 2.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { margin-top: 1.8rem; font-size: 1.1rem; }
   .badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
   .badge { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
     padding: 0.3rem 0.7rem; font-size: 0.85rem; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1rem; margin: 1.5rem 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 0.75rem; margin: 1.2rem 0 0.6rem; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 1.2rem; }
-  .card .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+    padding: 1rem 1.1rem; }
+  .card .num { font-size: 1.8rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
   .card .label { color: var(--muted); font-size: 0.9rem; }
   table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-  th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border); }
+  th, td { text-align: left; vertical-align: top; padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
-  code, pre { background: var(--code); border-radius: 6px; }
-  code { padding: 0.15rem 0.4rem; font-size: 0.9em; }
-  pre { padding: 1rem; overflow-x: auto; }
-  pre code { background: none; padding: 0; }
+  td:first-child { white-space: nowrap; padding-left: 0; }
+  th:first-child { padding-left: 0; }
+  code, pre { background: var(--code); border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { padding: 0.15rem 0.4rem; font-size: 0.9em; white-space: nowrap; }
+  code.path { white-space: normal; overflow-wrap: anywhere; }
+  .nw { white-space: nowrap; }
+  pre { padding: 0.9rem 1rem; overflow-x: auto; max-width: 100%; font-size: 0.85rem;
+    line-height: 1.45; }
+  pre code { background: none; padding: 0; font-size: inherit; white-space: pre; }
+  pre.out { border-left: 4px solid var(--border); }
   a { color: var(--accent); }
-  .links { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.5rem; }
+  .links { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; }
   .links a { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 1rem;
     text-decoration: none; }
-  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+  .cta { display: inline-block; border: 1px solid var(--accent); border-radius: 8px;
+    padding: 0.6rem 1.1rem; text-decoration: none; font-weight: 600; }
+  .linklist { padding-left: 1.2rem; }
+  .linklist li { margin: 0.45rem 0; }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem;
+    border-top: 1px solid var(--border); padding-top: 1rem; }
+  footer p { margin: 0.5rem 0; }
   .note { background: var(--card); border: 1px solid var(--border);
     border-left: 4px solid var(--accent); border-radius: 6px; padding: 0.9rem 1.1rem;
     margin: 1.2rem 0; font-size: 0.95rem; }
   .note p { margin: 0.4rem 0; }
   .caveat { color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 480px) {
+    .wrap { padding: 2rem 1rem 4rem; }
+    h1 { font-size: 1.8rem; }
+    .tagline { font-size: 1.05rem; }
+    pre { font-size: 0.8rem; padding: 0.8rem; }
+    td, th { padding-right: 0.5rem; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-<h1>RHOB</h1>
-<p class="tagline">Reward Hacking Onset Benchmark — can your detector tell hacking from legitimate improvement when the proxy reward looks identical?</p>
+<h1>Checks that cannot fail</h1>
+<p class="tagline">Benchmark checks that cannot return a negative verdict under the design that ships.</p>
 
 <div class="badges">
-  <span class="badge">v1.8</span>
-  <span class="badge">33 families</span>
-  <span class="badge">30 detectors scored</span>
-  <span class="badge">MIT license</span>
+  <span class="badge">cannotfail 0.1.0</span>
+  <span class="badge">Python 3.10+</span>
+  <span class="badge">D1 and D2; D3 not implemented</span>
+  <span class="badge">MIT licence</span>
 </div>
+
+<p>A benchmark's headline usually rests on a claim about its own construction, such as
+<em>the two arms are matched</em> or <em>this control is at chance</em>, and a check in the
+harness guards it. Some of those checks cannot fail: under the design that ships, no
+observation they could realistically receive would make them report a negative. Such a
+check is green in CI and looks exactly like one that was earned.</p>
+
+<p><code>cannotfail</code> runs two of the three diagnostics from the paper
+<a href="https://doi.org/10.5281/zenodo.22005218"><em>Checks That Cannot Fail</em></a>
+(Shah, 2026): D1 on a score file your benchmark already produces, and D2 on the numbers that
+describe its design. It imports nothing from the benchmark it was built in.</p>
 
 <div class="links">
-  <a href="https://github.com/Aarav500/rhob">GitHub</a>
-  <a href="../../README.md">Docs</a>
-  <a href="../THREAT_MODEL.md">Threat Model</a>
-  <a href="../TUTORIAL_DETECTOR.md">Detector Tutorial</a>
-  <a href="../../notebooks/rhob_quickstart.ipynb">Colab Notebook</a>
+  <a href="#run">Run it</a>
+  <a href="https://doi.org/10.5281/zenodo.22005218">Paper</a>
+  <a href="https://github.com/Aarav500/rhob/tree/main/tools/cannotfail">cannotfail on GitHub</a>
+  <a href="#tell-us">Tell us you ran it</a>
 </div>
+
+<h2 id="run">Run it on your score file</h2>
+<p>Python 3.10 or later. D1 needs only NumPy; the <code>[power]</code> extra adds SciPy,
+which D2's equivalence half needs.</p>
+<pre><code>pip install cannotfail
+pip install "cannotfail[power]"</code></pre>
+<p>Or run it without installing, with <a href="https://docs.astral.sh/uv/">uv</a>:</p>
+<pre><code>uvx cannotfail resolution scores.csv --score score --label is_hack --group cell
+uvx --from "cannotfail[power]" cannotfail power seeds --layouts 12 --tests 4</code></pre>
+<p>If pip or uv finds no release yet, or for the development version, install from the
+repository:</p>
+<pre><code>pip install "cannotfail @ git+https://github.com/Aarav500/rhob#subdirectory=tools/cannotfail"</code></pre>
+<p>To try the example below, fetch its input first:</p>
+<pre><code>curl -O https://raw.githubusercontent.com/Aarav500/rhob/main/tools/cannotfail/examples/scores.csv</code></pre>
+
+<p>The file needs one row per scored item: the score, optionally its class, and optionally
+the cell it belongs to (a dataset, a detector-by-task pair, whatever your headline
+aggregates over). It reads CSV and TSV, a <code>.json</code> list of objects, a
+<code>.jsonl</code> file, Parquet with the <code>[parquet]</code> extra, and Inspect logs
+with the <code>[inspect]</code> extra and <code>--format inspect</code>; a nested field is
+named by a dotted path, and <code>--group</code> can be given more than once, so a
+leaderboard prediction file or an evaluation harness's per-sample log can be checked as it
+is. Here it is on
+<a href="https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/examples/scores.csv">examples/scores.csv</a>,
+three cells of 48 items each:</p>
+<pre class="out"><code>$ cannotfail resolution scores.csv --score score --label is_hack --group cell
+group              n  distinct     pos     neg  resolution      AUROC range  verdict
+reward_only       48         1      24      24       0.000   [0.500, 0.500]  fixed (one distinct value)
+mostly_tied       48         2      24      24       0.042   [0.479, 0.521]  pinned (AUROC confined within 0.5 +/- 0.0208)
+behavioural       48        48      24      24       1.000   [0.000, 1.000]  ok
+
+1 of 3 groups has at most one distinct value, so any rank statistic over it is fixed at 0.5.
+1 of 3 groups is pinned: the AUROC cannot get further from 0.5 than 0.1, so its estimate cannot leave an equivalence band of that width. A test that also needs its interval inside the band can still fail, but only on the interval's width; a pass there says the scores tie.</code></pre>
+<p><code>--fail-on fixed pinned</code> makes CI fail when either verdict occurs, and
+<code>--json</code> gives machine-readable output. Without <code>--label</code> it counts
+distinct values only, which is enough to find a cell whose scores are all one number.</p>
+
+<h3>How the tool itself is tested</h3>
+<p>The package has its own CI, separate from the benchmark's. It runs on every push and pull
+request that touches <code>tools/cannotfail</code>, every Monday, and on demand. It tests on
+Python 3.10, 3.13 and 3.14, each first with NumPy only, asserting that SciPy, pyarrow,
+pandas and inspect_ai are all absent, which holds D1 to its NumPy-only promise, and then
+with SciPy, with pyarrow and with the Inspect extra in turn. It also builds the sdist and
+wheel, installs the wheel on its own, and checks that the examples in the package's README
+print what the README shows: those that need no extra with NumPy only, then all of them
+with every extra.
+Separately, <code class="path">tests/test_cannotfail_parity.py</code> runs in the benchmark's
+test suite on every push to <code>main</code> and holds the tool to the admission gate it was
+lifted from. Its tolerance resolution is bit-identical to the gate's on adversarial inputs,
+with one documented exception, a pair whose difference overflows float64. Fed the gate's
+measured resolution and informativeness, its verdict rule marks the same 30 of the 50
+ledger cells degenerate; that checks the rule's direction, and separate boundary tests pin
+its cut. <a href="https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml">The
+package's recent runs</a>.</p>
+
+<h2 id="checks">What it checks</h2>
+<p><strong>D1, resolution: what range could the statistic have taken?</strong> In a
+standard AUROC, the one <code class="path">sklearn.metrics.roc_auc_score</code> computes, every
+cross-class pair of equal scores contributes exactly 0.5, whatever the data. So if a
+fraction 1&nbsp;&minus;&nbsp;<var>r</var> of those pairs are equal, the AUROC is confined to
+0.5&nbsp;&plusmn;&nbsp;<var>r</var>/2. That is an identity, not an estimate. The
+<code>resolution</code> column above is that <var>r</var>.</p>
+<p><strong>D2, power: at the design you ship, could the precondition have failed?</strong>
+For an equivalence precondition certified by an equivalence test (TOST),
+<code>cannotfail power equivalence</code> says whether your items per side and number of
+independent blocks can certify at the margin at all, and <code>power seeds</code> says how
+many items per side would. RHOB's admission gate used 4 a side and needed 24, which it now
+runs. For a precondition asserted from a non-significant difference test (&ldquo;no
+significant difference, so the arms are matched&rdquo;), <code>power difference</code> says
+how often that test would have caught the smallest violation that matters.</p>
+<p><strong>D3, channel digest, is not implemented.</strong> It asks whether a parameter
+reaches anything the evaluation reads, and answering that needs knowledge of your harness
+that a score file does not carry.</p>
+
+<table>
+<tr><th>Verdict</th><th>Meaning</th></tr>
+<tr><td><code>fixed</code></td><td>A standard AUROC over these scores is 0.5 whatever
+happens: at most one distinct value, no unequal pair across the classes, or a class with no
+finite score. Report the cell as not measured, never as a result.</td></tr>
+<tr><td><code>pinned</code></td><td>A standard AUROC cannot get further from 0.5 than the
+margin (<code>--margin</code>, default 0.10), so its estimate can never leave an equivalence
+band of that width. A pass there is decided by the ties, not by the classes.</td></tr>
+<tr><td><code>dust</code></td><td>The scores differ, but only within the tie tolerance,
+<span class="nw">|a&nbsp;&minus;&nbsp;b| &le;</span> <span class="nw">max(1e-12,</span> <span class="nw">1e-9&nbsp;&middot;&nbsp;max(|a|,</span> <span class="nw">|b|)),</span> or,
+with <code>--dispersion-floor</code>, by less than that fraction of their own size. Decide
+whether that is signal or rounding, and say which.</td></tr>
+<tr><td><code>ok</code></td><td>D1 found no reason the check cannot fail.</td></tr>
+</table>
 
 <div class="note">
-  <p><strong>Read the <a href="../THREAT_MODEL.md">threat model</a> before citing any number on this
-  page.</strong> Hacking policies in RHOB are <em>scripted, not emergent</em>; the L0-at-chance result
-  is a <em>negative control, not a finding</em>; and every leaderboard cell is a single unreplicated
-  5-vs-5 draw whose standard error near AUROC 0.5 is <strong>0.19</strong>
-  (the Mann&ndash;Whitney null, &radic;((n+m+1)/12nm) at n=m=5). The board has since been
-  replicated over 20 independent draws with bootstrap confidence intervals; the
-  leaderboard now serves those.</p>
-  <p>A 2026-08 audit corrected several figures previously published here — including an L2 held-out
-  transfer number of 0.95 and an L3 &ldquo;oracle ceiling&rdquo; of 0.87 that were both wrong — and
-  then found that the fix to the admission gate had reproduced the original error one level down,
-  certifying 15 cells whose proxy criteria were never actually measurable. The admitted-cell count
-  fell as a result. See the
-  <a href="https://github.com/Aarav500/rhob/blob/main/CHANGELOG.md">changelog</a>.</p>
+  <p><strong><code>ok</code> is not evidence that a check is sound.</strong> It means only
+  that D1 found no reason the check cannot fail. D2's equivalence power assumes no
+  heterogeneity between blocks, so it is a ceiling: real blocks vary and real power is
+  lower. If several items share a prompt, task or seed, its difference-power figure is not
+  a bound. And nothing here answers D3.
+  <a href="https://github.com/Aarav500/rhob/blob/main/tools/cannotfail/README.md#what-it-cannot-tell-you">What
+  it cannot tell you</a>.</p>
 </div>
 
-<h2>The core idea</h2>
-<p>Real reward hacking means: <em>the proxy reward rises while the true objective collapses.</em>
-RHOB operationalizes this with matched-proxy pairs — a hacking and a legitimate variant whose
-<strong>proxy reward is statistically indistinguishable</strong> while their ground-truth outcomes
-diverge sharply. Any detector that discriminates between them must read information beyond the proxy.</p>
+<h2 id="found">Where it was found</h2>
+<p>RHOB is the case study, not the subject. It is 33 reward-hacking environment families.
+Each mints pairs of a hacking run and a legitimate run whose proxy reward is meant to be
+indistinguishable while the true reward diverges, and an admission gate decides, criterion
+by criterion, whether the construction achieved that. Every criterion returns PASS, FAIL
+(measured, and outside the margin) or DEGENERATE (not measurable), and the
+<a href="https://github.com/Aarav500/rhob/blob/main/admission/ADMISSION_LEDGER.md">admission
+ledger</a> publishes all three:</p>
 
-<p>The reusable contribution is the <strong>admission gate</strong>: six automated criteria that
-<em>certify</em> the construction rather than assume it. <code>proxy_matched</code> is a TOST
-equivalence test (margin ±0.10 on AUROC, two one-sided tests at α=0.05, cluster-bootstrapped over 12
-independent layouts) — it demands evidence <em>for</em> a matched proxy instead of merely failing to
-find evidence against one. That costs 576 rollouts per (family, difficulty) cell, up from 96.</p>
-
-<p>Each criterion returns one of <strong>three</strong> outcomes, not two: <strong>PASS</strong>
-(measured, and matched), <strong>FAIL</strong> (measured, and leaking), or
-<strong>DEGENERATE</strong> (<em>not measurable</em> — the proxy carries no information for the
-statistic to read). The third case is why the admitted count on this page went down rather than up:
-an AUROC over a <em>constant</em> proxy is 0.5 by the tie convention rather than by matching, the
-equivalence interval collapses to a point, and the test then certifies against any margin at all.
-That is the same "a check nobody can fail" defect the equivalence test was introduced to remove,
-recurring inside the fix for it. The gate now checks both that the statistic <em>could</em> have come
-out differently and that the proxy carries signal above numerical dust (relative SD above 1e-4 —
-a constant plus jitter in its eighth significant digit does not count), and reports such cells as
-unmeasured instead of passing. Six of the 33 registered families are in that state, covering 30 of
-the 123 (family, difficulty) cells &mdash; and the two questions catch three each, so neither is
-redundant. <code>physics_exploitation</code> is the case that proves it: a relative SD of 3.3e-4,
-comfortably <em>above</em> the 1e-4 floor, and an L0 statistic that strictly orders 0.35% of
-cross-variant pairs. (Earlier versions of this page called the relative-SD distribution "bimodal with
-nothing between 1.6e-9 and 5.1e-2". That was false &mdash; <code>physics_exploitation</code> sits
-inside that interval, as does <code>goal_misgeneralization</code> at 9.9e-3&ndash;1.3e-2. The real
-structure is a single enormous gap between three families constant to one ULP and everything else,
-with the floor inside it.)</p>
-
-<h2>Access-level hierarchy</h2>
-<p>From <code>leaderboard/v5_leaderboard.json</code>: L1&ndash;L3 over 33 families and 123 cells per
-detector, <strong>L0 over 27 families</strong> with the ledger's six DEGENERATE families held out
-(see the negative-control section below).</p>
-<table>
-<tr><th>Level</th><th>Access</th><th>Detectors</th><th>Mean AUROC</th><th>Best AUROC</th></tr>
-<tr><td>L0</td><td>Proxy reward only</td><td>13</td><td>0.4866</td><td>0.5311</td></tr>
-<tr><td>L1</td><td>+ state-visitation histogram</td><td>8</td><td>0.5200</td><td>0.6210</td></tr>
-<tr><td>L2</td><td>+ behavioral trace</td><td>7</td><td>0.7213</td><td>0.9750</td></tr>
-<tr><td>L3</td><td>Oracle (ground truth)</td><td>1</td><td>0.9830</td><td>0.9830</td></tr>
-</table>
-<p class="caveat">Read the max alongside the mean: a level's mean is dragged down by however many weak
-detectors happen to have been written for it, so a mean-only ladder measures the suite's composition
-as much as the benchmark's structure. On maxima the ladder is 0.531 → 0.621 → 0.975 → 0.983 —
-essentially all of the climb happens between L1 and L2, and <strong>nothing happens between L2 and
-L3</strong> (a gap of 0.0080 AUROC). L3 contains exactly one genuine detector; the former second
-&ldquo;oracle&rdquo; was a relabelled copy of the L2 baseline and is excluded from all aggregates.</p>
-<p class="caveat"><strong>L1 caveat:</strong> 25 of 33 families emit no state-visitation channel, so
-L1 detectors return a constant 0.5 fallback on them. Over only the 8 families that do emit it (35 of
-123 cells), the L1 suite mean is 0.570 and the best detector — State Divergence — reaches
-<strong>0.927</strong>. Quote L1 figures with their denominator; they are not comparable to the
-33-family L0 and L2 denominators.</p>
-
-<h2>L0 at chance is a negative control</h2>
-<p>L0 detectors sit at chance <em>by construction</em> — the families are built so the proxy carries no
-signal, and where the gate can measure it, the gate certifies that they succeeded. This is a
-manipulation check confirming the matched-proxy construction, <strong>not</strong> a discovery that
-reward-only monitoring fails. The useful direction is the failure one: L0 <em>above</em> chance means
-the construction leaked and every other number on that family is suspect.</p>
-<p>So the check is published rather than asserted. The
-<a href="https://github.com/Aarav500/rhob/blob/main/admission/ADMISSION_LEDGER.md">admission ledger</a>
-records every criterion's outcome and its measurements for every cell in scope, failures and
-unmeasurable cells alike. Of the 50 cells currently in scope: <strong>15 ADMITTED, 30 DEGENERATE,
-5 NOT ADMITTED</strong>.</p>
-<p class="caveat">Read all three numbers together. The matched-proxy property is established on 15
-cells, refuted on 5, and <em>unavailable</em> on 30 — every difficulty tier of six families whose
-proxy no reward-only detector can read: <code>distributional_shift</code>,
-<code>orbit_chirality</code> and <code>rlhf_reward_model_overopt</code>, whose proxies are constant to
-within numerical dust, plus <code>monitored_sandbagging</code>, <code>shortcut_exploitation</code> and
-<code>physics_exploitation</code>, whose proxies vary but come out identical in every run. Degenerate
-cells are excluded from the L0-at-chance control: on a proxy like that, reward-only detectors sit at
-chance for a reason that has nothing to do with matching. With all six held out the L0 suite mean is
-0.4866 over 27 families, against 0.4895 with them in (both family-weighted; the 0.4898 published in
-earlier releases is the same statistic un-excluded and weighted by cell — of the 0.0032 difference the
-exclusion accounts for 0.0029 and the re-weighting for 0.0003). The exclusion applies to L0 and only
-L0, since the other rungs read channels these families measure perfectly well. They remain valid
-hacking families — they separate at L2 and their true rewards diverge — and rejoin the control when
-their proxies are made informative-but-matched. <strong>Scope limit:</strong> the ledger covers 10 of
-33 families; the other 23 are uncertified, which is not the same as certified-and-passing. What runs
-in CI per family is a reduced-power smoke screen at margin ±0.256, not certification at ±0.10 — and 12
-of the 33 families do not run even that (most have hand-written per-family tests instead, which check
-whatever their author thought to check rather than the gate's six criteria). No test anywhere in
-<code>tests/</code> calls <code>AdmissionGate.certify_all_tiers</code> on a registered family —
-<code>scripts/admission_ledger.py</code> is its only caller.</p>
-
-<h2>Cross-family transfer (train on 6 families, test on 8 held-out)</h2>
 <div class="cards">
-  <div class="card"><div class="num">0.478</div><div class="label">Reward MLP (L0) transfer AUROC</div></div>
-  <div class="card"><div class="num">0.500</div><div class="label">State Divergence (L1) transfer AUROC</div></div>
-  <div class="card"><div class="num">0.931</div><div class="label">Trajectory MLP (L2) transfer AUROC</div></div>
-  <div class="card"><div class="num">0.994</div><div class="label">L2 Ensemble transfer AUROC</div></div>
+  <div class="card"><div class="num">15</div><div class="label">admitted</div></div>
+  <div class="card"><div class="num">30</div><div class="label">degenerate</div></div>
+  <div class="card"><div class="num">5</div><div class="label">not admitted</div></div>
 </div>
-<p>Compact behavioral features (L2) carry across held-out families, while raw state histograms (L1) are
-dimensioned per-family and structurally incompatible across mechanisms.</p>
-<p class="caveat"><strong>What this does not show.</strong> All 14 train and test families were written
-by the same authors under the same construction recipe, sharing one behavioral-trace convention, so
-this measures transfer <em>within a recipe</em> — not generalization to mechanisms nobody designed. The
-reported spread on the neural detectors is across 5 weight initializations only; the environment draw
-is unreplicated. L0/L1 transfer at chance is the negative control again, not a finding.</p>
+<p class="caveat">Out of 50 cells, in 10 of the 33 families. A degenerate cell is neither
+certified nor refuted. The other 23 families are uncertified, which is not the same as
+certified-and-passing.</p>
 
-<h2>Quick start</h2>
-<pre><code>pip install rhob  # or: git clone + pip install -e ".[dev]"
+<p>The paper counts seven instances of the class in RHOB, three of them introduced by the
+fix to an earlier one. Two more were found in the released artifact after the paper
+(<a href="https://github.com/Aarav500/rhob/commit/b796f9c">b796f9c</a>, 2026-09-02).
+Reward Skewness returned a constant 0.5 below its 100-episode horizon, on the 19 families
+that run 40 or 60 episodes, which padded the L0 negative control. And
+<code>true_reward_diverges</code> reported FAIL on arms tied by arithmetic, with no tie
+guard; it now returns DEGENERATE.</p>
 
-from rhob.v3.benchmark import Benchmark
-from rhob.detectors import RewardThresholdDetector
+<p>RHOB was published as the Reward Hacking <em>Onset</em> Benchmark. Its onset column was
+removed because it could not fail either: its onsets are authored, so their spread is
+exactly 0.0 in all 50 ledger cells. The acronym is kept for URL stability only. Do not expand it as
+&ldquo;Onset Benchmark&rdquo; in citations.</p>
 
-detector = RewardThresholdDetector()
-results = Benchmark.evaluate(detector, families=["gridworld_camping"], n_seeds=10)
-print(results.overall_auroc)
-</code></pre>
+<h3>What the benchmark does not show</h3>
+<ul>
+  <li><strong>Its hacking is authored, not discovered.</strong> In 26 of the 33 families both
+  arms are hand-written policies (the paper says 28; the README's count is the later
+  correction). In every family the author designed the exploitable flaw and assigned the
+  label.</li>
+  <li><strong>Onset localization does not transfer.</strong> Against an external environment
+  it did not build, the best correlation with true hack onset, among detectors that fire on
+  most runs, is r&nbsp;=&nbsp;0.43, and every detector that fires on a hack also fires on its
+  matched legitimate twin.</li>
+  <li><strong>It is not a leaderboard to rank detectors on.</strong> The reasons are in
+  <a href="https://github.com/Aarav500/rhob/blob/main/ROADMAP.md">ROADMAP.md</a>.</li>
+</ul>
+<p><a href="https://github.com/Aarav500/rhob/blob/main/docs/THREAT_MODEL.md">docs/THREAT_MODEL.md</a>
+states what the construction can and cannot support. Read it before citing any RHOB
+number.</p>
 
-<h2>External baselines</h2>
-<p>RHOB ships classical, citable methods from the wider change-point / anomaly-detection literature so
-that detection <em>approaches</em> can be compared, not just in-house features: Page-Hinkley change-point
-test, Isolation Forest anomaly detection, autoregressive sequence-model residuals, PCA reconstruction
-error, and Bayesian Online Changepoint Detection.</p>
-<p class="caveat">These five are implemented but are <strong>not</strong> present in the committed
-leaderboard artifact, and no scores for them are published yet.</p>
+<h2 id="elsewhere">Does it occur elsewhere?</h2>
+<p>The paper splits the class into five sub-classes. For two of them, a pre-registered
+survey of published benchmarks (paper &sect;5 and App.&nbsp;F) split the answer.</p>
+<ul>
+  <li><strong>Sub-class B</strong>, a score vector with a single distinct value, which D1
+  reports as <code>fixed</code>, <strong>did not generalise</strong> and is withdrawn as a
+  prevalence claim: pooled 0.54%, CI [0.00%, 1.32%].</li>
+  <li><strong>Sub-class A</strong>, an equivalence asserted from a non-significant difference
+  test, the case <code>power difference</code> is for, <strong>did</strong>: 15 of the 77
+  enumerated preconditions, in 4 of 15 benchmarks. The other 62 rest on no test at
+  all.</li>
+</ul>
+<p class="caveat">The precondition counts inherit a bias of the enumeration: its search
+patterns select against equivalence-test vocabulary. The pre-registered remediation for that
+is an open item in <a href="https://github.com/Aarav500/rhob/blob/main/ROADMAP.md">ROADMAP.md</a>.
+The surveyed benchmarks are a convenience sample, so none of these figures is a rate in the
+field. This page names none of them. The paper's Appendix F gives per-benchmark totals.
+The row-level coding will be published only after each group has seen its own rows, and as
+of 2026-11-15 none has been contacted yet.</p>
+
+<h2 id="tell-us">Tell us you ran it</h2>
+<p>As of 2026-11-15, every run of these diagnostics is the author's own: on RHOB, and in the
+survey, on other groups' published scores. None has been run by a benchmark's own
+maintainer, on their own benchmark: someone who can contest the result. That is the next
+milestone. A run that flagged nothing is worth
+reporting, and so is a verdict you think is wrong.</p>
+<p><a class="cta" href="https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml">Report
+a run on GitHub</a></p>
+<p>Issues are public. To report privately, for instance a flagged cell in a benchmark that is
+not yours to name, email <a href="mailto:aarav7.shah@gmail.com">aarav7.shah@gmail.com</a>
+(<a href="https://github.com/Aarav500/rhob/blob/main/SECURITY.md#private-reports-that-are-not-security-issues">how
+private reports are handled</a>).</p>
+
+<h2 id="links">Links</h2>
+<ul class="linklist">
+  <li><a href="https://doi.org/10.5281/zenodo.22005218">The paper</a>:
+  <em>Checks That Cannot Fail: Unfalsifiable Construction Claims in Benchmarks, and Three
+  Diagnostics That Find Them</em>, doi:10.5281/zenodo.22005218. The Zenodo record's metadata
+  still shows an earlier title, <em>Detecting Reward Hacking Without an Oracle</em>; the PDF
+  it hosts is this paper.</li>
+  <li><a href="https://github.com/Aarav500/rhob/tree/main/tools/cannotfail">tools/cannotfail</a>:
+  the package, its README and its tests.</li>
+  <li><a href="https://github.com/Aarav500/rhob">The repository</a>: RHOB, the benchmark the
+  paper uses as its case study.</li>
+  <li><a href="https://github.com/Aarav500/rhob/blob/main/docs/THREAT_MODEL.md">Threat
+  model</a>: what RHOB measures, what it does not, and which conclusions its construction
+  can support.</li>
+  <li><a href="https://github.com/Aarav500/rhob/blob/main/admission/ADMISSION_LEDGER.md">Admission
+  ledger</a>: every cell in scope and every criterion, pass, fail and degenerate alike.</li>
+  <li><a href="https://github.com/Aarav500/rhob/blob/main/README.md#paper--citation">Citation</a>:
+  BibTeX for the paper.</li>
+</ul>
 
 <footer>
-  RHOB is MIT-licensed. See <a href="https://github.com/Aarav500/rhob">the repository</a> for the full
-  paper, reproducibility guide, and contribution process. Figures on this page are regenerated from
-  <code>leaderboard/v5_leaderboard.json</code> and <code>leaderboard/cross_family_transfer.json</code>;
-  where those artifacts and this page disagree, the artifacts are authoritative.
+  <p>Updated 2026-11-15. Every figure on this page is quoted from <code class="path">README.md</code>,
+  <code class="path">ROADMAP.md</code>, <code class="path">tools/cannotfail/README.md</code> or
+  <code class="path">admission/admission_ledger.json</code> in the repository, or from its git
+  history; where they and this page disagree, they are authoritative.</p>
+  <p>Earlier versions of this page headlined a 0.994 cross-family transfer score and a
+  single-draw access ladder. The transfer score was retracted on 2026-08-12, once the sign of
+  each family's behavioural feature was found to carry the label, and the ladder does not
+  survive the 20-draw board. Neither is current. The corrections are in the
+  <a href="https://github.com/Aarav500/rhob/blob/main/README.md#the-paper">README</a>.</p>
+  <p>MIT licence.</p>
 </footer>
 
 </div>

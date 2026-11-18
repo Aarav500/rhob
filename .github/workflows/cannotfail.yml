@@ -1,0 +1,195 @@
+name: cannotfail
+
+# The CI of tools/cannotfail, and the badge at the top of its README. It is separate from
+# tests.yml so that nothing in the RHOB benchmark -- its MuJoCo nightly above all -- can
+# turn the tool's badge red, and nothing here can turn the benchmark's red.
+#
+# tests/test_cannotfail_parity.py is NOT run here. It imports rhob, to hold this copy of
+# the admission gate's arithmetic to the original, so it needs RHOB installed. It stays in
+# the pytest job of tests.yml, which runs it on every push and pull request.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/cannotfail/**"
+      - ".github/workflows/cannotfail.yml"
+  pull_request:
+    paths:
+      - "tools/cannotfail/**"
+      - ".github/workflows/cannotfail.yml"
+  schedule:
+    # Mondays, 05:47 UTC. Nothing below is pinned, because a stranger's install is not: a
+    # new numpy, SciPy, setuptools or pip can break the tool on an unchanged commit. This
+    # run is how that shows up here before it shows up for them.
+    - cron: "47 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Installed the way an outside maintainer would install it, not from this checkout's
+    # src/. The package's own [tool.pytest.ini_options] stops pytest at tools/cannotfail,
+    # so RHOB's root config, which puts the checkout's src/ on the path, never applies. The
+    # first pass is the base install alone, and fails if it brought SciPy, pyarrow, pandas
+    # or inspect_ai with it, which holds D1 to its numpy-only promise; the tests that need
+    # them skip there. Each later pass adds one extra and runs every test again, after
+    # checking the extra imports, so the tests it enables cannot quietly skip. 3.10 is the
+    # declared floor, and 3.14 the newest Python in the classifiers, which is what
+    # `uvx cannotfail` picks on a fresh machine. Change this matrix and the classifiers
+    # together.
+    name: test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: D1 with numpy only
+        run: |
+          pip install ./tools/cannotfail pytest
+          python -c "import importlib.util as u, sys; extra = [m for m in ('scipy', 'pyarrow', 'pandas', 'inspect_ai') if u.find_spec(m)]; sys.exit(f'not numpy-only: {extra}' if extra else 0)"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: D2, with SciPy
+        run: |
+          pip install "./tools/cannotfail[dev]"
+          python -c "import scipy.stats"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: Parquet, with pyarrow
+        run: |
+          pip install "./tools/cannotfail[parquet]"
+          python -c "import pyarrow.parquet"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+      - name: Inspect logs, with inspect_ai
+        # On 3.10 this resolves to inspect_ai 0.3.280, the last release that supports it.
+        run: |
+          pip install "./tools/cannotfail[inspect]"
+          python -c "import inspect_ai.analysis, pandas, pyarrow; print('inspect_ai', inspect_ai.__version__)"
+          cd /tmp && python -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+
+  package:
+    # What PyPI would receive, met the way a stranger meets it. Build the sdist and wheel
+    # as cannotfail-release.yml does, have twine check the metadata (twine does not render
+    # a Markdown README; the examples below are what holds it to the tool), look inside
+    # both, then install the wheel alone into a fresh Python 3.10 venv
+    # and run the README's examples from it. Each example that shows its output must print
+    # exactly that output, so the README cannot drift from the tool unnoticed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # The last one listed is `python`: it builds, as in the release. 3.10 runs it.
+          python-version: |
+            3.10
+            3.12
+      - name: Build the sdist and wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build tools/cannotfail --outdir "$RUNNER_TEMP/dist"
+      - name: twine check
+        run: twine check --strict "$RUNNER_TEMP"/dist/*
+      - name: Check what is in them
+        # Keep in step with the same step in cannotfail-release.yml.
+        run: |
+          python - "$RUNNER_TEMP/dist" <<'EOF'
+          import sys, tarfile, zipfile
+          from pathlib import Path
+
+          dist = Path(sys.argv[1])
+          (wheel,) = dist.glob("*.whl")
+          (sdist,) = dist.glob("*.tar.gz")
+          version = wheel.name.split("-")[1]
+          in_wheel = sorted(zipfile.ZipFile(wheel).namelist())
+          root = f"cannotfail-{version}/"
+          in_sdist = sorted(m[len(root):] for m in tarfile.open(sdist).getnames() if m.startswith(root))
+          print(wheel.name, *(f"  {n}" for n in in_wheel), sdist.name, *(f"  {n}" for n in in_sdist), sep="\n")
+
+          def junk(name):
+              return "__pycache__" in name or name.endswith((".pyc", ".pyo")) or name.startswith("build/")
+
+          problems = [f"wheel: {n}" for n in in_wheel
+                      if junk(n) or not n.startswith(("cannotfail/", f"cannotfail-{version}.dist-info/"))]
+          problems += [f"sdist: {n}" for n in in_sdist if junk(n)]
+          problems += [f"sdist is missing {n}" for n in ("LICENSE", "README.md", "CHANGELOG.md",
+                       "pyproject.toml", "src/cannotfail/__init__.py", "examples/scores.csv",
+                       "examples/scores.parquet", "examples/predictions.json",
+                       "examples/samples_toy_arith.jsonl", "examples/hack_probe.eval",
+                       "examples/hack_probe.py")
+                       if n not in in_sdist]
+          for p in problems:
+              print(f"::error::{p}")
+          sys.exit(1 if problems else 0)
+          EOF
+      - name: Install the wheel alone into a fresh venv, numpy only
+        run: |
+          python3.10 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+          "$RUNNER_TEMP/venv/bin/python" -c "import importlib.util as u, sys; extra = [m for m in ('scipy', 'pyarrow', 'pandas', 'inspect_ai') if u.find_spec(m)]; sys.exit(f'not numpy-only: {extra}' if extra else 0)"
+          wheel_version=$(basename "$RUNNER_TEMP"/dist/*.whl | cut -d- -f2)
+          test "$("$RUNNER_TEMP/venv/bin/cannotfail" --version)" = "cannotfail $wheel_version"
+      - name: Write the README example checker
+        # Every line of README.md that starts with "$ cannotfail " is run from examples/, and
+        # what it prints, stdout and stderr together, must equal the lines below it up to the
+        # next "$ " or code fence, with exit status 0. An example with no output under it is
+        # skipped. Arguments after the first three name the subcommands to check; none
+        # means all of them. "--skip TEXT" leaves out every example whose line contains TEXT.
+        run: |
+          cat > "$RUNNER_TEMP/readme_examples.py" <<'EOF'
+          import shlex, subprocess, sys
+          from pathlib import Path
+
+          readme, exe, cwd, *rest = sys.argv[1:]
+          only, skip = [], []
+          args = iter(rest)
+          for a in args:
+              if a == "--skip":
+                  skip.append(next(args))
+              else:
+                  only.append(a)
+          lines = Path(readme).read_text(encoding="utf-8").splitlines()
+          checked = failed = 0
+          for i, line in enumerate(lines):
+              if not line.startswith("$ cannotfail "):
+                  continue
+              end = i + 1
+              while end < len(lines) and not lines[end].startswith(("$ ", "```")):
+                  end += 1
+              expected = "\n".join(lines[i + 1:end]).rstrip("\n")
+              argv = shlex.split(line[2:])
+              if not expected or (only and not any(" ".join(argv[1:]).startswith(o) for o in only)):
+                  continue
+              if any(t in line for t in skip):
+                  print(f"skipped: {line}")
+                  continue
+              run = subprocess.run([exe, *argv[1:]], cwd=cwd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True)
+              got = run.stdout.rstrip("\n")
+              checked += 1
+              if run.returncode != 0 or got != expected:
+                  failed += 1
+                  print(f"::error::README example does not match the tool: {line}")
+                  print(f"--- README\n{expected}\n--- tool, exit {run.returncode}\n{got}")
+              else:
+                  print(f"ok: {line}")
+          print(f"{checked} examples checked, {failed} differ")
+          sys.exit(1 if failed or not checked else 0)
+          EOF
+      - name: The README's examples, numpy only
+        # Only the examples that need no extra: the Parquet and Inspect recipes, and
+        # `power equivalence` and `power seeds`, which need SciPy, wait for the next step.
+        working-directory: tools/cannotfail/examples
+        run: python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" . resolution "power difference" --skip .parquet --skip "--format inspect"
+      - name: Add every extra, then every README example and the tests, from the wheel
+        run: |
+          wheel=$(ls "$RUNNER_TEMP"/dist/*.whl)
+          "$RUNNER_TEMP/venv/bin/python" -m pip install "${wheel}[power,parquet,inspect]" pytest
+          cd tools/cannotfail/examples
+          python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" .
+          cd /tmp && "$RUNNER_TEMP/venv/bin/python" -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
