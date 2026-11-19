@@ -19,6 +19,11 @@ Two properties of the emitted JSON are load-bearing and easy to miss:
    ``not_applicable_families``, and they are excluded from ``overall_auroc``. A ``0.5``
    in this file therefore means "measured, and at chance" -- which is a real and
    interesting result -- and is now distinguishable from "never measured".
+   The board committed on 2026-11-19 (``52656cb``) was written before
+   ``cell_semantics.per_family_null`` named the horizon case, so its text there mentions
+   only a missing channel, although 59 of its Reward Skewness cells are null because
+   the horizon is too short. Each detector's ``not_applicable_reasons`` in that file is
+   the authoritative record of why a cell is null.
 2. **The whole file is one draw.** Every detector is scored on the identical rolled-out
    runs from a single layout seed and a single set of rollout seeds; there is no
    replication and there are no confidence intervals; the null SE near AUROC 0.5 is

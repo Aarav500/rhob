@@ -19,7 +19,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "proxy_matched",
-          "source": "README.md:312-347 (describes the pre-audit form: abs(mean_auroc - 0.5) < 0.10)",
+          "source": "README.md:320-355 (describes the pre-audit form: abs(mean_auroc - 0.5) < 0.10)",
           "claim_shape": "equivalence",
           "test_used": "difference_test",
           "failure_demonstrated": "none",
@@ -30,7 +30,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "proxy_distribution_matched",
-          "source": "README.md:306 (the criteria table, which gives the post-audit form; the README does not describe the pre-audit one)",
+          "source": "README.md:314 (the criteria table, which gives the post-audit form; the README does not describe the pre-audit one)",
           "claim_shape": "equivalence",
           "test_used": "difference_test",
           "failure_demonstrated": "none",
@@ -41,7 +41,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "behavioral_separated",
-          "source": "README.md:307",
+          "source": "README.md:315",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "none",
@@ -52,7 +52,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "true_reward_diverges",
-          "source": "README.md:308",
+          "source": "README.md:316",
           "claim_shape": "difference",
           "test_used": "difference_test",
           "failure_demonstrated": "none",
@@ -63,7 +63,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "onset_localizable",
-          "source": "README.md:309",
+          "source": "README.md:317",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "none",
@@ -74,7 +74,7 @@
         {
           "benchmark": "rhob_pre_audit",
           "criterion": "camping_quality",
-          "source": "README.md:310",
+          "source": "README.md:318",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "none",
@@ -90,18 +90,18 @@
         {
           "benchmark": "rhob_post_audit",
           "criterion": "proxy_matched",
-          "source": "README.md:305; src/rhob/v3/admission_gate.py",
+          "source": "README.md:313; src/rhob/v3/admission_gate.py",
           "claim_shape": "equivalence",
           "test_used": "equivalence_test",
           "failure_demonstrated": "power_curve",
           "resolution_guarded": true,
           "coder": "ashah264",
-          "notes": "TOST at margin 0.10; the whole CI must sit inside it. The power curve is the pass-rate table at true values 0.500/0.556/0.611/0.714 (README.md:319-324), which is what shows the old test could not fail and the new one can. Degeneracy guarded by the resolution check and the informativeness floor of 1e-4. It has also failed on measured cells: in the full ledger of 2026-11-19 it fails 24 of the 93 cells where it was measured, all in families new to the ledger then. failure_demonstrated stays power_curve, the evidence this row was coded on."
+          "notes": "TOST at margin 0.10; the whole CI must sit inside it. The power curve is the pass-rate table at true values 0.500/0.556/0.611/0.714 (README.md:327-332), which is what shows the old test could not fail and the new one can. Degeneracy guarded by the resolution check and the informativeness floor of 1e-4. It has also failed on measured cells: in the full ledger of 2026-11-19 it fails 24 of the 93 cells where it was measured, all in families new to the ledger then: in 8 the mean L0 AUROC is outside [0.40, 0.60], and in 16 it is inside with a 90% interval that is not. failure_demonstrated stays power_curve, the evidence this row was coded on."
         },
         {
           "benchmark": "rhob_post_audit",
           "criterion": "proxy_distribution_matched",
-          "source": "README.md:306; admission/ADMISSION_LEDGER.md",
+          "source": "README.md:314; admission/ADMISSION_LEDGER.md",
           "claim_shape": "equivalence",
           "test_used": "equivalence_test",
           "failure_demonstrated": "observed_failure",
@@ -112,7 +112,7 @@
         {
           "benchmark": "rhob_post_audit",
           "criterion": "behavioral_separated",
-          "source": "README.md:307; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
+          "source": "README.md:315; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "adversarial_probe",
@@ -123,7 +123,7 @@
         {
           "benchmark": "rhob_post_audit",
           "criterion": "true_reward_diverges",
-          "source": "README.md:308; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py; tests/test_v3/test_admission_gate.py; external/hvta/CHANNELS.md",
+          "source": "README.md:316; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py; tests/test_v3/test_admission_gate.py; external/hvta/CHANNELS.md",
           "claim_shape": "difference",
           "test_used": "difference_test",
           "failure_demonstrated": "adversarial_probe",
@@ -134,19 +134,19 @@
         {
           "benchmark": "rhob_post_audit",
           "criterion": "onset_localizable",
-          "source": "README.md:309; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
+          "source": "README.md:317; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "adversarial_probe",
           "resolution_guarded": null,
-          "observed_distinct_values": 1,
+          "observed_distinct_values": 6,
           "coder": "ashah264",
-          "notes": "The criterion can fail: DiffuseOnsetFamily fails it at onset SD 40.98 episodes against a ceiling of 20. But on the shipped design its statistic, onset_std, is exactly 0.0 in all 118 cells of the 31 families whose onsets are authored (admission/admission_ledger.json, full ledger of 2026-11-19), so every pass there is fixed by construction and says nothing about the cell. That is why it is coded degenerate even with a probe, and observed_distinct_values = 1 is measured over those 118 cells. It varies only in continuous_camping (4 cells, SD 0.23 to 2.05 episodes against a ceiling of 4.0 at 40 episodes) and gridworld_camping (1 cell, SD 9.87 against 50 at 500 episodes), whose onset label is read off what an agent does after an activation episode the config sets: a pre-trained DQN camper reacting to an attractor revealed at episode 10, and a tabular Q-learner trained on each run, with the exploit tile active from episode 250. It passes those 5 cells too, so it fails none of the 123. Over all 123 cells cannotfail resolution counts 6 distinct values (verdict ok); over the 118 it counts 1 (verdict fixed). The ledger this row was first coded against covered 10 families, neither of these two, and the statistic was 0.0 in all 50 of its cells. The same fact is why 584ba13 (2026-09-02) removed the internal onset column from the leaderboard: it could not fail either, CellResult no longer carries it, and it is still computed only for external/hvta (README.md:7-12, 117-129). results/emergent_pilot/README.md (c6bb6f6) shows that authoring is what pins the statistic: with gridworld_camping's schedule removed (Pair 01 at activation_episode=0, activation_burst=0), the hacking twin's mechanistic onset has SD 76.5 episodes over 40 seeds, in two modes, against the 50-episode ceiling the gate would apply at that family's 500 episodes. No gate run on the pilot is committed; that comparison is arithmetic."
+          "notes": "The criterion can fail: DiffuseOnsetFamily fails it at onset SD 40.98 episodes against a ceiling of 20. observed_distinct_values is measured over the shipped design, which since 2026-11-19 is the full ledger (admission/admission_ledger.json, 33 families, 123 cells): over all 123 cells onset_std takes 6 distinct values (cannotfail resolution: 6 distinct, verdict ok), so the row is not degenerate. The statistic is still exactly 0.0 in the 118 cells of the 31 families whose onset label is the configured schedule, so every pass there is fixed by construction and says nothing about the cell; over those 118 alone cannotfail counts 1 distinct value (verdict fixed). It varies only in continuous_camping (4 cells, SD 0.23 to 2.05 episodes against a ceiling of 4.0 at 40 episodes) and gridworld_camping (1 cell, SD 9.87 against 50 at 500 episodes), whose onset label is read off what the trained agent does after an activation episode the config sets: a pre-trained DQN camper reacting to an attractor revealed at episode 10, and a tabular Q-learner trained on each run, with the exploit tile active from episode 250. It passes those 5 cells too, so it passes all 123 and fails none. When observed_distinct_values was first coded (e9a1ace, 2026-10-31) it was measured on the ledger of the time, 10 families and 50 cells, neither camping family among them, where onset_std was 0.0 in every cell: observed_distinct_values = 1, and the row was degenerate even with a probe. The same fact is why 584ba13 (2026-09-02) removed the internal onset column from the leaderboard: it could not fail either, CellResult no longer carries it, and it is still computed only for external/hvta (README.md:7-12, 117-123). results/emergent_pilot/README.md (c6bb6f6) shows that authoring is what pins the statistic: with gridworld_camping's schedule removed (Pair 01 at activation_episode=0, activation_burst=0), the hacking twin's mechanistic onset has SD 76.5 episodes over 40 seeds, in two modes, against the 50-episode ceiling the gate would apply at that family's 500 episodes. No gate run on the pilot is committed; that comparison is arithmetic."
         },
         {
           "benchmark": "rhob_post_audit",
           "criterion": "camping_quality",
-          "source": "README.md:310; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
+          "source": "README.md:318; tests/test_v3/test_criteria_discriminate.py; tests/test_v3/adversarial_families.py",
           "claim_shape": "threshold",
           "test_used": "point_threshold",
           "failure_demonstrated": "adversarial_probe",

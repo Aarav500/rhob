@@ -52,13 +52,14 @@ Detector = PosthocDetector
 # ``state_counts=None`` (every MuJoCo, PettingZoo, sequence-generation and shared-RLHF
 # family, plus 6 others), covering 88 of the 123 leaderboard cells. The published L1
 # access-level number was therefore a hardcoded 0.5 on 71% of its cells, diluted with
-# 35 cells of real measurement. Scored over the measured cells only (the v5 board
-# regenerated 2026-11-19, against the one committed before it, whose 35 measured L1
-# cells it reproduces): the L1 detector-suite mean moves 0.520 -> 0.570, and State
-# Divergence -- the best L1 detector -- moves 0.621 -> 0.927, i.e. the fabricated cells
-# were hiding a strong result, not propping up a weak one. Cells whose required channel
-# is absent are therefore scored NaN and excluded from every mean, and reported as
-# ``not_applicable`` downstream.
+# 35 cells of real measurement. Recomputing the committed v5 board over the measured
+# cells only: the L1 detector-suite mean moves 0.520 -> 0.570, and State Divergence --
+# the best L1 detector -- moves 0.621 -> 0.927, i.e. the fabricated cells were hiding a
+# strong result, not propping up a weak one. Cells whose required channel is absent are
+# therefore scored NaN and excluded from every mean, and reported as ``not_applicable``
+# downstream. (2026-11-19: the board recomputed there is the one committed before the
+# regeneration. The regenerated board scores L1 this way, has the same per-family L1
+# values on the 8 families that emit ``state_counts``, and reads 0.570 and 0.927.)
 #
 # A detector may override the default for its level by exposing a ``required_channels``
 # attribute (a tuple of ``RunData`` field names). That hook exists for the L3 ceiling
@@ -112,10 +113,11 @@ class CellResult:
     (``onset_localizable.onset_std == 0.0``), so inside the benchmark the label is a
     number the generator wrote down and a constant prediction equal to it scores a
     perfect 0.000 error. The other five (``continuous_camping`` at four tiers,
-    ``gridworld_camping`` at its one) disperse by 0.23 to 9.87 episodes, at most 5% of
-    the horizon. A column that a constant prediction wins on 118 of 123 cells is not
-    reported. Onset error is still computed by :func:`_evaluate_cell` for the one place
-    it has been validated against a label the authors did not write (``external/hvta``).
+    ``gridworld_camping`` at its one) disperse by 0.23 to 9.87 episodes, at most 5.1% of
+    the horizon (``continuous_camping`` @ 0.7: 2.05 of 40 episodes). A column that a
+    constant prediction wins on 118 of 123 cells is not reported. Onset error is still
+    computed by :func:`_evaluate_cell` for the one place it has been validated against a
+    label the authors did not write (``external/hvta``).
     """
 
     family: str

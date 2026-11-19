@@ -119,13 +119,15 @@ def test_committed_v5_board_ladder(v5_results):
     exactly one member after the Perfect Feature Oracle duplicate is removed.
 
     On the board before that regeneration (2026-07-17; ``git show
-    acd35c2:leaderboard/v5_leaderboard.json``), L0 moved from 0.4898 to 0.4866 when the
-    exclusion was implemented, and its best detector's figure from 0.5180 to 0.5311
-    (still Reward CUSUM). Of that L0 shift, 0.0003 was the re-weighting the exclusion
-    forces (family-weighted over the retained families, against the cell-weighted
-    ``overall_auroc`` the other rungs use -- see ``rhob.v3.leaderboard.access_summary``)
-    and the remaining 0.0029 the exclusion itself;
-    ``test_the_l0_exclusion_is_worth_this_much`` separates the two on the current board.
+    acd35c2:leaderboard/v5_leaderboard.json``), L0 moved from 0.4898 (cell-weighted, all
+    33 families) to 0.4866 when the exclusion was implemented, and its best detector's
+    figure from 0.5180 to 0.5311 (still Reward CUSUM). Of that L0 shift, 0.00036 was the
+    re-weighting the exclusion forces (family-weighted over the retained families,
+    against the cell-weighted ``overall_auroc`` the other rungs use -- see
+    ``rhob.v3.leaderboard.access_summary``) and 0.00291 the exclusion itself, from
+    unrounded values; differences of the rounded figures (0.4898, 0.4895, 0.4866) read
+    0.0003 and 0.0029. ``test_the_l0_exclusion_is_worth_this_much`` separates the two on
+    the current board.
     That board read L1 0.5200, L2 0.7213 (best 0.975, Behavioral Threshold) and L3
     0.9830; the regenerated one scores the behavioural feature with its sign randomized
     and leaves not-applicable cells out instead of imputing 0.5.
@@ -184,13 +186,15 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     Holding families out forces the L0 rung to be computed family-weighted (the artifact
     records AUROCs per family, not per cell), and a re-weighting is not a finding. Both
     figures below are family-weighted, so the difference between them is the exclusion
-    and nothing else: **0.4898 with the degenerate families, 0.4876 without.** For
-    scale, the re-weighting on its own is worth 0.0005 -- family-weighted over every
-    family each detector measured is 0.4898 against the cell-weighted 0.4903 the
-    un-excluded ladder reports.
+    and nothing else: **0.4898 with the degenerate families, 0.4876 without**, an
+    exclusion worth 0.0023 (0.002259 from unrounded values; the rounded figures'
+    difference reads 0.0022). For scale, the re-weighting on its own is worth 0.0005 --
+    family-weighted over every family each detector measured is 0.4898 against the
+    cell-weighted 0.4903 the un-excluded ladder reports (0.000497 unrounded).
 
     On the board before the 2026-11-19 regeneration the same three figures were 0.4866,
-    0.4895 and 0.4898: an exclusion of 0.0029 against a re-weighting of 0.0003.
+    0.4895 and 0.4898: an exclusion of 0.0029 against a re-weighting of 0.00036 (0.0003
+    as the difference of the rounded figures).
     """
     excluded = summarize_access_levels(
         v5_results, degenerate_families=DEGENERATE_FAMILIES
@@ -204,8 +208,8 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     assert cell_weighted.mean_auroc_including_degenerate is None
 
     # The exclusion still moves L0 further than the re-weighting does: 0.0023 against
-    # 0.0005, about four and a half times (ten times on the board before the
-    # regeneration).
+    # 0.0005, about four and a half times (about eight, 0.0029 against 0.00036, on the
+    # board before the regeneration).
     exclusion = abs(excluded.mean_auroc - excluded.mean_auroc_including_degenerate)
     reweighting = abs(excluded.mean_auroc_including_degenerate - cell_weighted.mean_auroc)
     assert exclusion == pytest.approx(0.0023, abs=1e-4)
@@ -304,7 +308,8 @@ def test_the_published_ladder_was_generated_with_the_exclusion(v5_results):
     both called ``summarize_access_levels`` with the argument omitted. So the exclusion
     was implemented, tested, documented and absent from every published number: the
     committed ``v5_access_summary.md`` carried the un-excluded ``0.4898 | 0.0156 | 0.5180``
-    L0 row, and the docs quoted it.
+    L0 row (cell-weighted, on the board before the 2026-11-19 regeneration), and the docs
+    quoted it.
 
     A test on the library cannot catch that, because the library was right. This one
     regenerates the table from the same two committed artifacts the generator reads and

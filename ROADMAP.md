@@ -25,10 +25,12 @@ those reasons became the paper this repository is now the case study for.
   authored, so a constant prediction equal to the label scored a perfect error of 0.000. Two
   things follow. `584ba13` removed the internal onset column from the leaderboard: `CellResult` no
   longer carries it, and it is still computed only for `external/hvta`, where the label was
-  not written by us. And `rhob.audit` codes `onset_localizable` as degenerate (`e9a1ace`).
+  not written by us. And `rhob.audit` coded `onset_localizable` as degenerate (`e9a1ace`).
   The full ledger (2026-11-19, 123 cells) still has 0.0 in 118 cells. In the other 5, the
   tiers of `continuous_camping` and `gridworld_camping`, it is nonzero, and
-  `onset_localizable` passes there too.
+  `onset_localizable` passes there too. Over the whole shipped design the statistic now
+  takes six values, so the self-coding no longer codes the criterion degenerate (see
+  Milestones).
 
 The withdrawn text is in git history rather than here: last at `06df9f3` on the branch
 that carried this rewrite, and at `9352529`, the last version both lines of history share,
@@ -103,21 +105,33 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   `d4b700d`): 42 ADMITTED, 30 DEGENERATE and 51 NOT ADMITTED, against 15, 30 and 5 over the
   10 families and 50 cells of 2026-08-03. The 10 families already in it keep every verdict
   in all 50 of their cells, and the DEGENERATE families are the same six, so the 30
-  calibration cells below are unchanged. `proxy_matched` was measured on 93 cells and
-  failed 24, where it had failed none of 20; `proxy_distribution_matched` failed 40 and
-  `behavioral_separated` 1. Of the 73 new cells, 27 admit and 46 do not, among them all 13
-  MuJoCo cells and 14 of the 15 PettingZoo cells.
+  calibration cells below are the same 30, still DEGENERATE. `proxy_matched` was measured
+  on 93 cells and failed 24, where it had failed none of 20; `proxy_distribution_matched`
+  failed 40 and `behavioral_separated` 1. Of the 73 new cells, 27 admit and 46 do not,
+  among them all 13 MuJoCo cells and 14 of the 15 PettingZoo cells.
 - **The 46 NOT ADMITTED cells in the 23 families new to the ledger — open.** For each
   family, fix its proxy matching or document the failure as a known leak. They are in 20 of
   the 23 families. 24 fail `proxy_matched`: in 8 the point estimate is outside the band,
-  and 16 are underpowered, with the point estimate inside it and the interval not. 35 fail
-  `proxy_distribution_matched`, all but one on Reward KDE, and a cell can fail both. One,
+  and 16 are underpowered, with the point estimate inside it and the 90% interval not, so
+  the equivalence test could not establish matching at this design. 35 fail
+  `proxy_distribution_matched`, all but one on Reward KDE, and 14 fail both. One,
   `proxy_correlation_gaming` @0.6, fails only `behavioral_separated`. Each cell's binding
   measurement is in [admission/ADMISSION_LEDGER.md](admission/ADMISSION_LEDGER.md).
 - **Whether the L0 aggregate should also hold out NOT ADMITTED cells — open, the author's
   decision.** The code holds out only the six DEGENERATE families
   (`summarize_access_levels`), so the 51 NOT ADMITTED cells are still in the L0 mean; 22 of
-  the 27 families that mean is over have at least one.
+  the 27 families that mean is over have at least one. On 50 of the 51 the gate measured
+  the proxy and could not certify it matched; the 51st, `proxy_correlation_gaming` @0.6,
+  passes both proxy criteria and fails only `behavioral_separated`.
+- **RHOB's self-coding on the full ledger — changed (2026-11-19); the paper's wording is
+  the author's decision.** `docs/SURVEY_PROTOCOL.md` codes a criterion degenerate only when
+  its statistic took one value across the whole shipped design. Measured over the 123-cell
+  ledger, `onset_std` takes six values, so `onset_localizable` codes `not_applicable` and
+  the post-audit coding leaves no finding ([audit/SELF_CODING.md](audit/SELF_CODING.md)).
+  On the 50-cell ledger the row was first coded against (`e9a1ace`) it was degenerate, and
+  the statistic is still 0.0 in the 118 cells of the 31 families whose onset label is the
+  configured schedule. Wherever the paper states RHOB's self-audit result, it has to give
+  the full-ledger coding or scope the earlier one to the 50-cell ledger before submission.
 - **One maintainer outside the author's network runs it on their own score vectors — by
   2026-12-15.** A run of the diagnostics on a benchmark the author did not build.
 - **The paper at a venue.** A submission to TMLR, after the paper's claims are made to
@@ -129,9 +143,9 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   two-sided test does at every complete separation (p = 0.0079), and the power
   computation the axis-A plan pins first reaches 0.80 at an AUROC of 0.944, inside the
   range ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already
-  known"). Also among them, and open: every figure the paper quotes from the single-draw
-  board or the admission ledger predates their 2026-11-19 regeneration, and must be updated
-  to it before submission.
+  known"). Also among them, and open: any figure the paper quotes from the single-draw
+  board or the admission ledger is from the versions before their 2026-11-19 regeneration
+  and must be updated to the regenerated ones before submission.
 - **The survey: the port, then axis A — open; a pre-registration of axis A's power re-run
   written (2026-11-16), awaiting its sealed record and then a deposit dated by a third
   party.** The analysis plan for the re-run on the 15 sub-class A claims is written before
@@ -189,9 +203,10 @@ construction, not a new benchmark member.
 - **A fixture for the diagnostics.** Its admission ledger is the calibration set. Fed the
   ledger's measured resolution and informativeness, `cannotfail` must mark the same 30 of
   its 123 `proxy_matched` cells degenerate as the gate does, and it must call
-  `onset_localizable`'s statistic fixed over the 118 cells whose `onset_std` is 0.0, for the
-  reason under What changed. Over all 123 it does not: the 5 nonzero cells give the
-  statistic six distinct values, and the verdict is `ok`. Recomputing the 30 from score
+  `onset_localizable`'s statistic fixed over the 118 cells of the 31 families whose onset
+  label is the configured schedule, for the reason under What changed. Over all 123 it
+  does not: the 5 cells of `continuous_camping` and `gridworld_camping` give the statistic
+  six distinct values, and the verdict is `ok`. Recomputing the 30 from score
   vectors would need the runs regenerated, since the ledger stores aggregates.
 - **A worked example of a check built so it can fail.** The matched-pair construction and
   the admission gate. Its nightly smoke screen first failed twelve families (2026-08-17,

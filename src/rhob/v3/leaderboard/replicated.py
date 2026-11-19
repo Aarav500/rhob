@@ -75,9 +75,11 @@ __all__ = [
 #: check on the benchmark, and is reported as one. The admission ledger (all 33 families,
 #: 2026-11-19) admits 42 of its 123 cells, certifying the match on each, marks 30
 #: DEGENERATE, and measures 51 NOT ADMITTED (``proxy_matched`` failed on 24,
-#: ``proxy_distribution_matched`` on 40, ``behavioral_separated`` on 1). The ladder this
-#: module reads holds the six DEGENERATE families out of L0; the NOT ADMITTED cells stay
-#: in it, and whether they should is an open question for the author (``ROADMAP.md``).
+#: ``proxy_distribution_matched`` on 40, ``behavioral_separated`` on 1; 50 of the 51
+#: fail a proxy criterion, and the 51st, ``proxy_correlation_gaming`` @ 0.60, passes both
+#: and fails only ``behavioral_separated``). The ladder this module reads holds the six
+#: DEGENERATE families out of L0; the NOT ADMITTED cells stay in it, and whether they
+#: should is an open question for the author (``ROADMAP.md``).
 CONTROL_LEVEL = "L0"
 
 #: What a renderer must print where the artifact has no measurement. Named rather than

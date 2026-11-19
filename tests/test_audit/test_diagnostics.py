@@ -8,6 +8,7 @@ equivalence-shaped criteria.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -186,20 +187,24 @@ def test_post_audit_rhob_clears_both_equivalence_criteria():
     assert sound == {"proxy_matched", "proxy_distribution_matched"}
 
 
-def test_post_audit_rhob_has_one_finding_left():
+def test_post_audit_rhob_has_no_finding_left_on_the_full_ledger():
     """Every criterion has a probe family that fails it, so none is merely undemonstrated.
 
     An earlier coding said three were, which was wrong: the probes in
-    tests/test_v3/test_criteria_discriminate.py were committed before that coding. What the
-    audit did not fix is onset_localizable, which can fail on a probe and still cannot fail
-    on any cell the benchmark ships.
+    tests/test_v3/test_criteria_discriminate.py were committed before that coding. On the
+    50-cell ledger one finding was left, onset_localizable, coded degenerate (see
+    test_post_audit_onset_localizable_coding_follows_the_design). Coded over the full
+    123-cell ledger, as docs/SURVEY_PROTOCOL.md requires, its statistic takes six values,
+    so no finding is left.
     """
     result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))
     assert not result.undemonstrated
-    assert {f.criterion.criterion for f in result.findings if f.is_finding} == {"onset_localizable"}
+    assert not result.degenerate
+    assert {f.criterion.criterion for f in result.findings if f.is_finding} == set()
     verdicts = {f.criterion.criterion: f.verdict for f in result.findings}
     assert verdicts["behavioral_separated"] is Verdict.NOT_APPLICABLE
     assert verdicts["camping_quality"] is Verdict.NOT_APPLICABLE
+    assert verdicts["onset_localizable"] is Verdict.NOT_APPLICABLE
 
 
 def test_self_coding_sources_still_point_at_their_criteria():
@@ -228,19 +233,50 @@ def test_self_coding_sources_still_point_at_their_criteria():
     assert checked == 12
 
 
-def test_post_audit_onset_localizable_is_degenerate():
-    """The regression that motivated diagnose_constant_statistic.
+def test_post_audit_onset_localizable_coding_follows_the_design():
+    """The regression that motivated diagnose_constant_statistic, and the design it is read on.
 
-    onset_std is exactly 0.0 in the 118 ledger cells of the 31 families whose onsets are
-    authored, so the threshold passes those cells by construction (it varies only in the
-    five cells of continuous_camping and gridworld_camping, and passes there too; the
-    10-family ledger the row was first coded against had 0.0 in all 50 of its cells).
-    Before the measured-constant check this row came back merely
-    undemonstrated, because a threshold claim was never offered to the degeneracy check.
+    On the 10-family ledger the row was first measured against, onset_std was exactly 0.0
+    in all 50 cells, so the threshold passed every one by construction:
+    observed_distinct_values = 1, and the row must come back degenerate. Before the
+    measured-constant check it came back merely undemonstrated, because a threshold claim
+    was never offered to the degeneracy check.
+
+    The protocol counts distinct values over the whole shipped design, which is now the
+    full 123-cell ledger. There onset_std is still 0.0 in the 118 cells of the 31 families
+    whose onset label is the configured schedule, but it varies in the five cells of
+    continuous_camping and gridworld_camping: 6 distinct values, so the row as coded is not
+    degenerate. Counting over the 118 alone would pick the subset that gives the verdict.
     """
-    result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))
+    rows = load_snapshot(SELF_CODING, "rhob_post_audit")
+    (onset,) = [r for r in rows if r.criterion == "onset_localizable"]
+    assert onset.observed_distinct_values == 6
+    assert diagnose(onset).verdict is Verdict.NOT_APPLICABLE
+
+    as_first_measured = [
+        replace(r, observed_distinct_values=1) if r.criterion == "onset_localizable" else r
+        for r in rows
+    ]
+    result = run_survey(as_first_measured)
     assert {f.criterion.criterion for f in result.degenerate} == {"onset_localizable"}
     assert result.inverted_rate() == (0, 2), "a degenerate row must not enter the inverted rate"
+
+
+def test_onset_localizable_distinct_values_are_counted_over_the_whole_ledger():
+    """observed_distinct_values is D1 measured over every cell of the shipped design.
+
+    It went stale once: it stayed at 1 after the ledger grew from 50 cells to 123 and the
+    statistic started to vary. Recounting it from the committed ledger keeps the coding
+    tied to the artifact it describes.
+    """
+    import json
+
+    ledger_path = SELF_CODING.parents[1] / "admission" / "admission_ledger.json"
+    cells = json.loads(ledger_path.read_text(encoding="utf-8"))["results"]
+    distinct = {cell["metrics"]["onset_localizable"]["onset_std"] for cell in cells}
+    rows = load_snapshot(SELF_CODING, "rhob_post_audit")
+    (onset,) = [r for r in rows if r.criterion == "onset_localizable"]
+    assert onset.observed_distinct_values == len(distinct)
 
 
 # --- The measured-constant diagnostic ------------------------------------------

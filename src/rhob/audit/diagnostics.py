@@ -16,10 +16,12 @@ consumes D1's measurement directly:
    that the criterion's statistic took one value everywhere? Then its verdict is fixed
    by construction, whatever its claim shape. This exists because the checks below
    missed RHOB's ``onset_localizable``, a threshold criterion whose ``onset_std`` is
-   exactly 0.0 in all 118 ledger cells of the 31 families whose onsets are authored (it
-   varies only in the five cells of ``continuous_camping`` and ``gridworld_camping``):
-   as a threshold claim it was never offered to the degeneracy check, and it came back
-   merely ``undemonstrated``.
+   exactly 0.0 in all 50 ledger cells: as a threshold claim it was never offered to
+   the degeneracy check, and it came back merely ``undemonstrated``. (2026-11-19: the
+   full ledger has 123 cells. ``onset_std`` is still 0.0 in the 118 cells of the 31
+   families whose onset label is the configured schedule, but it varies in the five
+   cells of ``continuous_camping`` and ``gridworld_camping``, so over the shipped design
+   it takes six values and the row no longer codes degenerate.)
 
 The other three correspond to defects found in this repository and documented in
 ``README.md``:

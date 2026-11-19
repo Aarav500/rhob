@@ -8,7 +8,9 @@ A level's mean is dragged down by however many weak detectors happen to have bee
 written for it, so a mean-only ladder measures the detector suite's composition as much
 as the benchmark's structure. On the committed v5 board (regenerated 2026-11-19) the two
 differ sharply at L2: mean 0.5716 over 7 detectors, but max 0.9430 (Trajectory MLP); and
-at L1: mean 0.5701 over 8, but max 0.9270 (State Divergence).
+at L1: mean 0.5701 over 8, but max 0.9270 (State Divergence). The L1 figures are over the
+35 cells (8 families) that emit ``state_counts`` and L2's over all 123, so the L1 and L2
+maxima are not like for like.
 
 Detectors listed in :data:`~rhob.detectors.redundancy.DUPLICATE_DIAGNOSTICS` are
 excluded from every level's statistics and reported separately, so a relabelled copy of
@@ -50,8 +52,11 @@ DEGENERATE is the only status held out. Since 2026-11-19 the ledger covers all 3
 families and 123 cells. It admits 42, certifying a matched proxy on each; it marks 30
 DEGENERATE; and it measures 51 NOT ADMITTED (``proxy_matched`` failed on 24,
 ``proxy_distribution_matched`` on 40, ``behavioral_separated`` on 1; a cell can fail
-more than one). The NOT ADMITTED cells are still in the L0 mean. Whether the negative
-control should also leave them out is an open question for the author (``ROADMAP.md``).
+more than one). 50 of the 51 fail a proxy criterion; the 51st,
+``proxy_correlation_gaming`` @ 0.60, passes both proxy criteria and fails only
+``behavioral_separated``. The NOT ADMITTED cells are still in the L0 mean. Whether the
+negative control should also leave them out is an open question for the author
+(``ROADMAP.md``).
 
 The exclusion applies to **L0 only, deliberately**. Degeneracy is a property of the
 proxy reward, which is the only channel L0 reads; the L1/L2/L3 detectors read state

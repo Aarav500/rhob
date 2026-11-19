@@ -171,9 +171,10 @@ example: it does emit `state_counts`, and all 8 L1 detectors genuinely score
 exactly 0.500 on it.
 
 Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
-detector's published row to be a constant, which understated the suite: on the board
-before the 2026-11-19 regeneration (`acd35c2`) the best L1 detector read 0.621 over all
-123 cells. The regenerated board records those 88 cells as `null` and scores that
+detector's published row to be a constant, which understated the suite: on the
+pre-audit board (`git show c54a8cc:leaderboard/v5_leaderboard.json`, the board as it
+stood before the 2026-11-19 regeneration) the best L1 detector read 0.621 over all 123
+cells. The regenerated board (`52656cb`) records those 88 cells as `null` and scores that
 detector, State Divergence, over the 35 cells where the channel exists, at 0.927.
 
 ---
@@ -325,11 +326,13 @@ excluded: they stay in the L0 mean, and whether they should is an open question
 | `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
 | `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
 | `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
-| `timing_seconds` | wall clock per family; the only non-reproducible part |
+| `timing_seconds` | wall clock per family (in a merged ledger, the sum of its cells' wall clock on separate machines); not reproducible |
 
-`results` reproduces byte-for-byte on the same commit at the gate's fixed root seed
-`12345`. Failing **and** degenerate cells are recorded, never filtered — the ledger is
-the falsifiable form of the negative control.
+`results` reproduces byte-for-byte on the same commit and CPU model at the gate's fixed
+root seed `12345`; a cell certified on a different CPU model can differ in its last
+digits, and the committed ledger was merged from cells certified on seven
+(`provenance.sharding.cpus`). Failing **and** degenerate cells are recorded, never
+filtered — the ledger is the falsifiable form of the negative control.
 
 The three per-criterion blocks in `summary` are **not** interchangeable and none of
 them is the old `n_failing_by_criterion`, which was removed when the tri-state landed
@@ -355,7 +358,7 @@ backward compatibility — `passed` is `status == "ADMITTED"`, so a `False` ther
 | Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible_at`, one case per scored tier | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
 | Design | 12 layouts × 4 seeds/side (96 rollouts/cell) | 12 × 24 (576 rollouts/cell) |
 | Equivalence margin | `SMOKE_MARGIN` ≈ ±0.256 | `EQUIVALENCE_MARGIN` = ±0.10 |
-| Runs in CI | yes | no |
+| Runs in CI | yes | on demand only (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell; not per push |
 | Issues ADMITTED | **no** | yes |
 
 `SMOKE_MARGIN` is `required_seeds_per_layout` inverted at the smoke design, not a

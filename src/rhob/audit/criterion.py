@@ -142,9 +142,10 @@ class Verdict(str, Enum):
     #: ``DEGENERACY_UNGUARDED``, which reads a missing guard off the design, this is an
     #: observation, and it applies to every claim shape: a threshold check on a constant
     #: passes everywhere or fails everywhere. RHOB's ``onset_localizable`` is the
-    #: instance -- ``onset_std`` is exactly 0.0 in all 118 ledger cells of the 31
-    #: families whose onsets are authored; it varies only in the five cells of
-    #: ``continuous_camping`` and ``gridworld_camping``.
+    #: instance -- ``onset_std`` is exactly 0.0 in all 50 ledger cells. (2026-11-19: on
+    #: the full 123-cell ledger it varies in the five cells of ``continuous_camping`` and
+    #: ``gridworld_camping``, six values in all, so that row no longer codes degenerate;
+    #: it is still 0.0 in the 118 cells of the other 31 families.)
     DEGENERATE = "degenerate"
 
     #: Test matches the claim, but nothing shows a negative verdict is reachable.

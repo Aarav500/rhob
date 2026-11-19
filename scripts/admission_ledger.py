@@ -521,9 +521,35 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "are listed apart from the failures because the two are different findings: a "
         "failure says the proxy leaks and points at the environment to fix, a degenerate "
         "cell says the proxy carries no information and there is nothing to read either "
-        "way."
+        "way. A failure on a proxy criterion also covers an equivalence test that could "
+        "not establish matching within the margin at this design (a TOST failure): the "
+        "point estimate is inside the band and its interval is not."
     )
     out.append("")
+    # The split the sentence above implies, counted rather than asserted. Same test as
+    # ``admission_gate._check_proxy_matched`` uses to mark a failure underpowered. The
+    # ``admission/ADMISSION_LEDGER.md`` committed in d4b700d (2026-11-19) was rendered
+    # before this sentence and this split were added; on its JSON they read 24 measured
+    # failures, 8 outside the band and 16 inside, and they appear in the Markdown at the
+    # next regeneration.
+    pm_fails = [
+        r["metrics"]["proxy_matched"]
+        for r in rows
+        if r["outcomes"].get("proxy_matched") == "fail"
+        and "mean_l0_auroc" in r["metrics"].get("proxy_matched", {})
+    ]
+    if pm_fails:
+        margin, alpha = gate["equivalence_margin"], gate["alpha"]
+        n_inside = sum(
+            1 for m in pm_fails if abs(m["mean_l0_auroc"] - 0.5) < m.get("margin", margin)
+        )
+        out.append(
+            f"Of the {len(pm_fails)} measured `proxy_matched` failures here, "
+            f"{len(pm_fails) - n_inside} have a point estimate outside "
+            f"[{0.5 - margin:.2f}, {0.5 + margin:.2f}] and {n_inside} a point estimate "
+            f"inside it with a {100 * (1 - 2 * alpha):.0f}% CI that is not."
+        )
+        out.append("")
     if not degenerate_rows:
         out.append("None.")
         out.append("")

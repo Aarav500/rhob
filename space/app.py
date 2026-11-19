@@ -78,8 +78,8 @@ _LEADERBOARD_DIR = next((d for d in _CANDIDATE_LEADERBOARD_DIRS if d.is_dir()), 
 
 #: The replicated board is the only source of standings. There is deliberately no
 #: fallback to the single-draw v5_leaderboard.json: if this file is missing the page must
-#: fail loudly rather than quietly serve superseded numbers under a page that promises
-#: confidence intervals.
+#: fail loudly rather than quietly serve single-draw numbers with no intervals under a
+#: page that promises confidence intervals.
 _REPLICATED_FILE = _LEADERBOARD_DIR / "v5_replicated.json"
 
 #: The published transfer artifact. Pre-sign-randomization (2026-07-09) and pre-dating the
@@ -934,10 +934,12 @@ def _l0_control_html() -> str:
       <p>
         Detectors at {_esc(control.level)} see only the proxy reward, and every family's
         proxy is built to be statistically indistinguishable between the hacking and
-        legitimate variants. The admission ledger certifies that on 42 of the 123
-        (family, difficulty) cells; it measures 51 as not admitted (24 fail
+        legitimate variants. The admission ledger admits 42 of the 123
+        (family, difficulty) cells, certifying the match on each, and cannot measure 30.
+        It measures 51 as not admitted, 50 of them on a proxy check (24 fail
         <code>proxy_matched</code>, 40 <code>proxy_distribution_matched</code>, 14 of
-        them both, and 1 <code>behavioral_separated</code>) and cannot measure 30. So
+        them both); the other, <code>proxy_correlation_gaming</code> at 0.60, passes both
+        proxy checks and fails only <code>behavioral_separated</code>. So
         {_esc(control.level)} is a negative
         control on the <b>benchmark</b>, not a rung of detector performance: a detector
         here that beat chance would be evidence that the proxy matching had failed, not
@@ -959,8 +961,9 @@ def _l0_control_html() -> str:
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
         and the largest movers move away from it
         (<a href="{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md" target="_blank">docs/figures/l0_control_robustness.md</a>).
-        The 51 not-admitted cells are in every {_esc(control.level)} figure on this page,
-        the 27-family recomputation included; whether they should be is an open question
+        Cells the ledger measured and did not admit are held out of no
+        {_esc(control.level)} figure on this page, the 27-family recomputation included;
+        whether they should be is an open question
         (<a href="{_GITHUB_BLOB}/ROADMAP.md" target="_blank">ROADMAP.md</a>).
       </p>
     </div>

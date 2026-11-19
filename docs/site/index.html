@@ -207,7 +207,8 @@ whether that is signal or rounding, and say which.</td></tr>
 Each mints pairs of a hacking run and a legitimate run whose proxy reward is meant to be
 indistinguishable while the true reward diverges, and an admission gate decides, criterion
 by criterion, whether the construction achieved that. Every criterion returns PASS, FAIL
-(measured, and outside the margin) or DEGENERATE (not measurable), and the
+(measured, and not met; for an equivalence criterion, matching within the margin was not
+established) or DEGENERATE (not measurable), and the
 <a href="https://github.com/Aarav500/rhob/blob/main/admission/ADMISSION_LEDGER.md">admission
 ledger</a> publishes all three:</p>
 
@@ -220,7 +221,9 @@ ledger</a> publishes all three:</p>
 certified nor refuted. A not-admitted cell was measured and failed at least one
 criterion: 24 fail <code>proxy_matched</code>, 40 fail
 <code>proxy_distribution_matched</code> (14 fail both) and 1 fails
-<code>behavioral_separated</code>.</p>
+<code>behavioral_separated</code>. Of the 24 <code>proxy_matched</code> failures, 8 have the
+mean L0 AUROC outside the band [0.40,&nbsp;0.60] and 16 have it inside with a 90% interval too wide to fit, which is a
+failure to certify at this design rather than a measured leak.</p>
 
 <p>The paper counts seven instances of the class in RHOB, three of them introduced by the
 fix to an earlier one. Two more were found in the released artifact after the paper
@@ -231,10 +234,11 @@ that run 40 or 60 episodes, which padded the L0 negative control. And
 guard; it now returns DEGENERATE.</p>
 
 <p>RHOB was published as the Reward Hacking <em>Onset</em> Benchmark. Its onset column was
-removed because it could not fail either: in 31 of the 33 families the onsets are
-authored, so their spread is exactly 0.0 in those 118 ledger cells. In the other five,
-in two camping families where an agent sets the onset after an authored activation
-episode, it varies and still passes. The acronym is kept for URL stability only. Do not expand it as
+removed because it could not fail either: in 31 of the 33 families the onset label is
+the configured schedule, so its spread is exactly 0.0 in those 118 ledger cells. In the
+other five, in two camping families whose config places the onset too but whose label is
+read off what the trained agent does after the activation episode, it varies and still
+passes. The acronym is kept for URL stability only. Do not expand it as
 &ldquo;Onset Benchmark&rdquo; in citations.</p>
 
 <h3>What the benchmark does not show</h3>

@@ -44,7 +44,7 @@
 {\sffamily\bfseries\Large What my project actually is}
 
 \vspace{0.4em}
-{\sffamily Aarav Shah \quad\textbullet\quad August 2026, revised October 2026 \quad\textbullet\quad
+{\sffamily Aarav Shah \quad\textbullet\quad August 2026, revised October and November 2026 \quad\textbullet\quad
 \texttt{ashah264@ucr.edu}}
 
 \vspace{0.3em}
@@ -558,8 +558,9 @@ And there are now three answers instead of two:
 \begin{tabular}{@{}lp{9.2cm}@{}}
 \toprule
 Pass & Measured, and matched inside the margin. \\
-Fail & Measured, and outside the margin. The score leaks, and every other
-       number on that cell is suspect. \\
+Fail & Measured, and matching inside the margin was not shown. Either the
+       score leaks, or its interval was too wide to fit inside the margin at this
+       sample size. Every other number on that cell is suspect. \\
 Could not measure & The test could not be run at all. Says nothing, in either
        direction. \\
 \bottomrule
@@ -584,6 +585,9 @@ covers all of them, and the ten it covered before keep every verdict. Most of th
 the 15 PettingZoo (multi-agent) cells, and more than half of the new RLHF and
 sequence cells. Of the 51, 24 fail the check on the mean proxy reward, 40 the
 check on its shape (14 fail both), and one the check that behaviour separates.
+Of those 24, 8 have the mean outside the band; the other 16 have it inside, with an
+interval too wide to fit, so for them the check could not show a match rather than
+showing a leak.
 Those 51 still count in the L0 average; only the 30 that could not be measured
 are left out. Whether the 51 should be left out too is open, and it is in
 \code{ROADMAP.md}.
@@ -688,7 +692,11 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       and it still passes. So on almost every cell the onset column could not fail,
       and I have removed it from the table; the code keeps it only
       for the one outside dataset (\code{external/hvta}). For the same reason my
-      audit code now marks entry check 5 as one that cannot fail. I
+      audit code marked entry check 5 as one that cannot fail, when the ledger had
+      50 cells and the spread was 0.0 in every one. My own coding rule calls a check
+      that only if its number takes one value across everything I ship. Across all
+      123 cells the spread takes six values, so since 19 November 2026 the coding no
+      longer marks it that way, though it still cannot fail on the 118. I
       keep the short name so old links work, and the long name should not be used.
 \item \textbf{The entry checks are barely covered by my own tests.} The full check
       is never run on a real registered family anywhere in the test suite. The two

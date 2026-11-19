@@ -33,12 +33,12 @@ bit-identical. That moves no conclusion in the replication -- the rung orderings
 identity of the best detector at L1, L2 and L3 are all among the 23 invariant detectors --
 but a reader reproducing a single number should expect the third decimal to move.
 
-**All 20 committed replicates are the Amazon Linux range-resolved runs.** The
-sign-randomization artifacts are the pinned Windows stack. The admission ledger and the
-single-draw board were on that stack too until 2026-11-19, when both were regenerated on CI
-under the hashed Linux lock (`requirements/ci-admission-linux-py312.txt`, Python 3.12.16).
-The dependency stack is a third measurement basis in this repository, alongside seed count
-and draw count.
+**All 20 committed replicates are the Amazon Linux range-resolved runs.** The ledger, the
+committed board and the sign-randomization artifacts are the pinned Windows stack. That is a
+third measurement basis in this repository, alongside seed count and draw count.
+*(2026-11-19: the admission ledger and the single-draw board have since been regenerated on
+CI under the hashed Linux lock, `requirements/ci-admission-linux-py312.txt`, Python 3.12.16
+(`d4b700d`, `52656cb`); the sign-randomization artifacts are still the Windows stack.)*
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|

@@ -62,8 +62,9 @@ def draw_for(replicate_id: int) -> tuple[int, int]:
     Replicate 0 is ``(0, 0)``, the draw ``leaderboard/v5_leaderboard.json`` is scored
     at, which makes it the control the other replicates are read against. It is not a
     byte-for-byte copy of that board: the committed ``replicate_000.json`` (2026-08-04)
-    and the board regenerated on 2026-11-19 agree on 974 of 990 per-family values, and 14
-    of the 16 that differ are ``sequence_keyword_stuffing``.
+    and the board regenerated on 2026-11-19 agree on 974 of 990 per-family entries -- 755
+    of the 771 measured values, plus 219 entries that are ``null`` (not applicable) in
+    both -- and 14 of the 16 that differ are ``sequence_keyword_stuffing``.
     """
     return replicate_id, replicate_id * SEED_BASE_STRIDE
 

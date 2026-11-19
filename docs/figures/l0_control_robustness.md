@@ -9,17 +9,18 @@ control as **all 13 L0 detectors have a 95% interval containing 0.500**.
 That claim is computed over all 33 families -- each detector's `overall_auroc` is the
 cell-weighted mean over all 123 cells, and `scripts/aggregate_replication.py` applies the
 ledger exclusion only inside `summarize_access_levels`, i.e. only to the level aggregate.
-Six families are marked DEGENERATE in the admission ledger because their proxy reward is
-*constant*, and on a constant proxy an L0 detector returns 0.500 for a reason that has
-nothing to do with proxy matching. Those 30 cells cannot say anything else, so including
-them pulls each detector's mean toward 0.500 by construction. A control padded with cells
+Six families are marked DEGENERATE in the admission ledger because their proxy is
+*constant* (three families) or identical, or nearly, in every run (three), so an L0
+statistic can order almost none of their run pairs, and there an L0 detector returns 0.500
+for a reason that has nothing to do with proxy matching. Those 30 cells cannot say anything
+else, so including them pulls each detector's mean toward 0.500 by construction. A control padded with cells
 that are forced to agree with it is the failure mode this project keeps finding.
 
 Verified, 13 detectors x 20 draws = 260 values per family: **four of the six return
 exactly 0.500 every time** (`distributional_shift`, `monitored_sandbagging`,
 `rlhf_reward_model_overopt`, `shortcut_exploitation`; 0 of 260 depart). The other two are
-constant only to numerical dust -- `orbit_chirality` has relative dispersion 1.1e-16
-(1.36e-16 in the ledger before its 2026-11-19 regeneration) and `physics_exploitation`
+constant only to numerical dust -- `orbit_chirality` has relative dispersion 1.36e-16
+(1.1e-16 in the ledger regenerated on 2026-11-19) and `physics_exploitation`
 strictly orders 0.35% of cross-variant pairs -- so a detector does
 occasionally order a pair on rounding error: 27 of 260 and 37 of 260 respectively. That is
 degeneracy of the second kind rather than a measurement, so the argument for holding all
@@ -88,15 +89,26 @@ The per-detector verdicts are not seed-sensitive in that way. Over the same 300 
 endpoint. The control is carried detector by detector, which is where it is robust.
 
 **What the 27 families are (2026-11-19).** Nor does the check license a claim that the
-proxy is matched on those 27 families. Since its 2026-11-19 regeneration the admission
-ledger covers all 33 families, 123 cells. It certifies a matched proxy on 42 of them
-(ADMITTED), finds the same six families DEGENERATE (30 cells), and measures 51 NOT
-ADMITTED: 24 fail `proxy_matched`, 40 fail `proxy_distribution_matched` (14 fail both)
-and 1 fails `behavioral_separated`. The 27-family column above holds out only the
-DEGENERATE families, as the L0 aggregate does, so the 51 NOT ADMITTED cells are in it.
-Whether they should be is an open question for the author
-([ROADMAP.md](../../ROADMAP.md)). The table itself does not change: the degenerate set is
-the same six families.
+proxy is matched on those 27 families. Since its 2026-11-19 regeneration (`d4b700d`) the
+admission ledger covers all 33 families, 123 cells. It admits 42 of them, certifying a
+matched proxy on each; a 43rd, `proxy_correlation_gaming` @ 0.60, passes both proxy
+criteria and fails only `behavioral_separated`. It finds the same six families DEGENERATE
+(30 cells) and measures 51 NOT ADMITTED, 50 of them failing a proxy criterion: 24 fail
+`proxy_matched`, 40 fail `proxy_distribution_matched` (14 fail both), and 1 fails
+`behavioral_separated` alone. The 27-family column above holds out only the DEGENERATE
+families, as the L0 aggregate does, so the NOT ADMITTED cells are in it: all 51, for every
+detector. Whether they should be is an open question for the author
+([ROADMAP.md](../../ROADMAP.md)). The degenerate set is the same six families, so the
+regeneration changes nothing in the table.
+
+The table, the suite-mean interval and the seed replay above date from 2026-08-06
+(`97ac575`), before the re-score of `253c7ec` (2026-09-03) recorded Reward Skewness not
+applicable on the 19 families that run 40 or 60 episodes. Its Skewness row therefore still
+averages that detector's fallback 0.500 on those families, NOT ADMITTED cells included.
+Since the re-score the replicated board's Skewness row covers 14 families and 9 of the 51
+NOT ADMITTED cells, and `leaderboard/v5_replicated.json` gives the L0 suite mean as 0.4972
+[0.4939, 0.5005] rather than 0.4966 [0.4934, 0.4999]. This file has not been recomputed
+since.
 
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set.
