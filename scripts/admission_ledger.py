@@ -157,7 +157,26 @@ def collect_provenance(
             block["packages"][name] = metadata.version(name)
         except metadata.PackageNotFoundError:
             block["packages"][name] = None
+    block["cpu"] = _cpu_model()
     return block
+
+
+def _cpu_model() -> str | None:
+    """The CPU model, recorded because floating-point results can differ between models.
+
+    A sharded ledger certifies its cells on different machines; this is what lets a
+    reader see whether they were the same kind of machine.
+    """
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    import platform
+
+    return platform.processor() or None
 
 
 def run_ledger(
@@ -336,14 +355,24 @@ def render_markdown(payload: dict[str, Any]) -> str:
     out.append(f"- Generated: {prov['generated_utc']}")
     out.append(f"- Commit: `{git['commit']}` (branch `{git['branch']}`, "
                f"working tree {'dirty' if git['dirty'] else 'clean'})")
-    out.append(f"- Python: {prov['python']} on {prov['platform']}")
+    sharding = prov.get("sharding")
+    platforms = ", ".join(sharding["platforms"]) if sharding else prov["platform"]
+    out.append(f"- Python: {prov['python']} on {platforms}")
+    if sharding:
+        cpus = ", ".join(c or "unknown" for c in sharding.get("cpus", [])) or "unknown"
+        out.append(
+            f"- Sharded: merged from {sharding['n_shards']} single-cell runs, generated "
+            f"{sharding['generated_utc_first']} to {sharding['generated_utc_last']}, on "
+            f"CPUs: {cpus}" + (f"; CI run {sharding['ci_run']}" if sharding.get("ci_run") else "")
+        )
+        out.append(f"- Each shard ran: `{sharding['shard_command']}`")
     out.append(
         "- Packages: "
         + ", ".join(
             f"{k} {v if v else 'not installed'}" for k, v in sorted(prov["packages"].items())
         )
     )
-    out.append(f"- Command: `{' '.join(prov['argv'])}`")
+    out.append(f"- {'Merge command' if sharding else 'Command'}: `{' '.join(prov['argv'])}`")
     out.append("")
 
     out.append("## Gate configuration")
@@ -560,10 +589,18 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
     out.append("## Wall clock")
     out.append("")
-    out.append(
-        "Machine-dependent; the only non-reproducible part of this artifact. Recorded so "
-        "the cost of a full re-run is knowable in advance."
-    )
+    if prov.get("sharding"):
+        out.append(
+            "Machine-dependent; the only non-reproducible part of this artifact. This ledger "
+            "was certified one cell per machine, so each figure sums a family's per-cell "
+            "process wall-clock on separate runners. Every shard repeats per-process setup, "
+            "so this is neither the run's elapsed time nor the cost of one unsharded re-run."
+        )
+    else:
+        out.append(
+            "Machine-dependent; the only non-reproducible part of this artifact. Recorded so "
+            "the cost of a full re-run is knowable in advance."
+        )
     out.append("")
     out.append("| family | seconds | tiers |")
     out.append("|---|---|---|")
@@ -852,6 +889,10 @@ def merge_shards(
         "generated_utc_first": stamps[0],
         "generated_utc_last": stamps[-1],
         "platforms": sorted({s["provenance"].get("platform") for _, s in ordered}),
+        "cpus": sorted({s["provenance"].get("cpu") or "" for _, s in ordered}),
+        "shard_command": (
+            "python scripts/admission_ledger.py --families F --difficulties D --out-dir DIR"
+        ),
         "timing_seconds": "sum of each family's per-cell wall-clock, on separate machines",
         "ci_run": ci_run,
     }
@@ -906,6 +947,10 @@ def main(argv: list[str] | None = None) -> int:
             f"{gate.n_layouts} layouts x {gate.min_seeds_per_layout} seeds/side per cell",
             flush=True,
         )
+
+    # Before certifying, so an unwritable --out-dir fails now rather than after the first
+    # family's work.
+    args.out_dir.mkdir(parents=True, exist_ok=True)
 
     def write(rows: list[dict[str, Any]], timing: dict[str, float]) -> dict[str, Any]:
         # `families_run` reflects what has actually been certified so far, so a

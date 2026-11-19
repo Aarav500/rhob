@@ -353,17 +353,15 @@ python scripts/v5_leaderboard_and_transfer.py
 
 **Runtime:** ~2–3 hours on CPU
 
-**Sharded, on CI.** `.github/workflows/regenerate.yml` (manual dispatch) scores one
-detector per runner, each installing the hashed lock the nightly physics screen uses
-(`requirements/ci-admission-linux-py312.txt`), and commits the merged board to the branch
-it ran on. The merge is `python scripts/v5_leaderboard_and_transfer.py --merge-shards DIR`,
-which refuses anything but the 30 detectors, each once, with no error, every registered
-family under one sampling block, from one clean commit under one Python and one set of
-package versions. The result is the board one run writes, because every shard rolls out
-the identical runs: the rollouts are deterministic in their seeds. What a single run
-would not record goes under `provenance.sharding`: the shard count, the first and last
-shard timestamps, every platform string, and the CI run. The same workflow regenerates
-the admission ledger, one cell per runner (see [The Admission Ledger](#the-admission-ledger)).
+**On CI.** `.github/workflows/regenerate.yml` (manual dispatch) runs this command as one
+job on the hashed lock the nightly physics screen installs
+(`requirements/ci-admission-linux-py312.txt`), with its calibration cache restored, and
+commits the board to the branch it ran on if every detector scored and the tree was
+clean. It is one job on purpose: the 30 detectors are scored on the same rollouts, shared
+in-process, so the cost is the rollouts and calibrations, paid once. Split by detector,
+every job would pay all of it again and each detector would be scored on a different
+machine's rollouts. The same workflow certifies the admission ledger one cell per runner
+(see [The Admission Ledger](#the-admission-ledger)).
 
 ### The sampling caveat that governs every cell
 
@@ -960,17 +958,28 @@ only the timestamp and timings vary.
 
 The full grid is 123 cells, and a MuJoCo cell alone takes about 50 minutes, so
 `.github/workflows/regenerate.yml` certifies it one cell per runner
-(`--families F --difficulties D`) and assembles the shards with
+(`--families F --difficulties D`), every runner on the CI lock and one Python patch
+release, and assembles the shards with
 `python scripts/admission_ledger.py --merge-shards DIR`. Splitting changes no number:
 `AdmissionGate.certify` re-seeds its layout generator at `12345` for every cell, so a
 cell does not depend on what else ran beside it. Checked on 2026-11-19: ten single-cell
 shards of `eval_probe_sandbagging` and `monitored_sandbagging` merge to the same
-`results`, `summary` and `design` as one run over both. The merge refuses a set that is
-not the full grid (a cell missing, duplicated or outside it), a shard from a dirty tree,
-shards that differ in commit, Python, package versions, gate or design, and a cell whose
-certification raised unless `--allow-cell-errors` is given. `provenance.sharding` records
-the shard count, timestamps and platforms, and `timing_seconds` then sums per-cell
-wall-clock measured on separate machines.
+`results`, `summary` and `design` as one run over both.
+
+The merge refuses a set that is not the full grid (a cell missing, duplicated or outside
+it), a shard from a dirty tree, and shards that differ in commit, Python, package
+versions, gate or design. A cell whose certification raised fails its own job, so
+"Re-run failed jobs" retries just that cell; the merge refuses such a cell too unless
+`--allow-cell-errors` is given. Cells land on whichever runner is free, so different
+cells can be certified on different CPU models; the ledger's provenance records the CPU
+(`provenance.cpu`), and a merged ledger lists every model under `provenance.sharding`,
+with the shard count, the first and last shard timestamps and the CI run. Its
+`timing_seconds` then sums per-cell wall-clock measured on separate machines, and
+`ADMISSION_LEDGER.md` says so.
+
+The workflow commits the ledger alone. The docs and tests that quote it
+(`tests/test_v3/test_ledger_doc_consistency.py`, `tests/test_v3/test_access_summary.py`)
+fail on the branch tip until a reviewed follow-up updates them.
 
 This artifact exists because **a criterion nobody can see fail is not a check.**
 RHOB's L0-at-chance result is a negative control — the families are built so the

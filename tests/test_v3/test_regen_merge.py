@@ -1,15 +1,14 @@
-"""``--merge-shards`` in the two regeneration scripts publishes only a complete, uniform set.
+"""``scripts/admission_ledger.py --merge-shards`` publishes only a complete, uniform set.
 
-``.github/workflows/regenerate.yml`` certifies the ledger one cell per runner and scores
-the board one detector per runner, then commits what the merge writes in place of the
-published artifacts. A merge that accepted a missing cell, a duplicate, a shard from a
-dirty tree or from different package versions would publish exactly the kind of
-artifact the repository's provenance blocks exist to rule out, labelled complete. These
-tests build shards by hand, so they need no rollouts, and check each refusal.
+``.github/workflows/regenerate.yml`` certifies the ledger one cell per runner and commits
+what the merge writes in place of the published artifact. A merge that accepted a missing
+cell, a duplicate, a shard from a dirty tree or from different package versions would
+publish exactly the kind of artifact the repository's provenance blocks exist to rule
+out, labelled complete. These tests build shards by hand, so they need no rollouts, and
+check each refusal, through the function and through the command line the workflow runs.
 
-That a merged artifact equals an unsharded run of the same scope was checked by running
-both on two families (2026-11-19, recorded in the commit that added the merge); that
-needs rollouts and is not repeated here.
+That a merged ledger equals an unsharded run of the same scope needs rollouts and is not
+repeated here; REPRODUCIBILITY.md ("The Admission Ledger") records the check.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -36,12 +36,6 @@ def _load(name: str, path: Path):
 @pytest.fixture(scope="module")
 def ledger_script():
     return _load("_admission_ledger_under_test", _REPO / "scripts" / "admission_ledger.py")
-
-
-@pytest.fixture(scope="module")
-def board_script():
-    pytest.importorskip("torch", reason="the board script imports the two torch detectors")
-    return _load("_v5_board_under_test", _REPO / "scripts" / "v5_leaderboard_and_transfer.py")
 
 
 FAMILIES = ["eval_probe_sandbagging", "monitored_sandbagging"]
@@ -64,6 +58,7 @@ def _ledger_shard(family: str, difficulty: float, status: str = "ADMITTED") -> d
     prov = _provenance()
     prov["scope"] = {"families_run": [family], "families_registered": 33,
                      "complete": False, "difficulty_override": [difficulty]}
+    prov["cpu"] = "Test CPU"
     prov["gate"] = {"n_layouts": 12, "min_seeds_per_layout": 24, "n_bootstrap": 2000,
                     "equivalence_margin": 0.1, "informativeness_floor": 1e-4, "alpha": 0.05,
                     "target_power": 0.9, "behavioral_floor": 0.6, "onset_std_frac": 0.25}
@@ -82,10 +77,10 @@ def _ledger_shard(family: str, difficulty: float, status: str = "ADMITTED") -> d
             "timing_seconds": {family: 2.0}}
 
 
-def _write_ledger_shards(root: Path, ledger_script, mutate=None) -> list[Path]:
+def _write_ledger_shards(root: Path, ledger_script, mutate=None, families=FAMILIES) -> list[Path]:
     paths = []
     # Written in reverse so the merge has to restore grid order itself.
-    for i, (family, difficulty) in enumerate(reversed(ledger_script.ledger_grid(FAMILIES))):
+    for i, (family, difficulty) in enumerate(reversed(ledger_script.ledger_grid(families))):
         shard = _ledger_shard(family, difficulty,
                               "DEGENERATE" if family == "monitored_sandbagging" else "ADMITTED")
         if mutate is not None:
@@ -126,6 +121,13 @@ def test_a_complete_set_merges_in_grid_order(tmp_path, ledger_script):
          "scope"),
         (lambda i, s: i == 3 and s["results"].append(copy.deepcopy(s["results"][0])),
          "exactly one cell"),
+        (lambda i, s: i == 3 and s["provenance"].update(python="3.12.17"), "python differs"),
+        (lambda i, s: i == 3 and s["provenance"].update(python_implementation="PyPy"),
+         "python_implementation differs"),
+        (lambda i, s: i == 3 and s.update(schema="rhob.admission_ledger/2"), "schema"),
+        (lambda i, s: i == 3 and s["provenance"]["scope"].update(families_run=["orbit_chirality"]),
+         "scope"),
+        (lambda i, s: s["provenance"]["git"].update(commit=None), "no git commit"),
     ],
 )
 def test_a_nonuniform_set_is_refused(tmp_path, ledger_script, mutate, message):
@@ -177,64 +179,71 @@ def test_the_merged_ledger_passes_the_published_schema(tmp_path, ledger_script):
     assert md_path.read_text().startswith("# RHOB Admission Ledger")
 
 
-DETECTORS = ["Reward Threshold", "Reward Skewness", "State Frequency Anomaly"]
+def test_a_differing_cpu_is_recorded_not_refused(tmp_path, ledger_script):
+    """Cells land on whatever runner is free; the merge lists the CPU models it saw."""
+    _write_ledger_shards(tmp_path, ledger_script,
+                         lambda i, s: i == 3 and s["provenance"].update(cpu="Other CPU"))
+    payload = ledger_script.merge_shards(tmp_path, families=FAMILIES)
+    assert payload["provenance"]["sharding"]["cpus"] == ["Other CPU", "Test CPU"]
 
 
-def _board_shard(board_script, name: str) -> dict:
-    record = {"access_level": "L0", "overall_auroc": 0.5, "cells": 10, "cells_measured": 10,
-              "cells_not_applicable": 0, "not_applicable_families": [],
-              "not_applicable_reasons": {}, "per_family": {f: 0.5 for f in FAMILIES}}
-    return board_script.build_board({name: record}, FAMILIES, 5, _provenance())
+def test_the_markdown_says_the_ledger_was_sharded(tmp_path, ledger_script):
+    _write_ledger_shards(tmp_path, ledger_script)
+    payload = ledger_script.merge_shards(tmp_path, families=FAMILIES)
+    md = ledger_script.render_markdown(payload)
+    assert "- Sharded: merged from 10 single-cell runs" in md
+    assert "- Merge command:" in md and "- Each shard ran:" in md
+    assert "neither the run's elapsed time nor the cost of one unsharded re-run" in md
+    unsharded = copy.deepcopy(payload)
+    del unsharded["provenance"]["sharding"]
+    md = ledger_script.render_markdown(unsharded)
+    assert "Sharded" not in md and "- Command:" in md
 
 
-def _write_board_shards(root: Path, board_script, mutate=None) -> None:
-    root.mkdir(parents=True, exist_ok=True)
-    for i, name in enumerate(reversed(DETECTORS)):
-        shard = _board_shard(board_script, name)
-        if mutate is not None:
-            mutate(i, shard)
-        (root / f"board-{i:02d}.json").write_text(json.dumps(shard))
+@pytest.fixture(scope="module")
+def full_grid(tmp_path_factory, ledger_script) -> Path:
+    """Shards for all 123 cells, as the workflow's merge job receives them."""
+    root = tmp_path_factory.mktemp("full")
+    _write_ledger_shards(root, ledger_script, families=None)
+    return root
 
 
-def test_a_complete_board_set_merges_in_detector_order(tmp_path, board_script):
-    _write_board_shards(tmp_path, board_script)
-    board = board_script.merge_shards(tmp_path, detectors=DETECTORS, families=FAMILIES)
-    assert list(board["results"]) == DETECTORS
-    assert board["detectors"] == 3 and board["families_evaluated"] == FAMILIES
-    assert board["sampling"] == _board_shard(board_script, DETECTORS[0])["sampling"]
-    assert board["provenance"]["sharding"]["n_shards"] == 3
+def test_the_cli_merges_the_full_grid_and_labels_it_complete(full_grid, tmp_path, ledger_script):
+    out = tmp_path / "out"
+    assert ledger_script.main(["--merge-shards", str(full_grid), "--out-dir", str(out)]) == 0
+    payload = json.loads((out / "admission_ledger.json").read_text())
+    assert payload["summary"]["n_cells"] == len(ledger_script.ledger_grid()) == 123
+    assert payload["provenance"]["scope"]["complete"] is True
+    assert (out / "ADMISSION_LEDGER.md").exists()
 
 
-@pytest.mark.parametrize(
-    ("mutate", "message"),
-    [
-        (lambda i, s: s["provenance"]["git"].update(dirty=True), "dirty"),
-        (lambda i, s: i == 1 and s["provenance"]["git"].update(commit="b" * 40), "commit"),
-        (lambda i, s: i == 1 and s["provenance"]["packages"].update(numpy="2.6.0"), "packages"),
-        (lambda i, s: i == 1 and s["sampling"].update(n_seeds_per_variant=6), "sampling"),
-        (lambda i, s: i == 1 and s.update(families_evaluated=FAMILIES[:1]), "families"),
-        (lambda i, s: i == 1 and next(iter(s["results"].values())).update(error="boom"),
-         "raised"),
-        (lambda i, s: i == 1 and s.pop("provenance"), "provenance"),
-    ],
-)
-def test_a_nonuniform_board_set_is_refused(tmp_path, board_script, mutate, message):
-    _write_board_shards(tmp_path, board_script, mutate)
-    with pytest.raises(board_script.ShardError, match=message):
-        board_script.merge_shards(tmp_path, detectors=DETECTORS, families=FAMILIES)
+def test_the_cli_refuses_and_writes_nothing(full_grid, tmp_path, ledger_script):
+    """The workflow commits on the exit code, so a refusal must be non-zero and leave no file."""
+    broken = tmp_path / "broken"
+    shutil.copytree(full_grid, broken)
+    first = sorted(broken.rglob("admission_ledger.json"))[0]
+    shard = json.loads(first.read_text())
+    shard["results"][0].update(passed=False, status="NOT ADMITTED", error="RuntimeError: x")
+    first.write_text(json.dumps(shard))
+    out = tmp_path / "out"
+    assert ledger_script.main(["--merge-shards", str(broken), "--out-dir", str(out)]) == 1
+    assert not (out / "admission_ledger.json").exists()
+    assert ledger_script.main(
+        ["--merge-shards", str(broken), "--out-dir", str(out), "--allow-cell-errors"]
+    ) == 0
+    assert json.loads((out / "admission_ledger.json").read_text())["summary"]["n_not_admitted"] >= 1
+    first.unlink()
+    assert ledger_script.main(["--merge-shards", str(broken), "--out-dir", str(tmp_path / "o2")]) == 1
 
 
-def test_a_missing_or_duplicated_detector_is_refused(tmp_path, board_script):
-    _write_board_shards(tmp_path, board_script)
-    (tmp_path / "board-00.json").unlink()
-    with pytest.raises(board_script.ShardError, match="missing"):
-        board_script.merge_shards(tmp_path, detectors=DETECTORS, families=FAMILIES)
-    (tmp_path / "board-00.json").write_text((tmp_path / "board-01.json").read_text())
-    with pytest.raises(board_script.ShardError, match="already supplied"):
-        board_script.merge_shards(tmp_path, detectors=DETECTORS, families=FAMILIES)
+@pytest.mark.parametrize("extra", [["--families", "orbit_chirality"], ["--difficulties", "0.5"]])
+def test_the_cli_merge_takes_no_scope(tmp_path, ledger_script, extra):
+    with pytest.raises(SystemExit) as exc:
+        ledger_script.main(["--merge-shards", str(tmp_path), *extra])
+    assert exc.value.code == 2
 
 
-def test_the_cli_expects_every_detector_and_family(board_script, ledger_script):
-    """The subset arguments are for tests; the defaults are the full artifact."""
-    assert len(board_script.DETECTORS) == 30
-    assert len(ledger_script.ledger_grid()) == 123
+def test_the_cli_lists_the_full_grid(capsys, ledger_script):
+    assert ledger_script.main(["--list-cells"]) == 0
+    cells = json.loads(capsys.readouterr().out)
+    assert [(c["family"], c["difficulty"]) for c in cells] == ledger_script.ledger_grid()
