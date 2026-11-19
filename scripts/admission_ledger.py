@@ -750,7 +750,7 @@ def write_artifacts(payload: dict[str, Any], out_dir: Path) -> tuple[Path, Path]
 
 
 class ShardError(ValueError):
-    """A set of shards that does not add up to one ledger (or one board)."""
+    """A set of shards that does not add up to one ledger."""
 
 
 def _shard_environment(prov: dict[str, Any]) -> dict[str, Any]:
@@ -785,9 +785,12 @@ def merge_shards(
     docs/postmortems/2026-11-mujoco-calibration-cache.md).
 
     What does differ from a single run, and is recorded under ``provenance.sharding``:
-    ``generated_utc`` is the latest shard's, the ``platform`` strings may differ between
-    machines (all are listed), and ``timing_seconds`` sums each family's per-cell
-    wall-clock measured on separate machines.
+    ``generated_utc`` is the latest shard's; cells may be certified on different CPU
+    models and platforms, all listed there (``provenance.cpu`` and ``.platform`` are then
+    null); and ``timing_seconds`` sums each family's per-cell wall-clock measured on
+    separate machines. "The artifact a single full run would have written" holds on one
+    CPU model: numpy's SIMD dispatch and OpenBLAS's kernels depend on the CPU, so a cell
+    certified on another model can differ in its last digits.
 
     ``families`` narrows the expected grid to those families (tests use it to merge a
     cheap subset); the ledger is then labelled incomplete unless they are all registered.
@@ -870,6 +873,10 @@ def merge_shards(
     provenance = copy.deepcopy(ref["provenance"])
     provenance["generated_utc"] = stamps[-1]
     provenance["argv"] = list(sys.argv)
+    # One shard's machine is not the ledger's: every cell's machine is listed under
+    # `sharding`, so the single-machine fields are emptied rather than left naming one.
+    provenance["platform"] = None
+    provenance["cpu"] = None
     provenance["scope"] = {
         "families_run": families,
         "families_registered": len(FamilyRegistry.list_families()),

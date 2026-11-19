@@ -109,6 +109,15 @@ jobs:
             calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
       - name: Score 30 detectors on 33 families
         run: python -u scripts/v5_leaderboard_and_transfer.py --out leaderboard/v5_leaderboard.json
+      # Saved before anything can refuse it, so a failed check, a refused commit or a
+      # rejected push still leaves hours of scoring downloadable from the run.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: board
+          path: leaderboard/v5_leaderboard.json
+          if-no-files-found: error
+          retention-days: 14
       # The script records a detector that raised as {"error": ...} and carries on, which
       # is right for a person reading the console and wrong for an unattended commit.
       - name: Every detector scored, from a clean tree

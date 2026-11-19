@@ -960,20 +960,23 @@ The full grid is 123 cells, and a MuJoCo cell alone takes about 50 minutes, so
 `.github/workflows/regenerate.yml` certifies it one cell per runner
 (`--families F --difficulties D`), every runner on the CI lock and one Python patch
 release, and assembles the shards with
-`python scripts/admission_ledger.py --merge-shards DIR`. Splitting changes no number:
-`AdmissionGate.certify` re-seeds its layout generator at `12345` for every cell, so a
-cell does not depend on what else ran beside it. Checked on 2026-11-19: ten single-cell
-shards of `eval_probe_sandbagging` and `monitored_sandbagging` merge to the same
-`results`, `summary` and `design` as one run over both.
+`python scripts/admission_ledger.py --merge-shards DIR`. Splitting by itself changes no
+number: `AdmissionGate.certify` re-seeds its layout generator at `12345` for every cell,
+so a cell does not depend on what else ran beside it. Checked on 2026-11-19, on one
+machine: ten single-cell shards of `eval_probe_sandbagging` and `monitored_sandbagging`
+merge to the same `results`, `summary` and `design` as one run over both. What can move a
+number is the machine: numpy's SIMD dispatch and OpenBLAS's kernels depend on the CPU
+model, so a cell certified on a different model can differ in its last digits.
 
 The merge refuses a set that is not the full grid (a cell missing, duplicated or outside
 it), a shard from a dirty tree, and shards that differ in commit, Python, package
 versions, gate or design. A cell whose certification raised fails its own job, so
 "Re-run failed jobs" retries just that cell; the merge refuses such a cell too unless
 `--allow-cell-errors` is given. Cells land on whichever runner is free, so different
-cells can be certified on different CPU models; the ledger's provenance records the CPU
-(`provenance.cpu`), and a merged ledger lists every model under `provenance.sharding`,
-with the shard count, the first and last shard timestamps and the CI run. Its
+cells can be certified on different CPU models. An unsharded ledger records its CPU
+under `provenance.cpu`; a merged one sets `provenance.cpu` and `provenance.platform` to
+null and lists every model and platform under `provenance.sharding`, with the shard
+count, the first and last shard timestamps and the CI run. Its
 `timing_seconds` then sums per-cell wall-clock measured on separate machines, and
 `ADMISSION_LEDGER.md` says so.
 

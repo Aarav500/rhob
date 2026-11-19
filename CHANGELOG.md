@@ -25,10 +25,10 @@ that produced it. The board is one job, the script as a person runs it, because 
 detectors share one set of rollouts. The ledger is one job per cell:
 `scripts/admission_ledger.py` gains `--list-cells` and `--merge-shards DIR`, which
 refuses anything but the full grid from one clean commit under one Python, one set of
-package versions, one gate and one design. A merged ledger equals an unsharded one,
-checked on two families (REPRODUCIBILITY.md, "The Admission Ledger"). The ledger's
-provenance now records the CPU model, and a merged ledger lists every model it was
-certified on. `tests/test_v3/test_regen_merge.py` covers the merge's refusals and its
+package versions, one gate and one design. On one machine a merged ledger equals an
+unsharded one, checked on two families (REPRODUCIBILITY.md, "The Admission Ledger");
+across CPU models a cell can differ in its last digits. The ledger's provenance now
+records the CPU model, and a merged ledger lists every model it was certified on. `tests/test_v3/test_regen_merge.py` covers the merge's refusals and its
 command line. The workflow commits the artifacts alone; the docs and tests that quote
 them are updated in a reviewed follow-up, and fail on the branch tip until then.
 
