@@ -33,6 +33,19 @@ def _load(name: str, path: Path):
     return module
 
 
+@pytest.fixture(autouse=True)
+def shipped_families_only(monkeypatch):
+    """Other test modules register mock families into the process-wide registry
+    (test_v3_core, test_sign_randomization); the full grid is the shipped families'."""
+    from rhob.v3.registry import FamilyRegistry
+
+    shipped = {
+        name: fam for name, fam in FamilyRegistry._families.items()
+        if type(fam).__module__.startswith("rhob.v3.families.")
+    }
+    monkeypatch.setattr(FamilyRegistry, "_families", shipped)
+
+
 @pytest.fixture(scope="module")
 def ledger_script():
     return _load("_admission_ledger_under_test", _REPO / "scripts" / "admission_ledger.py")
@@ -248,7 +261,7 @@ def test_the_markdown_says_the_ledger_was_sharded(tmp_path, ledger_script):
     assert "the cost of a full re-run is knowable in advance" in md
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def full_grid(tmp_path_factory, ledger_script) -> Path:
     """Shards for all 123 cells, as the workflow's merge job receives them."""
     root = tmp_path_factory.mktemp("full")
