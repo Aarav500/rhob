@@ -1,0 +1,235 @@
+name: regenerate artifacts
+
+# Regenerates the two artifacts that take hours on one machine, sharded across runners,
+# and commits them to the branch the run is on:
+#
+#   leaderboard/v5_leaderboard.json   30 detectors x 33 families, one job per detector
+#   admission/admission_ledger.json   the full 123-cell grid, one job per cell
+#   admission/ADMISSION_LEDGER.md
+#
+# Every shard installs the same hashed lock as the nightly physics screen
+# (requirements/ci-admission-linux-py312.txt) and restores its calibration cache. A shard
+# is a normal run of the script restricted to its share (`--detectors NAME`,
+# `--families F --difficulties D`), and the `merge` job assembles them with each script's
+# own `--merge-shards`, which refuses anything but the complete set from one clean commit
+# under one set of package versions. Splitting changes no number: rollouts are
+# deterministic in their seeds, and the gate re-seeds every cell from a fixed root, so a
+# cell or a detector does not depend on what else ran beside it.
+#
+# The merge job commits only if the code that produced the shards is still the code at
+# the branch tip (src/, scripts/, the lock and pyproject.toml unchanged since the run's
+# commit), so an artifact is never committed next to sources that would not reproduce it.
+# Docs and tests that quote these artifacts are NOT updated here; that is a reviewed
+# follow-up change.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifacts:
+        description: "Which artifacts to regenerate"
+        type: choice
+        options: [both, board, ledger]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regenerate-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  WHICH: ${{ inputs.artifacts || 'both' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      detectors: ${{ steps.plan.outputs.detectors }}
+      cells: ${{ steps.plan.outputs.cells }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      # Index-numbered so every artifact name is a valid one (detector names have spaces
+      # and hyphens); the name itself travels in the matrix entry.
+      - name: List the shards
+        id: plan
+        run: |
+          python scripts/v5_leaderboard_and_transfer.py --list-detectors > detectors.json
+          python scripts/admission_ledger.py --list-cells > cells.json
+          python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json
+          detectors = json.load(open("detectors.json"))
+          cells = json.load(open("cells.json"))
+          print("detectors=" + json.dumps(
+              [{"id": f"{i:02d}", "name": n} for i, n in enumerate(detectors)]))
+          print("cells=" + json.dumps(
+              [{"id": f"{i:03d}", **c} for i, c in enumerate(cells)]))
+          EOF
+          echo "$(python -c 'import json;print(len(json.load(open("detectors.json"))))') detectors, $(python -c 'import json;print(len(json.load(open("cells.json"))))') cells"
+
+  board:
+    needs: plan
+    if: ${{ (inputs.artifacts || 'both') != 'ledger' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.detectors) }}
+    name: board ${{ matrix.shard.id }} ${{ matrix.shard.name }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+      - name: Fingerprint the physics stack
+        id: physics
+        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
+      # Restore only. The per-entry keys inside are complete (src/rhob/v3/calibration_cache.py),
+      # so a stale or missing entry is recomputed rather than trusted, and 150 jobs saving
+      # the same tarball would only race. The nightly keeps the cache current.
+      - name: Restore calibration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+      - name: Score one detector on every family
+        env:
+          DETECTOR: ${{ matrix.shard.name }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/shard"
+          python -u scripts/v5_leaderboard_and_transfer.py --detectors "$DETECTOR" \
+            --out "$RUNNER_TEMP/shard/board-${{ matrix.shard.id }}.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: board-${{ matrix.shard.id }}
+          path: ${{ runner.temp }}/shard/board-${{ matrix.shard.id }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  ledger:
+    needs: plan
+    if: ${{ (inputs.artifacts || 'both') != 'board' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.cells) }}
+    name: ledger ${{ matrix.shard.id }} ${{ matrix.shard.family }} @ ${{ matrix.shard.difficulty }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+      - name: Fingerprint the physics stack
+        id: physics
+        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
+      - name: Restore calibration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+      - name: Certify one cell
+        env:
+          FAMILY: ${{ matrix.shard.family }}
+          DIFFICULTY: ${{ matrix.shard.difficulty }}
+        run: |
+          python -u scripts/admission_ledger.py --families "$FAMILY" --difficulties "$DIFFICULTY" \
+            --out-dir "$RUNNER_TEMP/shard"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ledger-${{ matrix.shard.id }}
+          path: ${{ runner.temp }}/shard/admission_ledger.json
+          if-no-files-found: error
+          retention-days: 14
+
+  merge:
+    needs: [plan, board, ledger]
+    # Runs when every shard that was asked for succeeded; a skipped matrix (the input
+    # chose one artifact) counts as nothing to merge, a failed one stops the merge.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      - name: Sources unchanged since the shards ran
+        run: |
+          git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/download-artifact@v8
+        if: ${{ needs.board.result == 'success' }}
+        with:
+          pattern: board-*
+          path: ${{ runner.temp }}/shards/board
+      - uses: actions/download-artifact@v8
+        if: ${{ needs.ledger.result == 'success' }}
+        with:
+          pattern: ledger-*
+          path: ${{ runner.temp }}/shards/ledger
+      - name: Merge the board
+        if: ${{ needs.board.result == 'success' }}
+        run: |
+          python scripts/v5_leaderboard_and_transfer.py \
+            --merge-shards "$RUNNER_TEMP/shards/board" --out leaderboard/v5_leaderboard.json
+      - name: Merge the ledger
+        if: ${{ needs.ledger.result == 'success' }}
+        run: |
+          python scripts/admission_ledger.py --merge-shards "$RUNNER_TEMP/shards/ledger" \
+            --out-dir admission
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add leaderboard/v5_leaderboard.json admission/admission_ledger.json admission/ADMISSION_LEDGER.md
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          case "$WHICH" in
+            board) what="the v5 board" ;;
+            ledger) what="the admission ledger" ;;
+            *) what="the v5 board and the admission ledger" ;;
+          esac
+          git commit -q -F - <<EOF
+          Regenerate $what on the CI lock
+
+          Produced by $RUN_URL at $GITHUB_SHA, sharded and merged by each script's
+          --merge-shards. Docs and tests that quote these artifacts are updated separately.
+          EOF
+          for attempt in 1 2 3; do
+            git pull -q --rebase origin "$BRANCH" && git push -q origin "HEAD:$BRANCH" && exit 0
+            sleep $((attempt * 15))
+          done
+          exit 1

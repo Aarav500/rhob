@@ -12,6 +12,22 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Added (2026-11-19): the board and the full ledger can be regenerated on CI, sharded
+
+The single-draw board (`leaderboard/v5_leaderboard.json`) predates the N/A schema, so its
+L1 rows and its Reward Skewness row still carry 0.5 where nothing was measured. The
+admission ledger covers 10 of the 33 families (50 of 123 cells). Both take hours on one
+machine, and an attempt here on 2026-11-19 was lost to a container restart.
+
+`.github/workflows/regenerate.yml` runs them on the CI lock, one detector or one cell per
+runner, and commits the merged artifacts to the branch it ran on. Each script gains
+`--merge-shards DIR`, which refuses anything but the complete set from one clean commit
+under one set of package versions, and a `--list-detectors` / `--list-cells` option the
+workflow reads its shards from. A sharded artifact equals an unsharded one: checked on
+two families for both scripts, and the reasons are in REPRODUCIBILITY.md. Refusals are
+tested in `tests/test_v3/test_regen_merge.py`. The docs and tests that quote the two
+artifacts are updated when the regenerated artifacts land, not before.
+
 ### Changed (2026-11-19): workflows run their actions on Node 24
 
 Every run logged "Node.js 20 is deprecated", with `actions/checkout@v4` and
