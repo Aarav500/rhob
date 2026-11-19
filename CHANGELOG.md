@@ -12,6 +12,17 @@ the corrected numbers are, and what remains unfixed. **Previously reported L1 an
 L3 aggregates were incorrect and are retracted here**; if you cited them, cite the
 corrected values below instead.
 
+### Changed (2026-11-19): workflows run their actions on Node 24
+
+Every run logged "Node.js 20 is deprecated", with `actions/checkout@v4` and
+`actions/setup-python@v5` forced onto Node 24. The workflows now use checkout v7,
+setup-python v7, cache restore/save v6, upload-artifact v7, download-artifact v8,
+configure-pages v6, deploy-pages v5 and upload-pages-artifact v5, each of which declares
+`node24`. setup-uv moves from v5 to v10.3.3, pinned by commit: upstream has published no
+major or minor tags since v8. None of the inputs these workflows pass changed meaning
+across those majors; checkout v7's new refusal applies only to `pull_request_target` and
+`workflow_run`, which no workflow here uses.
+
 ### Added (2026-11-16): an analysis plan for axis A's power re-run, before any row exists
 
 The paper's surviving prevalence claim is sub-class A: an equivalence asserted from a
