@@ -32,13 +32,6 @@ on:
         type: choice
         options: [both, board, ledger]
         default: both
-  # TEMPORARY. workflow_dispatch reaches a workflow only once it is on the default
-  # branch, and this one is not yet, so this push starts the first run. A hand commit
-  # deletes this block right after; nothing in the run removes it (GITHUB_TOKEN may not
-  # push changes to workflow files).
-  push:
-    branches: [claude/project-explanation-latex-5gxonr]
-    paths: [.github/workflows/regenerate.yml]
 
 permissions:
   contents: read
