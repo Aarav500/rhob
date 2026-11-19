@@ -23,8 +23,9 @@ What this page serves
 Standings come from ``leaderboard/v5_replicated.json``: 20 independent draws of the whole
 benchmark, aggregated by ``scripts/aggregate_replication.py`` into percentile-bootstrap
 intervals. They do **not** come from ``leaderboard/v5_leaderboard.json``, which is a
-single draw taken before behavioural sign randomization was switched on; its figures are
-superseded and are deliberately not rendered anywhere on this page.
+single unreplicated draw with no intervals (regenerated on 2026-11-19 with behavioural
+sign randomization on and N/A cells recorded as null); it is deliberately not rendered
+anywhere on this page.
 
 The cross-family transfer (RTS) panel is a **separate** experiment and is not covered by
 that replication. It is also the one place where the pre-audit sign convention still had
@@ -932,8 +933,12 @@ def _l0_control_html() -> str:
       <h3>{_esc(control.level)} IS A CONTROL, NOT A STANDING<span class="rhob-scope">construction check</span></h3>
       <p>
         Detectors at {_esc(control.level)} see only the proxy reward, and every family's
-        proxy is certified by the admission gate to be statistically indistinguishable
-        between the hacking and legitimate variants. So {_esc(control.level)} is a negative
+        proxy is built to be statistically indistinguishable between the hacking and
+        legitimate variants. The admission ledger certifies that on 42 of the 123
+        (family, difficulty) cells; it measures 51 as not admitted (24 fail
+        <code>proxy_matched</code>, 40 <code>proxy_distribution_matched</code>, 14 of
+        them both, and 1 <code>behavioral_separated</code>) and cannot measure 30. So
+        {_esc(control.level)} is a negative
         control on the <b>benchmark</b>, not a rung of detector performance: a detector
         here that beat chance would be evidence that the proxy matching had failed, not
         that reward-only detection works. The reportable form of that check is per
@@ -945,14 +950,18 @@ def _l0_control_html() -> str:
       {mean_txt}
       <p class="rhob-note">
         <b>Robustness.</b> Six of the {len(board.families())} families are marked
-        degenerate in the admission ledger because their proxy reward is constant, and on a
-        constant proxy a reward-only detector returns {ref} for a reason that has nothing
+        degenerate in the admission ledger because a reward-only statistic cannot resolve
+        their proxy (constant in three, the same in every run in the other three), and
+        there a reward-only detector returns {ref} for a reason that has nothing
         to do with proxy matching &mdash; padding the control with cells that could not
         have come out otherwise. Recomputed over the 27 non-degenerate families only,
         family-weighted and bootstrapped over the same {board.n_replicates} replicates,
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
         and the largest movers move away from it
         (<a href="{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md" target="_blank">docs/figures/l0_control_robustness.md</a>).
+        The 51 not-admitted cells are in every {_esc(control.level)} figure on this page,
+        the 27-family recomputation included; whether they should be is an open question
+        (<a href="{_GITHUB_BLOB}/ROADMAP.md" target="_blank">ROADMAP.md</a>).
       </p>
     </div>
     """

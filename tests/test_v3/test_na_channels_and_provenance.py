@@ -248,9 +248,11 @@ def _committed_package_blocks() -> list[tuple[str, dict]]:
 
 
 def test_artifacts_written_under_the_old_list_still_read():
-    """Committed artifacts carry the five-name list (the admission ledger also the four
-    simulators its script added). Nothing may require the new names, and no recorded
-    name may be renamed or dropped, or old and new artifacts stop comparing key by key."""
+    """Artifacts committed before 2026-11-16 carry the five-name list (the admission
+    ledger of 2026-08-03 also the four simulators its script added); the v5 board and the
+    ledger regenerated on 2026-11-19 carry all ten. Nothing may require the new names,
+    and no recorded name may be renamed or dropped, or old and new artifacts stop
+    comparing key by key."""
     blocks = _committed_package_blocks()
     assert len(blocks) >= 23, "the scan found fewer provenance blocks than are committed"
     for where, packages in blocks:
@@ -276,9 +278,11 @@ def test_artifacts_written_under_the_old_list_still_read():
     ],
 )
 def test_the_report_renderers_still_read_an_old_packages_block(script, artifact, report):
-    """The two scripts that render a packages block, run on artifacts written under the old
-    list, must reproduce the committed report's line. A renderer that indexed the new
-    names would raise KeyError here."""
+    """The two scripts that render a packages block, run on their committed artifacts,
+    must reproduce the committed report's line. The calibration artifact is still written
+    under the old five-name list, so a renderer that indexed the new names would raise
+    KeyError here. The ledger has carried the full list since 2026-11-19; the next test
+    keeps its old-list case."""
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("_renderer_under_test", _REPO_ROOT / script)
@@ -295,6 +299,42 @@ def test_the_report_renderers_still_read_an_old_packages_block(script, artifact,
         if line.startswith("- Packages:")
     ]
     assert rendered and rendered == committed
+
+
+#: The ``packages`` block of the admission ledger of 2026-08-03 (``git show
+#: acd35c2:admission/admission_ledger.json``), written under the old list plus the four
+#: simulators, and the line its committed report rendered from it (line 18 of
+#: ``git show acd35c2:admission/ADMISSION_LEDGER.md``).
+_LEDGER_2026_08_03_PACKAGES = {
+    "numpy": "2.4.3", "scipy": "1.17.1", "scikit-learn": "1.8.0", "torch": "2.11.0",
+    "rhob": "1.8.0", "gymnasium": "1.3.0", "mujoco": "3.10.0", "pettingzoo": "1.26.1",
+    "mpe2": "1.1.0",
+}
+_LEDGER_2026_08_03_PACKAGES_LINE = (
+    "- Packages: gymnasium 1.3.0, mpe2 1.1.0, mujoco 3.10.0, numpy 2.4.3, "
+    "pettingzoo 1.26.1, rhob 1.8.0, scikit-learn 1.8.0, scipy 1.17.1, torch 2.11.0"
+)
+
+
+def test_the_ledger_renderer_still_reads_the_2026_08_packages_block():
+    """The ledger's renderer, on a ledger whose packages block predates ``mujoco-core``.
+
+    The committed ledger no longer has one, so the block is substituted into it here.
+    """
+    import importlib.util
+
+    script = _REPO_ROOT / "scripts" / "admission_ledger.py"
+    spec = importlib.util.spec_from_file_location("_ledger_renderer_under_test", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payload = json.loads((_REPO_ROOT / "admission" / "admission_ledger.json").read_text("utf-8"))
+    payload["provenance"]["packages"] = dict(_LEDGER_2026_08_03_PACKAGES)
+    rendered = [
+        line for line in module.render_markdown(payload).splitlines()
+        if line.startswith("- Packages:")
+    ]
+    assert rendered == [_LEDGER_2026_08_03_PACKAGES_LINE]
 
 
 def test_dirty_file_paths_are_not_truncated():

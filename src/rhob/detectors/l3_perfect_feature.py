@@ -15,22 +15,28 @@ inherited unchanged, so the single signal it reads is ``RunData.behav_trace`` --
 :func:`rhob.v3.access.restrict` already hands to any L2 detector. It never touches
 ``true_rewards``, the one channel L3 adds. Nothing about its behaviour is L3.
 
-Measured consequence, from the committed ``leaderboard/v5_leaderboard.json``: this
-detector and Behavioral Threshold agree on 33 of 33 families (zero families differ) and
-on the overall figure, both 0.9750 across 123 cells. Counting it made the L3 aggregate
-look like n=2, mean 0.9790 -- an "oracle ceiling" one of whose two members was an L2
-result wearing a hat. With it excluded, L3 is the one genuine oracle
+Measured consequence, from the committed ``leaderboard/v5_leaderboard.json``
+(regenerated 2026-11-19 with sign randomization on): this detector and Behavioral
+Threshold agree on 33 of 33 families (zero families differ) and on the overall figure,
+both 0.512 across 123 cells. Counting it would make the L3 aggregate n=2, mean 0.7475 --
+an "oracle ceiling" one of whose two members is an L2 result wearing a hat. With it
+excluded, L3 is the one genuine oracle
 (:class:`~rhob.detectors.l3_true_reward_oracle.TrueRewardOracleDetector`, 0.9830), which
-sits 0.0080 above the best L2 detector (0.9750): there is no meaningful oracle gap.
+sits 0.0400 above the best L2 detector (Trajectory MLP, 0.9430) on that single draw. On
+the board committed before the regeneration (scored with sign randomization off;
+``git show c54a8cc:leaderboard/v5_leaderboard.json``) the two read 0.9750, the n=2 L3
+mean was 0.9790, and the oracle sat 0.0080 above the best L2 detector, which was
+Behavioral Threshold itself.
 
 ``name`` and ``access_level`` are deliberately left as they are. The committed
 leaderboard artifacts, the paper tables and the public Space all key off
 ``"Perfect Feature Oracle"`` at ``"L3"``; silently renaming or re-levelling the class
 would desynchronize the code from data on disk without fixing anything, since the
 double-count is removed at the aggregation step and re-filing the duplicate under L2
-would merely move the double-count there (L2 mean 0.7213 -> 0.7530 for no new
-information). The label is inert to measurement in any case: L2 and L3 both expose
-``behav_trace``, so this detector scores identically either way.
+would merely move the double-count there (L2 mean 0.5716 -> 0.5641 on the regenerated
+board, 0.7213 -> 0.7530 on the pre-regeneration one, for no new information). The label
+is inert to measurement in any case: L2 and L3 both expose ``behav_trace``, so this
+detector scores identically either way.
 """
 
 from __future__ import annotations

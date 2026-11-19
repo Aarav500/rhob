@@ -3,9 +3,9 @@
 Why this module exists
 ----------------------
 The paper's central rule about the admission criteria is that *a criterion no dataset
-fails is not a check*. Tallied over the published ledger
-(``admission/admission_ledger.json``, 50 cells over 10 families), **five of the six have
-never returned FAIL**::
+fails is not a check*. Tallied over the published ledger as it stood when this module
+was written (``admission/admission_ledger.json``, 50 cells over 10 families, 2026-08),
+**five of the six had never returned FAIL**::
 
     proxy_matched               20 PASS   0 FAIL  30 DEGENERATE
     proxy_distribution_matched  15 PASS   5 FAIL  30 DEGENERATE
@@ -14,16 +14,28 @@ never returned FAIL**::
     onset_localizable           50 PASS   0 FAIL   0 DEGENERATE
     camping_quality             50 PASS   0 FAIL   0 DEGENERATE
 
-The bottom four are the sharpest version -- 50 PASS and nothing else, so for those the
-entire published artifact is compatible with the function body being ``return PASS``.
-``proxy_matched`` belongs on the list too and is only a shade better off: it has never
-failed either, and the 30 cells that are not passes are cells it could not measure.
-Only ``proxy_distribution_matched`` has ever discriminated on a real family.
+The bottom four were the sharpest version -- 50 PASS and nothing else, so for those the
+entire published artifact was compatible with the function body being ``return PASS``.
+``proxy_matched`` belonged on the list too and was only a shade better off: it had never
+failed either, and the 30 cells that were not passes were cells it could not measure.
+Only ``proxy_distribution_matched`` had discriminated on a real family.
+
+The full ledger of 2026-11-19 (all 33 families, 123 cells) takes two criteria off that
+list::
+
+    proxy_matched               69 PASS  24 FAIL  30 DEGENERATE
+    proxy_distribution_matched  53 PASS  40 FAIL  30 DEGENERATE
+    behavioral_separated       122 PASS   1 FAIL   0 DEGENERATE
+    true_reward_diverges       123 PASS   0 FAIL   0 DEGENERATE
+    onset_localizable          123 PASS   0 FAIL   0 DEGENERATE
+    camping_quality            123 PASS   0 FAIL   0 DEGENERATE
+
+The bottom three are still PASS and nothing else.
 
 A reviewer with that artifact reaches this in ten minutes, and the ledger cannot answer
-them: a benchmark of *admitted* families is by construction a sample with no failures in
-it, so it can never distinguish a strict criterion from a vacuous one. Only a family
-built to violate the property can. That is the whole content of this module -- one
+them: every registered family was built to be admitted, so a ledger over them cannot
+distinguish a strict criterion from a vacuous one on the criteria it never fails. Only
+a family built to violate the property can. That is the whole content of this module -- one
 matched pair per criterion, each violating exactly that criterion and nothing else, so
 the resulting FAIL is attributable to the criterion under test rather than to a family
 that is broken everywhere.
@@ -69,8 +81,9 @@ fixture                                    overrides             targets
 :class:`NoCampingFamily`                   ``_shape``            ``camping_quality``
 =========================================  ====================  ============================
 
-The four in the middle and at the bottom are the 50-PASS criteria; ``LeakyProxyFamily``
-completes the set so that every criterion the ledger never fails has a fixture that
+The four in the middle and at the bottom were the 50-PASS criteria of the 10-family
+ledger (three of them pass all 123 cells of the full one); ``LeakyProxyFamily``
+completes the set so that every criterion that ledger never failed has a fixture that
 fails it, which is the property ``test_criteria_discriminate.py`` asserts as a whole.
 
 Every hook is called for both variants, in the same order, so a violator changes what
@@ -333,10 +346,12 @@ class LeakyProxyFamily(AdmissibleBaselineFamily):
     """A proxy that is not matched: the hacking variant's is shifted two SD up.
 
     Included because the four criteria in the brief are not the whole finding. On the
-    published ledger ``proxy_matched`` is 20 PASS / 0 FAIL / 30 DEGENERATE -- it has
-    never discriminated *either*; it was left out of the count only because the repo
-    already probes it synthetically (``test_admission_gate_equivalence.py`` measures a
-    leak the pre-audit difference test admitted). Carrying it here makes the standing
+    10-family ledger this was written against, ``proxy_matched`` was 20 PASS / 0 FAIL /
+    30 DEGENERATE -- it had never discriminated *either*; it was left out of the count
+    only because the repo already probes it synthetically
+    (``test_admission_gate_equivalence.py`` measures a leak the pre-audit difference
+    test admitted). The full ledger of 2026-11-19 now fails it on 24 of 123 cells, and
+    this fixture stays as a leak of known size. Carrying it here makes the standing
     property total: for all six criteria, either the ledger shows a FAIL or this module
     produces one, and ``test_criteria_discriminate.py`` asserts exactly that.
 
@@ -399,7 +414,9 @@ def certification_gate(**overrides) -> AdmissionGate:
     return AdmissionGate(**kwargs)
 
 
-#: ``criterion -> fixture`` for every criterion the published ledger never fails.
+#: ``criterion -> fixture`` for every criterion the published ledger had never failed
+#: when this was written (2026-08). The full ledger of 2026-11-19 fails two of them,
+#: ``proxy_matched`` and ``behavioral_separated``; their fixtures stay.
 #:
 #: Iterated by the discrimination tests, which also assert that this mapping plus the
 #: ledger's own FAILs covers all of :data:`~rhob.v3.admission_gate.CRITERIA` -- so a

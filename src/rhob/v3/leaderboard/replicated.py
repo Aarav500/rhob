@@ -37,8 +37,9 @@ estimates biases it upward: at L0 it lands at 0.554 while no individual L0 detec
 point estimate reaches 0.507 (both after the 2026-09-03 Reward Skewness re-score).
 Reading it as "the best reward-only detector scores 0.554" inverts the rung's meaning,
 which is a negative control -- reward-only detectors are *supposed* to sit at chance on a
-proxy certified to be indistinguishable between the variants, and the control is carried
-detector by detector, not by the max.
+proxy matched between the variants (see :data:`CONTROL_LEVEL` for where the admission
+ledger certifies that match and where it does not), and the control is carried detector
+by detector, not by the max.
 :meth:`ReplicatedLeaderboard.control_check` computes that per-detector statement from the
 artifact so a renderer can state it instead of inferring it from the level aggregate.
 """
@@ -68,10 +69,15 @@ __all__ = [
 ]
 
 #: The rung RHOB runs as a negative control. An L0 detector sees only the proxy reward,
-#: and every family's proxy is certified by the admission gate to be indistinguishable
-#: between the hacking and legitimate variants -- so an L0 detector that beat chance would
-#: be evidence the *proxy matching* failed, not that reward-only detection works. The
-#: level is a construction check on the benchmark, and is reported as one.
+#: which each family is built to make indistinguishable between the hacking and
+#: legitimate variants -- so an L0 detector that beat chance would be evidence the *proxy
+#: matching* failed, not that reward-only detection works. The level is a construction
+#: check on the benchmark, and is reported as one. The admission ledger (all 33 families,
+#: 2026-11-19) admits 42 of its 123 cells, certifying the match on each, marks 30
+#: DEGENERATE, and measures 51 NOT ADMITTED (``proxy_matched`` failed on 24,
+#: ``proxy_distribution_matched`` on 40, ``behavioral_separated`` on 1). The ladder this
+#: module reads holds the six DEGENERATE families out of L0; the NOT ADMITTED cells stay
+#: in it, and whether they should is an open question for the author (``ROADMAP.md``).
 CONTROL_LEVEL = "L0"
 
 #: What a renderer must print where the artifact has no measurement. Named rather than

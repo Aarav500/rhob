@@ -78,8 +78,10 @@ def test_proxy_shape_mismatch_is_the_family_not_the_seed():
        not a mismatch: re-running the identical design under eight other root seeds gives
        mean 0.5098 (SD 0.0299), the per-layout SD (0.069-0.099) matches the exact
        Mann-Whitney null 0.0842 for n=m=24, and a pooled 240-runs/side AUROC @0.98 is
-       0.4712 (z = -1.09 vs chance). At a per-test false-reject rate of ~2.5% over four
-       equivalence tests x 165 ledger cells, ~16 such cells are expected by construction.
+       0.4712 (z = -1.09 vs chance). At a per-test false-reject rate of ~2.5% over the
+       313 equivalence tests the full ledger runs on its 93 measurable cells (the mean
+       test plus three shape tests on the 34 cells long enough for Reward Skewness, two
+       on the other 59), ~8 such rejections are expected by construction.
 
     So this test asserts Reward KDE is off chance at the three tiers where the mismatch
     is real, and that Reward Skewness @0.98 is *on* chance -- the measurement the ledger's

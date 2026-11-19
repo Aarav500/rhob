@@ -7,9 +7,12 @@ this script plots the full v5 scope: 30 detectors x all registered families, fro
 from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
 
 Outputs (written to ``docs/figures/``):
-  v5_heatmap.png        30 detectors x all registered families, per-family AUROC
-  v5_access_summary.png Mean AND best AUROC by access level (L0/L1/L2/L3), across all
-                         registered families, with duplicate detectors excluded
+  v5_heatmap.png        30 detectors x all registered families, per-family AUROC; a
+                         family a detector cannot measure (``null`` on the board) is
+                         drawn grey with no number, never as 0.5
+  v5_access_summary.png Mean AND best AUROC by access level (L0/L1/L2/L3), each detector
+                         over the cells it measured, L0 without the families the
+                         admission ledger marks DEGENERATE, duplicate detectors excluded
   v5_access_summary.md  The same access-level table in Markdown, for citing in docs
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
@@ -44,6 +47,8 @@ from rhob.v3.leaderboard.access_summary import (  # noqa: E402
 
 # Families 1-9 order matches Table tab:families-sigma in the paper; 10-14 are the
 # v1.4 additions (2x REWARD_TAMPERING, 2x DECEPTIVE_ALIGNMENT, 1x RM_OVEROPTIMIZATION).
+# The heatmap plots these first and then every other family on the board, in the board's
+# order, labelled by registry name (see ``_heatmap_families``).
 FAMILY_ORDER = [
     "gridworld_camping",
     "continuous_camping",
@@ -77,7 +82,7 @@ FAMILY_LABELS = [
     "14. RLHF RM\nOveropt.",
 ]
 
-# Detector order matches Section 5 (Detector Suite) of the paper: L0 (13), L1 (8), L2 (8),
+# Detector order matches Section 5 (Detector Suite) of the paper: L0 (13), L1 (8), L2 (7),
 # L3 (2 rows on the board, but only 1 independent detector -- Perfect Feature Oracle is a
 # duplicate of the L2 Behavioral Threshold baseline and is excluded from the access-level
 # aggregates by ``plot_access_summary``; see ``rhob.detectors.redundancy``). It stays in the
@@ -98,32 +103,62 @@ def load_leaderboard(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
+def _heatmap_families(board: dict) -> tuple[list[str], list[str]]:
+    """Every family on the board: :data:`FAMILY_ORDER` first, then the rest in board order.
+
+    Returns the families and their axis labels. A board without ``families_evaluated``
+    (written before that key existed) falls back to the families its detectors report.
+    """
+    on_board = list(board.get("families_evaluated") or [])
+    if not on_board:
+        for info in board["results"].values():
+            for fam in info.get("per_family") or {}:
+                if fam not in on_board:
+                    on_board.append(fam)
+    families = [f for f in FAMILY_ORDER if f in on_board]
+    labels = [
+        lab.replace("\n", " ") for f, lab in zip(FAMILY_ORDER, FAMILY_LABELS) if f in on_board
+    ]
+    for fam in on_board:
+        if fam not in families:
+            families.append(fam)
+            labels.append(f"{len(families)}. {fam}")
+    return families, labels
+
+
 def plot_heatmap(board: dict, out_path: Path) -> None:
     results = board["results"]
     detectors = [d for d in DETECTOR_ORDER if d in results]
-    matrix = np.full((len(detectors), len(FAMILY_ORDER)), np.nan)
+    families, labels = _heatmap_families(board)
+    matrix = np.full((len(detectors), len(families)), np.nan)
     for i, det in enumerate(detectors):
-        per_family = results[det].get("per_family", {})
-        for j, fam in enumerate(FAMILY_ORDER):
+        per_family = results[det].get("per_family") or {}
+        for j, fam in enumerate(families):
             # ``null`` means not applicable: the family emits no channel this
-            # detector's access level can read, so nothing was measured. Leave the
-            # heatmap cell as NaN (drawn blank, no annotation) rather than colouring
-            # it as if a value had been observed.
+            # detector's access level can read, or too few episodes of it, so nothing
+            # was measured. Leave the heatmap cell as NaN (drawn grey, no annotation)
+            # rather than colouring it as if a value had been observed -- in this
+            # colour map 0.5 is white, so a blank cell would read as chance.
             if per_family.get(fam) is not None:
                 matrix[i, j] = per_family[fam]
 
-    fig, ax = plt.subplots(figsize=(11, 10))
-    im = ax.imshow(matrix, cmap="RdBu_r", vmin=0.0, vmax=1.0, aspect="auto")
-    ax.set_xticks(range(len(FAMILY_ORDER)))
-    ax.set_xticklabels(FAMILY_LABELS, fontsize=8)
+    cmap = plt.get_cmap("RdBu_r").copy()
+    cmap.set_bad("#c8c8c8")
+    fig, ax = plt.subplots(figsize=(max(11.0, 0.5 * len(families) + 4.0), 11))
+    im = ax.imshow(np.ma.masked_invalid(matrix), cmap=cmap, vmin=0.0, vmax=1.0, aspect="auto")
+    ax.set_xticks(range(len(families)))
+    ax.set_xticklabels(labels, fontsize=7.5, rotation=60, ha="right", rotation_mode="anchor")
     ax.set_yticks(range(len(detectors)))
     ax.set_yticklabels(detectors, fontsize=8)
     for i in range(len(detectors)):
-        for j in range(len(FAMILY_ORDER)):
+        for j in range(len(families)):
             v = matrix[i, j]
             if not np.isnan(v):
-                ax.text(j, i, f"{v:.2f}", ha="center", va="center", color="black", fontsize=6.5)
-    ax.set_title(f"RHOB v5: {len(detectors)} Detectors x {len(FAMILY_ORDER)} Families (AUROC)")
+                ax.text(j, i, f"{v:.2f}", ha="center", va="center", color="black", fontsize=6)
+    ax.set_title(
+        f"RHOB v5: {len(detectors)} Detectors x {len(families)} Families (AUROC; "
+        "grey = not applicable, no measurement)"
+    )
     fig.colorbar(im, ax=ax, label="Discrimination AUROC", shrink=0.7)
     fig.tight_layout()
     fig.savefig(out_path, dpi=130)
@@ -139,18 +174,21 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     1. The best detector at each level is plotted alongside the mean. A level's mean
        measures how many weak detectors happen to have been written for it as much as it
        measures the benchmark; the max is what speaks to "is the signal present at this
-       access level?". They diverge sharply at L2 (mean 0.7213, max 0.9750).
+       access level?". On the board regenerated 2026-11-19 they diverge sharply at L1
+       (mean 0.5701, max 0.9270) and L2 (mean 0.5716, max 0.9430).
     2. Perfect Feature Oracle is excluded from L3, because it is a relabelled copy of
        the L2 Behavioral Threshold baseline and agrees with it on 33/33 families. See
        :mod:`rhob.detectors.redundancy`. Including it made L3 look like a two-detector
        ceiling when it is one detector plus an echo of L2.
     3. The families the admission ledger marks DEGENERATE are held out of L0, and only
-       L0. Their proxy is constant, so every L0 detector reads ~0.5 on them by
-       construction rather than by matching, and averaging them into a negative control
-       pads it with cells that could not have come out any other way. The set is read
-       from ``admission/admission_ledger.json`` at plot time rather than hardcoded here,
-       so the figure tracks the ledger. See :mod:`rhob.v3.leaderboard.access_summary` for
-       why the exclusion stops at L0 and what it costs in re-weighting.
+       L0. Their proxy is constant, nearly constant, or identical in every run, so an L0
+       detector reads ~0.5 on them by construction rather than by matching, and
+       averaging them into a negative control pads it with cells that could not have
+       come out any other way. The set is read from ``admission/admission_ledger.json``
+       at plot time rather than hardcoded here, so the figure tracks the ledger. Cells
+       the ledger measures NOT ADMITTED are not held out; whether they should be is open
+       (``ROADMAP.md``). See :mod:`rhob.v3.leaderboard.access_summary` for why the
+       exclusion stops at L0 and what it costs in re-weighting.
 
     The spread bars are the SD across the detectors at a level -- suite heterogeneity,
     not measurement error (all detectors share a single evaluation draw), so they are
@@ -187,10 +225,12 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
             ax.text(i, 0.02, f"n={n}", ha="center", fontsize=9, color="white")
     ax.set_xticks(x)
     ax.set_xticklabels(levels)
-    ax.set_ylabel("Overall AUROC (across all registered families)")
-    ax.set_ylim(0.0, 1.12)
+    ax.set_ylabel("AUROC (measured cells only)")
+    # Headroom for a two-column legend above the bars: at L1 the best detector sits near
+    # 0.93, where a corner legend would cover its marker.
+    ax.set_ylim(0.0, 1.32)
     ax.set_title("AUROC by Access Level: Mean and Best Detector")
-    ax.legend(fontsize=7.5, loc="upper left", framealpha=0.92)
+    ax.legend(fontsize=7.5, loc="upper center", ncol=2, framealpha=0.92)
 
     # Both exclusions are stated on the figure itself. A plot that silently drops
     # detectors or families is the thing this whole section of the audit was about.
@@ -205,12 +245,20 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     proxy = summaries["L0"]
     if proxy.excluded_families:
         including = proxy.mean_auroc_including_degenerate
+        fewer = [
+            f"{name} over {n}"
+            for name, n in sorted(proxy.n_families_scored_by_detector.items())
+            if n < (proxy.n_families_scored or 0)
+        ]
         notes.append(
             f"L0 is the negative control and is computed over {proxy.n_families_scored} "
-            f"families: {len(proxy.excluded_families)} whose proxy the admission ledger "
+            "families"
+            + (f" ({'; '.join(fewer)}: not applicable on the rest)" if fewer else "")
+            + f": {len(proxy.excluded_families)} whose proxy the admission ledger "
             "marks DEGENERATE are held out of L0 only ("
             + ", ".join(proxy.excluded_families)
-            + f"). With them it reads {including:.4f} instead of {proxy.mean_auroc:.4f}."
+            + f"). With them it reads {including:.4f} instead of {proxy.mean_auroc:.4f}. "
+            "NOT ADMITTED cells stay in."
         )
     # Wrapped explicitly rather than with matplotlib's ``wrap=True``: that wraps at draw
     # time against the figure width, so the caller cannot know how many lines a note

@@ -1,10 +1,10 @@
 """Tests for per-access-level aggregation, including the duplicate-detector exclusion.
 
-The numbers asserted against ``leaderboard/v5_leaderboard.json`` are the committed,
-paper-cited board. They are pinned here so that a regeneration that changes the
-access-level ladder cannot slip through unnoticed, and so that the specific defect these
-tests were written for -- an L3 "oracle ceiling" that was half a copy of an L2
-detector -- cannot silently return.
+The numbers asserted against ``leaderboard/v5_leaderboard.json`` are the committed
+board's, as regenerated on CI on 2026-11-19 (``52656cb``), and the docs quote them. They
+are pinned here so that a regeneration that changes the access-level ladder cannot slip
+through unnoticed, and so that the specific defect these tests were written for -- an L3
+"oracle ceiling" that was half a copy of an L2 detector -- cannot silently return.
 """
 
 from __future__ import annotations
@@ -111,18 +111,24 @@ def test_max_is_the_best_detector_not_the_mean():
 def test_committed_v5_board_ladder(v5_results):
     """Pin the published ladder on the real, committed board.
 
-    Means and maxima as measured 2026-08 on ``leaderboard/v5_leaderboard.json``
-    (33 families, 123 cells per detector), with the six degenerate-proxy families held
+    Means and maxima on ``leaderboard/v5_leaderboard.json`` as regenerated on CI on
+    2026-11-19 (33 families, 123 cells; each L1 detector measures 35 of them and Reward
+    Skewness 64, and the rest are ``null``), with the six degenerate-proxy families held
     out of L0 -- which is what makes L0 the negative control the docs describe rather
     than a mean padded with cells that could not have come out any other way. L3 has
     exactly one member after the Perfect Feature Oracle duplicate is removed.
 
-    L0 moved from 0.4898 to 0.4866 when the exclusion was implemented, and its best
-    detector's figure from 0.5180 to 0.5311 (still Reward CUSUM). Of that L0 shift,
-    0.0003 is the re-weighting the exclusion forces (family-weighted over the retained
-    families, against the cell-weighted ``overall_auroc`` the other rungs use -- see
-    ``rhob.v3.leaderboard.access_summary``) and the remaining 0.0029 is the exclusion
-    itself; ``test_the_l0_exclusion_is_worth_this_much`` separates the two.
+    On the board before that regeneration (2026-07-17; ``git show
+    acd35c2:leaderboard/v5_leaderboard.json``), L0 moved from 0.4898 to 0.4866 when the
+    exclusion was implemented, and its best detector's figure from 0.5180 to 0.5311
+    (still Reward CUSUM). Of that L0 shift, 0.0003 was the re-weighting the exclusion
+    forces (family-weighted over the retained families, against the cell-weighted
+    ``overall_auroc`` the other rungs use -- see ``rhob.v3.leaderboard.access_summary``)
+    and the remaining 0.0029 the exclusion itself;
+    ``test_the_l0_exclusion_is_worth_this_much`` separates the two on the current board.
+    That board read L1 0.5200, L2 0.7213 (best 0.975, Behavioral Threshold) and L3
+    0.9830; the regenerated one scores the behavioural feature with its sign randomized
+    and leaves not-applicable cells out instead of imputing 0.5.
 
     These are pins on a committed artifact, not on library behaviour: regenerating
     ``v5_leaderboard.json`` or ``admission/admission_ledger.json`` will move them. That
@@ -134,31 +140,40 @@ def test_committed_v5_board_ladder(v5_results):
 
     assert [s[lv].n_detectors for lv in ACCESS_LEVELS] == [13, 8, 7, 1]
 
-    assert s["L0"].mean_auroc == pytest.approx(0.4866, abs=5e-4)
-    assert s["L1"].mean_auroc == pytest.approx(0.5200, abs=5e-4)
-    assert s["L2"].mean_auroc == pytest.approx(0.7213, abs=5e-4)
+    assert s["L0"].mean_auroc == pytest.approx(0.4876, abs=5e-4)
+    assert s["L1"].mean_auroc == pytest.approx(0.5701, abs=5e-4)
+    assert s["L2"].mean_auroc == pytest.approx(0.5716, abs=5e-4)
     assert s["L3"].mean_auroc == pytest.approx(0.9830, abs=5e-4)
 
     assert s["L0"].n_families_scored == 27
     assert s["L0"].excluded_families == sorted(DEGENERATE_FAMILIES)
+    # Reward Skewness is null on the 19 families that run fewer than the 100 episodes
+    # its windows need, so it is averaged over 8 of the 27; every other L0 detector
+    # measures all 27.
+    by_detector = s["L0"].n_families_scored_by_detector
+    assert by_detector.pop("Reward Skewness") == 8
+    assert len(by_detector) == 12 and set(by_detector.values()) == {27}
 
     assert (s["L0"].best_detector, s["L0"].max_auroc) == (
         "Reward CUSUM",
-        pytest.approx(0.5311, abs=5e-4),
+        pytest.approx(0.5351, abs=5e-4),
     )
-    assert (s["L1"].best_detector, s["L1"].max_auroc) == ("State Divergence", pytest.approx(0.621))
+    assert (s["L1"].best_detector, s["L1"].max_auroc) == ("State Divergence", pytest.approx(0.927))
     assert (s["L2"].best_detector, s["L2"].max_auroc) == (
-        "Behavioral Threshold",
-        pytest.approx(0.975),
+        "Trajectory MLP",
+        pytest.approx(0.943),
     )
     assert (s["L3"].best_detector, s["L3"].max_auroc) == (
         "True Reward Oracle",
         pytest.approx(0.983),
     )
 
-    # The audit's headline: best-L3 exceeds best-L2 by 0.008 AUROC. Whatever else the
-    # access ladder shows, it does not show a meaningful oracle gap above L2.
-    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.008, abs=5e-4)
+    # The oracle gap above L2. The audit's headline, on the board before the 2026-11-19
+    # regeneration, was 0.008 (0.983 against Behavioral Threshold's 0.975, a figure that
+    # depended on the behavioural feature's fixed sign). With the sign randomized,
+    # Behavioral Threshold reads 0.512, the best L2 detector is the label-fitted
+    # Trajectory MLP, and the gap is 0.040 on this single draw.
+    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.040, abs=5e-4)
 
     assert s["L3"].excluded_duplicates == [("Perfect Feature Oracle", "Behavioral Threshold")]
 
@@ -169,34 +184,44 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     Holding families out forces the L0 rung to be computed family-weighted (the artifact
     records AUROCs per family, not per cell), and a re-weighting is not a finding. Both
     figures below are family-weighted, so the difference between them is the exclusion
-    and nothing else: **0.4895 with the degenerate families, 0.4866 without.** For
-    scale, the re-weighting on its own is worth 0.0003 -- family-weighted over all 33
-    families is 0.4895 against the cell-weighted 0.4898 the un-excluded ladder reports.
+    and nothing else: **0.4898 with the degenerate families, 0.4876 without.** For
+    scale, the re-weighting on its own is worth 0.0005 -- family-weighted over every
+    family each detector measured is 0.4898 against the cell-weighted 0.4903 the
+    un-excluded ladder reports.
+
+    On the board before the 2026-11-19 regeneration the same three figures were 0.4866,
+    0.4895 and 0.4898: an exclusion of 0.0029 against a re-weighting of 0.0003.
     """
     excluded = summarize_access_levels(
         v5_results, degenerate_families=DEGENERATE_FAMILIES
     )["L0"]
-    assert excluded.mean_auroc == pytest.approx(0.4866, abs=5e-4)
-    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4895, abs=5e-4)
+    assert excluded.mean_auroc == pytest.approx(0.4876, abs=5e-4)
+    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4898, abs=5e-4)
 
     cell_weighted = summarize_access_levels(v5_results)["L0"]
-    assert cell_weighted.mean_auroc == pytest.approx(0.4898, abs=5e-4)
+    assert cell_weighted.mean_auroc == pytest.approx(0.4903, abs=5e-4)
     assert cell_weighted.excluded_families == []
     assert cell_weighted.mean_auroc_including_degenerate is None
 
-    # The exclusion moves L0 ten times further than the re-weighting does.
+    # The exclusion still moves L0 further than the re-weighting does: 0.0023 against
+    # 0.0005, about four and a half times (ten times on the board before the
+    # regeneration).
     exclusion = abs(excluded.mean_auroc - excluded.mean_auroc_including_degenerate)
     reweighting = abs(excluded.mean_auroc_including_degenerate - cell_weighted.mean_auroc)
-    assert exclusion > 5 * reweighting
+    assert exclusion == pytest.approx(0.0023, abs=1e-4)
+    assert reweighting == pytest.approx(0.0005, abs=1e-4)
+    assert exclusion > 4 * reweighting
 
 
 def test_the_exclusion_applies_to_l0_and_only_to_l0(v5_results):
     """Degeneracy is a property of the proxy reward, which only L0 reads.
 
-    L1/L2/L3 score the same families through state visitation, behavior and true reward,
-    where nothing is degenerate, so dropping those families there would throw away real
-    measurements. If this ever starts failing, the ladder has quietly become
-    incomparable between rungs.
+    L1/L2/L3 read state visitation, behavior and true reward, not the proxy, so nothing
+    they read is degenerate, and dropping those families there would throw away real
+    measurements. (L1 is not applicable on the 25 families that emit no
+    ``state_counts``; those cells are ``null`` on the board, which is a different thing
+    and is handled per detector.) If this ever starts failing, the exclusion has leaked
+    into rungs that do not read the proxy.
     """
     plain = summarize_access_levels(v5_results)
     excluded = summarize_access_levels(v5_results, degenerate_families=DEGENERATE_FAMILIES)
@@ -237,7 +262,7 @@ def test_markdown_reports_mean_max_and_the_exclusion(v5_results):
     md = render_access_summary_md(summarize_access_levels(v5_results))
     assert "| Access level | Detectors | Mean AUROC | SD across detectors | Best AUROC | Best detector |" in md
     # Mean and max are both present on the same row, and they differ at L2.
-    assert "| L2 | 7 | 0.7213 | 0.2052 | 0.9750 | Behavioral Threshold |" in md
+    assert "| L2 | 7 | 0.5716 | 0.1647 | 0.9430 | Trajectory MLP |" in md
     assert "| L3 | 1 | 0.9830 | 0.0000 | 0.9830 | True Reward Oracle |" in md
     assert "**Perfect Feature Oracle** is a relabelled duplicate of **Behavioral Threshold**" in md
     assert "not a confidence interval" in md
@@ -254,12 +279,13 @@ def test_markdown_states_the_l0_exclusion_and_what_it_cost(v5_results):
     md = render_access_summary_md(
         summarize_access_levels(v5_results, degenerate_families=DEGENERATE_FAMILIES)
     )
-    assert "| L0 | 13 | 0.4866 |" in md
+    assert "| L0 | 13 | 0.4876 |" in md
     assert "L0 is computed over 27 families" in md
+    assert "Reward Skewness over 8 of them" in md
     assert "6 are held out" in md
     for family in DEGENERATE_FAMILIES:
         assert f"**{family}**" in md
-    assert "Putting them back would read 0.4895 instead of 0.4866" in md
+    assert "Putting them back would read 0.4898 instead of 0.4876" in md
     assert "held out of L0 only" in md
 
 
@@ -300,4 +326,4 @@ def test_the_published_ladder_was_generated_with_the_exclusion(v5_results):
     )
     # Named explicitly as well, because this row is the one the audit found wrong and
     # an equality assertion alone would not say which number matters.
-    assert "| L0 | 13 | 0.4866 | 0.0250 | 0.5311 | Reward CUSUM |" in published
+    assert "| L0 | 13 | 0.4876 | 0.0258 | 0.5351 | Reward CUSUM |" in published

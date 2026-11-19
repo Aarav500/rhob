@@ -5,9 +5,11 @@ Certification is ``AdmissionGate`` at its shipped design -- 12 layouts x 24 seed
 576 rollouts per (family, difficulty), sized by
 :func:`rhob.v3.admission_gate.required_seeds_per_layout` to certify equivalence at
 ``EQUIVALENCE_MARGIN = 0.10`` with 90% power. That design is what
-``scripts/admission_ledger.py`` runs offline and publishes to ``admission/``; over the
-whole 33-family grid it costs hours, and it cannot run in CI at all (``mujoco_camping``
-spends ~78s calibrating its proxy for *each* difficulty before the first rollout).
+``scripts/admission_ledger.py`` runs and publishes to ``admission/``; over the whole
+33-family grid it costs hours, far too long for the per-push test job (``mujoco_camping``
+spends ~78s calibrating its proxy for *each* difficulty before the first rollout), so
+``.github/workflows/regenerate.yml`` runs it on demand, one CI job per cell, and merges
+the shards.
 
 What runs here is the same gate, the same six criteria and the same TOST, at a smaller
 design and therefore at a **much looser equivalence margin**:

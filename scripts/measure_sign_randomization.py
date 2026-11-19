@@ -20,8 +20,9 @@ config           randomize   infer     what it is
 ===============  ==========  ========  ====================================================
 ``before``       off         off       the published pre-audit number: old convention scored
                                        by a detector that assumes it. This is the row that
-                                       has to reproduce RTS 0.994 / L2 best 0.975 before the
-                                       other three mean anything.
+                                       has to reproduce RTS 0.994 / L2 best 0.975 (the
+                                       pre-audit board, ``c54a8cc``) before the other three
+                                       mean anything.
 ``before_infer`` off         on        the shipped detector against the old convention --
                                        what the orientation hook costs when it is not needed.
 ``blind``        on          off       sign randomized, detector still assumes ``+1``: what
@@ -57,8 +58,16 @@ Run::
 
     python scripts/measure_sign_randomization.py board --out results/sign_randomization/board.json
     python scripts/measure_sign_randomization.py transfer --out results/sign_randomization/transfer.json
+    git show c54a8cc:leaderboard/v5_leaderboard.json > results/sign_randomization/pre_audit_board.json
     python scripts/measure_sign_randomization.py report --board results/sign_randomization/board_*.json \
-        --transfer results/sign_randomization/transfer_*.json
+        --transfer results/sign_randomization/transfer_*.json \
+        --published-board results/sign_randomization/pre_audit_board.json
+
+``--published-board`` has no default. It used to be ``leaderboard/v5_leaderboard.json``,
+but that file was regenerated on 2026-11-19 with sign randomization on, so it is the
+``after`` convention and a ``before`` column checked against it would be checked against
+the wrong thing. The pre-audit board is the one at ``c54a8cc`` (identical to ``acd35c2``,
+the commit before the regeneration).
 
 ``board`` is run once per family group rather than once over all 33 families: the groups
 are independent and the slowest family would otherwise gate the whole run for hours.
@@ -112,9 +121,10 @@ CONFIGS: dict[str, tuple[bool, bool]] = {
     "after": (True, True),
 }
 
-#: The leaderboard's own sampling design (``scripts/populate_leaderboard_v32.py``), so
-#: the ``before`` column is comparable to the committed board rather than to a
-#: differently-seeded re-run.
+#: The sampling design of ``scripts/populate_leaderboard_v32.py``. The v5 board is not at
+#: this design: the pre-audit board's per-family values are matched by an ``n_seeds=5``
+#: run (see :func:`_sensitivity`), and the board regenerated on 2026-11-19 records
+#: ``sampling.n_seeds_per_variant = 5``.
 BOARD_N_SEEDS = 10
 
 #: Rollout seeds are ``range(n_seeds)`` for the hacking variant and ``1000 + range(n_seeds)``
@@ -584,8 +594,9 @@ def _sensitivity(specs: list[str]) -> dict:
     produced at other sample sizes and have to be checkable against their own design
     rather than against this one:
 
-    - ``leaderboard/v5_leaderboard.json`` -- reproduced by an ``n_seeds=5`` run, which is
-      what its per-family values match.
+    - the pre-audit ``leaderboard/v5_leaderboard.json`` (``git show
+      c54a8cc:leaderboard/v5_leaderboard.json``) -- reproduced by an ``n_seeds=5`` run,
+      which is what its per-family values match.
     - ``docs/l2_sign_randomization.md``'s 60-cell table -- measured at ``n_seeds=20`` over
       13 families.
 
@@ -727,31 +738,34 @@ def _invariance(detectors: dict) -> dict:
 
 
 def _reproduction_check(detectors: dict, board_path: Path, transfer_path: Path) -> dict:
-    """Does the ``before`` column reproduce the committed pre-audit artifacts?
+    """Does the ``before`` column reproduce the pre-audit artifacts?
 
     The ``after`` number is only worth reporting if the ``before`` one lands on the
     published figures it is supposed to be replacing, so this compares, family by family,
-    the ``before`` column against ``leaderboard/v5_leaderboard.json`` and the ``before``
-    RTS against ``leaderboard/cross_family_transfer.json``.
+    the ``before`` column against the pre-audit board (``--published-board``; the
+    ``leaderboard/v5_leaderboard.json`` of ``c54a8cc``) and the ``before`` RTS against
+    ``leaderboard/cross_family_transfer.json``, which has not been regenerated.
 
-    The committed board records neither its ``n_seeds`` nor a sampling block (it predates
+    The pre-audit board records neither its ``n_seeds`` nor a sampling block (it predates
     both), so an exact match is not guaranteed and a mismatch is not by itself evidence of
     a regression -- ``max_abs_diff`` is reported per detector so the size of any
-    disagreement is visible rather than hidden behind a boolean.
+    disagreement is visible rather than hidden behind a boolean. A ``null`` family on the
+    board (not applicable) is skipped, never compared.
     """
     if not board_path.exists():
         return {"published_board": f"{board_path} not found; not checked"}
-    published = json.loads(board_path.read_text(encoding="utf-8"))["results"]
+    board = json.loads(board_path.read_text(encoding="utf-8"))
+    published = board["results"]
     out: dict[str, dict] = {}
     for name, entry in detectors.items():
         block = entry["by_config"].get("before")
         if block is None or name not in published:
             continue
-        their = published[name].get("per_family", {})
+        their = published[name].get("per_family") or {}
         diffs = {
             fam: round(value - their[fam], 6)
             for fam, value in block["per_family"].items()
-            if fam in their
+            if their.get(fam) is not None
         }
         if not diffs:
             continue
@@ -761,9 +775,9 @@ def _reproduction_check(detectors: dict, board_path: Path, transfer_path: Path) 
             "max_abs_diff": round(max(abs(d) for d in diffs.values()), 6),
             "families_differing": {k: v for k, v in sorted(diffs.items()) if v != 0},
         }
-    # The committed ladder is a mean over all 33 families; recomputing it over exactly
-    # the families measured here makes the two directly comparable, which a 33-family
-    # figure against a subset would not be.
+    # The pre-audit board's L2 rung is a mean over all 33 families; recomputing it over
+    # exactly the families measured here makes the two directly comparable, which a
+    # 33-family figure against a subset would not be.
     measured = {
         fam
         for entry in detectors.values()
@@ -772,8 +786,8 @@ def _reproduction_check(detectors: dict, board_path: Path, transfer_path: Path) 
     }
     published_l2 = []
     for name in L2_DETECTORS:
-        their = published.get(name, {}).get("per_family", {})
-        values = [v for fam, v in their.items() if fam in measured]
+        their = published.get(name, {}).get("per_family") or {}
+        values = [v for fam, v in their.items() if fam in measured and v is not None]
         if values:
             published_l2.append((name, float(np.mean(values))))
     published_l2.sort(key=lambda kv: -kv[1])
@@ -781,8 +795,11 @@ def _reproduction_check(detectors: dict, board_path: Path, transfer_path: Path) 
     result: dict = {
         "published_board": str(board_path),
         "published_board_note": (
-            "the committed board records no sampling block; its n_seeds is not "
-            "recoverable from the artifact"
+            "the board records n_seeds_per_variant = "
+            f"{board['sampling'].get('n_seeds_per_variant')}"
+            if isinstance(board.get("sampling"), dict)
+            else "the board records no sampling block; its n_seeds is not recoverable "
+            "from the artifact"
         ),
         "per_family_vs_published": out,
         "published_l2_ladder_over_measured_families": (
@@ -884,6 +901,15 @@ def _config_deltas(detectors: dict) -> dict:
 
 def run_report(args: argparse.Namespace) -> None:
     """Merge the measurement artifacts into the committed JSON + Markdown table."""
+    if args.published_board is None:
+        raise SystemExit(
+            "report: --published-board is required. The `before` column is checked against "
+            "the pre-audit board, and leaderboard/v5_leaderboard.json stopped being that on "
+            "2026-11-19, when it was regenerated with sign randomization on. Recover the "
+            "pre-audit one with\n"
+            "  git show c54a8cc:leaderboard/v5_leaderboard.json > pre_audit_board.json\n"
+            "and pass --published-board pre_audit_board.json."
+        )
     detectors, design = _merge_boards(args.board)
     design["configs"] = {
         k: {"randomize_behav_sign": r, "detector_infers_orientation": i}
@@ -1085,10 +1111,10 @@ def render_markdown(payload: dict) -> str:
             "## Reproduction of the pre-audit figures",
             "",
             "The `after` number is only worth anything if `before` lands on the published "
-            "figures it replaces. The committed board is a 33-family mean; recomputed over "
+            "figures it replaces. The pre-audit board is a 33-family mean; recomputed over "
             "exactly the families measured here it reads:",
             "",
-            "| detector | committed board (same families) | this run, `before` |",
+            "| detector | pre-audit board (same families) | this run, `before` |",
             "| --- | --- | --- |",
         ]
         for name, published_value in ladder["per_detector"].items():
@@ -1098,7 +1124,7 @@ def render_markdown(payload: dict) -> str:
             f"| **L2 suite mean** | **{ladder['mean_auroc']:.4f}** | "
             f"**{payload['l2_access_ladder']['before']['mean_auroc']:.4f}** |",
             "",
-            f"Committed best at L2: **{ladder['best_detector']} "
+            f"Pre-audit best at L2: **{ladder['best_detector']} "
             f"{ladder['max_auroc']:.4f}**; this run's `before` best: "
             f"**{payload['l2_access_ladder']['before']['best_detector']} "
             f"{payload['l2_access_ladder']['before']['max_auroc']:.4f}**.",
@@ -1315,8 +1341,11 @@ def main() -> None:
              "into the primary aggregates.",
     )
     report.add_argument(
-        "--published-board", type=Path, default=Path("leaderboard/v5_leaderboard.json"),
-        help="Pre-audit board the `before` column has to reproduce.",
+        "--published-board", type=Path, default=None,
+        help="Pre-audit board the `before` column has to reproduce. Required: "
+             "leaderboard/v5_leaderboard.json is no longer it (regenerated 2026-11-19 with "
+             "sign randomization on). Write it out with `git show "
+             "c54a8cc:leaderboard/v5_leaderboard.json > <path>` and pass <path>.",
     )
     report.add_argument(
         "--published-transfer", type=Path,

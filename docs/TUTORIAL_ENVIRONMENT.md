@@ -166,22 +166,23 @@ one.
 
 For calibration, here is the low end of the measured distribution, which is where the
 floor lives; every value below is min..max over that family's scored tiers, taken from
-`admission/admission_ledger.json` except where noted:
+`admission/admission_ledger.json`, which covers all 33 families:
 
 | Family | Relative SD | Verdict |
 |---|---|---|
 | `distributional_shift` | 0.0 | DEGENERATE (below floor) |
-| `orbit_chirality` | 1.4e-16 | DEGENERATE (below floor) |
-| `rlhf_reward_model_overopt` | 2.8e-16 | DEGENERATE (below floor) |
+| `orbit_chirality` | 1.1e-16 | DEGENERATE (below floor) |
+| `rlhf_reward_model_overopt` | 1.6e-16 .. 2.4e-16 | DEGENERATE (below floor) |
 | **the floor** | **1e-4** | |
 | `physics_exploitation` | 3.3e-4 | DEGENERATE — on *resolution*, not the floor |
-| `sequence_length_padding` | 6.5e-3 (`admission_gate.py`) | measured; admitted |
+| `sequence_length_padding` | 6.6e-3 .. 6.7e-3 | measured; admitted at 0.90 and 0.70 |
 | `goal_misgeneralization` | 9.9e-3 .. 1.3e-2 | measured |
+| the five RLHF-RM families (19–23) | 1.9e-2 .. 3.2e-2 | measured; 6 of 15 cells admitted |
 | `reward_channel_tampering` | 0.37 .. 0.58 | measured |
 | `eval_probe_sandbagging` | 1.11 .. 4.33 | measured; admitted |
 
 The jump from `rlhf_reward_model_overopt` to `physics_exploitation` is a factor of
-~1.2e12, and it is the only gap of that kind in the distribution — everything above
+~1.4e12, and it is the only gap of that kind in the distribution — everything above
 3.3e-4 is a continuum. Land in the rows below the floor and question 2 is answerable on
 informativeness; you still have to clear resolution, which is the harder of the two.
 
@@ -279,7 +280,8 @@ is derived from the family rather than restated in the test file, and
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
 worth:** 22 of the 33 registered families have a smoke test and 11 have none; 10 never
-reach `AdmissionGate` in any test at all; the ledger covers 10. Neither check is
+reach `AdmissionGate` in any test at all; the ledger, a separate run rather than a test,
+covers all 33 since 2026-11-19 and admits 42 of their 123 cells. Neither check is
 enforced repository-wide, and nothing in `tests/` calls `certify_all_tiers` on a
 registered family — the two tests that exercise it use synthetic fixtures, so
 `scripts/admission_ledger.py` is the only caller that certifies a real family.

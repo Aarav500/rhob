@@ -26,19 +26,22 @@ no signal above numerical dust (see ``rhob.v3.admission_gate.degeneracy_reason``
 **Six** of the 33 registered families are in that state at every tier they are scored
 at, 30 (family, difficulty) cells in all -- 5 tiers each: ``distributional_shift``,
 ``monitored_sandbagging``, ``orbit_chirality``, ``physics_exploitation``,
-``rlhf_reward_model_overopt`` and ``shortcut_exploitation``. All six measure resolution
-exactly 0.000 on all four L0 statistics, and they split evenly between the two ways of
-being unmeasurable:
+``rlhf_reward_model_overopt`` and ``shortcut_exploitation``. The full ledger of
+2026-11-19, over all 33 families, finds these six and no others. Five of them measure
+resolution exactly 0.000 on all four L0 statistics and ``physics_exploitation`` measures
+0.003 to 0.007, and they are unmeasurable in three ways:
 
-- **Nothing in the proxy at all** -- ``distributional_shift`` and
-  ``physics_exploitation`` (relative dispersion exactly 0.0), ``orbit_chirality``
-  (1.4e-16) and ``rlhf_reward_model_overopt`` (1.6e-16), i.e. a constant to within one
-  ULP.
+- **Nothing in the proxy at all** -- ``distributional_shift`` (relative dispersion
+  exactly 0.0), ``orbit_chirality`` (1.1e-16) and ``rlhf_reward_model_overopt``
+  (1.6e-16 to 2.4e-16), i.e. a constant to within one ULP, below the informativeness
+  floor.
+- **Almost nothing** -- ``physics_exploitation`` (3.3e-4): above the floor, but so
+  nearly constant that the L0 statistics order under 1% of the cross-variant pairs.
 - **A varied proxy that is the same in every run** -- ``monitored_sandbagging``
   (dispersion 1.00) and ``shortcut_exploitation`` (3.0-4.4). There is plenty in the
   stream; none of it distinguishes one run from another, so every cross-variant pair
-  ties anyway. An informativeness criterion alone would pass these two, which is why
-  the gate asks both questions.
+  ties anyway. An informativeness criterion alone would pass these two and
+  ``physics_exploitation``, which is why the gate asks both questions.
 
 Is such a family a legitimate RHOB family at all? Our answer, and the reason the ledger
 segregates rather than merely fails these cells: **it is a legitimate hacking family and
@@ -59,7 +62,10 @@ That exclusion is not a promise this document makes and nothing keeps: it is
 implemented in ``rhob.v3.leaderboard.access_summary.summarize_access_levels``, whose
 ``degenerate_families`` argument holds those six out of the L0 rung and reports the
 withheld set and the with-degenerate figure alongside, and it is fed from the
-``degenerate_families`` block this script writes.
+``degenerate_families`` block this script writes. DEGENERATE is the only status it holds
+out: the cells this ledger measures NOT ADMITTED (51 of 123 on 2026-11-19, against 42
+ADMITTED and 30 DEGENERATE) stay in the L0 mean, and whether they should is an open
+question for the author (``ROADMAP.md``).
 
 Usage
 -----

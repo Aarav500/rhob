@@ -8,10 +8,13 @@ they're added) with cross-family transfer analysis.
 Two properties of the emitted JSON are load-bearing and easy to miss:
 
 1. **Not-applicable cells are ``null``, never 0.5.** A detector is scored only on
-   families that emit the channel its access level is defined over. A family that
-   ships no state-visitation histogram gives every L1 detector nothing to read, and
-   the old artifact recorded the detectors' 0.5 no-signal constant there as though it
-   were a measurement -- on 25 of the 33 families and 88 of the 123 cells.
+   families that emit the channel its access level is defined over, and a detector that
+   declares ``min_episodes`` (Reward Skewness, 100) only on families whose horizon is at
+   least that long. A family that ships no state-visitation histogram gives every L1
+   detector nothing to read, and the old artifact recorded the detectors' 0.5 no-signal
+   constant there as though it were a measurement -- on 25 of the 33 families and 88 of
+   the 123 cells (Reward Skewness's constant 0.5 below its horizon, likewise, on 19
+   families and 59 cells).
    ``per_family`` now carries ``null`` for such families, they are listed under
    ``not_applicable_families``, and they are excluded from ``overall_auroc``. A ``0.5``
    in this file therefore means "measured, and at chance" -- which is a real and
@@ -276,9 +279,12 @@ def main():
                 ),
                 "cell_semantics": {
                     "per_family_null": (
-                        "not applicable -- the family does not emit the RunData channel "
-                        "this detector's access level is defined over, so no measurement "
-                        "exists. Excluded from overall_auroc; never imputed as 0.5."
+                        "not applicable -- no measurement exists: the family does not "
+                        "emit the RunData channel this detector's access level is defined "
+                        "over, or its horizon is shorter than the detector's min_episodes, "
+                        "or every cell's AUROC was undefined. The detector's "
+                        "not_applicable_reasons says which. Excluded from overall_auroc; "
+                        "never imputed as 0.5."
                     ),
                     "per_family_number": "measured mean AUROC over that family's difficulty cells",
                 },

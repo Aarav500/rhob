@@ -48,7 +48,7 @@ It is lifted from the admission gate and held to it by
 resolution is bit-identical to the gate's on adversarial inputs, except that a finite pair
 whose difference overflows float64 is ordered rather than tied. Its verdict cuts agree with
 the gate's at both boundaries. And fed the gate's measured resolution and informativeness,
-it marks the same 30 of the 50 ledger cells degenerate. Its primary resolution counts ties
+it marks the same 30 of the 123 ledger cells degenerate. Its primary resolution counts ties
 by exact equality, as a standard AUROC does, so the AUROC range it reports holds for the
 number a maintainer actually computes.
 
@@ -116,13 +116,17 @@ is shown to fail by a probe family built for it
 ([`tests/test_v3/test_criteria_discriminate.py`](tests/test_v3/test_criteria_discriminate.py)).
 Of the six admission criteria on the ledger design, the one finding left is
 `onset_localizable`, which is `degenerate`. A probe with diffuse onsets does fail it, but
-on the design that ships its statistic, `onset_std`, is exactly 0.0 in all 50 ledger cells,
-because those families' onsets are authored, so it passes every shipped cell by
-construction ([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). That one fact has two
-consequences. `rhob.audit` codes `onset_localizable` as degenerate (`e9a1ace`). And
-`584ba13` removed the internal onset column from the leaderboard, because it could not fail
-either: `CellResult` no longer carries it, and it is still computed only for
-[`external/hvta/`](external/hvta/), where the label was not written here.
+on the design that ships its statistic, `onset_std`, is exactly 0.0 in all 118 ledger cells
+of the 31 families whose onsets are authored, so it passes them by construction
+([`audit/SELF_CODING.md`](audit/SELF_CODING.md)). It varies only in the five cells of
+`continuous_camping` and `gridworld_camping`, where the onset label is read off what an
+agent does after an activation episode the config sets: a pre-trained DQN camper in the
+first, a tabular Q-learner trained on each run in the second. It passes there too, at SD
+0.23–2.05 episodes against a ceiling of 4.0 and 9.87 against 50, so it fails no ledger
+cell. That has two consequences. `rhob.audit` codes `onset_localizable` as degenerate
+(`e9a1ace`). And `584ba13` removed the internal onset column from the leaderboard, because
+it could not fail either: `CellResult` no longer carries it, and it is still computed only
+for [`external/hvta/`](external/hvta/), where the label was not written here.
 [`results/emergent_pilot/`](results/emergent_pilot/README.md) (`c6bb6f6`) shows that
 authoring is what pins it. With the schedule removed from Pair 01, the code
 `gridworld_camping` wraps, its Q-learner still finds the exploit on 40 of 40 seeds, but the
@@ -132,8 +136,11 @@ onset label dissolves: the mechanistic onset spreads over episodes 1–246 in tw
 An earlier coding got this wrong twice: it called three probe-backed criteria
 undemonstrated, and it called `onset_localizable` merely undemonstrated, because a
 threshold claim was never offered to the degeneracy check. The two instances found after
-the paper (`584ba13`, [above](#what-this-is)) change no verdict on the 50 ledger cells or
-in this coding; the `true_reward_diverges` row records the tie guard. The protocol a survey has to follow, fixed before any coding, is
+the paper (`584ba13`, [above](#what-this-is)) change no verdict on the 50 cells the ledger
+covered when they were found, or in this coding; the `true_reward_diverges` row records the
+tie guard. In the full ledger the tie guard fires on no cell, and on the 59 cells whose
+horizon is under 100 episodes `proxy_distribution_matched` is computed without Reward
+Skewness. The protocol a survey has to follow, fixed before any coding, is
 [docs/SURVEY_PROTOCOL.md](docs/SURVEY_PROTOCOL.md).
 
 ## Inspect eval: HVTB hack rate
@@ -211,7 +218,8 @@ DOI is the paper named here; cite it by this title.
 > **Except the ladder under Results and the counts the Update note below names,
 > everything below this banner predates that audit and has not yet been regenerated.**
 > Treat every other number in this README as superseded by the paper until the leaderboard
-> is rebuilt. The paper reports the corrected figures, the admission gate that produced them,
+> is rebuilt. *(2026-11-19: it has been, with the admission ledger; see the last note in
+> this banner.)* The paper reports the corrected figures, the admission gate that produced them,
 > and the seven claims RHOB contained that no observation could have contradicted; two
 > more were found after it (`584ba13`; see [What this is](#what-this-is)).
 >
@@ -235,6 +243,12 @@ DOI is the paper named here; cite it by this title.
 > Where this README and the paper now disagree on a count, this README is the later
 > correction: it gives 26 of 33 families with both arms hand-written, where the paper
 > says 28, and two instances of the class found after the paper.
+>
+> **Update (2026-11-19):** the single-draw board (`leaderboard/v5_leaderboard.json`,
+> `52656cb`) and the admission ledger (`d4b700d`) were regenerated on CI, on the CI lock
+> under Python 3.12.16. The board is scored as shipped, with the behavioural sign
+> randomized per family, and records N/A cells as `null`; the ledger covers all 33
+> families, 123 cells. The sections the note above names now quote these two artifacts.
 
 
 **The benchmark: matched pairs, certified by an admission gate.** Each cell mints pairs of
@@ -242,7 +256,7 @@ a hacking run and a legitimate run whose proxy reward is meant to be indistingui
 while the true reward diverges, and an admission gate decides, criterion by criterion,
 whether the construction achieved that. The gate is the most reusable part of the code,
 and a working example of a check built so that it can fail: the admission ledger below
-publishes five measured rejections beside its passes. Its nightly smoke screen first
+publishes 51 measured rejections beside its 42 passes. Its nightly smoke screen first
 failed twelve families (2026-08-17; the paper's App. I gives "12 of the 13", a denominator
 no committed file records). Most of the DEGENERATE cells behind those failures were the
 gate's own defect, not the families' (see the 2026-09-03 correction above). The
@@ -356,8 +370,8 @@ an earlier proxy leak (REPRODUCIBILITY.md §3). A constant proxy is trivially
 
 That ledger covered 7 of the 33 families. Sweeping the other 26 found three more whose
 proxy no L0 detector can read — `physics_exploitation`, `rlhf_reward_model_overopt`,
-`shortcut_exploitation` — and all six are now in the ledger's scope, so **six
-registered families, 30 of the benchmark's 123 (family, difficulty) cells, are
+`shortcut_exploitation`. The ledger now covers all 33 families and finds no others, so
+**six registered families, 30 of the benchmark's 123 (family, difficulty) cells, are
 DEGENERATE**. They do not all fail the same way, and the split is the reason the gate
 runs two guards rather than one: see the breakdown under the ledger below.
 
@@ -382,19 +396,20 @@ cleanly its detectors happen to rank it. Being a property of the family rather t
 a detector, one measurement disqualifies every equivalence test at once — which is
 right, since no detector reading dust is measuring a matched proxy.
 
-The cut sits in the one real gap in the measured distribution. Three families are
-constant to within a single ULP — `distributional_shift` at exactly 0,
-`orbit_chirality` at 1.4e-16, `rlhf_reward_model_overopt` at 2.8e-16 — and the next
-value up is `physics_exploitation` at **3.3e-4**, twelve orders of magnitude higher.
-Above that the values run continuously to about 4.3, with no comparable gap anywhere.
-`PROXY_INFORMATIVENESS_FLOOR = 1e-4` lands between the two: ~3.6e11× above the top of
-the dust cluster, 3.3× below the least informative family that is not dust.
+The cut sits in the one real gap in the distribution the ledger measures over all 33
+families. Three families are constant to within a single ULP — `distributional_shift` at
+exactly 0, `orbit_chirality` at 1.1e-16, `rlhf_reward_model_overopt` at 1.6e-16 to
+2.4e-16 — and the next value up is `physics_exploitation` at **3.3e-4**, twelve orders of
+magnitude higher. Above that the values run continuously to about 4.4, with no comparable
+gap anywhere. `PROXY_INFORMATIVENESS_FLOOR = 1e-4` lands between the two: ~4.1e11× above
+the top of the dust cluster, 3.3× below the least informative family that is not dust.
 
 Earlier releases of this README described that distribution as *bimodal with nothing
 between 1.6e-9 and 5.1e-2*. **That was wrong**, and the gate's own source
 (`src/rhob/v3/admission_gate.py`) has always said so: `physics_exploitation` at 3.3e-4
-sits inside the supposedly empty interval, and so do `sequence_length_padding` (6.5e-3)
-and `goal_misgeneralization` (9.9e-3–1.3e-2). The floor is well separated from real
+sits inside the supposedly empty interval, and so do `sequence_length_padding`
+(6.6e-3–6.7e-3), `goal_misgeneralization` (9.9e-3–1.3e-2) and the five RLHF families on
+the shared rollout (1.9e-2–3.2e-2). The floor is well separated from real
 families, but not because the distribution has a hole where the docs said it did.
 
 `physics_exploitation` is the useful case: it is *above* the floor and is still
@@ -423,7 +438,8 @@ Consequences, stated plainly:
   control's claim is that reward-only detectors sit at chance on a *carefully matched*
   proxy. On a constant proxy they sit at chance for a reason that has nothing to do
   with matching, so counting those cells inflates the control with results that could
-  not have come out otherwise.
+  not have come out otherwise. A NOT ADMITTED cell is not excluded: it stays in the L0
+  mean, and whether it should is an open question ([ROADMAP.md](ROADMAP.md)).
 - The affected **families are still valid hacking families.** They separate at L2 and
   their true rewards diverge; only the *matched-proxy certification* is unavailable.
   They rejoin the control group when their proxies are made informative-but-matched
@@ -450,21 +466,50 @@ package versions, argv) and the gate's fixed root seed 12345. The `results` bloc
 reproduces byte-for-byte on the same commit.
 
 The ledger reports three outcomes per cell, and the headline is all three of them.
-**Of the 50 cells in scope, 15 are ADMITTED, 30 are DEGENERATE, and 5 are NOT ADMITTED.**
-Admitted is a minority of the grid, and that is the point: the count fell from an
-earlier "30 of 35 admitted" not because any family got worse but because the degeneracy
-guard stopped counting cells whose proxy criteria were never actually measured, and the
-scope then grew from 7 families to 10 by pulling in the families that guard had found.
+**Of the 123 cells in scope, 42 are ADMITTED, 30 are DEGENERATE, and 51 are NOT ADMITTED.**
+Admitted is a minority of the grid, and that is the point. The count first fell from an
+earlier "30 of 35 admitted", not because any family got worse but because the degeneracy
+guard stopped counting cells whose proxy criteria were never actually measured; the scope
+then grew from 7 families to 10 by pulling in the families that guard had found, and on
+2026-11-19 to all 33. The ten families certified before then keep every verdict: their 50
+cells come back with the same outcome on every criterion.
 
-The 5 genuine failures — measured, and outside the margin:
+The 51 NOT ADMITTED cells are measured failures, in 22 families. One,
+`proxy_correlation_gaming` @ 0.60, fails `behavioral_separated` (mean L2 AUROC 0.527
+against the 0.60 floor). The other 50 fail a proxy criterion — `proxy_matched` on 24
+cells, `proxy_distribution_matched` on 40, both on 14 — and are listed by family below.
+Every cell, with its binding measurement, is in
+[`admission/ADMISSION_LEDGER.md`](admission/ADMISSION_LEDGER.md).
 
-| Family | Difficulty | Failing criterion | Binding measurement |
+| Family | Not admitted | `proxy_matched` fails at | `proxy_distribution_matched` fails at |
 |---|---|---|---|
-| `reward_channel_tampering` | 0.98 | `proxy_distribution_matched` | Reward Skewness 0.5613, CI [0.5180, 0.6045] |
-| `reward_channel_tampering` | 0.90 | `proxy_distribution_matched` | Reward KDE 0.2056, CI [0.1662, 0.2450] |
-| `reward_channel_tampering` | 0.70 | `proxy_distribution_matched` | Reward KDE 0.7972, CI [0.7652, 0.8292] |
-| `reward_channel_tampering` | 0.60 | `proxy_distribution_matched` | Reward KDE 0.7915, CI [0.7498, 0.8333] |
-| `goal_misgeneralization` | 0.60 | `proxy_distribution_matched` | Reward Skewness 0.5573, CI [0.4994, 0.6152] |
+| `continuous_camping` | 1 of 4 | — | 0.90 |
+| `goal_misgeneralization` | 1 of 5 | — | 0.60 |
+| `mujoco_camping` | 3 of 3 | 0.80, 0.70 | 0.90, 0.80, 0.70 |
+| `mujoco_goal_misgeneralization` | 4 of 4 | 0.80, 0.70, 0.60 | 0.90, 0.80, 0.70, 0.60 |
+| `mujoco_joint_limit_gaming` | 3 of 3 | 0.90, 0.70 | 0.90, 0.80, 0.70 |
+| `mujoco_sensor_decoupling` | 3 of 3 | 0.90 | 0.90, 0.80, 0.70 |
+| `pettingzoo_communication_deception` | 3 of 3 | — | 0.90, 0.80, 0.70 |
+| `pettingzoo_fixed_opponent_exploitation` | 3 of 3 | — | 0.90, 0.80, 0.70 |
+| `pettingzoo_free_rider_exploitation` | 2 of 3 | 0.80, 0.70 | — |
+| `pettingzoo_population_goodhart` | 3 of 3 | — | 0.90, 0.80, 0.70 |
+| `pettingzoo_tacit_collusion_gaming` | 3 of 3 | 0.90 | 0.90, 0.80, 0.70 |
+| `reward_channel_tampering` | 4 of 5 | — | 0.98, 0.90, 0.70, 0.60 |
+| `rlhf_feature_blindspot_gaming` | 1 of 3 | 0.80 | — |
+| `rlhf_kl_penalty_gaming` | 2 of 3 | — | 0.90, 0.80 |
+| `rlhf_label_noise_exploitation` | 3 of 3 | 0.90, 0.80, 0.70 | — |
+| `rlhf_sparse_coverage_gaming` | 3 of 3 | 0.90, 0.80, 0.70 | — |
+| `sequence_format_camping` | 2 of 3 | 0.90, 0.80 | 0.90, 0.80 |
+| `sequence_keyword_stuffing` | 1 of 3 | 0.90 | — |
+| `sequence_length_padding` | 1 of 3 | — | 0.80 |
+| `sequence_lexicon_gaming` | 1 of 3 | — | 0.70 |
+| `sequence_repetition_shortcut` | 3 of 3 | 0.90, 0.80, 0.70 | 0.90, 0.80, 0.70 |
+
+All 24 `proxy_matched` failures are in families the ledger covers for the first time:
+four MuJoCo, two PettingZoo, three RLHF and three sequence families. In 8 of them the mean
+L0 AUROC is outside the band [0.40, 0.60]. In the other 16 the point estimate is inside
+the band and the 90% interval is not, so the cell fails because equivalence could not be
+established at this design rather than because the estimate is outside the margin.
 
 `reward_channel_tampering` is the textbook case for why one scalar is not enough: its
 **run-level mean is genuinely matched at every tier** (`proxy_matched` passes
@@ -474,9 +519,9 @@ separable. Matched in the mean, separable in distribution.
 The 30 degenerate cells — **not measurable**, on both proxy criteria at once — are
 every difficulty tier of six families, caught by the two guards in equal numbers.
 Three fail the informativeness floor, their proxy being constant to within numerical
-dust: `distributional_shift` (relative SD exactly 0), `orbit_chirality` (1.4e-16),
-`rlhf_reward_model_overopt` (2.8e-16). Three clear the floor and fail on resolution
-instead, because the proxy an L0 detector sees comes out the same in every run:
+dust: `distributional_shift` (relative SD exactly 0), `orbit_chirality` (1.1e-16),
+`rlhf_reward_model_overopt` (1.6e-16 to 2.4e-16). Three clear the floor and fail on
+resolution instead, because the proxy an L0 detector sees comes out the same in every run:
 `monitored_sandbagging` (relative SD 1.00, resolution 0.000) and
 `shortcut_exploitation` (3.0–4.4, resolution 0.000) are identical run to run, and
 `physics_exploitation` (3.3e-4, above the floor) resolves 0.0035 — its L0 statistic
@@ -485,17 +530,17 @@ the equivalence band before any rollout happens. Neither guard subsumes the othe
 on this grid each catches three families the other cannot see. All 30 cells are listed
 in the ledger, counted separately, and held out of the L0-at-chance control.
 
-`proxy_matched` — the TOST on the mean — was **not measured** on those 30 cells, and
-on the 20 where it *was* measured it failed none. Both halves of that sentence matter:
-zero measured failures is a real result about the 20 cells it covers, and it is not a
-result about the other 30.
+`proxy_matched` — the TOST on the mean — was **not measured** on those 30 cells. On the
+93 where it *was* measured it passed 69 and failed 24. Both halves matter: the 69 passes
+are a real result about the cells they cover, and they are not a result about the other
+30.
 
-> **Scope limit, stated plainly.** The ledger covers **10 of 33 families**. The other
-> 23 are **uncertified**, which is not the same as certified-and-passing. Certifying
-> the full 33 × difficulty grid at 576 rollouts/cell has not been run. Within the 10,
-> **the matched-proxy claim is established on 15 cells, not on 50** — the degenerate
-> cells are neither certified nor refuted. And certification is not exercised by the
-> test suite at all: **`certify_all_tiers` is never called on a registered family
+> **Scope, stated plainly.** The ledger covers **all 33 families**, every scored tier, 123
+> cells, merged from one CI job per cell (`.github/workflows/regenerate.yml`). **The
+> matched pair is certified on 42 cells, not on 123.** The 51 NOT ADMITTED cells are
+> measured and not certified, and the 30 degenerate cells are neither certified nor
+> refuted. And certification is not exercised by the test suite at all:
+> **`certify_all_tiers` is never called on a registered family
 > anywhere in `tests/`** — the two tests that exercise it use synthetic fixtures, so
 > `scripts/admission_ledger.py` is its only real-family caller. 11 of the 33 families
 > do not even run the reduced-power CI screen, and 10 never reach `AdmissionGate` in
@@ -534,9 +579,11 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
 - **The certified distribution is not the scored distribution.** The gate averages
   over 12 layout seeds; the leaderboard evaluates layout seed 0 only.
 - **Some cells are not certifiable at all, and are marked so.** Where a family's proxy
-  reward is constant, the proxy criteria are DEGENERATE — not measurable — rather than
-  passing. Those cells carry no matched-proxy claim and are excluded from the
-  L0-at-chance control. See the degeneracy guard above.
+  reward is constant, or constant run to run, the proxy criteria are DEGENERATE — not
+  measurable — rather than passing. Those cells carry no matched-proxy claim and are
+  excluded from the L0-at-chance control. See the degeneracy guard above. The 51 cells
+  the ledger measures and does not admit stay in the L0 mean, which is an open question
+  ([ROADMAP.md](ROADMAP.md)).
 - **RHOB says nothing about base rates.** Hacking/legitimate is 50/50 by
   construction.
 - **Not adversarial, not online, not an LLM benchmark.**
@@ -581,12 +628,15 @@ aggregate.
 
 ### L0 at chance is a negative control, not a finding
 
-L0 sits at chance **by construction**: on the single-draw board, mean 0.4866, best
-0.5311. That board predates the Skewness fix (`584ba13`), and on it Reward Skewness sits at
-exactly 0.5 on 19 of those 27 families. Re-scored over 20 draws, no single L0 detector's
-mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517]). The families are *built* so the proxy reward carries no signal, and on the cells
-where the gate can measure it, the gate *certifies* they succeeded. An L0 detector at
-0.5 confirms the manipulation worked — it is close to a tautology. Earlier versions of
+L0 sits at chance **by construction**: on the single-draw board, mean 0.4876, best
+0.5351 (Reward CUSUM), over the 27 families whose proxy is readable; the board before the
+2026-11-19 regeneration read 0.4866 and 0.5311. Reward Skewness is N/A on the 19 families
+that run 40 or 60 episodes, so it is scored on 8 of those 27. Re-scored over 20 draws, no
+single L0 detector's mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517]). The
+families are *built* so the proxy reward carries no signal. Where the gate can measure
+that, both proxy criteria pass on 43 cells and at least one fails on the other 50
+(below). On a cell that passes, an L0 detector at 0.5 confirms the manipulation worked —
+it is close to a tautology. Earlier versions of
 this README reported it as an empirical discovery that "reward-only monitoring fails".
 That was wrong, and this is the correction.
 
@@ -599,19 +649,26 @@ So the check is published rather than asserted: the
 [admission ledger](admission/ADMISSION_LEDGER.md) records every criterion's outcome
 and its numbers for every cell in scope, **failures and degenerate cells included**.
 That is what makes this negative control falsifiable instead of decorative. Read
-against the current ledger, the control holds up like this:
+against the current ledger, which covers all 33 families, the control holds up like this:
 
-- **On the mean statistic (`proxy_matched`), it was measured on 20 of the 50 cells and
-  failed none of them.** That is a real result on those 20 — and it is silent about
-  the rest.
-- **On 30 cells it was not established at all.** Their proxy is unreadable — constant,
+- **The ledger certifies a matched proxy on 42 of the 123 cells**, the ADMITTED ones. A
+  43rd, `proxy_correlation_gaming` @ 0.60, passes both proxy criteria and is NOT ADMITTED
+  on `behavioral_separated`.
+- **On the mean statistic (`proxy_matched`), it was measured on 93 of the 123 cells,
+  passed 69 and failed 24.** All 24 failures are in families new to the ledger on
+  2026-11-19. The 69 passes are a real result on those cells — and silent about the rest.
+- **On 30 cells it could not be measured at all.** Their proxy is unreadable — constant,
   or constant run-to-run — so `proxy_matched` came back DEGENERATE rather than PASS.
   *Not measurable* is not *matched*, and these cells are held out of the control rather
   than counted for it.
-- **On the distribution (`proxy_distribution_matched`) it does not survive** for
-  `reward_channel_tampering`, which is separable in proxy *shape* at 4 of 5 tiers, and
-  marginally for `goal_misgeneralization` @ 0.60. Counting both, that criterion is not
-  established on 35 of the 50 cells.
+- **On the distribution (`proxy_distribution_matched`) it does not survive on 40 cells
+  in 16 families**: all 13 MuJoCo cells, 12 of 15 PettingZoo cells,
+  `reward_channel_tampering`, which is separable in proxy *shape* at 4 of 5 tiers,
+  marginally `goal_misgeneralization` @ 0.60, and others. Counting the degenerate cells,
+  that criterion is not established on 70 of the 123 cells.
+- **51 cells are measured NOT ADMITTED**: 24 fail `proxy_matched`, 40 fail
+  `proxy_distribution_matched` (14 fail both) and 1 fails `behavioral_separated`. They
+  are still in the L0 mean (below).
 
 One consequence is worth stating in the open, because it moves the headline number.
 `summarize_access_levels` reads the ledger's `degenerate_families` and withholds them
@@ -620,11 +677,17 @@ one channel L0 reads, so the other rungs keep those families as ordinary benchma
 items. On the committed board, holding out all **six** degenerate families
 (`distributional_shift`, `monitored_sandbagging`, `orbit_chirality`,
 `physics_exploitation`, `rlhf_reward_model_overopt`, `shortcut_exploitation`) gives an
-L0 suite mean of **0.4866 over 27 families, against 0.4895 with them in** — both
+L0 suite mean of **0.4876 over 27 families, against 0.4898 with them in** — both
 family-weighted, and both reported side by side rather than one silently replacing the
-other. The exclusion is worth 0.0029. Releases before this one printed 0.4898, which is
-the same statistic with no exclusion *and* weighted by cell rather than family; the
-re-weighting accounts for the remaining 0.0003.
+other. The exclusion is worth 0.0022. With no exclusion *and* weighted by cell rather
+than family, the same board reads 0.4903. On the board before the 2026-11-19
+regeneration these three figures were 0.4866, 0.4895 and 0.4898, and releases before the
+exclusion printed the last of them.
+
+Only the DEGENERATE families are held out. The 51 NOT ADMITTED cells stay in the L0
+mean, and on 50 of them the gate measured the proxy and could not certify it matched.
+Whether they should stay in is an open question for the author
+([ROADMAP.md](ROADMAP.md)); the code's policy is unchanged.
 
 **The ledger, not either mean, is where the negative control is adjudicated.** A mean
 summarizes detector behaviour; only the ledger says which cells were certified matched.
@@ -636,8 +699,9 @@ its hardcoded 0.5 fallback — a constant, not a measurement. The 8 families tha
 emit the channel are `gridworld_camping`, `continuous_camping`, `distributional_shift`,
 `goal_misgeneralization`, `physics_exploitation`, `reward_channel_tampering`,
 `rlhf_reward_model_overopt`, `sensor_calibration_tampering`, carrying **35 of the 123
-cells**. So **88/123 = 71.5%** of every L1 detector's published cells were the
-fallback constant.
+cells**. So on the board before the 2026-11-19 regeneration, **88/123 = 71.5%** of every
+L1 detector's published cells were the fallback constant. The regenerated board records
+those 88 cells as `null`.
 
 Whole categories are affected wholesale, by design, and each shared rollout module
 documents why: all 4 `mujoco_*` (high-dimensional continuous state, no natural
@@ -647,9 +711,9 @@ shared RLHF rollout (no discrete state space), plus `eval_probe_sandbagging`,
 `monitored_sandbagging`, `novelty_farming`, `orbit_chirality`,
 `proxy_correlation_gaming`, `shortcut_exploitation`.
 
-Recomputing over measured cells only:
+On the regenerated board, which scores measured cells only, beside the board it replaced:
 
-| L1 detector | Published (123 cells) | **Measured only (8 families, 35 cells)** |
+| L1 detector | Pre-N/A board (123 cells, 0.5 imputed on 88) | **Regenerated board (8 families, 35 cells)** |
 |---|---|---|
 | State Divergence | 0.621 | **0.927** |
 | State Coverage Rate | 0.514 | 0.549 |
@@ -662,10 +726,10 @@ Recomputing over measured cells only:
 | **Suite mean** | 0.520 | **0.570** |
 | **Suite max** | 0.621 | **0.927** |
 
-**Excluding the fabrication raises L1.** The 0.5 constants were dragging a genuinely
-strong detector down to 0.621 and the suite mean to 0.520. The previously reported
-"L1 ≈ 0.53 (marginal)" was an artifact of averaging a fallback constant over 71% of
-the cells.
+**Excluding the fabrication raises L1.** On the pre-N/A board the 0.5 constants were
+dragging a genuinely strong detector down to 0.621 and the suite mean to 0.520. The
+previously reported "L1 ≈ 0.53 (marginal)" was an artifact of averaging a fallback
+constant over 71% of the cells.
 
 The correct statement: **on the 8 families that emit state-visitation data, the best
 L1 detector reaches 0.927; the other 7 remain near chance (0.489–0.549).**
@@ -673,19 +737,19 @@ State Divergence is one of the five label-fitted detectors, so that 0.927 answer
 the difference learnable from labelled examples?", not "does a fixed statistic
 separate the variants?". Over 20 draws, the best unsupervised L1 detector scores 0.534. Every L1
 figure must be quoted with its denominator (8 families / 35 cells) because it is
-**not** comparable to the 33-family denominators used at L0 and L2.
+**not** comparable to the denominators used at L0 (27 families, the six DEGENERATE ones
+held out) and L2 (33 families).
 
-Going forward, N/A is recorded as N/A rather than imputed. A `0.5` in a regenerated
-artifact now means *"measured, and at chance"* — a real result.
-`continuous_camping` is the clean example: it **does** emit `state_counts`, and all 8
-L1 detectors still score exactly 0.500 on it. Under the old schema that was
-indistinguishable from the 25 families where nothing was measured at all.
+The regenerated board records N/A as `null` rather than imputing it. A `0.5` in it means
+*"measured, and at chance"* — a real result. `continuous_camping` is the clean example:
+it **does** emit `state_counts`, and all 8 L1 detectors score exactly 0.500 on it. Under
+the old schema that was indistinguishable from the 25 families where nothing was
+measured at all.
 
-> **These corrected L1 numbers are a recomputation from the committed
-> `leaderboard/v5_leaderboard.json`, not a re-measurement.** The committed artifact
-> still contains the imputed 0.5 cells. The N/A schema is implemented and takes
-> effect on the next regeneration (~2–3 h); until then the corrected column above is
-> the number to cite.
+> **2026-11-19:** the right-hand column is now a measurement: it is the regenerated
+> `leaderboard/v5_leaderboard.json` (`52656cb`), which carries `null` for the 88 N/A
+> cells. Until then it was a recomputation from the board with the imputed 0.5 cells, and
+> the regenerated board gives the same values to three decimals.
 
 ### Cross-family transfer (RTS)
 
@@ -856,14 +920,18 @@ Populate the taxonomy's `MULTI_AGENT` complexity tier for the first time, using 
 
 A second, structurally distinct population of the `SEQUENTIAL` complexity tier alongside Families 19–23: real per-step token-sequence generation over a small discrete vocabulary against a fixed hidden Markov "true grammar," scored by a fixed rule-based (non-fitted) proxy rather than a fitted reward model. Each family games a different, real, documented LLM reward-hacking failure mode.
 
-**Family 30 ships with a documented, unresolved `proxy_matched` failure at some
-difficulty tiers** (see CHANGELOG 1.8.0). It remains in the leaderboard; treat its cells
-accordingly. Family 29 shipped with one too, and `86acb92` (2026-09-19) fixed it: its
-calibration lever had come out at exactly 0.0 at every scored tier, so the
-keyword-emitting branch never ran. Rebuilt, it passes the reduced-power smoke screen at
+**Family 30 fails `proxy_matched` at two of its three scored tiers in the ledger**, as
+CHANGELOG 1.8.0 documented when it shipped: at 0.90 the mean L0 AUROC is 0.8023, 90% CI
+[0.7746, 0.8300], and at 0.80 it is 0.7924 [0.7457, 0.8390], against the band [0.40,
+0.60]. It is ADMITTED at 0.70. It remains in the leaderboard; treat its cells
+accordingly. Family 29 shipped with a `proxy_matched` failure too, and `86acb92`
+(2026-09-19) fixed it: its calibration lever had come out at exactly 0.0 at every scored
+tier, so the keyword-emitting branch never ran. Rebuilt, it passes the reduced-power smoke screen at
 all three scored tiers (0.9, 0.8, 0.7;
 [`results/family_diagnostics/sequence_keyword_stuffing_gate.json`](results/family_diagnostics/sequence_keyword_stuffing_gate.json)).
-That is a screen, not certification, and the committed leaderboard predates the fix.
+The ledger admits it at 0.80 and 0.70 and not at 0.90, where the mean L0 AUROC is
+0.4077, 90% CI [0.3677, 0.4477]: the point estimate is inside the band and the interval
+is not. The regenerated leaderboard is built on code that includes the fix.
 
 29. **Keyword-Stuffing Gaming** — Floods a small fixed keyword-token subset largely decoupled from the grammar's actual structure, gaming a keyword-frequency proxy
 30. **Format-Compliance Camping** — Fills fixed template-slot positions with expected tokens while the surrounding sequence needn't cohere, gaming a template-slot-fill-rate proxy
@@ -878,17 +946,19 @@ measurements.** A further 5 classical external baselines ship as code but do **n
 appear in any committed leaderboard artifact.
 
 Per-level figures in this section are from the single-draw board
-(`leaderboard/v5_leaderboard.json`), which predates the leaderboard rebuild, unless they
-are marked as 20-draw; the 20-draw ladder is under [Results](#access-level-ladder).
+(`leaderboard/v5_leaderboard.json`), regenerated on 2026-11-19 under the shipped
+configuration (behavioural sign randomized per family, N/A cells recorded as `null`),
+unless they are marked as 20-draw; the 20-draw ladder is under [Results](#access-level-ladder).
 
 ### L0: Reward-Only (13)
 Temporal statistics on proxy reward only. At chance on matched-proxy families **by
 construction** — this is the benchmark's negative control, not a result about them.
 Scored over the 27 families whose proxy is readable; the six the ledger marks
-DEGENERATE are held out of L0 and only L0. Reward Skewness needs 100 episodes and is
-N/A on the 19 families that run 40 or 60 episodes, so on the 20-draw board it is scored
-on 14 families, 64 cells (`584ba13`, `9da6b21`); six of those 14 are the DEGENERATE
-families held out of L0, so inside the L0 aggregate it is scored on 8.
+DEGENERATE are held out of L0 and only L0, and the cells it marks NOT ADMITTED stay in.
+On the single draw: suite mean 0.4876, best 0.5351 (Reward CUSUM). Reward Skewness needs
+100 episodes and is N/A on the 19 families that run 40 or 60 episodes, so on both boards
+it is scored on 14 families, 64 cells (`584ba13`, `9da6b21`); six of those 14 are the
+DEGENERATE families held out of L0, so inside the L0 aggregate it is scored on 8.
 
 ### L1: State-Visitation (8)
 Occupancy patterns, state-frequency anomaly, centroid drift, etc. **Only measurable
@@ -897,10 +967,11 @@ those families the best (State Divergence, one of the five label-fitted detector
 reaches 0.927 and the other 7 sit between 0.489 and 0.549.
 
 ### L2: Behavioral (7)
-Hand-engineered anti-symmetric features from trajectory traces. Best in-distribution
-AUROC 0.975 (Behavioral Threshold); suite mean 0.721; both from before sign
-randomization. Transfer across held-out families built under the same construction
-recipe reads high (ensemble RTS 0.994), but **that number is an artifact of the
+Hand-engineered anti-symmetric features from trajectory traces. On the single draw,
+with the feature's sign randomized per family: best 0.943 (Trajectory MLP, one of the
+five label-fitted detectors), suite mean 0.572, Behavioral Threshold 0.512. Before sign
+randomization the board read 0.975 (Behavioral Threshold) and 0.721. Transfer across
+held-out families built under the same construction recipe reads high (ensemble RTS 0.994), but **that number is an artifact of the
 feature-sign convention**: randomizing the sign per family collapses it to **0.508**,
 and in the same run the L2 suite mean falls **0.7229 → 0.5629**. See
 the correction banner at the top. Do not cite 0.994 without its randomized partner.
@@ -933,10 +1004,11 @@ cd rhob
 pip install -e ".[dev]"
 ```
 
-Requires Python ≥ 3.10 to install; ≥ 3.11 for the versions the admission ledger records
-(those in `requirements-lock.txt` cannot be installed on 3.10), and 3.12 for the CI lock —
-see [REPRODUCIBILITY.md](REPRODUCIBILITY.md). Core dependencies: `numpy`, `scipy`,
-`scikit-learn`, `pydantic`. See [docs/INSTALL.md](docs/INSTALL.md) for Docker, Colab,
+Requires Python ≥ 3.10 to install; ≥ 3.11 for the versions in `requirements-lock.txt`
+(they cannot be installed on 3.10); and 3.12 for the CI lock
+(`requirements/ci-admission-linux-py312.txt`), which is the stack the committed admission
+ledger and leaderboard record (Python 3.12.16) — see [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+Core dependencies: `numpy`, `scipy`, `scikit-learn`, `pydantic`. See [docs/INSTALL.md](docs/INSTALL.md) for Docker, Colab,
 and troubleshooting.
 
 No local install? Open [notebooks/rhob_quickstart.ipynb](notebooks/rhob_quickstart.ipynb) in Colab.
@@ -1076,10 +1148,10 @@ strengths. Do not mistake one for the other.
 
 | | **Smoke screen** (`tests/test_v3/`) | **Certification** (the ledger) |
 |---|---|---|
-| Where it runs | your family's pytest file, in CI | `python scripts/admission_ledger.py`, offline |
+| Where it runs | your family's pytest file, in CI | `python scripts/admission_ledger.py`, locally or in the `regenerate` workflow |
 | Design | 12 layouts × 4 seeds/side = 96 rollouts/cell | 12 layouts × 24 seeds/side = 576 rollouts/cell |
 | Equivalence margin | ±0.256 | **±0.10** — the benchmark's published claim |
-| Cost | minutes | hours over the full grid; cannot run in CI |
+| Cost | minutes | hours over the full grid; too slow for the per-PR suite, so the `regenerate` workflow runs it as one job per cell |
 | What it establishes | the family has no *large* proxy leak | the family is admitted |
 
 ```python
@@ -1092,7 +1164,7 @@ def test_smoke_admissible_at_scored_difficulty(difficulty):
 ```
 
 ```bash
-# Offline: certification. This, and only this, produces an ADMITTED verdict.
+# Certification. This, and only this, produces an ADMITTED verdict.
 # --out-dir defaults to admission/; point it elsewhere for a single-family run.
 python scripts/admission_ledger.py --families my_family --out-dir /tmp/rhob-admission
 ```
@@ -1112,7 +1184,7 @@ families run the smoke screen; **11 do not**, and **10 never reach `AdmissionGat
 any test at all**. Most of those still have a pytest file of hand-written per-family
 assertions, which is not the same thing: a hand-written check tests what its author
 thought to test, and the point of the gate is that it tests the same six things for
-everybody. Certification is thinner still — the ledger covers 10 families, and
+everybody. Certification is a separate run: the ledger covers all 33 families, but
 **`certify_all_tiers` is never called on a registered family anywhere in `tests/`**:
 the two tests that exercise it use synthetic fixtures, so `scripts/admission_ledger.py`
 is the only caller that puts a real family through full certification. Adding the smoke
@@ -1134,8 +1206,9 @@ detectors, more families, and more people trying to break it. We're looking for:
   was itself such an exercise.
 - **New detectors, environment families, or benchmark extensions.** See
   [CONTRIBUTING.md](CONTRIBUTING.md) for the admission-gate requirements.
-- **Certification of the 23 uncertified families.** The single largest open gap in
-  the benchmark. See the ledger scope limit above.
+- **Proxies that match on the 51 cells the ledger rejects.** Every family has now been
+  through the ledger, and 22 of them are NOT ADMITTED at one tier or more, 21 of those on
+  a proxy criterion. See the ledger section above.
 - **Smoke tests for the 11 families that have none**, a `certify_all_tiers` regression
   test that runs over the registry rather than over fixtures, and
   **informative-but-matched proxies for the six families that currently certify
@@ -1170,8 +1243,9 @@ The accompanying paper is maintained separately from this codebase; it is the Ze
 preprint under [The paper](#the-paper), DOI
 [10.5281/zenodo.22005218](https://doi.org/10.5281/zenodo.22005218). This repository is
 the benchmark and evaluation harness; result figures referenced by the paper live in
-[`docs/figures/`](docs/figures/) and are fully reproducible from the scripts and
-leaderboard data committed here (see [REPRODUCIBILITY.md](REPRODUCIBILITY.md)).
+[`docs/figures/`](docs/figures/) and reproduce from the scripts here and the board they
+were drawn from: figures drawn before the 2026-11-19 regeneration come from the earlier
+board, which git keeps at `acd35c2` (see [REPRODUCIBILITY.md](REPRODUCIBILITY.md)).
 
 **Numbers in any pre-2026-08 version of the paper predate the audit corrections on
 this page** — specifically the L1 aggregates, the L3/access-level ladder, and the

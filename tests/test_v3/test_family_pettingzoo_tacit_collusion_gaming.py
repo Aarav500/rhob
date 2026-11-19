@@ -44,7 +44,9 @@ def test_registered():
             "KDE mean AUROC 0.28 / 0.28 / 0.31 at 0.9 / 0.8 / 0.7 (12 layouts x 4 seeds/side; at "
             "0.9 the 90% CI is [0.2235, 0.3390]), outside the +/-0.256 smoke band. proxy_matched "
             "passes. Before the horizon fix these tiers reported DEGENERATE. Fixing this means "
-            "matching the proxy's shape in the family."
+            "matching the proxy's shape in the family. The full ledger (2026-11-19, +/-0.10) fails "
+            "proxy_distribution_matched at all three tiers, and proxy_matched at 0.9, where the "
+            "mean L0 AUROC 0.5622 has a 90% CI [0.5234, 0.6010] that reaches past the band."
         ),
     ),
     ids=difficulty_id,

@@ -1,26 +1,30 @@
 """Every admission criterion must be able to come back FAIL on *some* dataset.
 
-The 4-of-6 problem
-------------------
+The criteria the ledger never fails
+-----------------------------------
 The paper's rule for the admission criteria is that a criterion no dataset fails is not
-a check. Tallied over the 50 cells of ``admission/admission_ledger.json``, five of the
-six have never returned FAIL:
+a check. Tallied over the 50 cells ``admission/admission_ledger.json`` held when this
+module was written (10 families, 2026-08), five of the six had never returned FAIL, and
+four had returned nothing but PASS. Over the full ledger of 2026-11-19 (all 33 families,
+123 cells) three of the six still never return FAIL:
 
 ===============================  ====  ====  ==========
 criterion                        PASS  FAIL  DEGENERATE
 ===============================  ====  ====  ==========
-``proxy_matched``                  20     0          30
-``proxy_distribution_matched``     15     5          30
-``behavioral_separated``           50     0           0
-``true_reward_diverges``           50     0           0
-``onset_localizable``              50     0           0
-``camping_quality``                50     0           0
+``proxy_matched``                  69    24          30
+``proxy_distribution_matched``     53    40          30
+``behavioral_separated``          122     1           0
+``true_reward_diverges``          123     0           0
+``onset_localizable``             123     0           0
+``camping_quality``               123     0           0
 ===============================  ====  ====  ==========
 
-That table is not evidence the criteria are strict. It is what a benchmark of
-*admitted* families looks like: the ledger's population was selected for passing, so it
-cannot distinguish a criterion that discriminates from ``return PASS``. The four with no
-FAIL and no DEGENERATE are the sharpest version -- for those, nothing in the entire
+(On the 10-family ledger the rows read 20/0/30, 15/5/30 and 50/0/0 four times.)
+
+A column of passes is not evidence a criterion is strict. Every registered family was
+built to be admitted, so a ledger over them -- the full one included -- cannot
+distinguish a criterion that discriminates from ``return PASS``. The three with no FAIL
+and no DEGENERATE are the sharpest version -- for those, nothing in the entire
 published artifact would move if the function body were deleted.
 
 The evidence a ledger cannot supply is a family built to violate the property.

@@ -137,7 +137,7 @@ def test_verdicts_on_the_ledger_match_the_gates_outcomes():
     are those two halves, and ``fixed`` is the limiting case of the second.
     """
     cells = _ledger_cells()
-    assert len(cells) == 50
+    assert len(cells) == 123
     for cell in cells:
         m = cell["metrics"]["proxy_matched"]
         r = Resolution(
@@ -154,14 +154,37 @@ def test_verdicts_on_the_ledger_match_the_gates_outcomes():
     assert sum(c["outcomes"]["proxy_matched"] == "degenerate" for c in cells) == 30
 
 
+#: The two families whose onset label is read off what an agent does after an activation
+#: episode the config sets, rather than authored. Every other family's onset is authored,
+#: so its ``onset_std`` is exactly 0.0.
+_AGENT_ONSET_FAMILIES = {"continuous_camping", "gridworld_camping"}
+
+
 def test_onset_localizable_is_fixed_across_the_ledger():
-    """The instance the audit package used to miss: one value, in all 50 cells."""
-    stds = [c["metrics"]["onset_localizable"]["onset_std"] for c in _ledger_cells()]
-    assert len(stds) == 50
-    r = cannotfail.resolution(stds)
+    """The instance the audit package used to miss: one value, wherever onsets are authored.
+
+    The 10-family ledger had ``onset_std`` 0.0 in all 50 cells. The full ledger
+    (2026-11-19) has it 0.0 in the 118 cells of the 31 families with authored onsets, and
+    the tool must still call that statistic fixed there. Over all 123 cells it must not:
+    the 5 cells of the two agent-onset families vary, which gives the statistic six
+    distinct values. ``onset_localizable`` passes in every cell either way.
+    """
+    cells = _ledger_cells()
+    assert len(cells) == 123
+    assert all(c["outcomes"]["onset_localizable"] == "pass" for c in cells)
+
+    authored = [c for c in cells if c["family"] not in _AGENT_ONSET_FAMILIES]
+    assert len(authored) == 118
+    assert len({c["family"] for c in authored}) == 31
+    r = cannotfail.resolution([c["metrics"]["onset_localizable"]["onset_std"] for c in authored])
     assert r.n_distinct == 1
     assert r.verdict == "fixed"
-    assert all(c["outcomes"]["onset_localizable"] == "pass" for c in _ledger_cells())
+
+    r_all = cannotfail.resolution([c["metrics"]["onset_localizable"]["onset_std"] for c in cells])
+    assert r_all.n_distinct == 6
+    assert r_all.verdict != "fixed"
+    varying = {c["family"] for c in cells if c["metrics"]["onset_localizable"]["onset_std"] != 0.0}
+    assert varying == _AGENT_ONSET_FAMILIES
 
 
 def _verdict_from(resolution, informativeness=1.0, margin=0.10, floor=1e-4):

@@ -171,9 +171,10 @@ example: it does emit `state_counts`, and all 8 L1 detectors genuinely score
 exactly 0.500 on it.
 
 Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
-detector's published row to be a constant, which understated the suite: the best
-L1 detector reads 0.621 over all 123 cells and 0.927 over the 35 cells where the
-channel exists.
+detector's published row to be a constant, which understated the suite: on the board
+before the 2026-11-19 regeneration (`acd35c2`) the best L1 detector read 0.621 over all
+123 cells. The regenerated board records those 88 cells as `null` and scores that
+detector, State Divergence, over the 35 cells where the channel exists, at 0.927.
 
 ---
 
@@ -311,14 +312,16 @@ equivalence test on that cell.
 Consumers of the certificate and the ledger **must not** collapse the three outcomes
 to a boolean. A cell is ADMITTED only when every criterion is `PASS`; cells with any
 `DEGENERATE` criterion carry no matched-proxy claim in either direction and are
-excluded from RHOB's L0-at-chance negative control.
+excluded from RHOB's L0-at-chance negative control. NOT ADMITTED cells are not
+excluded: they stay in the L0 mean, and whether they should is an open question
+(`ROADMAP.md`).
 
 ### `admission/admission_ledger.json` artifact schema
 
 | Key | Meaning |
 |---|---|
 | `schema` | `"rhob.admission_ledger/1"` |
-| `provenance` | git commit + dirty flag, Python, package versions, `argv`, scope, gate configuration |
+| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform` and `cpu` to null and records them under `sharding` (shard count, time span, platforms, CPUs, CI run) |
 | `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
 | `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
 | `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
@@ -366,7 +369,8 @@ by the test suite at all.** 22 of the 33 registered families call
 `assert_smoke_admissible_at`, 11 do not, and 10 never reach `AdmissionGate` in any test.
 No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
 exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
-caller that certifies real families, and the ledger it writes covers 10 of 33. Read a
+caller that certifies real families. The ledger it writes covers all 33 since its
+2026-11-19 regeneration on CI, as a separate run rather than a test. Read a
 green suite as "the screens that exist passed", never as "every family is admitted".
 
 ---
@@ -433,9 +437,11 @@ is the environment draw and is 1), `test_seed_base` (50000), `n_seeds_test`,
 **Consumers must treat `null` as "no measurement exists", not as 0.5, and must not
 count it in a denominator.**
 
-> The committed artifacts predate `src/rhob/v3/provenance.py` and do not yet carry
-> `provenance` / `sampling` / `cell_semantics`. They acquire them on the next
-> regeneration. `admission/admission_ledger.json` carries them today.
+> `leaderboard/v5_leaderboard.json` carries `provenance`, `sampling` and
+> `cell_semantics` since its 2026-11-19 regeneration (`52656cb`).
+> `leaderboard/cross_family_transfer.json` predates `src/rhob/v3/provenance.py`, has
+> not been regenerated, and does not yet carry them. `admission/admission_ledger.json`
+> carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors
 

@@ -36,9 +36,10 @@ from typing import Any, Optional
 # through gymnasium's environments; mujoco-core is new with MuJoCo 4.0 and is installed
 # alongside it (None under 3.x). mpe2 supplies the scenarios of the five PettingZoo
 # families and builds them on pettingzoo. Before this, only scripts/admission_ledger.py
-# added them, to its own block, so no other committed artifact, the 20-draw replication
-# included, says which simulator produced it. Rendering-only dependencies (imageio,
-# pygame-ce) are left out: no rollout renders.
+# added them, to its own block, so no artifact committed before then other than the
+# ledger, the 20-draw replication included, says which simulator produced it. The v5
+# board and the admission ledger regenerated on 2026-11-19 carry the full list.
+# Rendering-only dependencies (imageio, pygame-ce) are left out: no rollout renders.
 #
 # Every distribution the calibration cache keys on
 # (``rhob.v3.calibration_cache.PHYSICS_DISTRIBUTIONS``) must appear here too, and
@@ -158,7 +159,7 @@ def package_versions() -> dict[str, Optional[str]]:
 
     Every name in :data:`_TRACKED_PACKAGES` is a key; a package that is not installed
     maps to None. Artifacts written before 2026-11-16 carry only the first five names
-    (plus, in ``admission/admission_ledger.json``, the four simulators that
+    (plus, in an admission ledger written then, the four simulators that
     ``scripts/admission_ledger.py`` added itself), so a reader must treat a missing
     name as "not recorded", which is different from None, "recorded as not installed".
     """

@@ -231,8 +231,11 @@ def test_self_coding_sources_still_point_at_their_criteria():
 def test_post_audit_onset_localizable_is_degenerate():
     """The regression that motivated diagnose_constant_statistic.
 
-    onset_std is exactly 0.0 in all 50 ledger cells, so the threshold passes every cell
-    by construction. Before the measured-constant check this row came back merely
+    onset_std is exactly 0.0 in the 118 ledger cells of the 31 families whose onsets are
+    authored, so the threshold passes those cells by construction (it varies only in the
+    five cells of continuous_camping and gridworld_camping, and passes there too; the
+    10-family ledger the row was first coded against had 0.0 in all 50 of its cells).
+    Before the measured-constant check this row came back merely
     undemonstrated, because a threshold claim was never offered to the degeneracy check.
     """
     result = run_survey(load_snapshot(SELF_CODING, "rhob_post_audit"))

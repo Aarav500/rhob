@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from rhob.v3.admission_gate import CRITERIA
+from rhob.v3.admission_gate import CRITERIA, is_degenerate, is_uninformative
 
 _LEDGER = Path(__file__).resolve().parents[2] / "admission" / "admission_ledger.json"
 
@@ -57,19 +57,37 @@ def test_every_per_criterion_count_is_recomputable_from_the_cells(ledger):
 def test_a_degenerate_cell_is_never_counted_as_a_measured_failure(ledger):
     """The C7 defect, stated as an assertion about the shipped numbers.
 
-    On the current grid ``proxy_matched`` has no measured failures at all; every cell it
-    did not establish, it could not measure. Publishing that as "15 failing" told a
-    reader to go hunt for a proxy leak in families whose data cannot show one.
+    On the ledger where the defect was found, ``proxy_matched`` had no measured failures
+    at all; every cell it did not establish, it could not measure. Publishing that as
+    "15 failing" told a reader to go hunt for a proxy leak in families whose data cannot
+    show one. The full ledger of 2026-11-19 has measured ``proxy_matched`` failures as
+    well (24 of them, all in families certified for the first time that day), so the
+    two kinds of non-pass now sit side by side and have to be told apart cell by cell:
+    a cell counted as failed was measurable, and a cell the gate could not measure is
+    counted degenerate and never failed.
     """
-    s = ledger["summary"]
+    s, rows = ledger["summary"], ledger["results"]
     for criterion in CRITERIA:
         failed = s["n_failed_by_criterion"][criterion]
         degenerate = s["n_degenerate_by_criterion"][criterion]
         assert failed >= 0 and degenerate >= 0
         # No cell can be both at once -- the outcome is a single tri-state value.
         assert failed + degenerate <= s["n_cells"]
-    assert s["n_failed_by_criterion"]["proxy_matched"] == 0
     assert s["n_degenerate_by_criterion"]["proxy_matched"] == s["n_degenerate"]
+
+    for row in rows:
+        m = row["metrics"]["proxy_matched"]
+        unmeasurable = is_degenerate(m["statistic_resolution"], m["margin"]) or (
+            is_uninformative(m["proxy_informativeness"], m["informativeness_floor"])
+        )
+        where = (row["family"], row["difficulty"])
+        if row["outcomes"]["proxy_matched"] == "fail":
+            assert not unmeasurable, where
+            assert "proxy_matched" not in row["degenerate_criteria"], where
+            assert row["status"] == "NOT ADMITTED", where
+        if row["outcomes"]["proxy_matched"] == "degenerate":
+            assert unmeasurable, where
+            assert "proxy_matched" in row["degenerate_criteria"], where
 
 
 def test_the_degenerate_family_list_matches_the_cells(ledger):

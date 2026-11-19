@@ -6,8 +6,9 @@ level), because the two answer different questions and only the max speaks to th
 claim RHOB actually cares about -- "is the information present at this access level?".
 A level's mean is dragged down by however many weak detectors happen to have been
 written for it, so a mean-only ladder measures the detector suite's composition as much
-as the benchmark's structure. On the committed v5 board the two differ sharply at L2:
-mean 0.7213 over 7 detectors, but max 0.9750 (Behavioral Threshold).
+as the benchmark's structure. On the committed v5 board (regenerated 2026-11-19) the two
+differ sharply at L2: mean 0.5716 over 7 detectors, but max 0.9430 (Trajectory MLP); and
+at L1: mean 0.5701 over 8, but max 0.9270 (State Divergence).
 
 Detectors listed in :data:`~rhob.detectors.redundancy.DUPLICATE_DIAGNOSTICS` are
 excluded from every level's statistics and reported separately, so a relabelled copy of
@@ -34,15 +35,23 @@ uncertainty from there. A single draw's ``std_auroc`` is not a substitute.
 Degenerate families are held out of L0, and only L0
 -----------------------------------------------------
 RHOB's L0 rung is a *negative control*: "reward-only detectors sit at chance on a
-carefully matched proxy". Six registered families do not have a matched proxy, they have
-a **constant** one, and the admission ledger marks every one of their cells DEGENERATE
-rather than certified (see ``admission/ADMISSION_LEDGER.md``). On a constant proxy every
-L0 detector reads 0.5 for a reason that has nothing to do with matching, so averaging
-those families into the L0 figure pads the control with cells that could not have come
-out any other way. Pass the ledger's ``degenerate_families`` to
-:func:`summarize_access_levels` and they are withheld from L0, with the withheld set and
-the with-degenerate figure reported alongside so the exclusion is auditable rather than
-silent.
+carefully matched proxy". Six registered families do not have a matched proxy: theirs is
+constant, nearly constant, or identical in every run, so an L0 statistic can order almost
+none of their run pairs, and the admission ledger marks every one of their cells
+DEGENERATE rather than certified (see ``admission/ADMISSION_LEDGER.md``). On such a
+proxy an L0 detector's AUROC is the tie convention (0.5) or rounding error, for a reason
+that has nothing to do with matching, so averaging those families into the L0 figure
+pads the control with cells that could not have come out any other way. Pass the
+ledger's ``degenerate_families`` to :func:`summarize_access_levels` and they are withheld
+from L0, with the withheld set and the with-degenerate figure reported alongside so the
+exclusion is auditable rather than silent.
+
+DEGENERATE is the only status held out. Since 2026-11-19 the ledger covers all 33
+families and 123 cells. It admits 42, certifying a matched proxy on each; it marks 30
+DEGENERATE; and it measures 51 NOT ADMITTED (``proxy_matched`` failed on 24,
+``proxy_distribution_matched`` on 40, ``behavioral_separated`` on 1; a cell can fail
+more than one). The NOT ADMITTED cells are still in the L0 mean. Whether the negative
+control should also leave them out is an open question for the author (``ROADMAP.md``).
 
 The exclusion applies to **L0 only, deliberately**. Degeneracy is a property of the
 proxy reward, which is the only channel L0 reads; the L1/L2/L3 detectors read state
@@ -53,12 +62,19 @@ fix a problem they do not have.
 One consequence has to be stated rather than hidden: excluding families means the L0 rung
 is computed from the per-family AUROCs (a family-weighted mean over the families kept),
 while the other rungs use each detector's ``overall_auroc`` (a cell-weighted mean over
-all 123 cells), because the artifact records AUROCs per family and not per cell. On the
-committed v5 board that re-weighting is worth 0.0003 AUROC at L0 -- family-weighted over
-all 33 families is 0.4895 against the cell-weighted 0.4898 -- so it is not what moves the
-number; the exclusion is. ``mean_auroc_including_degenerate`` is computed the same
-family-weighted way for exactly this reason, so the difference between it and
-``mean_auroc`` is attributable to the held-out families alone.
+the cells it measured, ``cells_measured``), because the artifact records AUROCs per
+family and not per cell. On the committed v5 board that re-weighting is worth 0.0005
+AUROC at L0 -- family-weighted over every family each detector measured is 0.4898
+against the cell-weighted 0.4903 -- so it is not what moves the number; the exclusion
+is. ``mean_auroc_including_degenerate`` is computed the same family-weighted way for
+exactly this reason, so the difference between it and ``mean_auroc`` is attributable to
+the held-out families alone.
+
+A family a detector could not measure is ``null`` in its ``per_family`` block and is
+left out of that detector's mean, never read as 0.5. At L0 that is Reward Skewness on
+the short-horizon families, so it is computed over fewer families than the rest of the
+rung; :attr:`AccessLevelSummary.n_families_scored_by_detector` records how many, and the
+rendered table names it.
 """
 
 from __future__ import annotations
@@ -90,10 +106,15 @@ class AccessLevelSummary:
     #: their proxy degenerate. Empty on every level but :data:`PROXY_LEVEL`, and empty
     #: there too unless ``degenerate_families`` was passed.
     excluded_families: list[str] = field(default_factory=list)
-    #: Families this level's numbers were actually computed over. ``None`` when no
-    #: exclusion was applied and the level is reporting each detector's own
-    #: ``overall_auroc``, which is a cell-weighted figure over the whole board.
+    #: Families this level's numbers were actually computed over: every family at least
+    #: one detector measured, less the held-out ones. ``None`` when no exclusion was
+    #: applied and the level is reporting each detector's own ``overall_auroc``, which is
+    #: a cell-weighted figure over the cells that detector measured.
     n_families_scored: int | None = None
+    #: Per detector, the families its figure was averaged over, when an exclusion was
+    #: applied. A detector that is not applicable on some families (``null`` in its
+    #: ``per_family`` block) has fewer than :attr:`n_families_scored`.
+    n_families_scored_by_detector: dict[str, int] = field(default_factory=dict)
     #: The same statistic with the degenerate families put back, so the cost of the
     #: exclusion is visible next to the exclusion. ``None`` when nothing was excluded.
     mean_auroc_including_degenerate: float | None = None
@@ -155,13 +176,14 @@ def degenerate_families_from_ledger(path: Path | None = None) -> list[str]:
     return sorted(str(f) for f in families)
 
 
+def _is_auroc(value: object) -> bool:
+    """A measured per-family value; ``null`` (not applicable) is not one."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _family_mean(per_family: Mapping[str, object], skip: frozenset[str]) -> float | None:
     """Mean of a detector's per-family AUROCs, over the families not in ``skip``."""
-    kept = [
-        float(v)
-        for k, v in per_family.items()
-        if k not in skip and isinstance(v, (int, float)) and not isinstance(v, bool)
-    ]
+    kept = [float(v) for k, v in per_family.items() if k not in skip and _is_auroc(v)]
     return sum(kept) / len(kept) if kept else None
 
 
@@ -175,8 +197,8 @@ def summarize_access_levels(
 
     Args:
         results: The ``"results"`` block of a leaderboard JSON: detector name ->
-            dict with at least ``access_level`` and ``overall_auroc``. Entries whose
-            detector errored during evaluation (no ``overall_auroc``, or ``null``)
+            dict with at least ``access_level`` and ``overall_auroc``. Entries with no
+            ``overall_auroc``, or ``null`` (the detector errored, or measured no cell)
             are skipped rather than treated as zero.
         exclude_duplicates: When True (the default, and the only correct setting for
             anything published), detectors registered as duplicates are held out of
@@ -201,6 +223,7 @@ def summarize_access_levels(
     summaries = {lv: AccessLevelSummary(level=lv) for lv in ACCESS_LEVELS}
     skip = frozenset(degenerate_families)
     with_degenerate: list[float] = []
+    families_scored: set[str] = set()
 
     for name, info in results.items():
         level = info.get("access_level")
@@ -230,9 +253,9 @@ def summarize_access_levels(
                 )
             summaries[level].scored.append((name, kept))
             with_degenerate.append(everything)
-            summaries[level].n_families_scored = len(
-                [k for k in per_family if k not in skip]
-            )
+            measured = {k for k, v in per_family.items() if k not in skip and _is_auroc(v)}
+            families_scored |= measured
+            summaries[level].n_families_scored_by_detector[name] = len(measured)
             summaries[level].excluded_families = sorted(
                 k for k in per_family if k in skip
             )
@@ -243,10 +266,31 @@ def summarize_access_levels(
         summaries[PROXY_LEVEL].mean_auroc_including_degenerate = sum(
             with_degenerate
         ) / len(with_degenerate)
+        summaries[PROXY_LEVEL].n_families_scored = len(families_scored)
 
     for summary in summaries.values():
         summary.scored.sort(key=lambda pair: pair[1], reverse=True)
     return summaries
+
+
+def _fewer_families_note(summary: AccessLevelSummary) -> str:
+    """`` (Reward Skewness over 8 of them, ...)`` for detectors measured on fewer families."""
+    total = summary.n_families_scored
+    fewer = [
+        (name, n)
+        for name, n in sorted(summary.n_families_scored_by_detector.items())
+        if total is not None and n < total
+    ]
+    if not fewer:
+        return ""
+    return (
+        " ("
+        + "; ".join(
+            f"{name} over {n} of them: it is not applicable on the other {total - n}"
+            for name, n in fewer
+        )
+        + ")"
+    )
 
 
 def render_access_summary_md(summaries: Mapping[str, AccessLevelSummary]) -> str:
@@ -281,16 +325,20 @@ def render_access_summary_md(summaries: Mapping[str, AccessLevelSummary]) -> str
         including = proxy.mean_auroc_including_degenerate
         lines.append("")
         lines.append(
-            f"{PROXY_LEVEL} is computed over {proxy.n_families_scored} families. "
-            f"{len(proxy.excluded_families)} are held out because the admission ledger "
-            f"marks their proxy DEGENERATE -- it is constant, so an L0 detector reads "
-            f"0.5 on them by construction and not by matching: "
+            f"{PROXY_LEVEL} is computed over {proxy.n_families_scored} families"
+            + _fewer_families_note(proxy)
+            + f". {len(proxy.excluded_families)} are held out because the admission "
+            "ledger marks their proxy DEGENERATE -- constant, nearly constant, or "
+            "identical in every run, so an L0 detector's AUROC on them is the tie "
+            "convention (0.5) or rounding error, not evidence of matching: "
             + ", ".join(f"**{f}**" for f in proxy.excluded_families)
             + ". Putting them back would read "
             + (f"{including:.4f}" if including is not None else "-")
             + f" instead of {proxy.mean_auroc:.4f}. They are held out of {PROXY_LEVEL} "
             "only; the other levels do not read the proxy reward and score these "
-            "families like any other."
+            "families like any other. Cells the ledger measures NOT ADMITTED are not "
+            "held out and stay in the mean; whether they should is an open question "
+            "(ROADMAP.md)."
         )
     if excluded:
         lines.append("")

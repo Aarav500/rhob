@@ -20,12 +20,15 @@ those reasons became the paper this repository is now the case study for.
   itself is authored, and in all 33 so is the flaw it exploits. A benchmark built that way
   can say what a signal contains. It cannot say how well a detector catches hacking an
   optimizer found, which is the question the ImageNet framing promised to answer.
-- **The onset column the acronym refers to could not fail.** Every one of the 50
-  admission-ledger cells has `onset_std` exactly 0.0, because those onsets are authored, so
-  a constant prediction equal to the label scores a perfect error of 0.000. Two things
-  follow. `584ba13` removed the internal onset column from the leaderboard: `CellResult` no
+- **The onset column the acronym refers to could not fail.** Every one of the 50 cells in
+  the 2026-08-03 admission ledger had `onset_std` exactly 0.0, because those onsets are
+  authored, so a constant prediction equal to the label scored a perfect error of 0.000. Two
+  things follow. `584ba13` removed the internal onset column from the leaderboard: `CellResult` no
   longer carries it, and it is still computed only for `external/hvta`, where the label was
   not written by us. And `rhob.audit` codes `onset_localizable` as degenerate (`e9a1ace`).
+  The full ledger (2026-11-19, 123 cells) still has 0.0 in 118 cells. In the other 5, the
+  tiers of `continuous_camping` and `gridworld_camping`, it is nonzero, and
+  `onset_localizable` passes there too.
 
 The withdrawn text is in git history rather than here: last at `06df9f3` on the branch
 that carried this rewrite, and at `9352529`, the last version both lines of history share,
@@ -79,21 +82,42 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   [an issue form](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml),
   or by email to the address in [SECURITY.md](SECURITY.md#private-reports-that-are-not-security-issues) when it should not be public.
 - **One convention for every published number — open; the 20-draw L0 re-score done
-  (2026-09-03).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
+  (2026-09-03), the single-draw board done (2026-11-19).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
   2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
   (its windows need 100 episodes; 19 families run 40 or 60) and was re-scored on all 20
   draws in `9da6b21`: those 19 families are now N/A, leaving 0.504 [0.494, 0.514] over 64
   cells on 14 families. Five of the 14 are still at exactly 0.500, from a near-constant
   proxy rather than the horizon. That is disclosed and not fixed. The single-draw board
-  (`leaderboard/v5_leaderboard.json`) has not been regenerated and still carries the padded
-  Skewness cells on 19 of its 27 L0 families.
-- **Extend the admission ledger to the short-horizon families — open.** The nightly smoke
-  screen has been re-measured with Reward Skewness declaring its horizon: 19 short-horizon
-  cells admit and 14 fail on a real late-window density leak (`9da6b21`; the 14 are marked
-  `xfail(strict=True)` per tier in `tests/test_v3/test_family_*.py`). The certification
-  ledger still covers only its 10 families, whose horizons run 100 to 200 episodes.
-  Extending it moves the 30-of-50 calibration counts below and the parity test that
-  asserts them, in the same change.
+  (`leaderboard/v5_leaderboard.json`) was regenerated on CI on 2026-11-19 (run 44447220658,
+  `52656cb`) under the shipped configuration, with the behavioural sign randomized: its 8
+  L1 rows are `null` on 88 of 123 cells and its Reward Skewness row on 59. Its ladder of
+  means is L0 0.4876, L1 0.5701, L2 0.5716, L3 0.9830, against 0.4866, 0.5200, 0.7213 and
+  0.9830 on the 2026-07-17 board, and of maxima 0.5351, 0.9270, 0.9430 and 0.9830
+  ([CHANGELOG.md](CHANGELOG.md)). Still open: `leaderboard/cross_family_transfer.json` has
+  not been regenerated and predates both the provenance block and the N/A schema.
+- **Extend the admission ledger to the short-horizon families — done (2026-11-19).** The
+  nightly smoke screen has been re-measured with Reward Skewness declaring its horizon: 19
+  short-horizon cells admit and 14 fail on a real late-window density leak (`9da6b21`; the
+  14 are marked `xfail(strict=True)` per tier in `tests/test_v3/test_family_*.py`). The
+  certification ledger now covers all 33 families and 123 cells (CI run 44447220658,
+  `d4b700d`): 42 ADMITTED, 30 DEGENERATE and 51 NOT ADMITTED, against 15, 30 and 5 over the
+  10 families and 50 cells of 2026-08-03. The 10 families already in it keep every verdict
+  in all 50 of their cells, and the DEGENERATE families are the same six, so the 30
+  calibration cells below are unchanged. `proxy_matched` was measured on 93 cells and
+  failed 24, where it had failed none of 20; `proxy_distribution_matched` failed 40 and
+  `behavioral_separated` 1. Of the 73 new cells, 27 admit and 46 do not, among them all 13
+  MuJoCo cells and 14 of the 15 PettingZoo cells.
+- **The 46 NOT ADMITTED cells in the 23 families new to the ledger — open.** For each
+  family, fix its proxy matching or document the failure as a known leak. They are in 20 of
+  the 23 families. 24 fail `proxy_matched`: in 8 the point estimate is outside the band,
+  and 16 are underpowered, with the point estimate inside it and the interval not. 35 fail
+  `proxy_distribution_matched`, all but one on Reward KDE, and a cell can fail both. One,
+  `proxy_correlation_gaming` @0.6, fails only `behavioral_separated`. Each cell's binding
+  measurement is in [admission/ADMISSION_LEDGER.md](admission/ADMISSION_LEDGER.md).
+- **Whether the L0 aggregate should also hold out NOT ADMITTED cells — open, the author's
+  decision.** The code holds out only the six DEGENERATE families
+  (`summarize_access_levels`), so the 51 NOT ADMITTED cells are still in the L0 mean; 22 of
+  the 27 families that mean is over have at least one.
 - **One maintainer outside the author's network runs it on their own score vectors — by
   2026-12-15.** A run of the diagnostics on a benchmark the author did not build.
 - **The paper at a venue.** A submission to TMLR, after the paper's claims are made to
@@ -105,7 +129,9 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   two-sided test does at every complete separation (p = 0.0079), and the power
   computation the axis-A plan pins first reaches 0.80 at an AUROC of 0.944, inside the
   range ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already
-  known").
+  known"). Also among them, and open: every figure the paper quotes from the single-draw
+  board or the admission ledger predates their 2026-11-19 regeneration, and must be updated
+  to it before submission.
 - **The survey: the port, then axis A — open; a pre-registration of axis A's power re-run
   written (2026-11-16), awaiting its sealed record and then a deposit dated by a third
   party.** The analysis plan for the re-run on the 15 sub-class A claims is written before
@@ -154,17 +180,19 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
 Learned families as certified benchmark members, a multi-agent hacking class as a
 contribution, or new learned-agent trace collection for RHOB's own families before the
 TMLR submission. Each was designed and argued against; the arguments are in the paper's
-limitations section. The ledger extension above reruns the scripted families through the
-gate and is not that. The learner probe above is scheduled after 2026-12-15, and it is a test of the
+limitations section. The ledger extension above reran the scripted families through the
+gate and was not that. The learner probe above is scheduled after 2026-12-15, and it is a test of the
 construction, not a new benchmark member.
 
 ## What RHOB itself is for now
 
 - **A fixture for the diagnostics.** Its admission ledger is the calibration set. Fed the
-  ledger's measured resolution and informativeness, `cannotfail` must mark the same 30
-  `proxy_matched` cells degenerate as the gate does, and it must call `onset_localizable`'s
-  statistic fixed, for the reason under What changed. Recomputing the 30 from score vectors
-  would need the runs regenerated, since the ledger stores aggregates.
+  ledger's measured resolution and informativeness, `cannotfail` must mark the same 30 of
+  its 123 `proxy_matched` cells degenerate as the gate does, and it must call
+  `onset_localizable`'s statistic fixed over the 118 cells whose `onset_std` is 0.0, for the
+  reason under What changed. Over all 123 it does not: the 5 nonzero cells give the
+  statistic six distinct values, and the verdict is `ok`. Recomputing the 30 from score
+  vectors would need the runs regenerated, since the ledger stores aggregates.
 - **A worked example of a check built so it can fail.** The matched-pair construction and
   the admission gate. Its nightly smoke screen first failed twelve families (2026-08-17,
   recorded in `ba26a4a`). 33 of its 36 DEGENERATE cells turned out to be Reward Skewness
