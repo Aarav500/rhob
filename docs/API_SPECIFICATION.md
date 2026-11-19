@@ -162,13 +162,25 @@ unchanged.
 evaluation harness must not average it into an aggregate. When a family does not
 emit the channel a detector's access level is defined over, that cell is recorded
 as `null` with a reason and **excluded** from `overall_auroc`. It is never imputed
-as 0.5.
+as 0.5. The same applies to the horizon: a detector that declares `min_episodes`
+(`PosthocDetector.min_episodes`, default 0) is not scored on a family whose runs are
+shorter, and that cell is `null` too, with the horizon as its reason. Reward Skewness
+declares 100 and is `null` on the 59 cells of the 19 families that run 40 or 60
+episodes.
 
-The distinction is load-bearing: after this change, a `0.5` in an artifact means
-*"measured, and at chance"* — a real result — where before it was
-indistinguishable from *"never measured"*. `continuous_camping` is the worked
-example: it does emit `state_counts`, and all 8 L1 detectors genuinely score
-exactly 0.500 on it.
+The distinction is load-bearing, but it covers only what the detectors declare. A
+detector that does not declare `min_episodes` is still scored below its windows, where
+it falls back to a constant, and the resulting 0.5 is written as a measured number. On
+the regenerated board (`52656cb`) that is eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward
+Trend and Variance Window on the 19 short-horizon families; Max Plateau, Reward MLP,
+Gradient Reversal and Reward CUSUM on the 7 that run 40), three L2 detectors (Feature
+Consistency on the 19; Feature Magnitude and Reward-Feature Correlation on the 7) and
+every L1 detector on `continuous_camping`: it does emit `state_counts`, and all 8 L1
+detectors read exactly 0.500 on it, but its 40 episodes are below each one's window, so
+that 0.500 is their fallback, not a measurement. Declaring those horizons is an open
+item ([ROADMAP.md](../ROADMAP.md)). Outside those cells, and outside the L0 cells of
+the six DEGENERATE families, where 0.5 is the tie convention, a `0.5` in an artifact
+means *"measured, and at chance"*.
 
 Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
 detector's published row to be a constant, which understated the suite: on the
@@ -234,6 +246,15 @@ def is_trained(self) -> bool:
     Unsupervised detectors return False.
     Supervised detectors return False until fit() completes.
     Used during cross-validation to gate supervised fitting.
+    """
+
+@property
+def min_episodes(self) -> int:
+    """Optional: fewest episodes this detector can score. Default 0 (no minimum).
+
+    The benchmark and the admission gate record a family whose runs are shorter
+    as not applicable (null) instead of calling classify(). Override it whenever
+    classify() falls back to a constant on short runs; today only Reward Skewness does.
     """
 ```
 
@@ -417,8 +438,8 @@ Per-detector keys under `results[detector]`:
 | Key | Meaning |
 |---|---|
 | `cells` | cells attempted |
-| `cells_measured` | cells that produced a measurement |
-| `cells_not_applicable` | cells skipped because the channel is absent |
+| `cells_measured` | cells scored: the channel is present and the horizon is at least the detector's declared `min_episodes`. A detector that declares none (`UNDECLARED_HORIZON_FALLBACKS` in `rhob.v3.leaderboard.access_summary`) returns its fallback 0.5 on runs shorter than its windows, and those cells are counted here although nothing was measured |
+| `cells_not_applicable` | cells skipped as not applicable: the family does not emit the detector's channel, or its horizon is below the detector's declared `min_episodes` (Reward Skewness); the reason is in `not_applicable_reasons` |
 | `not_applicable_families` | list of families skipped for this detector |
 | `not_applicable_reasons` | `{reason string: count}` |
 | `per_family` | float, **or `null`** when not applicable |

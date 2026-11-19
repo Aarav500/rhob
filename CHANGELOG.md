@@ -23,8 +23,12 @@ code at `a2aa435` (its own); the two commits differ only in
 2026-08-03.
 
 **The board** (`leaderboard/v5_leaderboard.json`) now carries provenance and sampling
-blocks and writes a cell its detector could not score as `null`: the 8 L1 rows are N/A on
-88 of 123 cells (25 families) and Reward Skewness on 59 (19 families). It is scored under
+blocks and writes a cell as `null` when the channel its detector reads is missing or the
+horizon is below the detector's declared `min_episodes`: the 8 L1 rows are N/A on 88 of
+123 cells (25 families) and Reward Skewness on 59 (19 families). Eight other L0 rows
+cannot score the short-horizon families either, but declare no horizon, so the board
+records their fallback 0.5 there (below); so do three L2 rows, and all eight L1 rows on
+the 40-episode `continuous_camping`. It is scored under
 the shipped configuration, with the behavioural sign randomized per family. The ladder,
 with the six DEGENERATE families held out of L0 only:
 
@@ -36,7 +40,7 @@ with the six DEGENERATE families held out of L0 only:
 | L3 | 1 | 0.9830 | 0.9830 | True Reward Oracle | 0.9830 / 0.9830 |
 
 With the six families back in, the family-weighted L0 mean reads 0.4898. The exclusion is
-worth 0.0023, computed from the unrounded means (0.489811 − 0.487551 = 0.002259); the two
+worth 0.0023, computed from the unrounded means (0.4898105 − 0.4875513 = 0.0022592); the two
 rounded figures differ by 0.0022. Weighted by cell and with no exclusion, L0 reads 0.4903.
 
 - Behavioral Threshold falls from 0.975 to 0.512 and Centroid Tracker from 0.966 to 0.361,
@@ -60,6 +64,17 @@ rounded figures differ by 0.0022. Weighted by cell and with no exclusion, L0 rea
   between L0 and L1, over the 8 families L1 can score.
 - Reward Skewness is N/A on its 19 short-horizon families instead of 0.5, as on the 20-draw
   board since `9da6b21`; its overall goes from 0.508 to 0.516.
+- Reward Skewness is the only L0 detector that declares its horizon. Eight others return a
+  constant below their windows, and the board records it as a measured 0.5: Reward Peak,
+  Reward Autocorrelation, Reward Trend and Variance Window on the 19 families that run 40
+  or 60 episodes (59 cells each), and Reward CUSUM, Max Plateau, Reward MLP and Gradient
+  Reversal on the 7 of those that run 40 (22 cells each). Those 104 per-family values are
+  in the L0 mean of 0.4876 above, 7 of them in Reward CUSUM's 0.5351, and they are the
+  fallback, not measurements. The 20-draw board has the same 0.5 in each of those cells in
+  every draw. Three L2 detectors (Feature Consistency on the 19, Feature Magnitude and
+  Reward-Feature Correlation on the 7) and all eight L1 detectors on `continuous_camping`
+  do the same, 41 more fallback values, in the L1 and L2 figures. Declaring the horizons
+  and re-scoring both boards is open (ROADMAP.md).
 
 **The ledger** (`admission/admission_ledger.json`, `admission/ADMISSION_LEDGER.md`) now
 covers every registered family, merged from 123 single-cell shards certified on 7 CPU models.
@@ -100,14 +115,14 @@ covers every registered family, merged from 123 single-cell shards certified on 
   fixed over those 118 cells (one distinct value) and `ok` over all 123 (six).
 - RHOB's self-coding changes with it. `docs/SURVEY_PROTOCOL.md` codes a criterion
   degenerate only when its statistic took one value across the whole shipped design, and
-  the shipped design is now the 123-cell ledger. The `rhob_post_audit` row for
+  the ledger now covers the whole shipped design, all 123 cells. The `rhob_post_audit` row for
   `onset_localizable` in `audit/rhob_self_coding.json` therefore records
   `observed_distinct_values` 6, measured over all 123 cells, where its first coding
   (`e9a1ace`) recorded 1 over the 50-cell ledger and was degenerate. By the rule in
   `rhob.audit.diagnostics` the row is no longer degenerate: it codes `not_applicable`, and
   the post-audit coding has no finding left (`audit/SELF_CODING.md`, regenerated with
-  `scripts/audit_table.py`; `tests/test_audit` pins the new result). The design changed,
-  not the criterion: the statistic is still 0.0 in the 118 cells of the 31 families whose
+  `scripts/audit_table.py`; `tests/test_audit` pins the new result). The ledger's coverage
+  changed, not the criterion: the statistic is still 0.0 in the 118 cells of the 31 families whose
   onset label is the configured schedule, so those passes are fixed by construction.
   Wherever RHOB's self-audit result is stated from the first coding, in the paper or
   elsewhere, it has to be updated or scoped to the 50-cell ledger; ROADMAP.md lists this
@@ -253,7 +268,8 @@ extra. All of this lands in `cannotfail` 0.1.0, which is still unreleased; see
 `rhob.v3.provenance` recorded numpy, scipy, scikit-learn, torch and rhob, but not the
 simulators that step the rollouts. Of the committed artifacts only the admission ledger says
 which MuJoCo produced it, because its script added the simulators itself; the 20-draw
-replication does not. Every provenance block now also records mujoco, mujoco-core,
+replication does not. *(2026-11-19: the regenerated `v5_leaderboard.json`, `52656cb`,
+records them too.)* Every provenance block now also records mujoco, mujoco-core,
 gymnasium, pettingzoo and mpe2, as null when not installed. A test fails if the calibration
 cache keys on a version that provenance does not record. Artifacts written under the old
 list are not rewritten and still read: no reader requires the new names, and both report
@@ -314,7 +330,9 @@ families run 40 or 60. Below that horizon it returned the constant 0.5 for every
 both arms, and `leaderboard/v5_replicated.json` published that as "at chance": the defect
 the L1 entry below records, from a different cause, in the row the paper calls its
 negative control. `584ba13` (2026-09-02) gave `PosthocDetector` a `min_episodes` horizon,
-which Reward Skewness declares as 100. A shorter cell is recorded as not applicable,
+which Reward Skewness declares as 100. *(2026-11-19: it is still the only detector that
+declares one; eight other L0 detectors return a constant below their windows, which both
+boards record as 0.5. See the first entry.)* A shorter cell is recorded as not applicable,
 excluded and never imputed, and the detector returns NaN below its horizon, so a path
 that skips the guard fails loudly. `9da6b21` (2026-09-03) re-scored the row on the same 20
 draws:
@@ -483,6 +501,9 @@ A `0.5` in a regenerated artifact now means "measured, and at chance" — a real
 result. `continuous_camping` is the clean example: it *does* emit `state_counts`,
 and all 8 L1 detectors still score exactly 0.500 on it. Under the old schema that
 was indistinguishable from the 25 families where nothing was measured at all.
+*(2026-11-19: it is not a measurement. `continuous_camping` runs 40 episodes, below
+every L1 detector's window, so each returns its fallback 0.5 there; see the first
+entry.)*
 
 `behav_trace` is present in every family measured, and `proxy_rewards` /
 `true_rewards` always are, so no L2 or L3 cell was fabricated. This is an L1-only
@@ -838,7 +859,10 @@ parsers, including the Gradio Space). New top-level `families_evaluated`;
 `timestamp` is retained for backward compatibility with
 `rhob.v3.leaderboard.adapters` and `space/app.py`, mirroring
 `provenance.generated_utc`. `cross_family_transfer.json` gains the corresponding
-`train_*`/`test_*` N/A keys.
+`train_*`/`test_*` N/A keys. *(2026-11-19: a short horizon is `null` only for a detector
+that declares `min_episodes`. Only Reward Skewness does; eight L0 detectors, three L2
+detectors and every L1 detector still write their fallback 0.5 on a family shorter than
+their windows; see the first entry.)*
 
 ### Changed: documentation reframed
 
@@ -873,7 +897,9 @@ parsers, including the Gradio Space). New top-level `families_evaluated`;
   30×9 scope, the `--n-seeds-train 15` command that does not match the committed
   `n_seeds_train: 10`, the "all 9 families pass the gate" claim, and the stale
   "28/30 detectors scoring successfully" note (all 30 now score all 123 cells). *(Not on
-  the board regenerated on 2026-11-19, which writes N/A cells as `null`: each of the 8 L1
+  the board regenerated on 2026-11-19, which writes N/A cells as `null`, the
+  short-horizon cells of detectors that declare no horizon excepted (see the first
+  entry): each of the 8 L1
   detectors scores 35 cells and Reward Skewness 64.)*
 - **`docs/API_SPECIFICATION.md`**: documented the N/A cell contract, the artifact
   schema, the duplicate-detector aggregation rule, and corrected "L3 … never scored

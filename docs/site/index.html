@@ -222,8 +222,9 @@ certified nor refuted. A not-admitted cell was measured and failed at least one
 criterion: 24 fail <code>proxy_matched</code>, 40 fail
 <code>proxy_distribution_matched</code> (14 fail both) and 1 fails
 <code>behavioral_separated</code>. Of the 24 <code>proxy_matched</code> failures, 8 have the
-mean L0 AUROC outside the band [0.40,&nbsp;0.60] and 16 have it inside with a 90% interval too wide to fit, which is a
-failure to certify at this design rather than a measured leak.</p>
+mean L0 AUROC outside the band [0.40,&nbsp;0.60] and 16 have it inside with a 90% interval
+that reaches past the band, which is a failure to certify at this design. In 15 of those 16
+the interval excludes 0.5, so the proxy is off chance there, by less than 0.10.</p>
 
 <p>The paper counts seven instances of the class in RHOB, three of them introduced by the
 fix to an earlier one. Two more were found in the released artifact after the paper
@@ -231,7 +232,10 @@ fix to an earlier one. Two more were found in the released artifact after the pa
 Reward Skewness returned a constant 0.5 below its 100-episode horizon, on the 19 families
 that run 40 or 60 episodes, which padded the L0 negative control. And
 <code>true_reward_diverges</code> reported FAIL on arms tied by arithmetic, with no tie
-guard; it now returns DEGENERATE.</p>
+guard; it now returns DEGENERATE. Reward Skewness now declares its horizon and is null
+there, but it is the only detector that does: eight other L0 detectors still fall back to
+a constant on the families too short for their windows, which reads 0.5, and the board
+regenerated on 2026-11-19 records it as a measured value. Re-scoring them is open.</p>
 
 <p>RHOB was published as the Reward Hacking <em>Onset</em> Benchmark. Its onset column was
 removed because it could not fail either: in 31 of the 33 families the onset label is

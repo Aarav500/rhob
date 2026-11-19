@@ -529,7 +529,8 @@ def test_a_small_but_real_proxy_signal_still_certifies():
 
     A relative dispersion of 2e-3 -- 20x the floor, and still three times smaller than
     the least informative registered family the gate can measure
-    (``sequence_length_padding``, 6.5e-3) -- is a measurement, not dust, and the gate has
+    (``sequence_length_padding``, 6.6e-3 to 6.7e-3 in the ledger of 2026-11-19) -- is a
+    measurement, not dust, and the gate has
     to keep certifying it. Run at 48 seeds/layout for the same
     reason ``test_distribution_criterion_admits_a_genuinely_matched_proxy`` is: the
     default design is sized for 90% combined power, so a single-draw assertion at exactly

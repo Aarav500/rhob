@@ -20,11 +20,12 @@ from rhob.v3.leaderboard import (
     render_access_summary_md,
     summarize_access_levels,
 )
+from rhob.v3.leaderboard.access_summary import UNDECLARED_HORIZON_FALLBACKS
 
 _BOARD = Path(__file__).resolve().parents[2] / "leaderboard" / "v5_leaderboard.json"
 
-#: The families the admission ledger cannot certify a matched proxy for, and which are
-#: therefore held out of the L0 negative control. Duplicated here rather than read from
+#: The families whose proxy the admission ledger marks DEGENERATE (could not measure),
+#: and which are therefore held out of the L0 negative control. Duplicated here rather than read from
 #: the ledger so that a ledger regeneration which changes the set has to be acknowledged
 #: in a test instead of silently moving every number below.
 DEGENERATE_FAMILIES = [
@@ -112,8 +113,12 @@ def test_committed_v5_board_ladder(v5_results):
     """Pin the published ladder on the real, committed board.
 
     Means and maxima on ``leaderboard/v5_leaderboard.json`` as regenerated on CI on
-    2026-11-19 (33 families, 123 cells; each L1 detector measures 35 of them and Reward
-    Skewness 64, and the rest are ``null``), with the six degenerate-proxy families held
+    2026-11-19 (33 families, 123 cells; each L1 detector has a value on 35 of them and
+    Reward Skewness on 64, and the rest are ``null``; the other L0 detectors have a value
+    on all 123, but for eight of them the value on the short-horizon families is their
+    fallback 0.5, not a measurement -- see
+    ``test_the_l0_figures_include_eight_detectors_fallback_values``), with the six
+    degenerate-proxy families held
     out of L0 -- which is what makes L0 the negative control the docs describe rather
     than a mean padded with cells that could not have come out any other way. L3 has
     exactly one member after the Perfect Feature Oracle duplicate is removed.
@@ -130,7 +135,8 @@ def test_committed_v5_board_ladder(v5_results):
     the current board.
     That board read L1 0.5200, L2 0.7213 (best 0.975, Behavioral Threshold) and L3
     0.9830; the regenerated one scores the behavioural feature with its sign randomized
-    and leaves not-applicable cells out instead of imputing 0.5.
+    and leaves not-applicable cells out instead of imputing 0.5. Only cells that are not
+    applicable are left out: the eight L0 detectors' fallback 0.5s are still in.
 
     These are pins on a committed artifact, not on library behaviour: regenerating
     ``v5_leaderboard.json`` or ``admission/admission_ledger.json`` will move them. That
@@ -150,8 +156,9 @@ def test_committed_v5_board_ladder(v5_results):
     assert s["L0"].n_families_scored == 27
     assert s["L0"].excluded_families == sorted(DEGENERATE_FAMILIES)
     # Reward Skewness is null on the 19 families that run fewer than the 100 episodes
-    # its windows need, so it is averaged over 8 of the 27; every other L0 detector
-    # measures all 27.
+    # its windows need, so it is averaged over 8 of the 27. Every other L0 detector has a
+    # non-null value on all 27, though for eight of them the value on the short-horizon
+    # families is the fallback 0.5 from their window guard, not a measurement.
     by_detector = s["L0"].n_families_scored_by_detector
     assert by_detector.pop("Reward Skewness") == 8
     assert len(by_detector) == 12 and set(by_detector.values()) == {27}
@@ -189,7 +196,7 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     and nothing else: **0.4898 with the degenerate families, 0.4876 without**, an
     exclusion worth 0.0023 (0.002259 from unrounded values; the rounded figures'
     difference reads 0.0022). For scale, the re-weighting on its own is worth 0.0005 --
-    family-weighted over every family each detector measured is 0.4898 against the
+    family-weighted over every family each detector has a value on is 0.4898 against the
     cell-weighted 0.4903 the un-excluded ladder reports (0.000497 unrounded).
 
     On the board before the 2026-11-19 regeneration the same three figures were 0.4866,
@@ -215,6 +222,69 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     assert exclusion == pytest.approx(0.0023, abs=1e-4)
     assert reweighting == pytest.approx(0.0005, abs=1e-4)
     assert exclusion > 4 * reweighting
+
+
+_LEDGER = Path(__file__).resolve().parents[2] / "admission" / "admission_ledger.json"
+
+
+def test_the_l0_figures_include_eight_detectors_fallback_values(v5_results):
+    """The L0 figures above count 104 per-family entries that are not measurements.
+
+    Eight L0 detectors declare no ``min_episodes`` and return a constant below their
+    windows (:data:`UNDECLARED_HORIZON_FALLBACKS`), so on a family that short they tie on
+    every pair and the board records 0.5 with ``cells_measured`` unchanged. Family
+    horizons come from the committed ledger (``onset_localizable.horizon``, one per
+    family). On the board regenerated 2026-11-19: the four that need 100 episodes read
+    exactly 0.5 on all 19 families with horizon 40 or 60 (59 cells), and the four that
+    need 50 or 60 on all 7 with horizon 40 (22 cells); none of those families is
+    degenerate, so all 104 entries are in the 27-family L0 ladder. Left out, the L0 mean
+    would read 0.4834 instead of 0.4876, and the best detector would still be Reward CUSUM,
+    at 0.5474 over 20 families instead of 0.5351 over 27.
+
+    This pins an open defect, not a design (``ROADMAP.md``). When those detectors declare
+    their horizons and the board is re-scored, these entries become ``null`` and this
+    test, and the L0 pins above, have to change with the figures the docs quote.
+    """
+    horizon: dict[str, float] = {}
+    cells: dict[str, int] = {}
+    for row in json.loads(_LEDGER.read_text(encoding="utf-8"))["results"]:
+        horizon[row["family"]] = row["metrics"]["onset_localizable"]["horizon"]
+        cells[row["family"]] = cells.get(row["family"], 0) + 1
+
+    assert set(UNDECLARED_HORIZON_FALLBACKS) <= set(v5_results)
+    short = {
+        name: sorted(f for f in v5_results[name]["per_family"] if horizon[f] < length)
+        for name, length in UNDECLARED_HORIZON_FALLBACKS.items()
+    }
+    for name, families in short.items():
+        assert v5_results[name]["cells_measured"] == 123, name
+        assert all(v5_results[name]["per_family"][f] == 0.5 for f in families), name
+        assert not set(families) & set(DEGENERATE_FAMILIES), name
+    by_length = {
+        length: {len(short[n]) for n, k in UNDECLARED_HORIZON_FALLBACKS.items() if k == length}
+        for length in set(UNDECLARED_HORIZON_FALLBACKS.values())
+    }
+    assert by_length == {100: {19}, 60: {7}, 50: {7}}
+    assert sum(cells[f] for f in short["Reward Peak"]) == 59
+    assert sum(cells[f] for f in short["Reward CUSUM"]) == 22
+    assert sum(len(f) for f in short.values()) == 104
+
+    stripped = {
+        name: {
+            **info,
+            "per_family": {
+                f: (None if f in short.get(name, ()) else v)
+                for f, v in info["per_family"].items()
+            },
+        }
+        if "per_family" in info
+        else info
+        for name, info in v5_results.items()
+    }
+    s = summarize_access_levels(stripped, degenerate_families=DEGENERATE_FAMILIES)["L0"]
+    assert s.mean_auroc == pytest.approx(0.4834, abs=5e-5)
+    assert (s.best_detector, s.max_auroc) == ("Reward CUSUM", pytest.approx(0.5474, abs=5e-5))
+    assert s.n_families_scored_by_detector["Reward CUSUM"] == 20
 
 
 def test_the_exclusion_applies_to_l0_and_only_to_l0(v5_results):
@@ -291,6 +361,24 @@ def test_markdown_states_the_l0_exclusion_and_what_it_cost(v5_results):
         assert f"**{family}**" in md
     assert "Putting them back would read 0.4898 instead of 0.4876" in md
     assert "held out of L0 only" in md
+
+
+def test_markdown_says_which_l0_values_are_a_fallback(v5_results):
+    """The L0 row counts eight detectors' fallback 0.5s, and the table has to say so."""
+    for degenerate in ([], DEGENERATE_FAMILIES):
+        md = render_access_summary_md(
+            summarize_access_levels(v5_results, degenerate_families=degenerate)
+        )
+        assert "Eight L0 detectors declare no minimum horizon" in md
+        for name in UNDECLARED_HORIZON_FALLBACKS:
+            assert name in md.split("Eight L0 detectors", 1)[1].split("\n", 1)[0]
+        assert "That 0.5 is a fallback, not a measurement" in md
+        assert "Only Reward Skewness declares its horizon" in md
+    # A level with none of them says nothing about them.
+    md = render_access_summary_md(
+        summarize_access_levels({"Reward Threshold": {"access_level": "L0", "overall_auroc": 0.5}})
+    )
+    assert "fallback" not in md
 
 
 #: The generated ladder that the docs cite, written by ``scripts/plot_v5_results.py``.

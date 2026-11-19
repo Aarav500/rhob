@@ -200,7 +200,9 @@ questions in Step 1 wasn't actually satisfied by the implementation — the chec
 are diagnostic, not just gatekeeping. `proxy_distribution_matched` in particular
 usually means question 3: `reward_channel_tampering` passes `proxy_matched` at
 every tier (its mean is genuinely matched) while failing
-`proxy_distribution_matched` at 4 of 5, because its proxy *shape* separates. See
+`proxy_distribution_matched` at 4 of 5: at 0.90, 0.70 and 0.60 its proxy *shape*
+separates (Reward KDE 0.21, 0.80, 0.79); at 0.98 every shape detector's point estimate
+is inside the band and Reward Skewness's interval reaches past 0.60. See
 [REPRODUCIBILITY.md](../REPRODUCIBILITY.md) for real examples of gate violations
 pinpointing implementation bugs, and
 [admission/ADMISSION_LEDGER.md](../admission/ADMISSION_LEDGER.md) for the current
@@ -211,10 +213,20 @@ grid of outcomes.
 `RunData.state_counts` is optional, and 25 of the 33 shipped families leave it
 `None` — which means every L1 detector returns a constant 0.5 on them. That is
 not a measurement, and those cells are now recorded N/A rather than averaged in.
+A constant also comes back when your runs are shorter than a detector's windows, and
+there the harness can tell only if the detector declares `min_episodes`. Reward
+Skewness does, and is N/A below 100 episodes. No other shipped detector does, so on a
+short horizon a windowed detector falls back to a constant and the resulting 0.5 is
+published as a measured value. That happens to eight L0 and three L2 detectors on the
+families of 40 or 60 episodes, and to every L1 detector on `continuous_camping`'s 40.
+Until that is fixed
+([ROADMAP.md](../ROADMAP.md)), a horizon of at least 101 episodes is long enough for
+every scored detector's classification windows.
 
 If your family has a natural fixed-bin state histogram, emit it: L1 coverage is
 the benchmark's thinnest area, and on the 8 families that do emit the channel the
-best L1 detector reaches 0.927 AUROC over their 35 cells on the single-draw board. If it
+best L1 detector reaches 0.927 AUROC over their 35 cells on the single-draw board (4 of
+them `continuous_camping`'s fallback 0.5). If it
 genuinely does not (high-dimensional continuous state, a multi-agent joint space, a
 vocabulary), leave it `None` and
 **document why in the family's module docstring** — the shipped families that opt

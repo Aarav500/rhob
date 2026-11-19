@@ -365,11 +365,13 @@ holds the copy to the original:
   design point tested.
 - The verdict cuts agree with the gate's on both sides of its resolution and
   informativeness boundaries.
-- On RHOB's 50 committed admission-ledger cells, the verdict rule fed the gate's *measured*
-  resolution and informativeness marks the same 30 degenerate. That checks the rule's
-  direction, not its cut, because the ledger's values sit far from it (the boundary tests
-  above pin the cut). It also flags `onset_localizable`, which the gate passes on every
-  cell, as `fixed`: its statistic is 0.0 in all 50.
+- On RHOB's 123 committed admission-ledger cells, the verdict rule fed the gate's
+  *measured* resolution and informativeness marks the same 30 degenerate. That checks the
+  rule's direction, not its cut, because the ledger's values sit far from it (the boundary
+  tests above pin the cut). The gate passes `onset_localizable` on every cell. Over all
+  123 its statistic takes six values and the tool says `ok`. Over the 118 cells outside
+  the two families whose onset is read off the trained agent (`continuous_camping` and
+  `gridworld_camping`), the statistic is 0.0 in every cell and the tool says `fixed`.
 
 The difference-power function, the exact-equality resolution and the `dust` verdict are
 new here, and are tested against brute force and simulation in this package's own tests.

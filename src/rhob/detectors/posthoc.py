@@ -99,8 +99,12 @@ class PosthocDetector(ABC):
         (``leaderboard/v5_replicated.json``, Reward Skewness). A number a detector
         could not have varied is not a measurement of the family.
 
-        Default: 0, meaning no minimum -- every shipped detector except Reward Skewness
-        degrades to whatever window fits.
+        Default: 0, meaning no minimum. Every shipped detector except Reward Skewness
+        keeps the default, and not all of them degrade to whatever window fits: eight L0
+        detectors (``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``),
+        three L2 detectors and every L1 detector return a constant below their windows,
+        which the boards still record as 0.5 on the families too short for them (for L1,
+        ``continuous_camping``). Fixing them is an open item in ``ROADMAP.md``.
         """
         return 0
 

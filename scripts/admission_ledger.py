@@ -529,9 +529,9 @@ def render_markdown(payload: dict[str, Any]) -> str:
     # The split the sentence above implies, counted rather than asserted. Same test as
     # ``admission_gate._check_proxy_matched`` uses to mark a failure underpowered. The
     # ``admission/ADMISSION_LEDGER.md`` committed in d4b700d (2026-11-19) was rendered
-    # before this sentence and this split were added; on its JSON they read 24 measured
-    # failures, 8 outside the band and 16 inside, and they appear in the Markdown at the
-    # next regeneration.
+    # before this sentence and this split were added. It was later re-rendered from the
+    # same committed JSON with this function, with no new rollouts, and now reads 24
+    # measured failures, 8 outside the band and 16 inside.
     pm_fails = [
         r["metrics"]["proxy_matched"]
         for r in rows

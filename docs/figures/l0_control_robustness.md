@@ -110,6 +110,15 @@ NOT ADMITTED cells, and `leaderboard/v5_replicated.json` gives the L0 suite mean
 [0.4939, 0.5005] rather than 0.4966 [0.4934, 0.4999]. This file has not been recomputed
 since.
 
+Skewness is the only L0 detector that has been re-scored this way, because it is the only
+one that declares its horizon. Eight other rows still average a fallback 0.500 that is not
+a measurement, in both columns and in every draw: Reward Peak, Reward Autocorrelation,
+Reward Trend and Variance Window on the 19 families of 40 or 60 episodes, and Max Plateau,
+Reward MLP, Gradient Reversal and Reward CUSUM on the 7 of 40. Like the degenerate cells
+above, those cells could not have come out otherwise, and they pull each of those rows
+toward 0.500. Declaring each detector's horizon and re-scoring the boards is an open item
+in [ROADMAP.md](../../ROADMAP.md); this table would then have to be recomputed.
+
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set.
 The seed replay re-runs `bootstrap_ci`'s body -- 10,000 resamples of the 20 per-replicate

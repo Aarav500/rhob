@@ -28,9 +28,9 @@ those reasons became the paper this repository is now the case study for.
   not written by us. And `rhob.audit` coded `onset_localizable` as degenerate (`e9a1ace`).
   The full ledger (2026-11-19, 123 cells) still has 0.0 in 118 cells. In the other 5, the
   tiers of `continuous_camping` and `gridworld_camping`, it is nonzero, and
-  `onset_localizable` passes there too. Over the whole shipped design the statistic now
-  takes six values, so the self-coding no longer codes the criterion degenerate (see
-  Milestones).
+  `onset_localizable` passes there too. Measured over the whole shipped design, which the
+  ledger now covers, the statistic takes six values, so the self-coding no longer codes the
+  criterion degenerate (see Milestones).
 
 The withdrawn text is in git history rather than here: last at `06df9f3` on the branch
 that carried this rewrite, and at `9352529`, the last version both lines of history share,
@@ -51,6 +51,8 @@ them introduced by the fix to an earlier one. Two more were found in the release
 after the paper (`584ba13`): Reward Skewness returned a constant 0.5 below its 100-episode
 horizon, on 19 families, which padded the L0 negative control, and `true_reward_diverges`
 reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGENERATE.
+Eight other L0 detectors still return a constant below their own windows, which pads the
+same control; that was found on 2026-11-19 and is open (Milestones).
 
 ## Retired
 
@@ -83,8 +85,10 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   checks it is run on. A run on another benchmark reaches the author through
   [an issue form](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml),
   or by email to the address in [SECURITY.md](SECURITY.md#private-reports-that-are-not-security-issues) when it should not be public.
-- **One convention for every published number — open; the 20-draw L0 re-score done
-  (2026-09-03), the single-draw board done (2026-11-19).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
+- **One convention for every published number — open; done for the missing channel on
+  the L1 rows and for the Reward Skewness row on both boards (the 20-draw Skewness re-score
+  2026-09-03, the single-draw board 2026-11-19), not for the short horizons of eight other
+  L0 rows, three L2 rows and the L1 rows on `continuous_camping`.** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
   2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
   (its windows need 100 episodes; 19 families run 40 or 60) and was re-scored on all 20
   draws in `9da6b21`: those 19 families are now N/A, leaving 0.504 [0.494, 0.514] over 64
@@ -95,8 +99,30 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   L1 rows are `null` on 88 of 123 cells and its Reward Skewness row on 59. Its ladder of
   means is L0 0.4876, L1 0.5701, L2 0.5716, L3 0.9830, against 0.4866, 0.5200, 0.7213 and
   0.9830 on the 2026-07-17 board, and of maxima 0.5351, 0.9270, 0.9430 and 0.9830
-  ([CHANGELOG.md](CHANGELOG.md)). Still open: `leaderboard/cross_family_transfer.json` has
-  not been regenerated and predates both the provenance block and the N/A schema.
+  ([CHANGELOG.md](CHANGELOG.md)). Still open: the short-horizon rows in the next item, and
+  `leaderboard/cross_family_transfer.json`, which has not been regenerated and predates both
+  the provenance block and the N/A schema.
+- **Eight L0 detectors publish a constant below their windows — open; the fix changes the
+  L0 ladder.** Reward Skewness is the only L0 detector that declares `min_episodes`. Below
+  their windows, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window
+  (100 episodes), Max Plateau and Reward MLP (50) and Gradient Reversal (60) return 0.5, and
+  Reward CUSUM (50) scores every run 0, which ties at 0.5. Both boards record that constant
+  as a measured 0.5: the first four on the 19 families that run 40 or 60 episodes, the other
+  four on the 7 of those that run 40. On the single-draw board that is 104 of the
+  per-family values behind the L0 mean of 0.4876, and in all 20 draws every one of those
+  cells is 0.5. It is the defect `584ba13` fixed for Reward Skewness. The admission gate is
+  not affected: it reads none of the eight. The same defect sits outside L0, in 41 more
+  per-family values: three L2 detectors (Feature Consistency below 100 episodes, on the 19
+  families; Feature Magnitude and Reward-Feature Correlation below 50, on the 7), and all
+  eight L1 detectors on `continuous_camping`, whose 40-episode runs are below every L1
+  window; those move the L1 and L2 figures, not the L0 ladder. The fix: declare each
+  detector's minimum horizon; re-score those rows on the single-draw board and on the 20
+  draws by the procedure of `scripts/merge_rescored_detector.py` (the same draws, and every
+  cell scored before comes back unchanged); rebuild `leaderboard/v5_replicated.json`; then
+  update every figure quoted from either board that moves, the L0 ladder first. Dropping
+  the 104 L0 values from the committed single-draw board gives an L0 mean of 0.4834 and a
+  best of 0.5474 (Reward CUSUM, over 20 families), against 0.4876 and 0.5351, and moves
+  Reward Peak from third to second.
 - **Extend the admission ledger to the short-horizon families — done (2026-11-19).** The
   nightly smoke screen has been re-measured with Reward Skewness declaring its horizon: 19
   short-horizon cells admit and 14 fail on a real late-window density leak (`9da6b21`; the
@@ -113,7 +139,8 @@ reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGE
   family, fix its proxy matching or document the failure as a known leak. They are in 20 of
   the 23 families. 24 fail `proxy_matched`: in 8 the point estimate is outside the band,
   and 16 are underpowered, with the point estimate inside it and the 90% interval not, so
-  the equivalence test could not establish matching at this design. 35 fail
+  the equivalence test could not establish matching at this design; in 15 of the 16 the
+  interval also excludes 0.5. 35 fail
   `proxy_distribution_matched`, all but one on Reward KDE, and 14 fail both. One,
   `proxy_correlation_gaming` @0.6, fails only `behavioral_separated`. Each cell's binding
   measurement is in [admission/ADMISSION_LEDGER.md](admission/ADMISSION_LEDGER.md).

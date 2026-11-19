@@ -36,7 +36,11 @@ def test_gradient_flip():
 
 
 def test_short_run():
-    """Short runs return 0.5."""
+    """Short runs return the fallback 0.5: a constant, not a measurement.
+
+    The detector declares no ``min_episodes``, so the board records this constant as an
+    AUROC of 0.5 on families shorter than 60 episodes (``test_l0_window_fallbacks.py``).
+    """
     det = GradientReversalDetector()
     rewards = np.random.rand(5)
     run = RunData(rewards, np.zeros(5), None, None)

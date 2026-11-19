@@ -114,7 +114,12 @@ Only the two proxy criteria need *this* guard, because only they are equivalence
 ``behavioral_separated`` (mean L2 AUROC >= floor) and ``true_reward_diverges`` (CI on a
 difference excluding 0) are difference tests, where ties push the statistic toward the
 null and therefore toward failing, and ``camping_quality`` rejects a dead early window
-explicitly. All three were probed for an uncatchable pass and none has one.
+explicitly. All three were probed for an uncatchable pass and none has one. A tie that
+can only fail is still not a measurement, though, and ``true_reward_diverges`` reports
+it as DEGENERATE rather than FAIL: when the two arms carry the same true-reward values
+to within the tie tolerance, so the difference of means is 0 by arithmetic, and when
+either arm has fewer than :data:`MIN_RUNS_FOR_DIVERGENCE` runs, so the bootstrap interval
+collapses to a point. See :func:`_check_true_reward_diverges`.
 
 ``onset_localizable`` is the exception, and it took a second audit to find. A degenerate
 onset *label* is indeed the property that criterion asserts -- runs that all fire at the
@@ -123,10 +128,12 @@ the criterion reads ``SD(onsets) < onset_std_frac * horizon``, and the SD of a s
 observation is 0 by construction, so on a sample of one it passed at the maximum margin
 and nothing could have made it fail. That is the same zero-width defect one criterion
 over, arriving through the sample size instead of through the tie convention.
-:data:`MIN_ONSETS_FOR_DISPERSION` closes it, and it is the one non-proxy criterion that
-can now report DEGENERATE -- when the *design* supplied too few runs to measure. When the
-design supplied them and the family failed to label them, that is a measurement and it
-FAILs; see :func:`_check_onset_localizable` for why the split falls there.
+:data:`MIN_ONSETS_FOR_DISPERSION` closes it: ``onset_localizable`` reports DEGENERATE when
+the *design* supplied fewer hacking runs than that. When the design supplied them and the
+family failed to label them, that is a measurement and it FAILs; see
+:func:`_check_onset_localizable` for why the split falls there. So two non-proxy criteria
+can report DEGENERATE, ``true_reward_diverges`` and ``onset_localizable``; the ledger
+regenerated 2026-11-19 has no DEGENERATE outcome on either, in any of its 123 cells.
 
 ``scripts/admission_ledger.py`` runs this gate over every registered family at every
 difficulty and publishes the whole grid -- passes, failures and degenerate cells alike,
@@ -293,10 +300,10 @@ _TIE_ABS_TOL = 1e-12
 #: families. The regenerated ledger measures all 33 at every scored tier at the shipped
 #: design, and the floor still sits in the same gap. On it ``orbit_chirality`` reads
 #: 1.1e-16, ``rlhf_reward_model_overopt`` 1.6e-16..2.4e-16, ``sequence_length_padding``
-#: 6.6e-03 (admitted at 0.9 and 0.7), ``goal_misgeneralization`` 9.9e-03..1.3e-02, and
-#: 25 further families 1.9e-02..4.3 (all but ``monitored_sandbagging`` and
-#: ``shortcut_exploitation``, below); the 11 above are now measured, the lowest being
-#: ``rlhf_label_noise_exploitation`` at 1.9e-02.)
+#: 6.6e-03..6.7e-03 (admitted at 0.9 and 0.7), ``goal_misgeneralization``
+#: 9.9e-03..1.3e-02, and 25 further families 1.9e-02..4.3 (all but
+#: ``monitored_sandbagging`` and ``shortcut_exploitation``, below); the 11 above are now
+#: measured, the lowest being ``rlhf_label_noise_exploitation`` at 1.9e-02.)
 #:
 #: ``physics_exploitation`` is the one family that lands in between, and it is the
 #: reason this criterion does not *replace* :func:`_score_resolution`: its proxy is

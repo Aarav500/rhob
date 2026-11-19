@@ -154,13 +154,24 @@ actually read, family-weighted. The six the ledger marks DEGENERATE are held out
 them in, family-weighted as well, it reads 0.4898. See §4's last bullet. Those figures
 come from the single-draw board as regenerated on 2026-11-19 (`52656cb`, from code at
 `acd35c2`, CI run 44447220658), on code that includes the Reward Skewness fix
-(584ba13, 2026-09-02): Skewness needs 100 episodes and is recorded N/A below that, on
-19 of those 27 families. Before the fix it returned a constant 0.5 there. The 20-draw
-board has been re-scored with those cells not applicable (9da6b21), and there the maximum
+(b796f9c on this branch, first committed as 584ba13, 2026-09-02): Skewness needs 100
+episodes and is recorded N/A below that, on 19 of those 27 families. Before the fix it
+returned a constant 0.5 there. The 20-draw board has been re-scored with those cells not
+applicable (253c7ec, first committed as 9da6b21), and there the maximum
 over unsupervised L0 detectors, taken in each draw and averaged over the 20, is 0.551
 [0.541, 0.562]. That maximum is selection-biased upward: no single L0
 detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
 `leaderboard/v5_replicated.json`).
+
+Skewness is the only L0 detector that declares its horizon. Eight others do not, and
+below their windows they still fall back to a constant score, which reads AUROC 0.5 and
+which both boards record as a measured value: Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window on
+all 19 families of 40 or 60 episodes, and Max Plateau, Reward MLP, Gradient Reversal and
+Reward CUSUM on the 7 of 40. Those are 104 of the 332 per-family values behind 0.4876,
+and 7 of the 27 behind Reward CUSUM's 0.5351, so the L0 figures mix measurements with
+constants that could not have come out otherwise. Declaring each detector's horizon and re-scoring both boards is open
+([ROADMAP.md](../ROADMAP.md)), and it will change the L0 ladder. The admission gate does
+not use those eight detectors.
 
 **This is not a discovery that reward-only monitoring fails.** It is a
 manipulation check. The families are *built* so that the proxy reward carries no
@@ -174,11 +185,12 @@ The honest reading is directional:
 
 - **L0 at chance is necessary, not sufficient.** A construction that held puts L0 at
   chance, but L0 at chance does not show that it held; the ledger does that, cell by
-  cell, and admits 42 of the 123 cells. On 26 more the mean is matched (`proxy_matched`
-  passes) but the proxy's shape separates (`proxy_distribution_matched` fails), and on 16
-  of the 24 that fail `proxy_matched` the mean L0 AUROC is inside the band but its
-  interval is too wide to certify it. All of those cells are in the L0 mean, and an L0
-  mean at chance cannot tell them from an admitted cell.
+  cell, and admits 42 of the 123 cells. On 26 more `proxy_matched` passes but
+  `proxy_distribution_matched` fails: on 19 a shape detector's AUROC is outside
+  [0.40, 0.60], and on the other 7 every one is inside and only an interval reaches past
+  the band. On 16 of the 24 that fail `proxy_matched` the mean L0 AUROC is inside the band
+  but its interval is not; in 15 of those 16 the interval excludes 0.5. All of those cells
+  are in the L0 mean, and an L0 mean at chance cannot tell them from an admitted cell.
 - **L0 above chance ⇒ the construction leaked.** The family is broken, and every
   other number on it is suspect. This has happened: `distributional_shift` once
   let an L0 detector reach 0.89 AUROC through a proxy leak (see
@@ -209,8 +221,8 @@ arithmetic, which it used to report as FAIL, "measured and found not to diverge"
 The 30 degenerate cells are every difficulty tier of six families:
 `distributional_shift`, `orbit_chirality` and `rlhf_reward_model_overopt`, whose proxy
 rewards are constant by construction, and `monitored_sandbagging`,
-`shortcut_exploitation` and `physics_exploitation`, whose proxies vary but are the same
-in every run, so the L0 statistic orders next to nothing.
+`shortcut_exploitation` and `physics_exploitation`, whose proxies vary but are the same,
+or nearly, in every run, so the L0 statistic orders next to nothing.
 
 The 51 NOT ADMITTED cells are measured failures: 24 fail `proxy_matched`, 40 fail
 `proxy_distribution_matched` (14 fail both), and one, `proxy_correlation_gaming` @ 0.60,
@@ -222,7 +234,9 @@ covered before keep every verdict. A `FAIL` on an equivalence test means matchin
 within the margin was not established, which covers two cases. In 8 of the 24
 `proxy_matched` failures the mean L0 AUROC is outside the band [0.40, 0.60]. In the
 other 16 the point estimate is inside the band and the 90% interval is not, so
-equivalence was not established at this design rather than refuted.
+equivalence was not established at this design rather than refuted. That is not the same
+as consistent with 0.5: in 15 of the 16 the interval excludes 0.5, and only
+`mujoco_sensor_decoupling` @ 0.90 has one that includes it.
 
 For citation purposes this means:
 
@@ -246,10 +260,10 @@ For citation purposes this means:
 - **The L0 rung is now reported both ways.** With all **six** degenerate families
   withheld the L0 suite mean is **0.4876 over 27 families**; with them in it is 0.4898
   (both family-weighted). With no exclusion and weighted by cell, the same board reads
-  0.4903. Computed from the unrounded means, the exclusion is worth 0.0023 (0.489811 −
-  0.487551 = 0.002259) and the re-weighting 0.0005 (0.490308 − 0.489811); the rounded
-  figures differ by 0.0022 and 0.0005. On the board before the 2026-11-19 regeneration
-  the three figures were 0.4866, 0.4895 and 0.4898. That 0.4898 is the cell-weighted
+  0.4903. Computed from the unrounded means, the exclusion is worth 0.0023 (0.4898105 −
+  0.4875513 = 0.0022592) and the re-weighting 0.0005 (0.4903077 − 0.4898105 =
+  0.0004972); the rounded figures differ by 0.0022 and 0.0005. On the board before the
+  2026-11-19 regeneration the three figures were 0.4866, 0.4895 and 0.4898. That 0.4898 is the cell-weighted
   figure, which releases before the exclusion published; it is not the family-weighted
   0.4898 above. The exclusion applies to L0 and only L0 — degeneracy is a
   property of the proxy reward, the one channel L0 reads, so L1/L2/L3 keep those
@@ -301,7 +315,18 @@ Stated here so they are not discovered mid-citation:
   nothing to read on them; the board records those 88 cells as `null`, and every L1
   figure is over the 8 families that emit the channel (35 of 123 cells). That is not
   comparable to the denominators used at L0 (27 families, the six DEGENERATE ones held
-  out) and L2 (33 families). See the README's L1 table.
+  out) and L2 (33 families). See the README's L1 table. Four of the 35 are not
+  measurements: `continuous_camping` runs 40 episodes, below every L1 detector's window,
+  so each returns its fallback 0.5 there and the board records it as measured.
+- **Eight L0 detectors' short-horizon values are their fallback 0.5.** Only Reward
+  Skewness declares the horizon its windows need and is `null` below it. Reward Peak,
+  Reward Autocorrelation, Reward Trend and Variance Window (100 episodes) read their
+  fallback on the 19 families of 40 or 60 episodes (59 cells); Max Plateau and Reward MLP
+  (50), Gradient Reversal (60) and Reward CUSUM (50) on the 7 of 40 (22 cells). Both
+  boards publish those as measured 0.5s, 104 of the 332 per-family values in the L0
+  ladder (§4). Three L2 detectors do the same: Feature Consistency (100) on the 19,
+  Feature Magnitude and Reward-Feature Correlation (50) on the 7. Fixing it needs
+  detector changes and a re-score, which is open ([ROADMAP.md](../ROADMAP.md)).
 - **L3 contains one detector.** "Perfect Feature Oracle" is a relabelled
   subclass of the L2 behavioral baseline that reads only `behav_trace`; it is
   retained as a cross-check and excluded from every access-level aggregate. The
@@ -350,9 +375,10 @@ Stated here so they are not discovered mid-citation:
   codes a criterion degenerate only when its statistic took one value across the whole
   shipped design, and over the full ledger's 123 cells `onset_std` takes 6 distinct
   values, so since 2026-11-19 the self-coding (`audit/SELF_CODING.md`) records it
-  `not_applicable`. The design changed, not the criterion: on the 31 families whose onset
-  label is the configured schedule the statistic is still constant and passes every cell
-  by construction. The Pair 01 pilot in §3 shows that the authoring is what pins it.
+  `not_applicable`. The ledger's coverage changed, not the criterion: on the 31 families
+  whose onset label is the configured schedule the statistic is still constant and
+  passes every cell by construction. The Pair 01 pilot in §3 shows that the authoring is
+  what pins it.
 - **Five external baseline detectors ship but are unscored.** The classical
   baselines under `src/rhob/detectors/external_baselines/` are implemented but do
   not appear in any committed leaderboard artifact.

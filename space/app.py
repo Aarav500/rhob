@@ -953,10 +953,16 @@ def _l0_control_html() -> str:
       <p class="rhob-note">
         <b>Robustness.</b> Six of the {len(board.families())} families are marked
         degenerate in the admission ledger because a reward-only statistic cannot resolve
-        their proxy (constant in three, the same in every run in the other three), and
+        their proxy (constant in three, the same or nearly the same in every run in the
+        other three), and
         there a reward-only detector returns {ref} for a reason that has nothing
         to do with proxy matching &mdash; padding the control with cells that could not
-        have come out otherwise. Recomputed over the 27 non-degenerate families only,
+        have come out otherwise. Padding of the same kind remains inside the other 27:
+        eight {_esc(control.level)} detectors declare no minimum horizon, fall back to a
+        constant on the families too short for their windows (19 or 7 of the 27), which
+        reads 0.500, and the board records that as measured; only Reward Skewness declares its horizon and
+        is n/a there. Re-scoring those cells is an open item in ROADMAP.md, linked below.
+        Recomputed over the 27 non-degenerate families only,
         family-weighted and bootstrapped over the same {board.n_replicates} replicates,
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
         and the largest movers move away from it
@@ -1080,7 +1086,11 @@ Sorted by the {_board_ref.n_replicates}-draw suite mean, descending, in every vi
 for every row: a detector whose channel most families do not ship measures far fewer
 cells than a board-wide one. Selecting a family shows that family's own interval, and
 `{NOT_MEASURED}` where the detector never measured it -- which is a different statement
-from "scored at chance".
+from "scored at chance". A number is not always a measurement either: a detector that
+declares no minimum horizon is scored on runs shorter than its windows and shows its
+fallback 0.500 there. That is eight L0 and three L2 detectors on the families of 40 or
+60 episodes and every L1 detector on `continuous_camping`; only Reward Skewness declares
+its horizon and shows `{NOT_MEASURED}` instead.
 """
         )
 

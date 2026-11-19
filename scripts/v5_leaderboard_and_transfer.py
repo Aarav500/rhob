@@ -7,23 +7,38 @@ they're added) with cross-family transfer analysis.
 
 Two properties of the emitted JSON are load-bearing and easy to miss:
 
-1. **Not-applicable cells are ``null``, never 0.5.** A detector is scored only on
-   families that emit the channel its access level is defined over, and a detector that
-   declares ``min_episodes`` (Reward Skewness, 100) only on families whose horizon is at
-   least that long. A family that ships no state-visitation histogram gives every L1
-   detector nothing to read, and the old artifact recorded the detectors' 0.5 no-signal
-   constant there as though it were a measurement -- on 25 of the 33 families and 88 of
-   the 123 cells (Reward Skewness's constant 0.5 below its horizon, likewise, on 19
-   families and 59 cells).
+1. **A missing channel, and Reward Skewness's short horizon, are ``null``, not 0.5.** A
+   detector is scored only on families that emit the channel its access level is
+   defined over, and a detector that declares ``min_episodes`` (only Reward Skewness
+   does, 100) only on families whose horizon is at least that long. A family that ships
+   no state-visitation histogram gives every L1 detector nothing to read, and the old
+   artifact recorded the detectors' 0.5 no-signal constant there as though it were a
+   measurement -- on 25 of the 33 families and 88 of the 123 cells (Reward Skewness's
+   constant 0.5 below its horizon, likewise, on 19 families and 59 cells).
    ``per_family`` now carries ``null`` for such families, they are listed under
-   ``not_applicable_families``, and they are excluded from ``overall_auroc``. A ``0.5``
-   in this file therefore means "measured, and at chance" -- which is a real and
-   interesting result -- and is now distinguishable from "never measured".
+   ``not_applicable_families``, and they are excluded from ``overall_auroc``.
+   Two kinds of 0.5 in this file are still not measurements at chance. Eight L0
+   detectors declare no ``min_episodes`` and return a constant below their windows
+   (``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``), so the board
+   records their fallback 0.5 on every family shorter than that: on the board of
+   2026-11-19, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window on
+   the 19 families with horizon 40 or 60 (59 cells), and Reward CUSUM, Max Plateau,
+   Reward MLP and Gradient Reversal on the 7 with horizon 40 (22 cells). Three L2
+   detectors do the same (Feature Consistency on those 19 families, Feature Magnitude
+   and Reward-Feature Correlation on those 7), and so does every L1 detector on
+   ``continuous_camping``, whose 40 episodes are below each L1 window. Fixing that is
+   an open item in ``ROADMAP.md``. And on the six families whose proxy the admission
+   ledger marks DEGENERATE, an L0 detector's AUROC is the tie convention or rounding
+   error: every L0 detector reads exactly 0.5 there, except Reward KDE on
+   ``orbit_chirality`` (0.6, ordering a proxy that is constant to one ULP). Outside those
+   cells, a ``0.5`` here means "measured, and at chance", which is a real result.
    The board committed on 2026-11-19 (``52656cb``) was written before
    ``cell_semantics.per_family_null`` named the horizon case, so its text there mentions
    only a missing channel, although 59 of its Reward Skewness cells are null because
    the horizon is too short. Each detector's ``not_applicable_reasons`` in that file is
-   the authoritative record of why a cell is null.
+   the authoritative record of why a cell is null. Its ``per_family_number`` text,
+   "measured mean AUROC", does not hold for the fallback entries above; this script now
+   writes a text that says so, and the committed board predates it.
 2. **The whole file is one draw.** Every detector is scored on the identical rolled-out
    runs from a single layout seed and a single set of rollout seeds; there is no
    replication and there are no confidence intervals; the null SE near AUROC 0.5 is
@@ -291,7 +306,13 @@ def main():
                         "not_applicable_reasons says which. Excluded from overall_auroc; "
                         "never imputed as 0.5."
                     ),
-                    "per_family_number": "measured mean AUROC over that family's difficulty cells",
+                    "per_family_number": (
+                        "mean AUROC over that family's scored difficulty cells. A detector "
+                        "that declares no minimum horizon (rhob.v3.leaderboard."
+                        "access_summary.UNDECLARED_HORIZON_FALLBACKS) returns its fallback "
+                        "0.5 on runs shorter than its windows, and such cells are counted "
+                        "here as scored although nothing was measured."
+                    ),
                 },
                 "results": results_by_detector,
             },
@@ -323,7 +344,7 @@ def main():
     for i, (name, data) in enumerate(scored[:10], 1):
         print(
             f"  {i:2}. {name:<40} {data['access_level']:<3} {data['overall_auroc']:.3f}"
-            f"  ({data['cells_measured']}/{data['cells']} cells measured)"
+            f"  ({data['cells_measured']}/{data['cells']} cells scored)"
         )
 
     # Access-level ladder. Printed with the max alongside the mean, with duplicate

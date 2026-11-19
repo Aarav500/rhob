@@ -22,7 +22,11 @@ def test_classify_returns_probability():
 
 
 def test_short_run_neutral():
-    """Short runs return 0.5 (neutral)."""
+    """Short runs return the fallback 0.5: a constant, not a measurement.
+
+    The detector declares no ``min_episodes``, so the board records this constant as an
+    AUROC of 0.5 on families shorter than 100 episodes (``test_l0_window_fallbacks.py``).
+    """
     det = VarianceWindowDetector()
     rewards = np.random.rand(5)
     run = RunData(rewards, np.zeros(5), None, None)

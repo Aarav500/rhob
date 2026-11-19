@@ -8,11 +8,22 @@ from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
 
 Outputs (written to ``docs/figures/``):
   v5_heatmap.png        30 detectors x all registered families, per-family AUROC; a
-                         family a detector cannot measure (``null`` on the board) is
-                         drawn grey with no number, never as 0.5
+                         family that is ``null`` on the board for a detector is drawn
+                         grey with no number, never as 0.5. The fallback 0.5 of a
+                         detector on a family shorter than its windows (the eight L0
+                         detectors named below, three L2 detectors, and every L1
+                         detector on ``continuous_camping``) is not ``null``, and is
+                         drawn as 0.50 like a measurement
   v5_access_summary.png Mean AND best AUROC by access level (L0/L1/L2/L3), each detector
-                         over the cells it measured, L0 without the families the
-                         admission ledger marks DEGENERATE, duplicate detectors excluded
+                         over the cells it is not null on, L0 without the families the
+                         admission ledger marks DEGENERATE, duplicate detectors excluded.
+                         Not null is not always measured: eight L0 detectors return a
+                         constant below their windows, recorded as 0.5, and the figure
+                         says so (``UNDECLARED_HORIZON_FALLBACKS``). The L1 and L2 bars
+                         count the same kind of fallback (every L1 detector on
+                         ``continuous_camping``; Feature Consistency, Feature Magnitude
+                         and Reward-Feature Correlation on the short-horizon families),
+                         and the figure does not name those
   v5_access_summary.md  The same access-level table in Markdown, for citing in docs
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
@@ -43,12 +54,15 @@ from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     degenerate_families_from_ledger,
     render_access_summary_md,
     summarize_access_levels,
+    undeclared_horizon_note,
 )
 
 # Families 1-9 order matches Table tab:families-sigma in the paper; 10-14 are the
-# v1.4 additions (2x REWARD_TAMPERING, 2x DECEPTIVE_ALIGNMENT, 1x RM_OVEROPTIMIZATION).
-# The heatmap plots these first and then every other family on the board, in the board's
-# order, labelled by registry name (see ``_heatmap_families``).
+# v1.4 additions (2x REWARD_TAMPERING, 2x DECEPTIVE_ALIGNMENT, 1x RM_OVEROPTIMIZATION);
+# 15-33 are numbered as in README.md's family list (15-18 MuJoCo, 19-23 RLHF-RM, 24-28
+# PettingZoo, 29-33 sequence generation). The heatmap plots these in this order, then any
+# other family on the board in the board's order, labelled by registry name with no
+# number (see ``_heatmap_families``), so a label never carries a number README does not.
 FAMILY_ORDER = [
     "gridworld_camping",
     "continuous_camping",
@@ -64,6 +78,25 @@ FAMILY_ORDER = [
     "monitored_sandbagging",
     "eval_probe_sandbagging",
     "rlhf_reward_model_overopt",
+    "mujoco_camping",
+    "mujoco_goal_misgeneralization",
+    "mujoco_joint_limit_gaming",
+    "mujoco_sensor_decoupling",
+    "rlhf_sparse_coverage_gaming",
+    "rlhf_label_noise_exploitation",
+    "rlhf_feature_blindspot_gaming",
+    "rlhf_kl_penalty_gaming",
+    "rlhf_preference_population_bias",
+    "pettingzoo_tacit_collusion_gaming",
+    "pettingzoo_communication_deception",
+    "pettingzoo_free_rider_exploitation",
+    "pettingzoo_fixed_opponent_exploitation",
+    "pettingzoo_population_goodhart",
+    "sequence_keyword_stuffing",
+    "sequence_format_camping",
+    "sequence_repetition_shortcut",
+    "sequence_lexicon_gaming",
+    "sequence_length_padding",
 ]
 FAMILY_LABELS = [
     "1. Gridworld\nCamping",
@@ -80,6 +113,25 @@ FAMILY_LABELS = [
     "12. Monitored\nSandbagging",
     "13. Eval-Probe\nSandbagging",
     "14. RLHF RM\nOveropt.",
+    "15. MuJoCo\nCamping",
+    "16. MuJoCo Goal\nMisgen.",
+    "17. MuJoCo\nJoint-Limit Gaming",
+    "18. MuJoCo Sensor-Channel\nDecoupling",
+    "19. RM Sparse-Coverage\nGaming",
+    "20. RM Label-Noise\nExploit.",
+    "21. RM Feature-Blindspot\nGaming",
+    "22. KL-Penalty\nGaming",
+    "23. Preference-Population\nBias",
+    "24. Tacit Collusion\nGaming",
+    "25. Comm.-Channel\nDeception",
+    "26. Free-Rider\nExploit.",
+    "27. Fixed-Opponent\nExploit.",
+    "28. Population-Level\nGoodhart",
+    "29. Keyword-Stuffing\nGaming",
+    "30. Format-Compliance\nCamping",
+    "31. Repetition-Blind-Spot\nShortcut",
+    "32. Lexicon-Sentiment\nGaming",
+    "33. Length-Padding\nExploit",
 ]
 
 # Detector order matches Section 5 (Detector Suite) of the paper: L0 (13), L1 (8), L2 (7),
@@ -106,8 +158,11 @@ def load_leaderboard(path: Path) -> dict:
 def _heatmap_families(board: dict) -> tuple[list[str], list[str]]:
     """Every family on the board: :data:`FAMILY_ORDER` first, then the rest in board order.
 
-    Returns the families and their axis labels. A board without ``families_evaluated``
-    (written before that key existed) falls back to the families its detectors report.
+    Returns the families and their axis labels. A family in :data:`FAMILY_ORDER` carries
+    its README number; any other family is labelled by its registry name alone, since a
+    number from its position here would not match README's. A board without
+    ``families_evaluated`` (written before that key existed) falls back to the families
+    its detectors report.
     """
     on_board = list(board.get("families_evaluated") or [])
     if not on_board:
@@ -122,7 +177,7 @@ def _heatmap_families(board: dict) -> tuple[list[str], list[str]]:
     for fam in on_board:
         if fam not in families:
             families.append(fam)
-            labels.append(f"{len(families)}. {fam}")
+            labels.append(fam)
     return families, labels
 
 
@@ -169,7 +224,7 @@ def plot_heatmap(board: dict, out_path: Path) -> None:
 def plot_access_summary(board: dict, out_path: Path) -> str:
     """Plot mean *and* best AUROC per access level, and return the same table as Markdown.
 
-    Two changes from the mean-only version this replaces, both from the audit:
+    Three changes from the mean-only version this replaces, all from the audit:
 
     1. The best detector at each level is plotted alongside the mean. A level's mean
        measures how many weak detectors happen to have been written for it as much as it
@@ -225,12 +280,14 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
             ax.text(i, 0.02, f"n={n}", ha="center", fontsize=9, color="white")
     ax.set_xticks(x)
     ax.set_xticklabels(levels)
-    ax.set_ylabel("AUROC (measured cells only)")
+    ax.set_ylabel("AUROC (not-applicable cells left out)")
     # Headroom for a two-column legend above the bars: at L1 the best detector sits near
     # 0.93, where a corner legend would cover its marker.
     ax.set_ylim(0.0, 1.32)
     ax.set_title("AUROC by Access Level: Mean and Best Detector")
-    ax.legend(fontsize=7.5, loc="upper center", ncol=2, framealpha=0.92)
+    # markerscale keeps the best-detector bar inside its legend handle: drawn at the
+    # plot's s=900 it is wider than the handle and runs into its own label.
+    ax.legend(fontsize=7.5, loc="upper center", ncol=2, framealpha=0.92, markerscale=0.45)
 
     # Both exclusions are stated on the figure itself. A plot that silently drops
     # detectors or families is the thing this whole section of the audit was about.
@@ -260,16 +317,22 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
             + f"). With them it reads {including:.4f} instead of {proxy.mean_auroc:.4f}. "
             "NOT ADMITTED cells stay in."
         )
+    fallback = undeclared_horizon_note(proxy)
+    if fallback:
+        notes.append(fallback)
     # Wrapped explicitly rather than with matplotlib's ``wrap=True``: that wraps at draw
     # time against the figure width, so the caller cannot know how many lines a note
     # became and the notes overprint each other.
+    # The axes are laid out before the notes go in: laid out after, tight_layout shrinks
+    # the axes to make room for every note line, and the lines, placed in axes units,
+    # close up onto the tick labels. bbox_inches="tight" extends the saved figure instead.
+    fig.tight_layout()
     lines = [line for note in notes for line in textwrap.wrap(note, width=105)]
     for i, line in enumerate(lines):
         ax.text(
             0.5, -0.125 - 0.052 * i, line, transform=ax.transAxes, ha="center",
             fontsize=7.5, color="#4a4f59",
         )
-    fig.tight_layout()
     fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {out_path}")

@@ -356,8 +356,17 @@ class FeatureDriftDetector(PosthocDetector):
 
 1. **Copy the template** that matches your detector type (L0/L1/L2)
 2. **Customize the computation**: Replace `stat_fn`, `concentration`, `mean_feature`, etc. with your logic
-3. **Test it**: Create a test file following the CONTRIBUTING guide
-4. **Submit**: Open a PR with your new detector
+3. **Declare the horizon your windows need**: every template here with a window (both
+   L0 templates, both L1 templates and L2 Template 2) returns 0.5 when a run is shorter
+   than its windows. That 0.5 is not a measurement, and the harness can tell only if the
+   detector says so: override the `min_episodes` property (the windows it compares, e.g.
+   `self.baseline_window + self.test_window`; for L0 Template 2, `2 * self.window_size`)
+   and the benchmark records a shorter family as not applicable. Reward Skewness does
+   this. Eight shipped L0 detectors, three L2 detectors and the eight L1 detectors do not
+   yet, and their fallback 0.5 is in the published boards as a measured value on the
+   families too short for them ([ROADMAP.md](../ROADMAP.md)).
+4. **Test it**: Create a test file following the CONTRIBUTING guide
+5. **Submit**: Open a PR with your new detector
 
 ## Next Steps
 
