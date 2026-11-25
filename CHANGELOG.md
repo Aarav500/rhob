@@ -13,6 +13,15 @@ L3 aggregates were incorrect and are retracted here**; if you cited them, cite t
 corrected values below instead. *(2026-11-19: the board has since been regenerated, and
 its figures supersede the recomputed ones below; see the first entry.)*
 
+### Fixed (2026-11-25): the site deploys from two jobs
+
+The Pages deploy failed on the push that merged #3 and on a fresh dispatch:
+`deploy-pages@v5` listed the run's artifacts a second after `upload-pages-artifact@v5`
+uploaded one in the same job and found none. A re-run listed the first attempt's
+artifact, so an artifact from a finished job is visible. `.github/workflows/pages.yml`
+now uploads in a `build` job and deploys in a `deploy` job that needs it. The site kept
+serving the previous deployment in the meantime.
+
 ### Fixed (2026-11-25): mpe2 capped below 1.2
 
 The unpinned `pytest` matrix met mpe2 1.2.0 and went red on `main` (nightly of
