@@ -58,7 +58,7 @@ def test_a_tightened_bound_is_caught(tmp_path):
 
 
 def test_a_new_requirement_is_caught(tmp_path):
-    path = _pyproject(tmp_path, '"mpe2>=1.0,<2"', '"mpe2>=1.0,<2", "not-a-real-package-xyz>=1"')
+    path = _pyproject(tmp_path, '"mpe2>=1.0,<1.2"', '"mpe2>=1.0,<1.2", "not-a-real-package-xyz>=1"')
     assert check.static_unmet(pyproject=path) == [
         "not-a-real-package-xyz>=1 ([pettingzoo]): not in the lock"]
 
@@ -73,8 +73,8 @@ def test_a_renamed_or_missing_extra_is_caught_not_read_as_empty(tmp_path):
 def test_extras_outside_the_lock_and_other_platforms_are_not_checked(tmp_path):
     path = _pyproject(tmp_path, '"gradio>=4.0,<7"', '"gradio>=4.0,<7", "unlocked-thing>=1"')
     assert check.static_unmet(pyproject=path) == []  # `space` is not one of the four
-    path = _pyproject(tmp_path, '"mpe2>=1.0,<2"',
-                      '"mpe2>=1.0,<2", "winonly>=1; sys_platform == \'win32\'"')
+    path = _pyproject(tmp_path, '"mpe2>=1.0,<1.2"',
+                      '"mpe2>=1.0,<1.2", "winonly>=1; sys_platform == \'win32\'"')
     assert check.static_unmet(pyproject=path) == []  # markers are evaluated for the lock's target
 
 

@@ -13,6 +13,18 @@ L3 aggregates were incorrect and are retracted here**; if you cited them, cite t
 corrected values below instead. *(2026-11-19: the board has since been regenerated, and
 its figures supersede the recomputed ones below; see the first entry.)*
 
+### Fixed (2026-11-25): mpe2 capped below 1.2
+
+The unpinned `pytest` matrix met mpe2 1.2.0 and went red on `main` (nightly of
+2026-11-25) and on pull request #3: `ImportError: cannot import name 'simple_spread_v3'
+from 'mpe2'`. 1.2.0 replaces `simple_spread_v3` and `simple_tag_v3` with `_v4` versions,
+and three PettingZoo families import the v3 names. The weekly drift run of 2026-11-23
+installed the newest releases and passed, so 1.2.0 came out after it. `pyproject.toml`
+now requires `mpe2>=1.0,<1.2`. The families were calibrated and the admission ledger was
+certified under mpe2 1.1.1, the version the CI lock pins, so the lock and the nightly
+physics screen are unchanged. Moving to 1.2 means porting those families to the v4
+environments and re-measuring them.
+
 ### Changed (2026-11-19): the single-draw board and the full admission ledger, regenerated
 
 CI run 44447220658 ran the workflow in the entry below and committed the single-draw board
