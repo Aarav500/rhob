@@ -39,7 +39,10 @@ eight test families (monitored_sandbagging, eval_probe_sandbagging) and four of 
 train families (proxy_correlation_gaming, shortcut_exploitation, novelty_farming,
 orbit_chirality) ship ``state_counts=None`` -- 25 of the 33 registered families do --
 so the L1 State Divergence row used to be part real measurement and part hardcoded 0.5,
-and its "train AUROC" was computed over 20 fabricated cells and 5 measured ones.
+and its "train AUROC" was computed over 25 cells of which only gridworld_camping's was
+measured: 20 came from the four train families that emit no ``state_counts``, and
+continuous_camping's 4 are 40-episode runs below the detector's 50-episode baseline, so
+they also returned its fallback 0.5.
 
 Run: python scripts/cross_family_transfer.py [--n-seeds-train N] [--n-seeds-test N]
 """

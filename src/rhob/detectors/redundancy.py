@@ -16,15 +16,17 @@ The duplication is both structural and measured:
   ``rhob.v3.access.restrict`` already exposes at L2. It never reads
   ``true_rewards``, the only channel L3 actually adds.
 * In ``leaderboard/v5_leaderboard.json`` the two detectors agree on 33 of 33
-  families to the last recorded digit, and on the overall figure (both 0.9750
-  over 123 cells). Zero families differ.
+  families to the last recorded digit, and on the overall figure (both 0.512
+  over 123 cells on the board regenerated 2026-11-19 with sign randomization on;
+  both 0.9750 on the board before it). Zero families differ.
 
 Consequence for the aggregate: with the duplicate counted, L3 reads
-n=2, mean 0.9790, max 0.9830. With it excluded, L3 is the single genuine oracle
-(True Reward Oracle, 0.9830). The duplicate is *not* re-filed under L2 either --
-it would then double-count Behavioral Threshold inside L2 and lift that level's
-mean from 0.7213 to 0.7530 while adding no new information. A duplicate belongs
-to no level's aggregate.
+n=2, mean 0.7475, max 0.9830 (0.9790 and 0.9830 before the regeneration). With it
+excluded, L3 is the single genuine oracle (True Reward Oracle, 0.9830). The duplicate
+is *not* re-filed under L2 either -- it would then double-count Behavioral Threshold
+inside L2 and move that level's mean from 0.5716 to 0.5641 (from 0.7213 to 0.7530
+before the regeneration) while adding no new information. A duplicate belongs to no
+level's aggregate.
 """
 
 from __future__ import annotations

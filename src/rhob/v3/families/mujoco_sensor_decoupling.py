@@ -95,6 +95,9 @@ there is no closed-form reward model for MuJoCo locomotion, see mujoco_camping.p
    that already passed cleanly as difficulty=0.8's operating point under the old
    range). Re-verified via a 30-seeds-per-variant admission_gate.certify() run that
    all 3 default difficulty tiers now pass (proxy_matched AUROC 0.417-0.531).
+   (2026-11-19: that was a 30-seed outcome. The full ledger, in
+   ``admission/ADMISSION_LEDGER.md``, admits none of the 3 tiers: all fail
+   ``proxy_distribution_matched``, and 0.90 fails ``proxy_matched`` too.)
 
 Constructed with terminate_when_unhealthy=False (passed via env_kwargs to
 generate_mujoco_rundata) so fixed-length episodes always complete regardless of the

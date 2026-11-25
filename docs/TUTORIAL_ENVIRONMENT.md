@@ -165,23 +165,33 @@ is nonetheless σ-invariant, so "matched" is a measured property rather than a v
 one.
 
 For calibration, here is the low end of the measured distribution, which is where the
-floor lives; every value below is min..max over that family's scored tiers, taken from
-`admission/admission_ledger.json` except where noted:
+floor lives: every family up to `reward_channel_tampering`, in order of its smallest
+value, and one family from the top for scale. Every value is min..max over that family's
+scored tiers, taken from `admission/admission_ledger.json`, which covers all 33 families:
 
 | Family | Relative SD | Verdict |
 |---|---|---|
 | `distributional_shift` | 0.0 | DEGENERATE (below floor) |
-| `orbit_chirality` | 1.4e-16 | DEGENERATE (below floor) |
-| `rlhf_reward_model_overopt` | 2.8e-16 | DEGENERATE (below floor) |
+| `orbit_chirality` | 1.1e-16 | DEGENERATE (below floor) |
+| `rlhf_reward_model_overopt` | 1.6e-16 .. 2.4e-16 | DEGENERATE (below floor) |
 | **the floor** | **1e-4** | |
 | `physics_exploitation` | 3.3e-4 | DEGENERATE — on *resolution*, not the floor |
-| `sequence_length_padding` | 6.5e-3 (`admission_gate.py`) | measured; admitted |
-| `goal_misgeneralization` | 9.9e-3 .. 1.3e-2 | measured |
-| `reward_channel_tampering` | 0.37 .. 0.58 | measured |
-| `eval_probe_sandbagging` | 1.11 .. 4.33 | measured; admitted |
+| `sequence_length_padding` | 6.6e-3 .. 6.7e-3 | measured; admitted at 0.90 and 0.70 |
+| `goal_misgeneralization` | 9.9e-3 .. 1.3e-2 | measured; admitted at 4 of 5 tiers |
+| the five RLHF-RM families (19–23) | 1.9e-2 .. 3.2e-2 | measured; 6 of 15 cells admitted |
+| `sequence_repetition_shortcut` | 8.0e-2 | measured; admitted at none of 3 |
+| `mujoco_sensor_decoupling` | 0.10 .. 0.11 | measured; admitted at none of 3 |
+| `mujoco_goal_misgeneralization` | 0.14 | measured; admitted at none of 4 |
+| `sequence_lexicon_gaming` | 0.29 | measured; admitted at 0.90 and 0.80 |
+| `gridworld_camping` | 0.31 | measured; admitted (one tier) |
+| `pettingzoo_tacit_collusion_gaming` | 0.351 .. 0.352 | measured; admitted at none of 3 |
+| `pettingzoo_free_rider_exploitation` | 0.369 .. 0.370 | measured; admitted at 0.90 |
+| `reward_channel_tampering` | 0.371 .. 0.581 | measured; admitted at 0.80 |
+| … | | |
+| `eval_probe_sandbagging` | 1.11 .. 4.33 | measured; admitted at all 5 tiers |
 
 The jump from `rlhf_reward_model_overopt` to `physics_exploitation` is a factor of
-~1.2e12, and it is the only gap of that kind in the distribution — everything above
+~1.4e12, and it is the only gap of that kind in the distribution — everything above
 3.3e-4 is a continuum. Land in the rows below the floor and question 2 is answerable on
 informativeness; you still have to clear resolution, which is the harder of the two.
 
@@ -190,7 +200,9 @@ questions in Step 1 wasn't actually satisfied by the implementation — the chec
 are diagnostic, not just gatekeeping. `proxy_distribution_matched` in particular
 usually means question 3: `reward_channel_tampering` passes `proxy_matched` at
 every tier (its mean is genuinely matched) while failing
-`proxy_distribution_matched` at 4 of 5, because its proxy *shape* separates. See
+`proxy_distribution_matched` at 4 of 5: at 0.90, 0.70 and 0.60 its proxy *shape*
+separates (Reward KDE 0.21, 0.80, 0.79); at 0.98 every shape detector's point estimate
+is inside the band and Reward Skewness's interval reaches past 0.60. See
 [REPRODUCIBILITY.md](../REPRODUCIBILITY.md) for real examples of gate violations
 pinpointing implementation bugs, and
 [admission/ADMISSION_LEDGER.md](../admission/ADMISSION_LEDGER.md) for the current
@@ -201,11 +213,22 @@ grid of outcomes.
 `RunData.state_counts` is optional, and 25 of the 33 shipped families leave it
 `None` — which means every L1 detector returns a constant 0.5 on them. That is
 not a measurement, and those cells are now recorded N/A rather than averaged in.
+A constant also comes back when your runs are shorter than a detector's windows, and
+there the harness can tell only if the detector declares `min_episodes`. Reward
+Skewness does, and is N/A below 100 episodes. No other shipped detector does, so on a
+short horizon a windowed detector falls back to a constant and the resulting 0.5 is
+published as a measured value. That happens to eight L0 and three L2 detectors on the
+families of 40 or 60 episodes, and to every L1 detector on `continuous_camping`'s 40.
+Until that is fixed
+([ROADMAP.md](../ROADMAP.md)), a horizon of at least 101 episodes is long enough for
+every scored detector's classification windows.
 
 If your family has a natural fixed-bin state histogram, emit it: L1 coverage is
 the benchmark's thinnest area, and on the 8 families that do emit the channel the
-best L1 detector reaches 0.927 AUROC. If it genuinely does not (high-dimensional
-continuous state, a multi-agent joint space, a vocabulary), leave it `None` and
+best L1 detector reaches 0.927 AUROC over their 35 cells on the single-draw board (4 of
+them `continuous_camping`'s fallback 0.5). If it
+genuinely does not (high-dimensional continuous state, a multi-agent joint space, a
+vocabulary), leave it `None` and
 **document why in the family's module docstring** — the shipped families that opt
 out all do.
 
@@ -242,7 +265,7 @@ as Step 3, at a smaller design — so it certifies a **much looser** claim:
 
 | | Smoke screen (your test) | Certification (the ledger) |
 |---|---|---|
-| Runs | in CI, minutes | offline, hours over the full grid |
+| Runs | in CI, minutes | on demand in CI (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell, not per push; hours of compute over the full grid |
 | Design | 12 layouts × 4 seeds/side = 96 rollouts/cell | 12 × 24 = 576 rollouts/cell |
 | Equivalence margin | **±0.256** | **±0.10** — the benchmark's published claim |
 | Tiers | every tier `default_difficulties()` returns | same |
@@ -255,9 +278,13 @@ localizable and the signal sustains."* **It does not mean your proxy is matched 
 family can be green here and NOT ADMITTED (or DEGENERATE) there; when the two
 disagree, the ledger is the authority.
 
-The screen is still worth having — every proxy-matching defect this repo has actually
-shipped is caught at 96 rollouts. What it cannot see is a *small* leak, roughly
-0.60–0.75 AUROC, which is exactly the band the ledger's tighter margin polices.
+The screen is still worth having: it catches a *large* leak, such as the 0.89 L0 AUROC
+`distributional_shift` once shipped ([REPRODUCIBILITY.md](../REPRODUCIBILITY.md)). What
+it cannot see is a *small* leak, on either side of chance, roughly 0.25–0.40 or
+0.60–0.75 AUROC, which is exactly the band the ledger's tighter margin polices. The
+2026-11-19 ledger finds both kinds in families whose screen passes `proxy_matched`:
+`mujoco_camping` at 0.80 and 0.70 (mean L0 AUROC 0.3529 and 0.3484) below chance, and
+`mujoco_joint_limit_gaming` at 0.90 (0.6623) above it.
 
 To get certified, run the family through the ledger and commit the artifact:
 
@@ -279,7 +306,8 @@ is derived from the family rather than restated in the test file, and
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
 worth:** 22 of the 33 registered families have a smoke test and 11 have none; 10 never
-reach `AdmissionGate` in any test at all; the ledger covers 10. Neither check is
+reach `AdmissionGate` in any test at all; the ledger, a separate run rather than a test,
+covers all 33 since 2026-11-19 and admits 42 of their 123 cells. Neither check is
 enforced repository-wide, and nothing in `tests/` calls `certify_all_tiers` on a
 registered family — the two tests that exercise it use synthetic fixtures, so
 `scripts/admission_ledger.py` is the only caller that certifies a real family.

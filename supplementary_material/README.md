@@ -1,5 +1,15 @@
 # RHOB v1.0 Supplementary Material
 
+> **Note (2026-11-19).** This file describes the material for the v1.0 release
+> (2026-07-08) and is kept as that record. The `paper_appendices/` PDFs it lists are not in
+> this repository. The current
+> [`leaderboard/v5_leaderboard.json`](../leaderboard/v5_leaderboard.json) scores 30
+> detectors on 33 families (123 cells); it was regenerated on 2026-11-19 in `52656cb` and
+> writes N/A cells as `null`. [`admission/ADMISSION_LEDGER.md`](../admission/ADMISSION_LEDGER.md)
+> covers all 33 families since `d4b700d`: of 123 cells, 42 ADMITTED, 30 DEGENERATE and 51
+> NOT ADMITTED. `leaderboard/cross_family_transfer.json` was last changed in v1.4
+> (`d872916`), with 6 training and 8 held-out families.
+
 This directory contains supporting material for the RHOB v1.0 paper.
 
 ## Paper Appendices
@@ -17,7 +27,7 @@ Full 30×9 in-distribution discrimination AUROC results (Section 5.2, Figure 6).
 - 5-fold stratified cross-validation scores
 - Runtime: ~2–3 hours on CPU
 
-See `../../leaderboard/v5_leaderboard.json`
+See `../leaderboard/v5_leaderboard.json`
 
 ### cross_family_transfer.json
 Cross-family transfer results: train on Families 1–6, test on Families 7–9 (Section 6.3, Table 2).
@@ -26,11 +36,11 @@ Cross-family transfer results: train on Families 1–6, test on Families 7–9 (
 - Generalization gap (%)
 - Runtime: ~1.5–2 hours on CPU
 
-See `../../leaderboard/cross_family_transfer.json`
+See `../leaderboard/cross_family_transfer.json`
 
 ## How to Regenerate
 
-See [REPRODUCIBILITY.md](../../REPRODUCIBILITY.md) for step-by-step instructions:
+See [REPRODUCIBILITY.md](../REPRODUCIBILITY.md) for step-by-step instructions:
 - Figures 6–8 (v5 results): ~30 seconds each
 - Table 2 (transfer results): ~1.5–2 hours
 - Full leaderboard: ~2–3 hours

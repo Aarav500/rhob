@@ -137,7 +137,7 @@ def test_verdicts_on_the_ledger_match_the_gates_outcomes():
     are those two halves, and ``fixed`` is the limiting case of the second.
     """
     cells = _ledger_cells()
-    assert len(cells) == 50
+    assert len(cells) == 123
     for cell in cells:
         m = cell["metrics"]["proxy_matched"]
         r = Resolution(
@@ -154,14 +154,40 @@ def test_verdicts_on_the_ledger_match_the_gates_outcomes():
     assert sum(c["outcomes"]["proxy_matched"] == "degenerate" for c in cells) == 30
 
 
-def test_onset_localizable_is_fixed_across_the_ledger():
-    """The instance the audit package used to miss: one value, in all 50 cells."""
-    stds = [c["metrics"]["onset_localizable"]["onset_std"] for c in _ledger_cells()]
-    assert len(stds) == 50
-    r = cannotfail.resolution(stds)
+#: The two families whose onset label is read off what the trained agent does after an
+#: activation episode the config sets. Every other family's onset label is the configured
+#: schedule, so its ``onset_std`` is exactly 0.0.
+_AGENT_ONSET_FAMILIES = {"continuous_camping", "gridworld_camping"}
+
+
+def test_onset_localizable_on_the_shipped_design():
+    """The instance the audit package used to miss, and what the full ledger shows.
+
+    The 10-family ledger had ``onset_std`` 0.0 in all 50 cells, and the tool called it
+    fixed: one value across the whole design. The shipped design is now the full ledger
+    (2026-11-19, 123 cells), and there the statistic takes six distinct values, so the
+    tool must not call it fixed: it is 0.0 in the 118 cells of the 31 families whose
+    onset label is the configured schedule, and varies only in the 5 cells of the two
+    families whose onset is read off the trained agent's behaviour. The tool must still
+    call the statistic fixed on those 118 cells alone, which is the case it was written
+    to catch. ``onset_localizable`` passes in every cell either way.
+    """
+    cells = _ledger_cells()
+    assert len(cells) == 123
+    assert all(c["outcomes"]["onset_localizable"] == "pass" for c in cells)
+
+    r_all = cannotfail.resolution([c["metrics"]["onset_localizable"]["onset_std"] for c in cells])
+    assert r_all.n_distinct == 6
+    assert r_all.verdict == "ok"
+    varying = {c["family"] for c in cells if c["metrics"]["onset_localizable"]["onset_std"] != 0.0}
+    assert varying == _AGENT_ONSET_FAMILIES
+
+    scheduled = [c for c in cells if c["family"] not in _AGENT_ONSET_FAMILIES]
+    assert len(scheduled) == 118
+    assert len({c["family"] for c in scheduled}) == 31
+    r = cannotfail.resolution([c["metrics"]["onset_localizable"]["onset_std"] for c in scheduled])
     assert r.n_distinct == 1
     assert r.verdict == "fixed"
-    assert all(c["outcomes"]["onset_localizable"] == "pass" for c in _ledger_cells())
 
 
 def _verdict_from(resolution, informativeness=1.0, margin=0.10, floor=1e-4):

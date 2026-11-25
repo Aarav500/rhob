@@ -47,7 +47,9 @@ def test_registered():
             "seeds/side). proxy_matched passes; the proxy is matched in mean and fully separable in "
             "late-window density. Before the horizon fix these tiers reported DEGENERATE on the "
             "Skewness tie, which hid a total leak behind an unmeasurable. Fixing this means "
-            "matching the proxy's shape in the family."
+            "matching the proxy's shape in the family. The full ledger (2026-11-19, +/-0.10) fails "
+            "proxy_distribution_matched at all three tiers, and proxy_matched at 0.9, where the "
+            "mean L0 AUROC 0.4502 has a 90% CI [0.3798, 0.5206] too wide to certify."
         ),
     ),
     ids=difficulty_id,

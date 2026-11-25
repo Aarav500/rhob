@@ -128,6 +128,10 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
   re-score in the replicates (and `leaderboard/v5_replicated.json`, built from it), which
   records numpy, scipy, scikit-learn, torch and rhob only, and `results/family_diagnostics/`
   (2026-09-19), which records none. Whether a stale entry reached them is open.
+  *(2026-11-19: the single-draw board and the admission ledger have since been
+  regenerated on CI, `52656cb` and `d4b700d`. Both restored the cache under the complete
+  entry key, on the hashed lock, and both record their simulator versions: mujoco
+  3.17.0.)*
 
 ## What is still open
 
@@ -135,7 +139,9 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
   `mujoco_goal_misgeneralization`, `mujoco_joint_limit_gaming`, `mujoco_sensor_decoupling`)
   and the ledger. The ledger's ten families import no simulator, but its provenance records
   mujoco 3.10.0, and that 4.0 leaves it unchanged should be measured, not inferred. Until then
-  `mujoco<4` stays.
+  `mujoco<4` stays. *(2026-11-19: the regenerated ledger, `d4b700d`, covers all 33 families,
+  the four MuJoCo families among them, and records mujoco 3.17.0 from the CI lock; all 13
+  MuJoCo cells are NOT ADMITTED under it.)*
 - **The replication does not say which simulator it ran.** The 20 committed replicates were
   written under the old list (numpy, scipy, scikit-learn, torch, rhob), so the MuJoCo they ran
   under cannot be recovered from them. Artifacts written from 2026-11-16 on record it.

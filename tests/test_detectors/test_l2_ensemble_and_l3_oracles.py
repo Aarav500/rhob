@@ -83,7 +83,9 @@ def test_perfect_feature_oracle_is_a_relabelled_l2_duplicate():
     nothing else -- never ``true_rewards``, the one channel L3 adds over L2.
     Behavioural: it therefore scores identically to the baseline on every run. In
     ``leaderboard/v5_leaderboard.json`` the two agree on 33/33 families and on the
-    overall figure (both 0.9750 over 123 cells). If this test ever fails, the detector
+    overall figure (both 0.512 over 123 cells on the board regenerated on 2026-11-19,
+    with the behavioural sign randomized; both 0.9750 on the board before it). If this
+    test ever fails, the detector
     has become an independent measurement and must be re-examined before it is either
     re-levelled or admitted back into an access-level aggregate.
     """

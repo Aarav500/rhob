@@ -47,7 +47,9 @@ def test_registered():
             "passes, so the proxy is matched in mean and mismatched in late-window density -- the "
             "F2 failure mode the shape panel exists to catch. Before the horizon fix these tiers "
             "reported DEGENERATE, which counted as failure and measured nothing. Fixing this means "
-            "matching the proxy's shape in the family."
+            "matching the proxy's shape in the family. The full ledger (2026-11-19, +/-0.10) also "
+            "fails proxy_matched at 0.8 and 0.7 (mean L0 AUROC 0.3529 and 0.3484), so at those "
+            "tiers the mean is not matched either."
         ),
     ),
     ids=difficulty_id,

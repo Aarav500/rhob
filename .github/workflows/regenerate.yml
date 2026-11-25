@@ -1,0 +1,230 @@
+name: regenerate artifacts
+
+# Regenerates the two artifacts that take hours, on the hashed lock the nightly physics
+# screen installs (requirements/ci-admission-linux-py312.txt), and commits each to the
+# branch the run is on:
+#
+#   leaderboard/v5_leaderboard.json   one job: the script exactly as a person runs it
+#   admission/admission_ledger.json   the full 123-cell grid, one job per cell, merged
+#   admission/ADMISSION_LEDGER.md
+#
+# Why the board is one job and the ledger is many. The board scores 30 detectors on the
+# SAME rollouts, shared in-process (Benchmark._rollout_cache), so its cost is the rollouts
+# and calibrations, paid once; split by detector, every job would pay all of it again and
+# each detector would be scored on a different machine's rollouts. The ledger's cells are
+# independent by construction: AdmissionGate.certify re-seeds its layout generator for
+# every cell, so a cell does not depend on what ran beside it, and a MuJoCo cell alone is
+# about 50 minutes. `scripts/admission_ledger.py --merge-shards` assembles the cells and
+# refuses anything but the full grid from one clean commit under one Python, one set of
+# package versions, one gate and one design.
+#
+# Each commit job commits only if the code that produced its artifact is still the code
+# at the branch tip (src/, scripts/, requirements/ and pyproject.toml unchanged since the
+# run's commit), checked again after every rebase (regenerate-commit.sh). The commits land
+# the artifacts alone: the docs and tests that quote them (test_ledger_doc_consistency,
+# test_access_summary) fail on the branch tip until a reviewed follow-up updates them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifacts:
+        description: "Which artifacts to regenerate"
+        type: choice
+        options: [both, board, ledger]
+        default: both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regenerate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      cells: ${{ steps.plan.outputs.cells }}
+      python: ${{ steps.py.outputs.python-version }}
+    steps:
+      - uses: actions/checkout@v7
+      # Every later job installs exactly the patch release resolved here, so all 123
+      # ledger shards record the same Python and the merge does not refuse them over a
+      # runner image that happened to carry a different 3.12.x.
+      - uses: actions/setup-python@v7
+        id: py
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      - name: List the ledger's cells
+        id: plan
+        run: |
+          python scripts/admission_ledger.py --list-cells > cells.json
+          python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json
+          cells = json.load(open("cells.json"))
+          print("cells=" + json.dumps([{"id": f"{i:03d}", **c} for i, c in enumerate(cells)]))
+          EOF
+          python -c 'import json; print(len(json.load(open("cells.json"))), "cells")'
+
+  board:
+    needs: plan
+    if: ${{ (inputs.artifacts || 'both') != 'ledger' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    steps:
+      # The branch tip, so the commit step can push; it must hold the run's sources,
+      # checked here and again before the push.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Sources at the branch tip are the run's
+        run: git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+      - name: Fingerprint the physics stack
+        id: physics
+        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
+      # Restore only; the per-entry keys inside are complete (src/rhob/v3/calibration_cache.py),
+      # so a stale or missing entry is recomputed rather than trusted. The nightly keeps
+      # the cache current.
+      - name: Restore calibration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+      - name: Score 30 detectors on 33 families
+        run: python -u scripts/v5_leaderboard_and_transfer.py --out leaderboard/v5_leaderboard.json
+      # Saved before anything can refuse it, so a failed check, a refused commit or a
+      # rejected push still leaves hours of scoring downloadable from the run.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: board
+          path: leaderboard/v5_leaderboard.json
+          if-no-files-found: error
+          retention-days: 14
+      # The script records a detector that raised as {"error": ...} and carries on, which
+      # is right for a person reading the console and wrong for an unattended commit.
+      - name: Every detector scored, from a clean tree
+        run: |
+          python - <<'EOF'
+          import json, sys
+          board = json.load(open("leaderboard/v5_leaderboard.json"))
+          errors = {n: r["error"] for n, r in board["results"].items() if "error" in r}
+          dirty = board["provenance"]["git"]["dirty"]
+          if errors or dirty is not False:
+              sys.exit(f"not committing: errors={errors}, dirty={dirty}")
+          print(len(board["results"]), "detectors,", board["families"], "families")
+          EOF
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FILES: leaderboard/v5_leaderboard.json
+          WHAT: the v5 board
+        run: bash .github/workflows/regenerate-commit.sh
+
+  ledger:
+    needs: plan
+    if: ${{ (inputs.artifacts || 'both') != 'board' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.cells) }}
+    name: ledger ${{ matrix.shard.id }} ${{ matrix.shard.family }} @ ${{ matrix.shard.difficulty }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+      - name: Fingerprint the physics stack
+        id: physics
+        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
+      - name: Restore calibration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+      - name: Certify one cell
+        env:
+          FAMILY: ${{ matrix.shard.family }}
+          DIFFICULTY: ${{ matrix.shard.difficulty }}
+        run: |
+          python -u scripts/admission_ledger.py --families "$FAMILY" --difficulties "$DIFFICULTY" \
+            --out-dir "$RUNNER_TEMP/shard"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ledger-${{ matrix.shard.id }}
+          path: ${{ runner.temp }}/shard/admission_ledger.json
+          if-no-files-found: error
+          retention-days: 14
+      # After the upload, so the record survives; failing here lets "Re-run failed jobs"
+      # retry exactly this cell (and then the merge) instead of the whole grid.
+      - name: The cell certified without raising
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          path = os.path.join(os.environ["RUNNER_TEMP"], "shard", "admission_ledger.json")
+          row = json.load(open(path))["results"][0]
+          if row["error"]:
+              sys.exit(f"{row['family']} @ {row['difficulty']} raised: {row['error']}")
+          print(row["family"], row["difficulty"], row["status"])
+          EOF
+
+  merge-ledger:
+    needs: [plan, ledger]
+    if: ${{ !cancelled() && needs.ledger.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Sources at the branch tip are the run's
+        run: git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: ledger-*
+          path: ${{ runner.temp }}/shards
+      - name: Merge the ledger
+        run: python scripts/admission_ledger.py --merge-shards "$RUNNER_TEMP/shards" --out-dir admission
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FILES: admission/admission_ledger.json admission/ADMISSION_LEDGER.md
+          WHAT: the admission ledger
+        run: bash .github/workflows/regenerate-commit.sh

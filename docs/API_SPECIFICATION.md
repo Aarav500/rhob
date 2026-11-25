@@ -162,18 +162,32 @@ unchanged.
 evaluation harness must not average it into an aggregate. When a family does not
 emit the channel a detector's access level is defined over, that cell is recorded
 as `null` with a reason and **excluded** from `overall_auroc`. It is never imputed
-as 0.5.
+as 0.5. The same applies to the horizon: a detector that declares `min_episodes`
+(`PosthocDetector.min_episodes`, default 0) is not scored on a family whose runs are
+shorter, and that cell is `null` too, with the horizon as its reason. Reward Skewness
+declares 100 and is `null` on the 59 cells of the 19 families that run 40 or 60
+episodes.
 
-The distinction is load-bearing: after this change, a `0.5` in an artifact means
-*"measured, and at chance"* — a real result — where before it was
-indistinguishable from *"never measured"*. `continuous_camping` is the worked
-example: it does emit `state_counts`, and all 8 L1 detectors genuinely score
-exactly 0.500 on it.
+The distinction is load-bearing, but it covers only what the detectors declare. A
+detector that does not declare `min_episodes` is still scored below its windows, where
+it falls back to a constant, and the resulting 0.5 is written as a measured number. On
+the regenerated board (`52656cb`) that is eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward
+Trend and Variance Window on the 19 short-horizon families; Max Plateau, Reward MLP,
+Gradient Reversal and Reward CUSUM on the 7 that run 40), three L2 detectors (Feature
+Consistency on the 19; Feature Magnitude and Reward-Feature Correlation on the 7) and
+every L1 detector on `continuous_camping`: it does emit `state_counts`, and all 8 L1
+detectors read exactly 0.500 on it, but its 40 episodes are below each one's window, so
+that 0.500 is their fallback, not a measurement. Declaring those horizons is an open
+item ([ROADMAP.md](../ROADMAP.md)). Outside those cells, and outside the L0 cells of
+the six DEGENERATE families, where 0.5 is the tie convention, a `0.5` in an artifact
+means *"measured, and at chance"*.
 
 Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
-detector's published row to be a constant, which understated the suite: the best
-L1 detector reads 0.621 over all 123 cells and 0.927 over the 35 cells where the
-channel exists.
+detector's published row to be a constant, which understated the suite: on the
+pre-audit board (`git show c54a8cc:leaderboard/v5_leaderboard.json`, the board as it
+stood before the 2026-11-19 regeneration) the best L1 detector read 0.621 over all 123
+cells. The regenerated board (`52656cb`) records those 88 cells as `null` and scores that
+detector, State Divergence, over the 35 cells where the channel exists, at 0.927.
 
 ---
 
@@ -232,6 +246,15 @@ def is_trained(self) -> bool:
     Unsupervised detectors return False.
     Supervised detectors return False until fit() completes.
     Used during cross-validation to gate supervised fitting.
+    """
+
+@property
+def min_episodes(self) -> int:
+    """Optional: fewest episodes this detector can score. Default 0 (no minimum).
+
+    The benchmark and the admission gate record a family whose runs are shorter
+    as not applicable (null) instead of calling classify(). Override it whenever
+    classify() falls back to a constant on short runs; today only Reward Skewness does.
     """
 ```
 
@@ -311,22 +334,26 @@ equivalence test on that cell.
 Consumers of the certificate and the ledger **must not** collapse the three outcomes
 to a boolean. A cell is ADMITTED only when every criterion is `PASS`; cells with any
 `DEGENERATE` criterion carry no matched-proxy claim in either direction and are
-excluded from RHOB's L0-at-chance negative control.
+excluded from RHOB's L0-at-chance negative control. NOT ADMITTED cells are not
+excluded: they stay in the L0 mean, and whether they should is an open question
+(`ROADMAP.md`).
 
 ### `admission/admission_ledger.json` artifact schema
 
 | Key | Meaning |
 |---|---|
 | `schema` | `"rhob.admission_ledger/1"` |
-| `provenance` | git commit + dirty flag, Python, package versions, `argv`, scope, gate configuration |
+| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform` and `cpu` to null and records them under `sharding` (shard count, time span, platforms, CPUs, CI run) |
 | `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
 | `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
 | `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
-| `timing_seconds` | wall clock per family; the only non-reproducible part |
+| `timing_seconds` | wall clock per family (in a merged ledger, the sum of its cells' wall clock on separate machines); not reproducible |
 
-`results` reproduces byte-for-byte on the same commit at the gate's fixed root seed
-`12345`. Failing **and** degenerate cells are recorded, never filtered — the ledger is
-the falsifiable form of the negative control.
+`results` reproduces byte-for-byte on the same commit and CPU model at the gate's fixed
+root seed `12345`; a cell certified on a different CPU model can differ in its last
+digits, and the committed ledger was merged from cells certified on seven
+(`provenance.sharding.cpus`). Failing **and** degenerate cells are recorded, never
+filtered — the ledger is the falsifiable form of the negative control.
 
 The three per-criterion blocks in `summary` are **not** interchangeable and none of
 them is the old `n_failing_by_criterion`, which was removed when the tri-state landed
@@ -352,7 +379,7 @@ backward compatibility — `passed` is `status == "ADMITTED"`, so a `False` ther
 | Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible_at`, one case per scored tier | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
 | Design | 12 layouts × 4 seeds/side (96 rollouts/cell) | 12 × 24 (576 rollouts/cell) |
 | Equivalence margin | `SMOKE_MARGIN` ≈ ±0.256 | `EQUIVALENCE_MARGIN` = ±0.10 |
-| Runs in CI | yes | no |
+| Runs in CI | yes | on demand only (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell; not per push |
 | Issues ADMITTED | **no** | yes |
 
 `SMOKE_MARGIN` is `required_seeds_per_layout` inverted at the smoke design, not a
@@ -366,7 +393,8 @@ by the test suite at all.** 22 of the 33 registered families call
 `assert_smoke_admissible_at`, 11 do not, and 10 never reach `AdmissionGate` in any test.
 No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
 exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
-caller that certifies real families, and the ledger it writes covers 10 of 33. Read a
+caller that certifies real families. The ledger it writes covers all 33 since its
+2026-11-19 regeneration on CI, as a separate run rather than a test. Read a
 green suite as "the screens that exist passed", never as "every family is admitted".
 
 ---
@@ -410,8 +438,8 @@ Per-detector keys under `results[detector]`:
 | Key | Meaning |
 |---|---|
 | `cells` | cells attempted |
-| `cells_measured` | cells that produced a measurement |
-| `cells_not_applicable` | cells skipped because the channel is absent |
+| `cells_measured` | cells scored: the channel is present and the horizon is at least the detector's declared `min_episodes`. A detector that declares none (`UNDECLARED_HORIZON_FALLBACKS` in `rhob.v3.leaderboard.access_summary`) returns its fallback 0.5 on runs shorter than its windows, and those cells are counted here although nothing was measured |
+| `cells_not_applicable` | cells skipped as not applicable: the family does not emit the detector's channel, or its horizon is below the detector's declared `min_episodes` (Reward Skewness); the reason is in `not_applicable_reasons` |
 | `not_applicable_families` | list of families skipped for this detector |
 | `not_applicable_reasons` | `{reason string: count}` |
 | `per_family` | float, **or `null`** when not applicable |
@@ -433,9 +461,11 @@ is the environment draw and is 1), `test_seed_base` (50000), `n_seeds_test`,
 **Consumers must treat `null` as "no measurement exists", not as 0.5, and must not
 count it in a denominator.**
 
-> The committed artifacts predate `src/rhob/v3/provenance.py` and do not yet carry
-> `provenance` / `sampling` / `cell_semantics`. They acquire them on the next
-> regeneration. `admission/admission_ledger.json` carries them today.
+> `leaderboard/v5_leaderboard.json` carries `provenance`, `sampling` and
+> `cell_semantics` since its 2026-11-19 regeneration (`52656cb`).
+> `leaderboard/cross_family_transfer.json` predates `src/rhob/v3/provenance.py`, has
+> not been regenerated, and does not yet carry them. `admission/admission_ledger.json`
+> carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors
 

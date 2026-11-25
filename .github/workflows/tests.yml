@@ -19,8 +19,8 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
@@ -78,8 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       # From a hashed lock, not from pyproject.toml's ranges. This job is the physics
@@ -133,7 +133,7 @@ jobs:
       # cold. A fallback is safe only because the per-entry keys are complete. Entries
       # the edit or upgrade made stale simply miss, and are recomputed and re-saved.
       #
-      # Split restore/save, deliberately, rather than the combined `actions/cache@v4`.
+      # Split restore/save, deliberately, rather than the combined `actions/cache`.
       # The combined form saves in a post-job step that is SKIPPED when the job fails,
       # and that turned one red suite into a permanently cold cache: the tests fail, the
       # cache is never written, the next nightly recalibrates all 33 families from
@@ -151,7 +151,7 @@ jobs:
           echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
       - name: Restore calibration cache
         id: calib_cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .rhob_cache
           key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
@@ -195,7 +195,7 @@ jobs:
       # nothing new to write.
       - name: Save calibration cache
         if: always() && steps.calib_cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .rhob_cache
           key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
@@ -210,8 +210,8 @@ jobs:
     # unimportable without PyTorch.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install (no torch)

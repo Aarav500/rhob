@@ -57,7 +57,9 @@ Detector = PosthocDetector
 # the best L1 detector -- moves 0.621 -> 0.927, i.e. the fabricated cells were hiding a
 # strong result, not propping up a weak one. Cells whose required channel is absent are
 # therefore scored NaN and excluded from every mean, and reported as ``not_applicable``
-# downstream.
+# downstream. (2026-11-19: the board recomputed there is the one committed before the
+# regeneration. The regenerated board scores L1 this way, has the same per-family L1
+# values on the 8 families that emit ``state_counts``, and reads 0.570 and 0.927.)
 #
 # A detector may override the default for its level by exposing a ``required_channels``
 # attribute (a tuple of ``RunData`` field names). That hook exists for the L3 ceiling
@@ -105,13 +107,17 @@ class CellResult:
     ``discrimination_auroc`` is NaN, and the cell must be excluded from aggregates
     rather than counted as chance.
 
-    There is deliberately no onset column. Every one of the 50 cells in
-    ``admission/admission_ledger.json`` records an onset label with zero dispersion
-    across seeds (``onset_localizable.onset_std == 0.0``), so inside the benchmark the
-    label is a number the generator wrote down and a constant prediction equal to it
-    scores a perfect 0.000 error. A column that cannot fail is not reported. Onset
-    error is still computed by :func:`_evaluate_cell` for the one place it has been
-    validated against a label the authors did not write (``external/hvta``).
+    There is deliberately no onset column. 118 of the 123 cells in
+    ``admission/admission_ledger.json`` -- every cell of 31 of the 33 families -- record
+    an onset label with zero dispersion across seeds
+    (``onset_localizable.onset_std == 0.0``), so inside the benchmark the label is a
+    number the generator wrote down and a constant prediction equal to it scores a
+    perfect 0.000 error. The other five (``continuous_camping`` at four tiers,
+    ``gridworld_camping`` at its one) disperse by 0.23 to 9.87 episodes, at most 5.1% of
+    the horizon (``continuous_camping`` @ 0.7: 2.05 of 40 episodes). A column that a
+    constant prediction wins on 118 of 123 cells is not reported. Onset error is still
+    computed by :func:`_evaluate_cell` for the one place it has been validated against a
+    label the authors did not write (``external/hvta``).
     """
 
     family: str
@@ -410,9 +416,10 @@ class Benchmark:
                 reported as a RHOB result must be measured with it on. Set ``False``
                 only to reproduce the pre-audit convention for a before/after
                 comparison -- an L2 result obtained with it off is a measurement of
-                ``CONTRIBUTING.md``, not of the detector. (The leaderboard artifacts
-                committed before the 2026-08 audit predate this flag and were produced
-                under the old convention; they have not been regenerated.)
+                ``CONTRIBUTING.md``, not of the detector. (``leaderboard/v5_leaderboard.json``
+                was regenerated with it on, 2026-11-19. ``leaderboard/leaderboard.json``
+                and ``leaderboard/cross_family_transfer.json`` were committed before the
+                2026-08 audit, predate this flag, and have not been regenerated.)
             layout_seed: Environment layout every cell is generated at. Also selects
                 each family's behavioral orientation under sign randomization.
             seed_base: Offset of the per-run seed sequence drawn from each pair.

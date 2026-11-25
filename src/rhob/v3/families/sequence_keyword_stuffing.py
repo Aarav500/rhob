@@ -126,6 +126,9 @@ _PRIMARY_STUFF_RATE = _PRIMARY_STUFF_FRACTION * _GRAMMAR_KEYWORD_RATE
 # The HARD tier the old comment called a known failure now passes, and the variance ratio it
 # named as the root cause is 0.96-1.00 rather than ~1.5. Certificates in
 # results/family_diagnostics/sequence_keyword_stuffing_gate.json.
+# (2026-11-19: those are smoke-design outcomes. The full ledger, in
+# admission/ADMISSION_LEDGER.md, admits 0.80 and 0.70 and not 0.90, which fails
+# proxy_matched: mean L0 AUROC 0.4077, 90% CI [0.3677, 0.4477] against [0.40, 0.60].)
 #
 # Two notes for whoever revisits. The gate now reports "Reward Skewness not applicable at
 # horizon 60" on this family instead of scoring it: that detector needs 100 episodes and this

@@ -44,7 +44,7 @@
 {\sffamily\bfseries\Large What my project actually is}
 
 \vspace{0.4em}
-{\sffamily Aarav Shah \quad\textbullet\quad August 2026, revised October 2026 \quad\textbullet\quad
+{\sffamily Aarav Shah \quad\textbullet\quad August 2026, revised October and November 2026 \quad\textbullet\quad
 \texttt{ashah264@ucr.edu}}
 
 \vspace{0.3em}
@@ -549,8 +549,8 @@ fixes that, because a wobble ten times bigger than the tolerance always clears i
 So the second guard is about the family and not the scores: how big the proxy
 reward's spread is compared to the reward itself, with a floor underneath it.
 
-Neither guard covers the other. On the current grid each one catches three families
-the other cannot see.
+Neither guard covers the other. On the current grid the gate files three families
+under each, checking the second guard first.
 
 And there are now three answers instead of two:
 
@@ -558,8 +558,9 @@ And there are now three answers instead of two:
 \begin{tabular}{@{}lp{9.2cm}@{}}
 \toprule
 Pass & Measured, and matched inside the margin. \\
-Fail & Measured, and outside the margin. The score leaks, and every other
-       number on that cell is suspect. \\
+Fail & Measured, and matching inside the margin was not shown. Either the
+       score leaks, or its interval was too wide to fit inside the margin at this
+       sample size. Every other number on that cell is suspect. \\
 Could not measure & The test could not be run at all. Says nothing, in either
        direction. \\
 \bottomrule
@@ -573,14 +574,24 @@ leak''. After the fix: ``I could not look'' published as ``I looked and it was
 fine''. Same mistake. The second one survived a repair aimed at the first.
 
 \subhead{Where it stands now}
-Of the 50 cells in scope: \textbf{15 pass, 30 could not be measured, 5 genuinely
-failed}. Passing is the minority. The count dropped from an earlier ``30 of 35
-passed'' not because any family got worse, but because the new guard stopped
-counting cells whose tests were never really run.
+Of the 123 cells, across all 33 families: \textbf{42 pass, 30 could not be
+measured, 51 were measured and failed}. Passing is the minority. The count first
+dropped from an earlier ``30 of 35 passed'' not because any family got worse, but
+because the new guard stopped counting cells whose tests were never really run.
 
-And the scope is small, which I would rather tell you than have you find. The
-ledger covers 10 of the 33 families. The other 23 are unchecked, which is not the
-same as checked and fine.
+Until 19 November 2026 the ledger covered only 10 of the 33 families. It now
+covers all of them, and the ten it covered before keep every verdict. Most of the
+51 failures are in the 23 it had not checked: all 13 MuJoCo (physics) cells, 14 of
+the 15 PettingZoo (multi-agent) cells, and more than half of the new RLHF and
+sequence cells. Of the 51, 24 fail the check on the mean proxy reward, 40 the
+check on its shape (14 fail both), and one the check that behaviour separates.
+Of those 24, 8 have the mean outside the band; the other 16 have it inside, but the
+interval reaches past the band, so for them the check could not show a match. That
+is not the same as a match: in 15 of the 16 the interval leaves out 0.5, so the
+proxy is off chance there, by less than 0.10.
+Those 51 still count in the L0 average; only the 30 that could not be measured
+are left out. Whether the 51 should be left out too is open, and it is in
+\code{ROADMAP.md}.
 
 \heading{What I actually want to work on}
 \label{h:point3}
@@ -668,6 +679,15 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       README reported this as a finding that ``reward-only monitoring fails''. That
       was wrong. It is only useful in the failure direction: an L0 detector going
       above chance means the construction leaked.
+\item \textbf{Some of the 0.5s are not measurements.} Eight of my reward-only
+      detectors do not say how many episodes they need. On families too short for
+      their windows (7 or 19 of the 27 I keep) they return a fixed score, which reads
+      as 0.5, and both tables record it as a result at chance: 104 of the 332 family values behind
+      the L0 figures. Only Reward Skewness says how long it needs, and it is left
+      blank there. Three behaviour detectors, and every state-count detector on the
+      40-episode \code{continuous\_camping}, do the same. Fixing it means declaring
+      each detector's length and scoring both tables again, which will move the L0
+      numbers. It is in \code{ROADMAP.md}.
 \item \textbf{One row in the table is a duplicate.} The detector I labelled
       ``Perfect Feature Oracle'' at L3 is a subclass of an L2 detector that
       overrides only its name and its level. It never reads the true reward. It
@@ -676,11 +696,17 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       two detectors'' figure averaged one oracle with one copy of an L2 baseline
       and measured nothing.
 \item \textbf{The onset half is unsupported.} I published this as ``Reward Hacking
-      \emph{Onset} Benchmark''. In all 50 cells I check, the episode where cheating
-      starts is the same on every seed, because I wrote it down. So the onset column
-      could not fail, and I have removed it from the table; the code keeps it only
+      \emph{Onset} Benchmark''. In 118 of the 123 cells I check, the episode where
+      cheating starts is the same on every seed, because I wrote it down. In the other
+      five, in two camping families, an agent sets it after a starting point I chose,
+      and it still passes. So on almost every cell the onset column could not fail,
+      and I have removed it from the table; the code keeps it only
       for the one outside dataset (\code{external/hvta}). For the same reason my
-      audit code now marks entry check 5 as one that cannot fail. I
+      audit code marked entry check 5 as one that cannot fail, when the ledger had
+      50 cells and the spread was 0.0 in every one. My own coding rule calls a check
+      that only if its number takes one value across everything I ship. Across all
+      123 cells the spread takes six values, so since 19 November 2026 the coding no
+      longer marks it that way, though it still cannot fail on the 118. I
       keep the short name so old links work, and the long name should not be used.
 \item \textbf{The entry checks are barely covered by my own tests.} The full check
       is never run on a real registered family anywhere in the test suite. The two

@@ -45,7 +45,9 @@ def test_registered():
             "0.7, outside the +/-0.256 smoke band; 0.9 is admitted. proxy_matched passes, so the "
             "proxy is matched in mean and mismatched in late-window density. Before the horizon fix "
             "every tier reported DEGENERATE. Fixing this means matching the proxy's shape at the "
-            "two lower tiers."
+            "two lower tiers. The full ledger (2026-11-19, +/-0.10) admits no tier: it fails "
+            "proxy_distribution_matched at all three, and proxy_matched at 0.9 (mean L0 AUROC "
+            "0.6623) and 0.7 (0.5615, 90% CI [0.5117, 0.6113])."
         ),
     ),
     ids=difficulty_id,

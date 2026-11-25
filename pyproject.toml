@@ -44,7 +44,14 @@ mujoco = ["gymnasium[mujoco]>=1.0,<2", "mujoco>=3,<4"]
 # PettingZoo core as of PettingZoo 1.26 -- mpe2 is the current Farama-maintained
 # package; pettingzoo[mpe] is NOT a valid extra. The Tier 1/continuous/mujoco tiers
 # do NOT require it.
-pettingzoo = ["pettingzoo>=1.24,<2", "mpe2>=1.0,<2"]
+# mpe2<1.2: mpe2 1.2.0 (after 2026-11-23) replaces simple_spread_v3 and simple_tag_v3
+# with simple_spread_v4 and simple_tag_v4, and three families import the v3 names
+# (pettingzoo_tacit_collusion_gaming, pettingzoo_free_rider_exploitation,
+# pettingzoo_fixed_opponent_exploitation). A new environment version is a new
+# environment: those families were calibrated, and the admission ledger was certified,
+# under mpe2 1.1.1 (requirements/ci-admission-linux-py312.txt). Moving to 1.2 means
+# porting them to the v4 environments and re-measuring, not bumping this bound.
+pettingzoo = ["pettingzoo>=1.24,<2", "mpe2>=1.0,<1.2"]
 # Interactive leaderboard viewer (space/app.py). Not needed to use the benchmark itself.
 space = ["gradio>=4.0,<7", "huggingface_hub>=0.20,<2", "pandas>=2.0,<4"]
 dev = [

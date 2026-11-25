@@ -26,19 +26,22 @@ no signal above numerical dust (see ``rhob.v3.admission_gate.degeneracy_reason``
 **Six** of the 33 registered families are in that state at every tier they are scored
 at, 30 (family, difficulty) cells in all -- 5 tiers each: ``distributional_shift``,
 ``monitored_sandbagging``, ``orbit_chirality``, ``physics_exploitation``,
-``rlhf_reward_model_overopt`` and ``shortcut_exploitation``. All six measure resolution
-exactly 0.000 on all four L0 statistics, and they split evenly between the two ways of
-being unmeasurable:
+``rlhf_reward_model_overopt`` and ``shortcut_exploitation``. The full ledger of
+2026-11-19, over all 33 families, finds these six and no others. Five of them measure
+resolution exactly 0.000 on all four L0 statistics and ``physics_exploitation`` measures
+0.003 to 0.007, and they are unmeasurable in three ways:
 
-- **Nothing in the proxy at all** -- ``distributional_shift`` and
-  ``physics_exploitation`` (relative dispersion exactly 0.0), ``orbit_chirality``
-  (1.4e-16) and ``rlhf_reward_model_overopt`` (1.6e-16), i.e. a constant to within one
-  ULP.
+- **Nothing in the proxy at all** -- ``distributional_shift`` (relative dispersion
+  exactly 0.0), ``orbit_chirality`` (1.1e-16) and ``rlhf_reward_model_overopt``
+  (1.6e-16 to 2.4e-16), i.e. a constant to within one ULP, below the informativeness
+  floor.
+- **Almost nothing** -- ``physics_exploitation`` (3.3e-4): above the floor, but so
+  nearly constant that the L0 statistics order under 1% of the cross-variant pairs.
 - **A varied proxy that is the same in every run** -- ``monitored_sandbagging``
   (dispersion 1.00) and ``shortcut_exploitation`` (3.0-4.4). There is plenty in the
   stream; none of it distinguishes one run from another, so every cross-variant pair
-  ties anyway. An informativeness criterion alone would pass these two, which is why
-  the gate asks both questions.
+  ties anyway. An informativeness criterion alone would pass these two and
+  ``physics_exploitation``, which is why the gate asks both questions.
 
 Is such a family a legitimate RHOB family at all? Our answer, and the reason the ledger
 segregates rather than merely fails these cells: **it is a legitimate hacking family and
@@ -59,7 +62,10 @@ That exclusion is not a promise this document makes and nothing keeps: it is
 implemented in ``rhob.v3.leaderboard.access_summary.summarize_access_levels``, whose
 ``degenerate_families`` argument holds those six out of the L0 rung and reports the
 withheld set and the with-degenerate figure alongside, and it is fed from the
-``degenerate_families`` block this script writes.
+``degenerate_families`` block this script writes. DEGENERATE is the only status it holds
+out: the cells this ledger measures NOT ADMITTED (51 of 123 on 2026-11-19, against 42
+ADMITTED and 30 DEGENERATE) stay in the L0 mean, and whether they should is an open
+question for the author (``ROADMAP.md``).
 
 Usage
 -----
@@ -157,7 +163,26 @@ def collect_provenance(
             block["packages"][name] = metadata.version(name)
         except metadata.PackageNotFoundError:
             block["packages"][name] = None
+    block["cpu"] = _cpu_model()
     return block
+
+
+def _cpu_model() -> str | None:
+    """The CPU model, recorded because floating-point results can differ between models.
+
+    A sharded ledger certifies its cells on different machines; this is what lets a
+    reader see whether they were the same kind of machine.
+    """
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    import platform
+
+    return platform.processor() or None
 
 
 def run_ledger(
@@ -336,14 +361,24 @@ def render_markdown(payload: dict[str, Any]) -> str:
     out.append(f"- Generated: {prov['generated_utc']}")
     out.append(f"- Commit: `{git['commit']}` (branch `{git['branch']}`, "
                f"working tree {'dirty' if git['dirty'] else 'clean'})")
-    out.append(f"- Python: {prov['python']} on {prov['platform']}")
+    sharding = prov.get("sharding")
+    platforms = ", ".join(sharding["platforms"]) if sharding else prov["platform"]
+    out.append(f"- Python: {prov['python']} on {platforms}")
+    if sharding:
+        cpus = ", ".join(c or "unknown" for c in sharding.get("cpus", [])) or "unknown"
+        out.append(
+            f"- Sharded: merged from {sharding['n_shards']} single-cell runs, generated "
+            f"{sharding['generated_utc_first']} to {sharding['generated_utc_last']}, on "
+            f"CPUs: {cpus}" + (f"; CI run {sharding['ci_run']}" if sharding.get("ci_run") else "")
+        )
+        out.append(f"- Each shard ran: `{sharding['shard_command']}`")
     out.append(
         "- Packages: "
         + ", ".join(
             f"{k} {v if v else 'not installed'}" for k, v in sorted(prov["packages"].items())
         )
     )
-    out.append(f"- Command: `{' '.join(prov['argv'])}`")
+    out.append(f"- {'Merge command' if sharding else 'Command'}: `{' '.join(prov['argv'])}`")
     out.append("")
 
     out.append("## Gate configuration")
@@ -486,9 +521,35 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "are listed apart from the failures because the two are different findings: a "
         "failure says the proxy leaks and points at the environment to fix, a degenerate "
         "cell says the proxy carries no information and there is nothing to read either "
-        "way."
+        "way. A failure on a proxy criterion also covers an equivalence test that could "
+        "not establish matching within the margin at this design (a TOST failure): the "
+        "point estimate is inside the band and its interval is not."
     )
     out.append("")
+    # The split the sentence above implies, counted rather than asserted. Same test as
+    # ``admission_gate._check_proxy_matched`` uses to mark a failure underpowered. The
+    # ``admission/ADMISSION_LEDGER.md`` committed in d4b700d (2026-11-19) was rendered
+    # before this sentence and this split were added. It was later re-rendered from the
+    # same committed JSON with this function, with no new rollouts, and now reads 24
+    # measured failures, 8 outside the band and 16 inside.
+    pm_fails = [
+        r["metrics"]["proxy_matched"]
+        for r in rows
+        if r["outcomes"].get("proxy_matched") == "fail"
+        and "mean_l0_auroc" in r["metrics"].get("proxy_matched", {})
+    ]
+    if pm_fails:
+        margin, alpha = gate["equivalence_margin"], gate["alpha"]
+        n_inside = sum(
+            1 for m in pm_fails if abs(m["mean_l0_auroc"] - 0.5) < m.get("margin", margin)
+        )
+        out.append(
+            f"Of the {len(pm_fails)} measured `proxy_matched` failures here, "
+            f"{len(pm_fails) - n_inside} have a point estimate outside "
+            f"[{0.5 - margin:.2f}, {0.5 + margin:.2f}] and {n_inside} a point estimate "
+            f"inside it with a {100 * (1 - 2 * alpha):.0f}% CI that is not."
+        )
+        out.append("")
     if not degenerate_rows:
         out.append("None.")
         out.append("")
@@ -560,10 +621,18 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
     out.append("## Wall clock")
     out.append("")
-    out.append(
-        "Machine-dependent; the only non-reproducible part of this artifact. Recorded so "
-        "the cost of a full re-run is knowable in advance."
-    )
+    if prov.get("sharding"):
+        out.append(
+            "Machine-dependent; the only non-reproducible part of this artifact. This ledger "
+            "was certified one cell per machine, so each figure sums a family's per-cell "
+            "process wall-clock on separate runners. Every shard repeats per-process setup, "
+            "so this is neither the run's elapsed time nor the cost of one unsharded re-run."
+        )
+    else:
+        out.append(
+            "Machine-dependent; the only non-reproducible part of this artifact. Recorded so "
+            "the cost of a full re-run is knowable in advance."
+        )
     out.append("")
     out.append("| family | seconds | tiers |")
     out.append("|---|---|---|")
@@ -620,11 +689,279 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-bootstrap", type=int, default=2000, help="bootstrap resamples")
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR, help="artifact directory")
     p.add_argument("--quiet", action="store_true", help="suppress per-cell progress")
+    p.add_argument(
+        "--list-cells",
+        action="store_true",
+        help="print the full grid as a JSON list of {family, difficulty} and exit "
+        "(the shard list for .github/workflows/regenerate.yml)",
+    )
+    p.add_argument(
+        "--merge-shards",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="assemble the full ledger from single-cell runs under DIR (each one "
+        "`--families F --difficulties D`) instead of certifying anything; see merge_shards",
+    )
+    p.add_argument(
+        "--allow-cell-errors",
+        action="store_true",
+        help="with --merge-shards, publish cells whose certification raised as NOT ADMITTED "
+        "rows instead of refusing the merge",
+    )
     return p
 
 
+def ledger_grid(names: list[str] | None = None) -> list[tuple[str, float]]:
+    """Every ``(family, difficulty)`` cell a full run certifies, in the order it writes them.
+
+    The same iteration as :func:`run_ledger` with no ``--difficulties`` override: registry
+    order, then each family's ``default_difficulties()``, skipping a tier outside the
+    family's own range exactly as ``run_ledger`` does.
+    """
+    cells: list[tuple[str, float]] = []
+    for name in names if names is not None else FamilyRegistry.list_families():
+        family = FamilyRegistry.get(name)
+        lo, hi = family.difficulty_range()
+        for difficulty in family.default_difficulties():
+            if lo - 1e-9 <= difficulty <= hi + 1e-9:
+                cells.append((name, float(difficulty)))
+    return cells
+
+
+def build_payload(
+    rows: list[dict[str, Any]], timing: dict[str, float], provenance: dict[str, Any]
+) -> dict[str, Any]:
+    """The ledger artifact, from its cells, their per-family wall-clock and a provenance block."""
+    # The design block is identical across cells (the gate is configured once), so read it
+    # off the first successful certificate rather than duplicating the derivation.
+    return {
+        "schema": "rhob.admission_ledger/1",
+        "provenance": provenance,
+        "design": next((r["design"] for r in rows if r["design"]), {}),
+        # Three per-criterion counts, not one, because the tri-state exists precisely so
+        # that "we measured this and it is wrong" and "we could not measure it" stay
+        # apart -- and a field called `n_failing_by_criterion` that counted both re-merged
+        # them at the last step, publishing `proxy_matched: 15` for a criterion with zero
+        # measured failures. Each name now says exactly which question it answers, and
+        # `n_not_established_by_criterion` (the sum of the other two) is the one that maps
+        # to `criteria[c] is False`.
+        "summary": {
+            "n_cells": len(rows),
+            "n_admitted": sum(1 for r in rows if r["passed"]),
+            "n_degenerate": sum(1 for r in rows if r["degenerate_criteria"]),
+            "n_not_admitted": sum(1 for r in rows if r["status"] == "NOT ADMITTED"),
+            "n_failed_by_criterion": {
+                c: sum(1 for r in rows if r["outcomes"][c] == CriterionOutcome.FAIL)
+                for c in CRITERIA
+            },
+            "n_degenerate_by_criterion": {
+                c: sum(1 for r in rows if r["outcomes"][c] == CriterionOutcome.DEGENERATE)
+                for c in CRITERIA
+            },
+            "n_not_established_by_criterion": {
+                c: sum(1 for r in rows if not r["criteria"][c]) for c in CRITERIA
+            },
+            "degenerate_families": sorted(
+                {r["family"] for r in rows if r["degenerate_criteria"]}
+            ),
+        },
+        "results": rows,
+        "timing_seconds": timing,
+    }
+
+
+def write_artifacts(payload: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
+    """Write ``admission_ledger.json`` and ``ADMISSION_LEDGER.md`` into ``out_dir``."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "admission_ledger.json"
+    md_path = out_dir / "ADMISSION_LEDGER.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    md_path.write_text(render_markdown(payload), encoding="utf-8")
+    return json_path, md_path
+
+
+class ShardError(ValueError):
+    """A set of shards that does not add up to one ledger."""
+
+
+def _shard_environment(prov: dict[str, Any]) -> dict[str, Any]:
+    """The parts of a shard's provenance that must agree across every shard."""
+    git = prov.get("git") or {}
+    return {
+        "commit": git.get("commit"),
+        "python": prov.get("python"),
+        "python_implementation": prov.get("python_implementation"),
+        "packages": prov.get("packages"),
+        "gate": prov.get("gate"),
+    }
+
+
+def merge_shards(
+    shard_dir: Path, families: list[str] | None = None, allow_cell_errors: bool = False
+) -> dict[str, Any]:
+    """Assemble the full-grid ledger from single-cell runs under ``shard_dir``.
+
+    Each shard is the ``admission_ledger.json`` of one ``--families F --difficulties D``
+    run, so the grid can be certified on many machines at once
+    (``.github/workflows/regenerate.yml``). The result is the artifact a single full run
+    would have written, because a cell does not depend on what else was in the run:
+    :meth:`AdmissionGate.certify` draws every layout seed from a generator re-seeded at
+    ``_RNG_SEED`` for each cell, and nothing else carries state between cells.
+
+    Refused, rather than merged, unless the shards are exactly the full grid -- every
+    cell once, none extra -- and were all produced from one clean commit under one Python
+    and one set of package versions with one gate configuration. A partial merge would
+    publish a ledger labelled complete that is not, and a mixed-environment merge one
+    whose cells were not measured under the same physics (the MuJoCo 4 failure,
+    docs/postmortems/2026-11-mujoco-calibration-cache.md).
+
+    What does differ from a single run, and is recorded under ``provenance.sharding``:
+    ``generated_utc`` is the latest shard's; cells may be certified on different CPU
+    models and platforms, all listed there (``provenance.cpu`` and ``.platform`` are then
+    null); and ``timing_seconds`` sums each family's per-cell wall-clock measured on
+    separate machines. "The artifact a single full run would have written" holds on one
+    CPU model: numpy's SIMD dispatch and OpenBLAS's kernels depend on the CPU, so a cell
+    certified on another model can differ in its last digits.
+
+    ``families`` narrows the expected grid to those families (tests use it to merge a
+    cheap subset); the ledger is then labelled incomplete unless they are all registered.
+
+    A cell whose certification raised is a legitimate ledger row (``run_ledger`` records
+    it as NOT ADMITTED with its ``error``), but on a sharded run it is as likely to be one
+    machine's failure as the family's, so it is refused unless ``allow_cell_errors``.
+    """
+    import copy
+    import os
+
+    paths = sorted(shard_dir.rglob("admission_ledger.json"))
+    if not paths:
+        raise ShardError(f"no admission_ledger.json under {shard_dir}")
+
+    by_cell: dict[tuple[str, float], tuple[Path, dict[str, Any]]] = {}
+    for path in paths:
+        shard = json.loads(path.read_text(encoding="utf-8"))
+        if shard.get("schema") != "rhob.admission_ledger/1":
+            raise ShardError(f"{path}: schema {shard.get('schema')!r}, not a ledger")
+        if len(shard.get("results", [])) != 1:
+            raise ShardError(
+                f"{path}: {len(shard.get('results', []))} cells; a shard is exactly one cell"
+            )
+        row = shard["results"][0]
+        key = (row["family"], round(float(row["difficulty"]), 6))
+        scope = shard["provenance"].get("scope") or {}
+        if scope.get("families_run") != [row["family"]] or [
+            round(float(d), 6) for d in scope.get("difficulty_override") or []
+        ] != [key[1]]:
+            raise ShardError(f"{path}: its scope does not name its own cell {key}")
+        if key in by_cell:
+            raise ShardError(f"{path}: cell {key} already supplied by {by_cell[key][0]}")
+        by_cell[key] = (path, shard)
+
+    expected = [(name, round(d, 6)) for name, d in ledger_grid(families)]
+    missing = [k for k in expected if k not in by_cell]
+    extra = sorted(set(by_cell) - set(expected))
+    if missing or extra:
+        raise ShardError(
+            f"shards are not the full grid: {len(missing)} missing {missing[:5]}, "
+            f"{len(extra)} not in the grid {extra[:5]}"
+        )
+
+    ordered = [by_cell[k] for k in expected]
+    ref_path, ref = ordered[0]
+    ref_env = _shard_environment(ref["provenance"])
+    if not ref_env["commit"]:
+        raise ShardError(f"{ref_path}: no git commit recorded")
+    for path, shard in ordered:
+        prov = shard["provenance"]
+        if (prov.get("git") or {}).get("dirty") is not False:
+            raise ShardError(f"{path}: produced from a dirty or unknown tree")
+        env = _shard_environment(prov)
+        for field, value in env.items():
+            if value != ref_env[field]:
+                raise ShardError(
+                    f"{path}: {field} differs from {ref_path} ({value!r} vs {ref_env[field]!r})"
+                )
+    designs = {
+        json.dumps(s["results"][0]["design"], sort_keys=True)
+        for _, s in ordered
+        if s["results"][0]["design"]
+    }
+    if len(designs) > 1:
+        raise ShardError(f"shards disagree on the sampling design: {len(designs)} variants")
+
+    rows = [shard["results"][0] for _, shard in ordered]
+    errors = [(r["family"], r["difficulty"], r["error"]) for r in rows if r.get("error")]
+    if errors and not allow_cell_errors:
+        raise ShardError(f"{len(errors)} cell(s) raised, e.g. {errors[0]}; rerun those "
+                         "shards, or pass --allow-cell-errors to publish them as rows")
+    families = list(dict.fromkeys(name for name, _ in expected))
+    timing = {name: 0.0 for name in families}
+    for _, shard in ordered:
+        for name, seconds in shard["timing_seconds"].items():
+            timing[name] += float(seconds)
+
+    stamps = sorted(s["provenance"]["generated_utc"] for _, s in ordered)
+    provenance = copy.deepcopy(ref["provenance"])
+    provenance["generated_utc"] = stamps[-1]
+    provenance["argv"] = list(sys.argv)
+    # One shard's machine is not the ledger's: every cell's machine is listed under
+    # `sharding`, so the single-machine fields are emptied rather than left naming one.
+    provenance["platform"] = None
+    provenance["cpu"] = None
+    provenance["scope"] = {
+        "families_run": families,
+        "families_registered": len(FamilyRegistry.list_families()),
+        "complete": families is None or sorted(families) == FamilyRegistry.list_families(),
+        "difficulty_override": None,
+    }
+    ci_run = None
+    if os.environ.get("GITHUB_RUN_ID"):
+        ci_run = (
+            f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+            f"{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/"
+            f"{os.environ['GITHUB_RUN_ID']}"
+        )
+    provenance["sharding"] = {
+        "unit": "one (family, difficulty) cell per run",
+        "n_shards": len(ordered),
+        "generated_utc_first": stamps[0],
+        "generated_utc_last": stamps[-1],
+        "platforms": sorted({s["provenance"].get("platform") for _, s in ordered}),
+        "cpus": sorted({s["provenance"].get("cpu") or "" for _, s in ordered}),
+        "shard_command": (
+            "python scripts/admission_ledger.py --families F --difficulties D --out-dir DIR"
+        ),
+        "timing_seconds": "sum of each family's per-cell wall-clock, on separate machines",
+        "ci_run": ci_run,
+    }
+    return build_payload(rows, timing, provenance)
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.list_cells:
+        print(json.dumps([{"family": f, "difficulty": d} for f, d in ledger_grid()]))
+        return 0
+    if args.merge_shards is not None:
+        if args.families != "all" or args.difficulties is not None:
+            parser.error("--merge-shards takes no --families or --difficulties")
+        try:
+            payload = merge_shards(args.merge_shards, allow_cell_errors=args.allow_cell_errors)
+        except ShardError as exc:
+            print(f"refusing to merge: {exc}", file=sys.stderr)
+            return 1
+        json_path, md_path = write_artifacts(payload, args.out_dir)
+        summary = payload["summary"]
+        print(
+            f"merged {payload['provenance']['sharding']['n_shards']} shards: "
+            f"{summary['n_admitted']}/{summary['n_cells']} cells admitted, "
+            f"{summary['n_degenerate']} degenerate; wrote {_display_path(json_path)} and "
+            f"{_display_path(md_path)}"
+        )
+        return 0
 
     gate = AdmissionGate(
         n_layouts=args.n_layouts,
@@ -650,55 +987,15 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
 
+    # Before certifying, so an unwritable --out-dir fails now rather than after the first
+    # family's work.
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    json_path = args.out_dir / "admission_ledger.json"
-    md_path = args.out_dir / "ADMISSION_LEDGER.md"
 
     def write(rows: list[dict[str, Any]], timing: dict[str, float]) -> dict[str, Any]:
-        # The design block is identical across cells (the gate is configured once), so
-        # read it off the first successful certificate rather than duplicating the
-        # derivation. `families_run` reflects what has actually been certified so far,
-        # so a partially-written ledger is labelled partial rather than overclaiming.
-        payload = {
-            "schema": "rhob.admission_ledger/1",
-            "provenance": collect_provenance(gate, list(timing), difficulties),
-            "design": next((r["design"] for r in rows if r["design"]), {}),
-            # Three per-criterion counts, not one, because the tri-state exists precisely
-            # so that "we measured this and it is wrong" and "we could not measure it"
-            # stay apart -- and a field called `n_failing_by_criterion` that counted both
-            # re-merged them at the last step, publishing `proxy_matched: 15` for a
-            # criterion with zero measured failures. Each name now says exactly which
-            # question it answers, and `n_not_established_by_criterion` (the sum of the
-            # other two) is the one that maps to `criteria[c] is False`.
-            "summary": {
-                "n_cells": len(rows),
-                "n_admitted": sum(1 for r in rows if r["passed"]),
-                "n_degenerate": sum(1 for r in rows if r["degenerate_criteria"]),
-                "n_not_admitted": sum(
-                    1 for r in rows if r["status"] == "NOT ADMITTED"
-                ),
-                "n_failed_by_criterion": {
-                    c: sum(1 for r in rows if r["outcomes"][c] == CriterionOutcome.FAIL)
-                    for c in CRITERIA
-                },
-                "n_degenerate_by_criterion": {
-                    c: sum(1 for r in rows if r["outcomes"][c] == CriterionOutcome.DEGENERATE)
-                    for c in CRITERIA
-                },
-                "n_not_established_by_criterion": {
-                    c: sum(1 for r in rows if not r["criteria"][c]) for c in CRITERIA
-                },
-                "degenerate_families": sorted(
-                    {r["family"] for r in rows if r["degenerate_criteria"]}
-                ),
-            },
-            "results": rows,
-            "timing_seconds": timing,
-        }
-        json_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8"
-        )
-        md_path.write_text(render_markdown(payload), encoding="utf-8")
+        # `families_run` reflects what has actually been certified so far, so a
+        # partially-written ledger is labelled partial rather than overclaiming.
+        payload = build_payload(rows, timing, collect_provenance(gate, list(timing), difficulties))
+        write_artifacts(payload, args.out_dir)
         return payload
 
     rows, timing = run_ledger(
@@ -715,7 +1012,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"\n{summary['n_admitted']}/{summary['n_cells']} cells admitted, "
         f"{summary['n_degenerate']} degenerate (unmeasurable, not counted as evidence); "
-        f"wrote {_display_path(json_path)} and {_display_path(md_path)}"
+        f"wrote {_display_path(args.out_dir / 'admission_ledger.json')} and "
+        f"{_display_path(args.out_dir / 'ADMISSION_LEDGER.md')}"
     )
     return 0
 

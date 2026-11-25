@@ -63,9 +63,9 @@ The L0 and L1 rows are measured in `before` only, and marked `n/a` elsewhere rat
 
 ## Reproduction of the pre-audit figures
 
-The `after` number is only worth anything if `before` lands on the published figures it replaces. The committed board is a 33-family mean; recomputed over exactly the families measured here it reads:
+The `after` number is only worth anything if `before` lands on the published figures it replaces. The pre-audit board is a 33-family mean; recomputed over exactly the families measured here it reads:
 
-| detector | committed board (same families) | this run, `before` |
+| detector | pre-audit board (same families) | this run, `before` |
 | --- | --- | --- |
 | Behavioral Threshold | 0.9728 | 0.9749 |
 | Centroid Tracker | 0.9619 | 0.9638 |
@@ -76,7 +76,18 @@ The `after` number is only worth anything if `before` lands on the published fig
 | Feature Consistency | 0.5013 | 0.5135 |
 | **L2 suite mean** | **0.7148** | **0.7229** |
 
-Committed best at L2: **Behavioral Threshold 0.9728**; this run's `before` best: **Behavioral Threshold 0.9749**.
+Pre-audit best at L2: **Behavioral Threshold 0.9728**; this run's `before` best: **Behavioral Threshold 0.9749**.
+
+*(2026-11-19: this file was re-rendered from its committed JSON with the script's
+`render_markdown`, the renderer its `report` subcommand calls, with no new rollouts; the
+three lines above that name the board said "committed board" and now say
+"pre-audit board". The JSON's `reproduction_check.published_board` names
+`leaderboard/v5_leaderboard.json`, which held the pre-audit board when this was measured
+and committed (`b77d50d`, 2026-08-03); its `published_board_note`, "the committed board
+records no sampling block", is about that board too. That path was regenerated on
+2026-11-19 (`52656cb`) with sign randomization on, and Behavioral Threshold reads 0.512
+there. The board compared here is the pre-audit one, `git show
+c54a8cc:leaderboard/v5_leaderboard.json`, identical to the file at `acd35c2`.)*
 
 Published RTS against this run's `before` RTS:
 

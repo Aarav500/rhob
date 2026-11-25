@@ -35,8 +35,10 @@ question; the rest is a reviewer's job.
 
 Historical statements are not policed and must not be: the docs legitimately describe
 what the *first* ledger measured, and rewriting history to match the current artifact
-would be worse than the drift. Check 1 anchors on lines that state the current triple,
-so a sentence about an earlier ledger is simply not one of them.
+would be worse than the drift. Check 4 skips a paragraph that marks itself historical
+(``_HISTORICAL``). Check 1 has no such exemption: it reads every line that states a
+triple, so a line recording an earlier ledger's triple has to carry the current one
+beside it, as the dated entries in ``CHANGELOG.md`` do.
 """
 
 from __future__ import annotations
@@ -204,10 +206,11 @@ def test_per_criterion_cell_counts_match_the_current_ledger(ledger):
     catches the other shape the drift takes: a per-criterion count quoted in passing,
     which stays quietly wrong for a whole release because nobody re-derives it.
 
-    Deliberately narrow. It fires only on a line that names one of the six criteria
-    *and* makes an "N of M cells" claim, because the docs also count cells against the
-    whole 123-cell benchmark grid and against per-family tiers, and a scan that could
-    not tell those apart would cry wolf until someone deleted it.
+    Deliberately narrow. It fires only on a paragraph that names one of the six criteria
+    *and* makes an "N of M cells" claim, because the docs also count cells against
+    per-family tiers (and, until the ledger grew to the whole 123-cell benchmark grid on
+    2026-11-19, against that grid), and a scan that could not tell those apart would cry
+    wolf until someone deleted it.
     """
     s = ledger["summary"]
     allowed = {s["n_admitted"], s["n_degenerate"], s["n_not_admitted"], s["n_cells"]}

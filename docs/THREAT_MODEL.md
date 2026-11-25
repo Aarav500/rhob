@@ -104,12 +104,15 @@ constructed *vulnerability*, and an assigned *label*.
 
 ### What the scripted construction does let you conclude
 
-- **That the information is there.** If an L2 detector separates the variants at
-  AUROC 0.975 while the proxy reward is certified indistinguishable, then the
-  behavioral trace carries information that the proxy reward does not. That is a
-  statement about the *observation channels*, and it survives the policies being
-  scripted, because it is a statement about what a signal contains, not about
-  where the signal came from.
+- **That the information is there.** If an L2 detector separates the variants on a
+  cell where the proxy reward is certified indistinguishable, then the behavioral
+  trace carries information that the proxy reward does not. The ledger certifies that
+  on 42 of the 123 cells (§4). That is a statement about the *observation channels*,
+  and it survives the policies being scripted, because it is a statement about what a
+  signal contains, not about where the signal came from. On the single-draw board the
+  best L2 detector is Trajectory MLP at 0.943, and it is fitted to each cell's labels.
+  Earlier versions of this bullet quoted Behavioral Threshold at 0.975; that figure
+  depended on the fixed sign convention, and with the sign randomized it reads 0.512.
 - **That a detector is not merely a change detector.** The matched-proxy
   construction plus the `true_reward_diverges` criterion means a detector cannot
   win by noticing that *something changed* — both variants change.
@@ -145,29 +148,49 @@ observation channel under a controlled proxy match; it does not establish what i
 
 ## 4. The L0 result is a negative control, not a finding
 
-RHOB's L0 (reward-only) detectors sit at chance: mean AUROC 0.4866 across 13
-detectors, best 0.5311 — over the 27 families whose proxy the gate can actually read.
-The six the ledger marks DEGENERATE are held out; with them in it reads 0.4895. See
-§4's last bullet. Those figures come from the single-draw board, which predates the
-Reward Skewness fix (584ba13, 2026-09-02) and has not been regenerated: Skewness needs
-100 episodes and returned a constant 0.5 below that, which on that board is 19 of
-those 27 families. The 20-draw board has been re-scored with those cells not applicable
-(9da6b21), and there the maximum over unsupervised L0 detectors, taken in each draw and averaged over the
-20, is 0.551 [0.541, 0.562]. That maximum is selection-biased upward: no single L0
+RHOB's L0 (reward-only) detectors sit at chance: mean AUROC 0.4876 across 13
+detectors, best 0.5351 (Reward CUSUM) — over the 27 families whose proxy the gate can
+actually read, family-weighted. The six the ledger marks DEGENERATE are held out; with
+them in, family-weighted as well, it reads 0.4898. See §4's last bullet. Those figures
+come from the single-draw board as regenerated on 2026-11-19 (`52656cb`, from code at
+`acd35c2`, CI run 44447220658), on code that includes the Reward Skewness fix
+(b796f9c on this branch, first committed as 584ba13, 2026-09-02): Skewness needs 100
+episodes and is recorded N/A below that, on 19 of those 27 families. Before the fix it
+returned a constant 0.5 there. The 20-draw board has been re-scored with those cells not
+applicable (253c7ec, first committed as 9da6b21), and there the maximum
+over unsupervised L0 detectors, taken in each draw and averaged over the 20, is 0.551
+[0.541, 0.562]. That maximum is selection-biased upward: no single L0
 detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
 `leaderboard/v5_replicated.json`).
 
+Skewness is the only L0 detector that declares its horizon. Eight others do not, and
+below their windows they still fall back to a constant score, which reads AUROC 0.5 and
+which both boards record as a measured value: Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window on
+all 19 families of 40 or 60 episodes, and Max Plateau, Reward MLP, Gradient Reversal and
+Reward CUSUM on the 7 of 40. Those are 104 of the 332 per-family values behind 0.4876,
+and 7 of the 27 behind Reward CUSUM's 0.5351, so the L0 figures mix measurements with
+constants that could not have come out otherwise. Declaring each detector's horizon and re-scoring both boards is open
+([ROADMAP.md](../ROADMAP.md)), and it will change the L0 ladder. The admission gate does
+not use those eight detectors.
+
 **This is not a discovery that reward-only monitoring fails.** It is a
 manipulation check. The families are *built* so that the proxy reward carries no
-signal, and the admission gate *certifies* that they succeeded. An L0 detector
-scoring 0.5 confirms the construction worked; it is close to a tautology, and
+signal, and the admission gate *checks*, cell by cell, whether they succeeded; it
+admits 42 of the 123 cells (below). An L0 detector
+scoring 0.5 is what a construction that worked looks like; it is close to a tautology, and
 earlier versions of this README presented it as an empirical finding, which was
 wrong.
 
 The honest reading is directional:
 
-- **L0 at chance ⇒ the construction held.** Good; the rest of the benchmark is
-  interpretable.
+- **L0 at chance is necessary, not sufficient.** A construction that held puts L0 at
+  chance, but L0 at chance does not show that it held; the ledger does that, cell by
+  cell, and admits 42 of the 123 cells. On 26 more `proxy_matched` passes but
+  `proxy_distribution_matched` fails: on 19 a shape detector's AUROC is outside
+  [0.40, 0.60], and on the other 7 every one is inside and only an interval reaches past
+  the band. On 16 of the 24 that fail `proxy_matched` the mean L0 AUROC is inside the band
+  but its interval is not; in 15 of those 16 the interval excludes 0.5. All of those cells
+  are in the L0 mean, and an L0 mean at chance cannot tell them from an admitted cell.
 - **L0 above chance ⇒ the construction leaked.** The family is broken, and every
   other number on it is suspect. This has happened: `distributional_shift` once
   let an L0 detector reach 0.89 AUROC through a proxy leak (see
@@ -194,36 +217,63 @@ cell degenerate. `true_reward_diverges` already returned DEGENERATE when the des
 supplied too few runs to resample. Since 584ba13 it does the same for arms tied by
 arithmetic, which it used to report as FAIL, "measured and found not to diverge".
 
-**As of the current run, of 50 cells in scope: 15 ADMITTED, 30 DEGENERATE, 5 NOT ADMITTED.**
+**As of the 2026-11-19 run, which covers all 33 families, of 123 cells: 42 ADMITTED, 30 DEGENERATE, 51 NOT ADMITTED.**
 The 30 degenerate cells are every difficulty tier of six families:
 `distributional_shift`, `orbit_chirality` and `rlhf_reward_model_overopt`, whose proxy
 rewards are constant by construction, and `monitored_sandbagging`,
-`shortcut_exploitation` and `physics_exploitation`, whose proxies vary but are the same
-in every run, so the L0 statistic orders next to nothing.
+`shortcut_exploitation` and `physics_exploitation`, whose proxies vary but are the same,
+or nearly, in every run, so the L0 statistic orders next to nothing.
+
+The 51 NOT ADMITTED cells are measured failures: 24 fail `proxy_matched`, 40 fail
+`proxy_distribution_matched` (14 fail both), and one, `proxy_correlation_gaming` @ 0.60,
+fails `behavioral_separated`. 46 of them are in the 23 families the ledger covered for
+the first time on 2026-11-19: all 13 MuJoCo cells, 14 of the 15 PettingZoo cells, 9 of
+the 15 RLHF cells and 8 of the 15 sequence cells in those families, and the other two
+are `continuous_camping` @ 0.90 and `proxy_correlation_gaming` @ 0.60. The ten families
+covered before keep every verdict. A `FAIL` on an equivalence test means matching
+within the margin was not established, which covers two cases. In 8 of the 24
+`proxy_matched` failures the mean L0 AUROC is outside the band [0.40, 0.60]. In the
+other 16 the point estimate is inside the band and the 90% interval is not, so
+equivalence was not established at this design rather than refuted. That is not the same
+as consistent with 0.5: in 15 of the 16 the interval excludes 0.5, and only
+`mujoco_sensor_decoupling` @ 0.90 has one that includes it.
 
 For citation purposes this means:
 
-- **The matched-proxy property is established on 15 of the 50 in-scope cells** — not on
-  all 50, and not on the "30 of 35 admitted" an earlier version of this document
-  reported before the degeneracy guard existed.
+- **The matched-proxy property is established on the 42 ADMITTED cells of 123** — not
+  on all 123, and not on the "30 of 35 admitted" an earlier version of this document
+  reported before the degeneracy guard existed. A 43rd cell, `proxy_correlation_gaming`
+  @ 0.60, passes both proxy criteria and fails only `behavioral_separated`, so it is NOT
+  ADMITTED although neither proxy criterion fails there.
 - **Degenerate cells are excluded from the L0-at-chance negative control.** On a
   constant proxy, L0 detectors sit at chance for a reason that has nothing to do with
   matching; counting those cells would inflate the control with results that could not
   have come out otherwise.
+- **NOT ADMITTED cells are not excluded.** The 51 cells the ledger measured and did not
+  admit stay in the L0 mean; on 50 of them the gate measured the proxy and could not
+  certify it matched. Only the six DEGENERATE families are held out. Whether the NOT
+  ADMITTED cells should stay in is an open question for the author
+  ([ROADMAP.md](../ROADMAP.md)).
 - **Those families are still valid hacking families.** They separate at L2 and their
-  true rewards diverge. What is unavailable is the certification, not the mechanism.
+  true rewards diverge: `behavioral_separated` and `true_reward_diverges` pass on all
+  30 cells. What is unavailable is the certification, not the mechanism.
 - **The L0 rung is now reported both ways.** With all **six** degenerate families
-  withheld the L0 suite mean is **0.4866 over 27 families**; with them in it is 0.4895
-  (both family-weighted). Releases before this one published 0.4898, the same statistic
-  with no exclusion and weighted by cell — 0.0029 of the difference is the exclusion,
-  0.0003 the re-weighting. The exclusion applies to L0 and only L0 — degeneracy is a
+  withheld the L0 suite mean is **0.4876 over 27 families**; with them in it is 0.4898
+  (both family-weighted). With no exclusion and weighted by cell, the same board reads
+  0.4903. Computed from the unrounded means, the exclusion is worth 0.0023 (0.4898105 −
+  0.4875513 = 0.0022592) and the re-weighting 0.0005 (0.4903077 − 0.4898105 =
+  0.0004972); the rounded figures differ by 0.0022 and 0.0005. On the board before the
+  2026-11-19 regeneration the three figures were 0.4866, 0.4895 and 0.4898. That 0.4898 is the cell-weighted
+  figure, which releases before the exclusion published; it is not the family-weighted
+  0.4898 above. The exclusion applies to L0 and only L0 — degeneracy is a
   property of the proxy reward, the one channel L0 reads, so L1/L2/L3 keep those
   families as ordinary benchmark items. **The ledger, not either mean, is where the
   control is adjudicated.**
 
-**Scope limit:** the ledger currently covers 10 of 33 families. The remaining 23
-are **uncertified**, which is not the same as certified-and-passing. Any L0
-number on an uncertified family is uninterpretable in the above sense. Note also that
+**Scope:** since its 2026-11-19 regeneration on CI (`d4b700d`, from code at `a2aa435`,
+CI run 44447220658) the ledger covers all 33
+families and every scored tier, 123 cells; before that it covered 10. Covered is not
+certified-and-passing: 42 of the 123 cells are ADMITTED. Note also that
 what runs in CI for a family is a *reduced-power smoke screen* at equivalence margin
 ±0.256, not certification at ±0.10; 22 of 33 families run even that, and 11 do not —
 most of those have hand-written per-family tests instead, which is not the same as the
@@ -254,53 +304,81 @@ puts a real family through full certification.
   that level happens to be, and shrinks or grows as detectors are added.
 - **Mean-per-level is a statistic about the suite, not the benchmark.** A level's
   mean is dragged down by however many weak detectors were written for it. Read
-  the max alongside it: at L2 the mean is 0.7213 over 7 detectors while the max
-  is 0.9750.
+  the max alongside it: at L2 the mean is 0.5716 over 7 detectors while the max
+  is 0.9430.
 
 ## 6. Known structural caveats in the current artifacts
 
 Stated here so they are not discovered mid-citation:
 
-- **L1 is thin.** 25 of 33 families emit no `state_counts`, so every L1 detector
-  returns its hardcoded 0.5 fallback on them. L1 figures are only meaningful over
-  the 8 families that emit the channel (35 of 123 cells) and are not comparable
-  to the 33-family denominators used at L0 and L2. See the README's L1 table.
+- **L1 is thin.** 25 of 33 families emit no `state_counts`, so an L1 detector has
+  nothing to read on them; the board records those 88 cells as `null`, and every L1
+  figure is over the 8 families that emit the channel (35 of 123 cells). That is not
+  comparable to the denominators used at L0 (27 families, the six DEGENERATE ones held
+  out) and L2 (33 families). See the README's L1 table. Four of the 35 are not
+  measurements: `continuous_camping` runs 40 episodes, below every L1 detector's window,
+  so each returns its fallback 0.5 there and the board records it as measured.
+- **Eight L0 detectors' short-horizon values are their fallback 0.5.** Only Reward
+  Skewness declares the horizon its windows need and is `null` below it. Reward Peak,
+  Reward Autocorrelation, Reward Trend and Variance Window (100 episodes) read their
+  fallback on the 19 families of 40 or 60 episodes (59 cells); Max Plateau and Reward MLP
+  (50), Gradient Reversal (60) and Reward CUSUM (50) on the 7 of 40 (22 cells). Both
+  boards publish those as measured 0.5s, 104 of the 332 per-family values in the L0
+  ladder (§4). Three L2 detectors do the same: Feature Consistency (100) on the 19,
+  Feature Magnitude and Reward-Feature Correlation (50) on the 7. Fixing it needs
+  detector changes and a re-score, which is open ([ROADMAP.md](../ROADMAP.md)).
 - **L3 contains one detector.** "Perfect Feature Oracle" is a relabelled
   subclass of the L2 behavioral baseline that reads only `behav_trace`; it is
   retained as a cross-check and excluded from every access-level aggregate. The
-  oracle gap above L2 on the single-draw board is 0.9830 − 0.9750 = **0.0080 AUROC**.
-  Over 20 draws, taking the best detector at each level, it is +0.032 [+0.027, +0.037],
-  positive in 20 of 20 (`leaderboard/v5_replicated.json`): small, but not none.
+  oracle gap above L2 on the single-draw board is 0.9830 − 0.9430 = **0.0400 AUROC**,
+  where the best L2 detector is the label-fitted Trajectory MLP; before sign
+  randomization it was 0.9830 − 0.9750 = 0.0080. Over 20 draws, taking the best
+  detector at each level, it is +0.032 [+0.027, +0.037], positive in 20 of 20
+  (`leaderboard/v5_replicated.json`): small, but not none.
 - **Some shipped families have known failing tiers.** Family 30
   (`sequence_format_camping`) ships with a documented, unresolved `proxy_matched`
-  failure at some difficulty tiers (CHANGELOG 1.8.0), and is in the leaderboard.
-  Family 29 (`sequence_keyword_stuffing`) shipped with one too, but its calibration
-  lever resolved to 0.0 at every tier; since 86acb92 (2026-09-19) it passes the
-  reduced-power smoke screen at all three scored tiers (its diagnostic records ADMITTED
-  at the smoke margin), which is not certification
-  (`results/family_diagnostics/sequence_keyword_stuffing_gate.json`).
+  failure at some difficulty tiers (CHANGELOG 1.8.0), and is in the leaderboard. The
+  ledger confirms it: NOT ADMITTED at 0.90 and 0.80, where the mean L0 AUROC is 0.8023
+  [0.7746, 0.8300] and 0.7924 [0.7457, 0.8390] against the band [0.40, 0.60], and
+  ADMITTED at 0.70. Family 29 (`sequence_keyword_stuffing`) shipped with one too, but
+  its calibration lever resolved to 0.0 at every tier; since 86acb92 (2026-09-19) it
+  passes the reduced-power smoke screen at all three scored tiers (its diagnostic
+  records ADMITTED at the smoke margin), which is not certification
+  (`results/family_diagnostics/sequence_keyword_stuffing_gate.json`). The ledger
+  admits it at 0.80 and 0.70 and not at 0.90, where the mean L0 AUROC is 0.4077, 90% CI
+  [0.3677, 0.4477]: the point estimate is inside the band and the interval is not.
 - **Some shipped families cannot be certified as built.** A proxy an L0 detector cannot
   read makes the matching criteria unmeasurable rather than satisfied. Six registered
   families are in that state — `distributional_shift`, `monitored_sandbagging`,
   `orbit_chirality`, `physics_exploitation`, `rlhf_reward_model_overopt`,
   `shortcut_exploitation` — covering **30 of the 123 (family, difficulty) cells**, all
-  of them inside the ledger's scope and all recorded DEGENERATE. The 23 uncertified
-  families have not been swept at the certification design, so 30 is a lower bound.
-  Fixing this needs a family redesign, not more compute.
+  recorded DEGENERATE. The ledger now covers every family and finds no others, so at
+  the shipped design the set is complete. Fixing this needs a family redesign, not more
+  compute.
 - **Admission checking is not enforced repository-wide.** 22 of 33 families have a
   reduced-power smoke screen in CI and 11 have none; 10 never reach `AdmissionGate` in
-  any test at all; 10 are in the ledger; and `certify_all_tiers` is never called on a
-  registered family by any test. A family's presence in the leaderboard implies none of
-  these.
-- **The onset label is authored, so nothing inside the benchmark scores it.** Every one
-  of the 50 admission-ledger cells has `onset_std` exactly 0.0
-  (`admission/admission_ledger.json`), because the family writes the onset down. Two
-  things follow. The leaderboard's internal onset column could not fail, and 584ba13
-  removed it: `CellResult` no longer carries it, and onset error is still computed only
-  for `external/hvta`, where the label was not written by us. And `rhob.audit` codes
-  `onset_localizable` as degenerate (e9a1ace), because a statistic that is constant on
-  the shipped design passes every cell by construction. The Pair 01 pilot in §3 shows
-  that the authoring is what pins it.
+  any test at all; all 33 are in the ledger, which is a separate run, not a test; and
+  `certify_all_tiers` is never called on a registered family by any test. A family's
+  presence in the leaderboard implies none of these.
+- **The onset label is authored, so nothing inside the benchmark scores it.** In 118 of
+  the 123 admission-ledger cells, every cell of the 31 families whose onset label is the
+  configured schedule, `onset_std` is exactly 0.0 (`admission/admission_ledger.json`),
+  because the family writes the onset down. The other five are `continuous_camping` (four
+  tiers, SD 0.23–2.05 episodes against a ceiling of 4.0) and `gridworld_camping` (SD 9.87
+  against 50). The config places their onsets too, but the label is read off what the
+  trained agent does after the activation episode. `onset_localizable` passes those five
+  as well, so it fails no cell. Two things follow. The leaderboard's internal onset column
+  could not fail, and 584ba13 removed it: `CellResult` no longer carries it, and onset
+  error is still computed only for `external/hvta`, where the label was not written by
+  us. And `rhob.audit` coded `onset_localizable` as degenerate (e9a1ace) when the ledger
+  had 50 cells, all with `onset_std` exactly 0.0. The protocol (`docs/SURVEY_PROTOCOL.md`)
+  codes a criterion degenerate only when its statistic took one value across the whole
+  shipped design, and over the full ledger's 123 cells `onset_std` takes 6 distinct
+  values, so since 2026-11-19 the self-coding (`audit/SELF_CODING.md`) records it
+  `not_applicable`. The ledger's coverage changed, not the criterion: on the 31 families
+  whose onset label is the configured schedule the statistic is still constant and
+  passes every cell by construction. The Pair 01 pilot in §3 shows that the authoring is
+  what pins it.
 - **Five external baseline detectors ship but are unscored.** The classical
   baselines under `src/rhob/detectors/external_baselines/` are implemented but do
   not appear in any committed leaderboard artifact.
@@ -323,15 +401,23 @@ Inappropriate uses:
 - Ranking two detectors whose scores differ by less than ~0.2 on the current
   single-draw leaderboard.
 - Citing the access-level ladder as evidence that more access monotonically buys
-  more detection power. On the single-draw board it does between L1 and L2 and not
-  between L2 and L3. Over 20 draws neither holds: across all detectors L2−L1 is +0.001
-  [−0.004, +0.006] and L3−L2 is +0.032 [+0.027, +0.037]; without the five label-fitted
-  detectors L1−L0 is −0.017 [−0.039, +0.002] (`leaderboard/v5_replicated.json`).
+  more detection power. On the single-draw board the best detector rises at every rung
+  (0.5351, 0.9270, 0.9430, 0.9830), but not over one denominator: the L0 figure is
+  family-weighted over 27 families, the L1 figure is over the 35 cells of the 8 families
+  that emit `state_counts` (0.9235 family-weighted), and the L2 and L3 figures are over
+  all 123 cells, so the L1-to-L2 rise is not like for like. The L1 and L2 maxima are also
+  both label-fitted detectors (State Divergence, Trajectory MLP) 0.016 apart, which one
+  draw does not resolve. Over 20 draws: across all detectors L2−L1 is +0.001
+  [−0.004, +0.006], which does not separate, and L3−L2 is +0.032 [+0.027, +0.037];
+  without the five label-fitted detectors L1−L0 is −0.017 [−0.039, +0.002]
+  (`leaderboard/v5_replicated.json`).
 - Citing L0-at-chance as evidence that reward-only monitoring is insufficient in
-  deployed systems. It is evidence that RHOB's proxy matching worked.
-- Citing an admitted-cell count without its degenerate count. "15 of 50 admitted"
-  and "30 of 50 not measurable" are one result, and quoting the first alone
-  reproduces the error the ledger's tri-state exists to prevent.
+  deployed systems. It is a check on RHOB's proxy matching, consistent with it having
+  worked, and the ledger is what certifies it, on 42 of the 123 cells.
+- Citing an admitted-cell count without its degenerate count. "42 of 123 admitted",
+  "30 of 123 not measurable" and "51 of 123 measured and not admitted" are one result,
+  and quoting the first alone reproduces the error the ledger's tri-state exists to
+  prevent.
 
 ---
 

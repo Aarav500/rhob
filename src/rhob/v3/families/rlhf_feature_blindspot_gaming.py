@@ -109,7 +109,9 @@ equivalent investigations):
    independently verified sign-stable per point 2b) and finding most land comfortably
    inside the band while (42, 4242) does not. Switched to ``(_LEGIT_FIT_SEED,
    _HACK_FIT_SEED) = (100, 200)``, found in that sweep, which passes ``proxy_matched``
-   at all three default difficulty tiers.
+   at all three default difficulty tiers. (2026-11-19: that was at the smoke design.
+   The full ledger, in ``admission/ADMISSION_LEDGER.md``, fails ``proxy_matched`` at
+   0.80, mean L0 AUROC 0.4332, 90% CI [0.3841, 0.4822], and admits 0.90 and 0.70.)
 5. Behavioral signal: uses the mean of response dim ``_D - 1`` (the *last* dim, index 7)
    as ``_behav_fn`` -- this dim is hidden for the hacking variant at every difficulty in
    this family's range (``_N_VISIBLE_DIMS`` never exceeds 7, so index 7 is always beyond

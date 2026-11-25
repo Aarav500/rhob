@@ -121,6 +121,9 @@ _MAX_RESAMPLE_ATTEMPTS = 5
 # HARD 0.453; all 3 tiers pass. tol/episodes below were tightened during the
 # same investigation and verified working with the 4-token set -- not
 # reverted to sibling defaults since that combination wasn't re-tested.
+# (2026-11-19: those were development runs, not the full ledger. The full ledger, in
+# admission/ADMISSION_LEDGER.md, admits 0.90 and 0.80 and not 0.70, which passes
+# proxy_matched and fails proxy_distribution_matched.)
 _CALIB_TOL = 0.004
 _CALIB_SEEDS = (11, 22, 33, 44, 55, 66)
 _CALIB_EPISODES = 120

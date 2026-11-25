@@ -23,8 +23,9 @@ What this page serves
 Standings come from ``leaderboard/v5_replicated.json``: 20 independent draws of the whole
 benchmark, aggregated by ``scripts/aggregate_replication.py`` into percentile-bootstrap
 intervals. They do **not** come from ``leaderboard/v5_leaderboard.json``, which is a
-single draw taken before behavioural sign randomization was switched on; its figures are
-superseded and are deliberately not rendered anywhere on this page.
+single unreplicated draw with no intervals (regenerated on 2026-11-19 with behavioural
+sign randomization on and N/A cells recorded as null); it is deliberately not rendered
+anywhere on this page.
 
 The cross-family transfer (RTS) panel is a **separate** experiment and is not covered by
 that replication. It is also the one place where the pre-audit sign convention still had
@@ -77,8 +78,8 @@ _LEADERBOARD_DIR = next((d for d in _CANDIDATE_LEADERBOARD_DIRS if d.is_dir()), 
 
 #: The replicated board is the only source of standings. There is deliberately no
 #: fallback to the single-draw v5_leaderboard.json: if this file is missing the page must
-#: fail loudly rather than quietly serve superseded numbers under a page that promises
-#: confidence intervals.
+#: fail loudly rather than quietly serve single-draw numbers with no intervals under a
+#: page that promises confidence intervals.
 _REPLICATED_FILE = _LEADERBOARD_DIR / "v5_replicated.json"
 
 #: The published transfer artifact. Pre-sign-randomization (2026-07-09) and pre-dating the
@@ -932,8 +933,14 @@ def _l0_control_html() -> str:
       <h3>{_esc(control.level)} IS A CONTROL, NOT A STANDING<span class="rhob-scope">construction check</span></h3>
       <p>
         Detectors at {_esc(control.level)} see only the proxy reward, and every family's
-        proxy is certified by the admission gate to be statistically indistinguishable
-        between the hacking and legitimate variants. So {_esc(control.level)} is a negative
+        proxy is built to be statistically indistinguishable between the hacking and
+        legitimate variants. The admission ledger admits 42 of the 123
+        (family, difficulty) cells, certifying the match on each, and cannot measure 30.
+        It measures 51 as not admitted, 50 of them on a proxy check (24 fail
+        <code>proxy_matched</code>, 40 <code>proxy_distribution_matched</code>, 14 of
+        them both); the other, <code>proxy_correlation_gaming</code> at 0.60, passes both
+        proxy checks and fails only <code>behavioral_separated</code>. So
+        {_esc(control.level)} is a negative
         control on the <b>benchmark</b>, not a rung of detector performance: a detector
         here that beat chance would be evidence that the proxy matching had failed, not
         that reward-only detection works. The reportable form of that check is per
@@ -945,14 +952,25 @@ def _l0_control_html() -> str:
       {mean_txt}
       <p class="rhob-note">
         <b>Robustness.</b> Six of the {len(board.families())} families are marked
-        degenerate in the admission ledger because their proxy reward is constant, and on a
-        constant proxy a reward-only detector returns {ref} for a reason that has nothing
+        degenerate in the admission ledger because a reward-only statistic cannot resolve
+        their proxy (constant in three, the same or nearly the same in every run in the
+        other three), and
+        there a reward-only detector returns {ref} for a reason that has nothing
         to do with proxy matching &mdash; padding the control with cells that could not
-        have come out otherwise. Recomputed over the 27 non-degenerate families only,
+        have come out otherwise. Padding of the same kind remains inside the other 27:
+        eight {_esc(control.level)} detectors declare no minimum horizon, fall back to a
+        constant on the families too short for their windows (19 or 7 of the 27), which
+        reads 0.500, and the board records that as measured; only Reward Skewness declares its horizon and
+        is n/a there. Re-scoring those cells is an open item in ROADMAP.md, linked below.
+        Recomputed over the 27 non-degenerate families only,
         family-weighted and bootstrapped over the same {board.n_replicates} replicates,
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
         and the largest movers move away from it
         (<a href="{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md" target="_blank">docs/figures/l0_control_robustness.md</a>).
+        Cells the ledger measured and did not admit are held out of no
+        {_esc(control.level)} figure on this page, the 27-family recomputation included;
+        whether they should be is an open question
+        (<a href="{_GITHUB_BLOB}/ROADMAP.md" target="_blank">ROADMAP.md</a>).
       </p>
     </div>
     """
@@ -1068,7 +1086,11 @@ Sorted by the {_board_ref.n_replicates}-draw suite mean, descending, in every vi
 for every row: a detector whose channel most families do not ship measures far fewer
 cells than a board-wide one. Selecting a family shows that family's own interval, and
 `{NOT_MEASURED}` where the detector never measured it -- which is a different statement
-from "scored at chance".
+from "scored at chance". A number is not always a measurement either: a detector that
+declares no minimum horizon is scored on runs shorter than its windows and shows its
+fallback 0.500 there. That is eight L0 and three L2 detectors on the families of 40 or
+60 episodes and every L1 detector on `continuous_camping`; only Reward Skewness declares
+its horizon and shows `{NOT_MEASURED}` instead.
 """
         )
 
