@@ -410,16 +410,40 @@ def _write_markdown(out: dict, path: Path) -> None:
         L += ["", f"Unsupervised L1 minus L0 (max, paired): **{v['mean']:+.4f} "
                   f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]**, "
                   f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring L1 "
-                  f"-- {'separates' if v['excludes_zero'] else 'does NOT separate'}.",
-              "",
-              "The published L0->L1 climb is carried by a single label-fitted detector",
-              "(`State Divergence`). Without the label-fitted detectors the step reverses sign",
-              "and stops separating. Quote the partition alongside any rung difference."]
+                  f"-- {'separates' if v['excludes_zero'] else 'does NOT separate'}."]
+        both = out["adjacent_level_separation"].get("L1_minus_L0_max")
+        best = out["access_levels"]["L1"].get("best_detector_frequency") or {}
+        carrier = max(best, key=best.get) if best else None
+        if both is not None and carrier in out["supervision"]["label_fitted_detectors"]:
+            flips = (both["mean"] > 0) != (v["mean"] > 0)
+            if v["excludes_zero"]:
+                ending = (" and separates the other way: unsupervised L1 sits below L0"
+                          if flips else " and still separates")
+            else:
+                ending = " and stops separating"
+            L += ["",
+                  f"The L0->L1 climb under the max ({both['mean']:+.4f}) is carried by a "
+                  f"label-fitted detector, `{carrier}`, the best L1 detector on "
+                  f"{best[carrier]}/{out['n_replicates']} draws. Without the label-fitted "
+                  f"detectors the step {'reverses sign' if flips else 'keeps its sign'}"
+                  f"{ending}. Quote the partition alongside any rung difference."]
+    degenerate = set(degenerate_families_from_ledger())
+    spans = []
+    for lv in ACCESS_LEVELS:
+        counts = sorted({
+            len([f for f in d.get("per_family") or {} if lv != "L0" or f not in degenerate])
+            for d in out["detectors"].values()
+            if d.get("access_level") == lv
+        })
+        if counts:
+            spans.append(f"{lv} on {counts[0]}" + (f" to {counts[-1]}" if len(counts) > 1 else ""))
     L += ["", "## Do adjacent rungs separate?", "",
           "Paired within each draw, under BOTH statistics. Where the two disagree, the rung's",
           "status depends on the statistic and neither answer may be quoted alone. Pairing does",
-          "not equalise denominators: L1 aggregates 35 cells over 8 families, L0 93 over 27,",
-          "L2/L3 123 over 33.", ""]
+          "not equalise denominators. The families each detector is scored on (a family is "
+          "left out where it lacks the detector's channel or runs fewer episodes than its "
+          "min_episodes, and the ledger-degenerate ones are left out of L0): "
+          + ", ".join(spans) + ".", ""]
     if out["adjacent_level_separation"]:
         L += ["| Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |",
               "|---|---|---|---|---|---|"]
