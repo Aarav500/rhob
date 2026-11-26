@@ -8,10 +8,15 @@
 ``rhob.detectors.supervision`` reports which detectors fall on the fitted side, and the
 replication aggregate publishes the access ladder twice -- once over all detectors and
 once over the unsupervised ones only. That second ladder is not cosmetic: on the 20-draw
-replication, after the 2026-09-03 Reward Skewness re-score, the paired L1-L0 step is
-``+0.388`` over all detectors and ``-0.017`` without the label-fitted ones, reversing sign
-and ceasing to separate. The whole published climb from reward-only to state-visitation
-access is one label-fitted detector.
+replication, after the 2026-11-26 ``min_episodes`` re-score, the paired L1-L0 step under
+the best-detector max is ``+0.427`` over all detectors and ``-0.029`` without the
+label-fitted ones, reversing sign and separating the other way (CI [-0.054, -0.005],
+5/20 draws favour L1): under the max, unsupervised L1 sits below L0. Under the suite mean
+the step also reverses sign, ``+0.071`` to ``-0.002``, but the unsupervised step does not
+separate (CI [-0.022, +0.017], 11/20), so its direction is statistic-dependent and
+neither figure may be quoted alone. Under the max, the whole published climb from
+reward-only to state-visitation access is one label-fitted detector (State Divergence,
+the best L1 detector on 20/20 draws).
 
 So the partition is load-bearing, and two ways of getting it wrong both end in a wrong
 ladder rather than an error:

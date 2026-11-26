@@ -148,30 +148,42 @@ observation channel under a controlled proxy match; it does not establish what i
 
 ## 4. The L0 result is a negative control, not a finding
 
-RHOB's L0 (reward-only) detectors sit at chance: mean AUROC 0.4876 across 13
-detectors, best 0.5351 (Reward CUSUM) — over the 27 families whose proxy the gate can
-actually read, family-weighted. The six the ledger marks DEGENERATE are held out; with
-them in, family-weighted as well, it reads 0.4898. See §4's last bullet. Those figures
-come from the single-draw board as regenerated on 2026-11-19 (`52656cb`, from code at
-`acd35c2`, CI run 44447220658), on code that includes the Reward Skewness fix
+RHOB's L0 (reward-only) detectors sit at chance: mean AUROC 0.4834 across 13
+detectors, best 0.5474 (Reward CUSUM) — over the 27 families whose proxy the gate can
+actually read, family-weighted. Not every detector is averaged over all 27: nine are not
+applicable on the families too short for their windows, so Reward Peak, Reward
+Autocorrelation, Reward Skewness, Reward Trend and Variance Window are averaged over 8
+of them and Reward CUSUM, Max Plateau, Reward MLP and Gradient Reversal over 20; the
+best figure, 0.5474, is over 20. The six the ledger marks DEGENERATE are held out; with
+them in, family-weighted as well, it reads 0.4877. See §4's last bullet. Those figures
+come from the single-draw board as re-scored on 2026-11-26 (`03d978e`, from code at
+`f83a152`, CI run 45747902322), on code in which every scored detector that needs a
+minimum horizon declares it. The first such fix was Reward Skewness's
 (b796f9c on this branch, first committed as 584ba13, 2026-09-02): Skewness needs 100
 episodes and is recorded N/A below that, on 19 of those 27 families. Before the fix it
 returned a constant 0.5 there. The 20-draw board has been re-scored with those cells not
-applicable (253c7ec, first committed as 9da6b21), and there the maximum
-over unsupervised L0 detectors, taken in each draw and averaged over the 20, is 0.551
-[0.541, 0.562]. That maximum is selection-biased upward: no single L0
+applicable (253c7ec, first committed as 9da6b21), and again on 2026-11-26 for the 19
+detectors whose new declaration some families fall below (CI runs 45747922473 and
+45776113470, keeping every value the draws were scored with); there
+the maximum
+over unsupervised L0 detectors, taken in each draw and averaged over the 20, is 0.568
+[0.555, 0.580]. That maximum is selection-biased upward: no single L0
 detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
 `leaderboard/v5_replicated.json`).
 
-Skewness is the only L0 detector that declares its horizon. Eight others do not, and
-below their windows they still fall back to a constant score, which reads AUROC 0.5 and
-which both boards record as a measured value: Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window on
-all 19 families of 40 or 60 episodes, and Max Plateau, Reward MLP, Gradient Reversal and
-Reward CUSUM on the 7 of 40. Those are 104 of the 332 per-family values behind 0.4876,
-and 7 of the 27 behind Reward CUSUM's 0.5351, so the L0 figures mix measurements with
-constants that could not have come out otherwise. Declaring each detector's horizon and re-scoring both boards is open
-([ROADMAP.md](../ROADMAP.md)), and it will change the L0 ladder. The admission gate does
-not use those eight detectors.
+Until 2026-11-26 Skewness was the only L0 detector that declared its horizon. Eight
+others did not, and below their windows they fell back to a constant score, which reads
+AUROC 0.5 and which both boards recorded as a measured value: Reward Peak, Reward
+Autocorrelation, Reward Trend and Variance Window on all 19 families of 40 or 60
+episodes, and Max Plateau, Reward MLP, Gradient Reversal and Reward CUSUM on the 7 of
+40. Those were 104 of the 332 per-family values behind the 2026-11-19 board's L0 mean of
+0.4876, and 7 of the 27 behind its best, Reward CUSUM's 0.5351. Each now declares
+`min_episodes` (`f83a152`; `tests/test_detectors/test_min_episodes.py` holds every
+declaration to the detector's code): the first four need 100 episodes, Reward CUSUM 51,
+Max Plateau and Reward MLP 50, and Gradient Reversal 60. Both boards have been re-scored
+with those cells not applicable, so the 0.4834 above rests on the remaining 228
+per-family values, every one a measurement. The admission gate does not use those eight
+detectors.
 
 **This is not a discovery that reward-only monitoring fails.** It is a
 manipulation check. The families are *built* so that the proxy reward carries no
@@ -258,14 +270,18 @@ For citation purposes this means:
   true rewards diverge: `behavioral_separated` and `true_reward_diverges` pass on all
   30 cells. What is unavailable is the certification, not the mechanism.
 - **The L0 rung is now reported both ways.** With all **six** degenerate families
-  withheld the L0 suite mean is **0.4876 over 27 families**; with them in it is 0.4898
-  (both family-weighted). With no exclusion and weighted by cell, the same board reads
-  0.4903. Computed from the unrounded means, the exclusion is worth 0.0023 (0.4898105 −
-  0.4875513 = 0.0022592) and the re-weighting 0.0005 (0.4903077 − 0.4898105 =
-  0.0004972); the rounded figures differ by 0.0022 and 0.0005. On the board before the
-  2026-11-19 regeneration the three figures were 0.4866, 0.4895 and 0.4898. That 0.4898 is the cell-weighted
-  figure, which releases before the exclusion published; it is not the family-weighted
-  0.4898 above. The exclusion applies to L0 and only L0 — degeneracy is a
+  withheld the L0 suite mean is **0.4834 over 27 families**; with them in it is 0.4877
+  (both family-weighted). Nine of the 13 detectors are averaged over fewer of the 27
+  (five over 8, four over 20: the families shorter than the horizon each declares; see
+  this section's opening). With no exclusion and weighted by cell, the same board reads
+  0.4881. Computed from the unrounded means, the exclusion is worth 0.0043 (0.4877139 −
+  0.4833744 = 0.0043395) and the re-weighting 0.0004 (0.4880769 − 0.4877139 =
+  0.0003630); the rounded figures differ by the same amounts. On the board before the
+  2026-11-26 re-score the three figures were 0.4876, 0.4898 and 0.4903, and before the
+  2026-11-19 regeneration they were 0.4866, 0.4895 and 0.4898. That last 0.4898 is the
+  cell-weighted figure, which releases before the exclusion published; the 2026-11-19
+  board's family-weighted 0.4898 is a different statistic that rounds to the same
+  value. The exclusion applies to L0 and only L0 — degeneracy is a
   property of the proxy reward, the one channel L0 reads, so L1/L2/L3 keep those
   families as ordinary benchmark items. **The ledger, not either mean, is where the
   control is adjudicated.**
@@ -304,7 +320,7 @@ puts a real family through full certification.
   that level happens to be, and shrinks or grows as detectors are added.
 - **Mean-per-level is a statistic about the suite, not the benchmark.** A level's
   mean is dragged down by however many weak detectors were written for it. Read
-  the max alongside it: at L2 the mean is 0.5716 over 7 detectors while the max
+  the max alongside it: at L2 the mean is 0.5771 over 7 detectors while the max
   is 0.9430.
 
 ## 6. Known structural caveats in the current artifacts
@@ -312,21 +328,24 @@ puts a real family through full certification.
 Stated here so they are not discovered mid-citation:
 
 - **L1 is thin.** 25 of 33 families emit no `state_counts`, so an L1 detector has
-  nothing to read on them; the board records those 88 cells as `null`, and every L1
-  figure is over the 8 families that emit the channel (35 of 123 cells). That is not
+  nothing to read on them; the board records those 88 cells as `null`. Of the 8 families
+  that do emit it, `continuous_camping` runs 40 episodes, below every L1 detector's
+  declared `min_episodes` (50 to 101), so its 4 cells are `null` too, with the horizon as
+  the reason. Every L1 figure is therefore over 7 families (31 of 123 cells). That is not
   comparable to the denominators used at L0 (27 families, the six DEGENERATE ones held
-  out) and L2 (33 families). See the README's L1 table. Four of the 35 are not
-  measurements: `continuous_camping` runs 40 episodes, below every L1 detector's window,
-  so each returns its fallback 0.5 there and the board records it as measured.
-- **Eight L0 detectors' short-horizon values are their fallback 0.5.** Only Reward
-  Skewness declares the horizon its windows need and is `null` below it. Reward Peak,
-  Reward Autocorrelation, Reward Trend and Variance Window (100 episodes) read their
-  fallback on the 19 families of 40 or 60 episodes (59 cells); Max Plateau and Reward MLP
-  (50), Gradient Reversal (60) and Reward CUSUM (50) on the 7 of 40 (22 cells). Both
-  boards publish those as measured 0.5s, 104 of the 332 per-family values in the L0
-  ladder (§4). Three L2 detectors do the same: Feature Consistency (100) on the 19,
-  Feature Magnitude and Reward-Feature Correlation (50) on the 7. Fixing it needs
-  detector changes and a re-score, which is open ([ROADMAP.md](../ROADMAP.md)).
+  out, and 20 or 8 for the nine detectors some of those families are too short for) and
+  L2 (33 families; 26 for Feature Magnitude and Reward-Feature Correlation, 14 for
+  Feature Consistency). See the README's L1 table.
+- **Short-horizon cells are not applicable, not 0.5, since 2026-11-26.** Until then
+  eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward Trend and Variance
+  Window on the 19 families of 40 or 60 episodes; Max Plateau, Reward MLP, Gradient
+  Reversal and Reward CUSUM on the 7 of 40), three L2 detectors (Feature Consistency on
+  the 19; Feature Magnitude and Reward-Feature Correlation on the 7) and every L1
+  detector on `continuous_camping` returned their fallback 0.5 on families too short for
+  their windows, and both boards published those as measured: 104 L0, 33 L2 and 8 L1
+  per-family values. Every one of those detectors now declares `min_episodes`
+  (`f83a152`), and both boards were re-scored with those cells `null` (§4). A figure
+  quoted from either board before that re-score has the constants in it.
 - **L3 contains one detector.** "Perfect Feature Oracle" is a relabelled
   subclass of the L2 behavioral baseline that reads only `behav_trace`; it is
   retained as a cross-check and excluded from every access-level aggregate. The
@@ -401,15 +420,22 @@ Inappropriate uses:
 - Ranking two detectors whose scores differ by less than ~0.2 on the current
   single-draw leaderboard.
 - Citing the access-level ladder as evidence that more access monotonically buys
-  more detection power. On the single-draw board the best detector rises at every rung
-  (0.5351, 0.9270, 0.9430, 0.9830), but not over one denominator: the L0 figure is
-  family-weighted over 27 families, the L1 figure is over the 35 cells of the 8 families
-  that emit `state_counts` (0.9235 family-weighted), and the L2 and L3 figures are over
-  all 123 cells, so the L1-to-L2 rise is not like for like. The L1 and L2 maxima are also
-  both label-fitted detectors (State Divergence, Trajectory MLP) 0.016 apart, which one
-  draw does not resolve. Over 20 draws: across all detectors L2−L1 is +0.001
-  [−0.004, +0.006], which does not separate, and L3−L2 is +0.032 [+0.027, +0.037];
-  without the five label-fitted detectors L1−L0 is −0.017 [−0.039, +0.002]
+  more detection power. On the single-draw board the best detector does not rise at
+  every rung (0.5474, 0.9820, 0.9430, 0.9830: up at L1, down at L2, up at L3), and the
+  four are not over one denominator: the L0 figure (Reward CUSUM) is family-weighted
+  over the 20 of 27 families long enough for it, the L1 figure is over the 31 cells of
+  the 7 families that emit `state_counts` and run long enough for it (0.9840
+  family-weighted), and the L2 and L3 figures are over all 123 cells, so neither the
+  L1-to-L2 fall nor the L1 maximum's nearness to the L3 oracle (0.9820 against 0.9830,
+  on a quarter of the cells) is like for like. The L1 and L2 maxima are also both
+  label-fitted detectors (State Divergence, Trajectory MLP), 0.039 apart. Over 20 draws:
+  across all detectors L2−L1 is −0.055 [−0.061, −0.050], which separates, with L1 above
+  L2 in all 20 draws (under the mean over detectors it is +0.012 [+0.001, +0.023], the
+  other way); the L1 maximum, 0.998 [0.996, 1.000], is above the L3 oracle's 0.975
+  [0.971, 0.978], over 31 cells of 7 families against 123 of 33; L3−L2 is +0.032
+  [+0.027, +0.037]; and without the five label-fitted detectors L1−L0 is −0.029
+  [−0.054, −0.005], which separates against L1: the best unsupervised L0 detector is
+  above the best unsupervised L1 one, and only 5 of the 20 draws favour L1
   (`leaderboard/v5_replicated.json`).
 - Citing L0-at-chance as evidence that reward-only monitoring is insufficient in
   deployed systems. It is a check on RHOB's proxy matching, consistent with it having

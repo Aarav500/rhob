@@ -361,10 +361,14 @@ class FeatureDriftDetector(PosthocDetector):
    than its windows. That 0.5 is not a measurement, and the harness can tell only if the
    detector says so: override the `min_episodes` property (the windows it compares, e.g.
    `self.baseline_window + self.test_window`; for L0 Template 2, `2 * self.window_size`)
-   and the benchmark records a shorter family as not applicable. Reward Skewness does
-   this. Eight shipped L0 detectors, three L2 detectors and the eight L1 detectors do not
-   yet, and their fallback 0.5 is in the published boards as a measured value on the
-   families too short for them ([ROADMAP.md](../ROADMAP.md)).
+   and the benchmark records a shorter family as not applicable. Every detector on the
+   board whose score is a constant below some run length does this, and
+   `tests/test_detectors/test_min_episodes.py` checks each declaration against
+   `classify`: constant one episode below it, varying at it. The five external
+   baselines in `src/rhob/detectors/external_baselines/`, which are not scored, do not
+   declare one yet (PCA Reconstruction returns 0.5 below its 100-episode window).
+   Until 2026-11-26 only Reward Skewness did, and the published boards carried the
+   others' fallback 0.5 as a measured value on the families too short for them.
 4. **Test it**: Create a test file following the CONTRIBUTING guide
 5. **Submit**: Open a PR with your new detector
 

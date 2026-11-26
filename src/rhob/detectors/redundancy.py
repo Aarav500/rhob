@@ -24,9 +24,9 @@ Consequence for the aggregate: with the duplicate counted, L3 reads
 n=2, mean 0.7475, max 0.9830 (0.9790 and 0.9830 before the regeneration). With it
 excluded, L3 is the single genuine oracle (True Reward Oracle, 0.9830). The duplicate
 is *not* re-filed under L2 either -- it would then double-count Behavioral Threshold
-inside L2 and move that level's mean from 0.5716 to 0.5641 (from 0.7213 to 0.7530
-before the regeneration) while adding no new information. A duplicate belongs to no
-level's aggregate.
+inside L2 and move that level's mean from 0.5771 to 0.5690 on the board re-scored
+2026-11-26 (from 0.7213 to 0.7530 before the 2026-11-19 regeneration) while adding no
+new information. A duplicate belongs to no level's aggregate.
 """
 
 from __future__ import annotations

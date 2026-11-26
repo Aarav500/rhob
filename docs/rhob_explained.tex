@@ -3,7 +3,8 @@
 % pdflatex on a base TeX Live install.
 %
 % Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
-% leaderboard/v5_replicated.json, admission/admission_ledger.json,
+% leaderboard/v5_replicated.json, leaderboard/v5_leaderboard.json,
+% admission/admission_ledger.json,
 % audit/survey_s1_frame.json, results/emergent_pilot/README.md, and the module
 % docstrings under src/rhob/.
 
@@ -206,7 +207,11 @@ forget to follow.
 \subhead{L3 is not a real level}
 No real monitoring system gets the true reward. If you had it you would not need a
 detector. L3 is there as a ceiling, to say how well detection could possibly do on
-these tasks. It should never be quoted as a practical result.
+these tasks. It should never be quoted as a practical result. It is not a strict
+ceiling either: over the 20 repeats the best state-count detector, State Divergence,
+which is trained on labels, scores 0.998 against the oracle's 0.975. But it is scored
+on 31 cells in 7 families and the oracle on 123 in 33, so the two are not like for
+like.
 
 \subhead{L2 is a number I chose, and that is a problem I have only half fixed}
 I picked the behaviour number knowing which arm was the cheating one, and I picked
@@ -396,38 +401,51 @@ Split the two kinds of detector apart, on the same 20 repeats:
 \toprule
 Level & Best of all detectors & Best of the fixed-formula ones \\
 \midrule
-L0 (reward only)      & 0.5540 & 0.5514 \\
-L1 (+ state counts)   & 0.9416 & 0.5340 \\
-L2 (+ behaviour)      & 0.9430 & 0.5872 \\
+L0 (reward only)      & 0.5713 & 0.5677 \\
+L1 (+ state counts)   & 0.9984 & 0.5384 \\
+L2 (+ behaviour)      & 0.9430 & 0.5990 \\
 L3 (+ true reward)    & 0.9746 & 0.9746 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
 
-And each step of the ladder, measured across the 20 repeats:
+And each step of the ladder, best detector against best detector, measured across the
+20 repeats:
 
 \vspace{0.3em}
 \begin{tabular}{@{}llcc@{}}
 \toprule
 Step & Detectors & Gap [95\% interval] & Repeats where the step held \\
 \midrule
-L1 $-$ L0 & all            & $+0.388$ \ $[+0.378,\ +0.397]$ & 20 of 20 \\
-L1 $-$ L0 & fixed-formula  & $-0.017$ \ $[-0.039,\ +0.002]$ & 4 of 20 \\
+L1 $-$ L0 & all            & $+0.427$ \ $[+0.417,\ +0.439]$ & 20 of 20 \\
+L1 $-$ L0 & fixed-formula  & $-0.029$ \ $[-0.054,\ -0.005]$ & 5 of 20 \\
 \addlinespace
-L2 $-$ L1 & all            & $+0.001$ \ $[-0.004,\ +0.006]$ & 13 of 20 \\
+L2 $-$ L1 & all            & $-0.055$ \ $[-0.061,\ -0.050]$ & 0 of 20 \\
 L3 $-$ L2 & all            & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
 
-Read the first two rows together. The gap flips sign and stops being a gap. The
-whole published climb from reward-only to state counts was one detector that had
-been trained on labels. That is a real result about my benchmark. It is not the
-result the ladder was being read as, and nobody could have got it out of a
-single-column table.
+Read the first two rows together. The gap flips sign, and its interval sits below
+zero: without the detectors trained on labels, the best fixed-formula state-count
+detector does measurably worse than the best reward-only one, on far fewer families
+(7, against up to 27). Averaged over detectors instead, the two do not separate
+($-0.002$ \ $[-0.022,\ +0.017]$), so whether state counts sit measurably below
+reward-only depends on the statistic, and neither answer should be quoted alone. The
+whole published climb from reward-only to state counts was one detector that had been
+trained on labels. That is a real result about my benchmark. It is not the result the
+ladder was being read as, and nobody could have got it out of a single-column table.
 
-The third row matters too. The step from state counts to behaviour has an interval
-that includes zero, so there is no measurable step there either.
+The third row matters too. The step from state counts to behaviour runs backwards:
+the best L1 detector is above the best L2 one in all 20 repeats, and the interval
+leaves out zero. Averaged over detectors it runs forwards instead,
+$+0.012$ \ $[+0.001,\ +0.023]$, so which way this step points depends on the statistic
+too. The best-detector reading does not mean behaviour tells you less than state counts
+do.
+The best L1 detector is State Divergence, trained on labels, at 0.998 on 31 cells in
+7 families; the best L2 one is Trajectory MLP at 0.943 on 123 cells in 33. They are
+not scored on the same cells, so the two are not like for like, and the 0.998 is
+above even the oracle's 0.975.
 
 \heading{What I meant by admission criteria}
 \label{h:checks}
@@ -589,8 +607,9 @@ Of those 24, 8 have the mean outside the band; the other 16 have it inside, but 
 interval reaches past the band, so for them the check could not show a match. That
 is not the same as a match: in 15 of the 16 the interval leaves out 0.5, so the
 proxy is off chance there, by less than 0.10.
-Those 51 still count in the L0 average; only the 30 that could not be measured
-are left out. Whether the 51 should be left out too is open, and it is in
+Those 51 still count in the L0 average (all 51 for the detectors scored on every
+family, fewer for the nine that need longer runs); only the 30 that could not be
+measured are left out. Whether the 51 should be left out too is open, and it is in
 \code{ROADMAP.md}.
 
 \heading{What I actually want to work on}
@@ -679,15 +698,19 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       README reported this as a finding that ``reward-only monitoring fails''. That
       was wrong. It is only useful in the failure direction: an L0 detector going
       above chance means the construction leaked.
-\item \textbf{Some of the 0.5s are not measurements.} Eight of my reward-only
-      detectors do not say how many episodes they need. On families too short for
-      their windows (7 or 19 of the 27 I keep) they return a fixed score, which reads
-      as 0.5, and both tables record it as a result at chance: 104 of the 332 family values behind
-      the L0 figures. Only Reward Skewness says how long it needs, and it is left
-      blank there. Three behaviour detectors, and every state-count detector on the
-      40-episode \code{continuous\_camping}, do the same. Fixing it means declaring
-      each detector's length and scoring both tables again, which will move the L0
-      numbers. It is in \code{ROADMAP.md}.
+\item \textbf{Some of the 0.5s were not measurements.} Until 26 November 2026 eight
+      of my reward-only detectors did not say how many episodes they need. On
+      families too short for their windows (7 or 19 of the 27 I keep) they returned a
+      fixed score, which reads as 0.5, and both tables recorded it as a result at
+      chance: 104 of the 332 family values behind the L0 figures. Only Reward
+      Skewness said how long it needed, and it was left blank there. Three behaviour
+      detectors, and every state-count detector on the 40-episode
+      \code{continuous\_camping}, did the same. Every detector now declares its
+      length and is left blank below it, and both tables have been scored again. The
+      20-repeat L0 mean moved from 0.4972 to 0.4951 $[0.4899,\ 0.5000]$, an interval
+      that holds 0.5 only at its very top; the single-draw one moved from 0.4876 to
+      0.4834. Taking the fixed score out of \code{continuous\_camping} is what moved
+      the best state-count detector from 0.942 to 0.998.
 \item \textbf{One row in the table is a duplicate.} The detector I labelled
       ``Perfect Feature Oracle'' at L3 is a subclass of an L2 detector that
       overrides only its name and its level. It never reads the true reward. It

@@ -18,6 +18,19 @@ This document explains how to reproduce every result RHOB publishes.
 > board of 2026-07-07) have not been regenerated and still predate them.
 > `leaderboard/v5_replicated.json` was built after the audit (2026-08-04, Reward Skewness
 > re-scored 2026-09-03) but has no `provenance` block.
+>
+> *2026-11-26:* every detector whose score is a constant below some run length now
+> declares that length (`min_episodes`, f83a152), and both v5 boards were re-scored on CI
+> with the families shorter than it `null`: `leaderboard/v5_leaderboard.json` in run
+> 45747902322 (03d978e), and `leaderboard/v5_replicated.json`, which still has no
+> `provenance` block, in runs 45747922473 and 45776113470 (`827ae57`; on all 20 draws, the
+> 19 detectors other than Reward Skewness whose declared `min_episodes` nulls a family).
+> The draws keep the values they were scored with: the merge applied only the new
+> not-applicable cells, because 414 of the 23,480 re-scored cells did not reproduce on the
+> CI lock (319 of them on `sequence_keyword_stuffing`, rewritten after the draws were made;
+> see the CHANGELOG). Until then each board
+> recorded 145 per-family fallback 0.5s as measured, in every draw (104 at L0, 8 at L1,
+> 33 at L2); see [Figure 7](#figure-7-access-level-summary).
 
 ## Environment Setup
 
@@ -47,9 +60,9 @@ This is the stack the nightly `admission-slow` job runs on. It holds every trans
 dependency of the `dev`, `continuous`, `mujoco` and `pettingzoo` extras at one version,
 with sha256 hashes, including torch from PyPI. It does not install on macOS, Windows, ARM
 or another Python. It is the stack the 2026-11-15 verification run (43679157068) installed
-and passed every slow screen on. `admission/admission_ledger.json` and
-`leaderboard/v5_leaderboard.json`, both regenerated on 2026-11-19 (run 44447220658),
-record its versions in their provenance blocks. [requirements/README.md](requirements/README.md) says how it is generated,
+and passed every slow screen on. `admission/admission_ledger.json`, regenerated on
+2026-11-19 (run 44447220658), and `leaderboard/v5_leaderboard.json`, re-scored on
+2026-11-26 (run 45747902322), record its versions in their provenance blocks. [requirements/README.md](requirements/README.md) says how it is generated,
 what was checked and how to regenerate it.
 
 **2. `requirements-lock.txt`, a record of direct dependencies from July 2026.**
@@ -67,8 +80,13 @@ rhob match this file. The ledger regenerated on 2026-11-19 records the CI lock's
 (option 1) instead, so this file is no longer the closest match for it. It is not a
 record of what produced the committed `leaderboard/*.json` either: of those, only
 `v5_leaderboard.json` carries environment metadata in the file itself, and it records
-the CI lock; `v5_replicated.json`'s 20 inputs record Python 3.11.15 and numpy 2.4.6. Its
-header states both limits.
+the CI lock; `v5_replicated.json`'s 20 inputs record Python 3.11.15 and numpy 2.4.6, and
+`scripts/merge_rescored_detector.py` appends to them a `rescored` entry per detector it
+merges, carrying the re-score's own provenance block (the Reward Skewness re-score of
+2026-09-03 records Windows, Python 3.13.14 and numpy 2.4.3; the 19 re-scores of
+2026-11-26 record the CI lock, but were merged with `--keep-old-values`, so the values in
+the draws are still the ones scored in 2026-08 and only the new not-applicable cells came
+from the CI run). Its header states both limits.
 
 **3. Unpinned, for development rather than reproduction.** Run `pip install -e ".[dev]"`
 alone and accept whatever the ranges in `pyproject.toml` resolve to. The per-push CI
@@ -85,9 +103,10 @@ Versions and seeds:
 - **Python 3.11+ for `requirements-lock.txt`, and 3.12 for the CI lock.** `pyproject.toml`
   still declares `requires-python = ">=3.10"` and CI tests 3.10. But numpy 2.4.3, scipy
   1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt`, each require
-  Python >= 3.11, so that stack cannot be installed on 3.10. The admission ledger and the
-  v5 board regenerated on 2026-11-19 record the CI lock's numpy 2.5.4 and scipy 1.18.1,
-  which require Python >= 3.12. A green CI run on 3.10 resolves older numeric libraries
+  Python >= 3.11, so that stack cannot be installed on 3.10. The admission ledger
+  regenerated on 2026-11-19 and the v5 board re-scored on 2026-11-26 record the CI lock's
+  numpy 2.5.4 and scipy 1.18.1, which require Python >= 3.12. A green CI run on 3.10
+  resolves older numeric libraries
   than either artifact records and is **not** evidence that their numbers reproduce. Reconciling
   the declared support surface with reality is an open decision. See the header of
   `requirements-lock.txt`.
@@ -132,10 +151,10 @@ python scripts/plot_v5_results.py
 - 30 detectors (rows) × 33 families (columns)
 - In-distribution discrimination AUROC for each
 - Color scale: dark red = high AUROC, pale/white = chance, blue = below chance; a grey
-  cell with no number is not applicable (`null` in the board), not chance. A pale 0.50
-  is not always a measurement: on the short-horizon families eight L0 and three L2
-  detectors, and every L1 detector on `continuous_camping`, show their fallback 0.5
-  (see Figure 7)
+  cell with no number is not applicable (`null` in the board: the family does not emit
+  the detector's channel, or runs fewer episodes than the detector's declared
+  `min_episodes`), not chance. A pale 0.50 on an L0 row in one of the six DEGENERATE
+  families is the tie convention, not a matched-proxy measurement (see Figure 7)
 
 **Runtime:** ~30 seconds (no experiments, just plotting)
 
@@ -163,35 +182,54 @@ the figure and printed in the generated `.md` table:**
    one shared evaluation draw, so they are not independent replicates. The bar
    grows or shrinks as detectors are added to a level. (The plotted values are
    population SDs, `ddof=0`, matching the previous `np.std`-based figure; sample
-   SDs would read L0 0.0268, L1 0.1460, L2 0.1778.)
+   SDs would read L0 0.0338, L1 0.1650, L2 0.1770.)
 2. **Mean and max answer different questions.** A level's mean is dragged down by
    however many weak detectors happen to have been written for it, so a mean-only
    ladder measures the suite's composition as much as the benchmark's structure.
-   L2: mean 0.5716 over 7 detectors, max 0.9430.
+   L2: mean 0.5771 over 7 detectors, max 0.9430.
 
 Current values (duplicate excluded; L0 over 27 families — see the note below the table —
-and Reward Skewness over the 8 of them with 100 or more episodes; the other twelve L0
-detectors have a value on all 27, but for eight of them the value on the short-horizon
-families is their fallback 0.5, not a measurement (see below); L1 over the 8 families
-that emit `state_counts`; L2 and L3 over all 33):
+of which Reward Skewness, Reward Peak, Reward Autocorrelation, Reward Trend and Variance
+Window are measured on the 8 with 100 or more episodes, Reward CUSUM, Max Plateau, Reward
+MLP and Gradient Reversal on the 20 with 60 or more, and Reward Threshold, Reward Variance
+Ratio, Spectral Reward and Reward KDE on all 27; L1 over the 7 families that emit
+`state_counts` and run long enough, 31 cells (`continuous_camping`'s 40 episodes are below
+every L1 detector's `min_episodes`); L2 over all 33 families except Feature Consistency
+(14 families, 64 cells) and Feature Magnitude and Reward-Feature Correlation (26
+families, 101 cells); L3 over all 33. A family shorter than the `min_episodes` a detector
+declares is not applicable to it: see below):
 
 | Access level | Detectors | Mean AUROC | SD across detectors | Best AUROC | Best detector |
 |---|---|---|---|---|---|
-| L0 | 13 | 0.4876 | 0.0258 | 0.5351 | Reward CUSUM |
-| L1 | 8 | 0.5701 | 0.1366 | 0.9270 | State Divergence |
-| L2 | 7 | 0.5716 | 0.1647 | 0.9430 | Trajectory MLP |
+| L0 | 13 | 0.4834 | 0.0324 | 0.5474 | Reward CUSUM |
+| L1 | 8 | 0.5789 | 0.1543 | 0.9820 | State Divergence |
+| L2 | 7 | 0.5771 | 0.1639 | 0.9430 | Trajectory MLP |
 | L3 | 1 | 0.9830 | 0.0000 | 0.9830 | True Reward Oracle |
 
-The board this replaced (2026-07-17) predated both behavioral sign randomization and
-the not-applicable schema, and read L0 0.4866 (best 0.5311), L1 0.5200 (best 0.6210),
-L2 0.7213 (best 0.9750, Behavioral Threshold) and L3 0.9830. Behavioral Threshold fell
+L1's best, State Divergence at 0.9820, is within 0.001 of the L3 oracle's 0.9830, and over
+20 draws it is above it (0.998 [0.996, 1.000] against 0.975 [0.971, 0.978],
+`leaderboard/v5_replicated.json`). It is also above L2's best, Trajectory MLP's 0.9430,
+so the best detector no longer rises at every step of the ladder: on the board of
+2026-11-19 L1's best (0.9270) sat below L2's. Over 20 draws L2 minus L1 on the max is
+−0.055 [−0.061, −0.050], L2 above L1 in 0 of 20 draws, where before the re-score it did
+not separate (+0.001 [−0.004, +0.006], 13 of 20). Neither comparison is like for like:
+State Divergence is fitted to labels and scored over 31 cells in 7 families, Trajectory
+MLP (also label-fitted) and the oracle over 123 cells in 33 (Figure 7b).
+
+The board this replaced (2026-11-19, run 44447220658) differed only in recording the
+fallback 0.5s described below as measured: L0 0.4876 (best 0.5351), L1 0.5701 (best
+0.9270), L2 0.5716 (best 0.9430) and L3 0.9830. The one before it (2026-07-17) predated
+both behavioral sign randomization and the not-applicable schema, and read L0 0.4866
+(best 0.5311), L1 0.5200 (best 0.6210), L2 0.7213 (best 0.9750, Behavioral Threshold)
+and L3 0.9830. Behavioral Threshold fell
 from 0.975 to 0.512 and Centroid Tracker from 0.966 to 0.361, almost entirely because the
 shipped configuration randomizes the sign of `behav_trace`, the effect
 [docs/figures/sign_randomization_impact.md](docs/figures/sign_randomization_impact.md)
 measured. The exception is `sequence_keyword_stuffing`, where detectors that do not read
 the sign moved too (L0 detectors, Angular Momentum, Feature Magnitude), so that family's
-change is not the sign's. State Divergence rose from 0.621 to 0.927 only because its 25
-not-applicable families are now excluded (Figure 7b).
+change is not the sign's. State Divergence rose from 0.621 to 0.982 only because its
+not-applicable families are now excluded: the 25 that emit no `state_counts`, and
+`continuous_camping`, whose 40 episodes are below its declared `min_episodes` (Figure 7b).
 
 **The L0 row holds out the six families the ledger marks DEGENERATE**, and only the L0
 row. `distributional_shift`, `monitored_sandbagging`, `orbit_chirality`,
@@ -201,14 +239,14 @@ An L0 detector's AUROC on them is the tie convention (0.5), or rounding error on
 near-constant proxy (Reward KDE reads 0.600 on `orbit_chirality`), *by construction*
 rather than by matching, and leaving them in would let the negative control confirm
 itself. Nothing is hidden by the exclusion, because it barely moves: **put them back and
-L0 reads 0.4898 instead of 0.4876**, family-weighted either way. Earlier releases printed
+L0 reads 0.4877 instead of 0.4834**, family-weighted either way. Earlier releases printed
 `0.4898 | 0.0156 | 0.5180` here, from the board of 2026-07-17 — that is the same
-statistic with no exclusion and weighted by cell rather than by family; its 0.4898 equals
-the family-weighted figure above only by coincidence. On the current board that
-cell-weighted figure is 0.4903. Its difference from 0.4876 is 0.0028, of which the
-exclusion is 0.0023 and the re-weighting 0.0005. All three are differences of the
-unrounded means (0.490308, 0.489811 and 0.487551); differencing the rounded figures
-instead gives 0.0027 and 0.0022. L1–L3 do not read the proxy reward and
+statistic with no exclusion and weighted by cell rather than by family; its 0.4898
+equalled the family-weighted figure of the 2026-11-19 board only by coincidence. On the
+current board that cell-weighted figure is 0.4881. Its difference from 0.4834 is 0.0047,
+of which the exclusion is 0.0043 and the re-weighting 0.0004. All three are differences
+of the unrounded means (0.488077, 0.487714 and 0.483374); differencing the rounded
+figures gives the same. L1–L3 do not read the proxy reward and
 score these six families like any other, so they are unchanged by construction.
 
 **Only the degenerate cells are held out.** The ledger now covers all 33 families. It
@@ -218,42 +256,55 @@ NOT ADMITTED: `proxy_matched` fails on 24 of them, `proxy_distribution_matched` 
 and `behavioral_separated` on 1, and a cell can fail more than one (see
 [The Admission Ledger](#the-admission-ledger)). 50 of the 51 fail a proxy criterion; the
 51st, `proxy_correlation_gaming` @ 0.60, passes both and fails only
-`behavioral_separated`. Those 51 cells are still in the L0 mean above (Reward Skewness,
-not applicable below 100 episodes, reads only the 9 of them in families long enough for
-it). Whether a cell measured NOT ADMITTED belongs in the negative control is an open
+`behavioral_separated`. Those 51 cells are still in the L0 mean above, for each detector
+that is applicable on them: the five L0 detectors that need 100 episodes (Reward
+Skewness, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window) read only
+the 9 of them in families that long, and the four that need 50 to 60 (Reward CUSUM, Max
+Plateau, Reward MLP and Gradient Reversal) read 33, all but the 18 in 40-episode
+families. Whether a cell measured NOT ADMITTED belongs in the negative control is an open
 question for the author ([ROADMAP.md](ROADMAP.md)); the code's policy is unchanged.
 
-This table is the single-draw board (`leaderboard/v5_leaderboard.json`), regenerated on
-CI on 2026-11-19 (run 44447220658) under the shipped configuration: behavioral sign
-randomization on, and not-applicable cells `null`. Reward Skewness needs 100 episodes,
-so it is not applicable on 19 of the 27 families in the L0 row. The board it replaced
-predated the Skewness fix (b796f9c on this branch, first committed as 584ba13,
+This table is the single-draw board (`leaderboard/v5_leaderboard.json`), re-scored on
+CI on 2026-11-26 (run 45747902322, 03d978e) under the shipped configuration: behavioral
+sign randomization on, and not-applicable cells (a missing channel, or a family shorter
+than the detector's declared `min_episodes`) `null`. Reward Skewness needs 100 episodes,
+so it is not applicable on 19 of the 27 families in the L0 row; four more L0 detectors
+(Reward Peak, Reward Autocorrelation, Reward Trend, Variance Window) share that horizon,
+and four (Reward CUSUM, Max Plateau, Reward MLP, Gradient Reversal) are not applicable on
+the 7 families of 40 episodes. The board of 2026-11-19 (run 44447220658) already had
+Skewness `null` on those 19 but recorded the other eight's fallback 0.5; the one before
+it predated the Skewness fix (b796f9c on this branch, first committed as 584ba13,
 2026-09-02) and carried a constant 0.5 on those 19. The 20-draw board was re-scored with
-those 19 not applicable (253c7ec, first committed as 9da6b21); there the maximum over
-unsupervised L0 detectors, taken in each draw and averaged over the 20, is 0.551
-[0.541, 0.562]. That maximum is selection-biased upward: no single L0
+those 19 not applicable (253c7ec, first committed as 9da6b21), and again on CI on
+2026-11-26 (runs 45747922473 and 45776113470) with every declared horizon, 19 detectors
+across all 20 draws; there the maximum over unsupervised L0 detectors, taken in each draw and averaged
+over the 20, is 0.568 [0.555, 0.580]. That maximum is selection-biased upward: no single L0
 detector's 20-draw mean reaches 0.507 (Spectral Reward 0.506 [0.495, 0.517];
 `leaderboard/v5_replicated.json`).
 
-**Eight other L0 detectors' short-horizon values are their fallback 0.5, not
-measurements.** Reward Skewness is the only L0 detector that declares the horizon its
-windows need (`min_episodes`), so it is the only one the harness records `null` there.
-The others return a fixed score when a run is shorter than their windows, and both
-boards record the resulting 0.500 as a measured value. Reward Peak, Reward
-Autocorrelation, Reward Trend and Variance Window need 100 episodes and read exactly
-0.500 on all 19 families that run 40 or 60 (59 cells). Max Plateau and Reward MLP (50
-episodes), Gradient Reversal (60) and Reward CUSUM (50; below that it returns a constant
-score) read exactly 0.500 on the 7 families that run 40 (22 cells). Those are 104 of the
-332 per-family values behind L0 0.4876, and 7 of the 27 behind the best, Reward CUSUM's
-0.5351; the 20-draw board has the same 0.500 in every draw. Every L1 detector does the same on `continuous_camping`, whose
-40 episodes are below each one's window, so 4 of each L1 detector's 35 cells are its
-fallback as well, and so do three L2 detectors: Feature Consistency (100 episodes) on the
-19 families, Feature Magnitude and Reward-Feature Correlation (50) on the 7. Declaring
-each detector's horizon and re-scoring both boards is an open item in
-[ROADMAP.md](ROADMAP.md); it will change the L0 ladder. The admission gate is not
-affected: `proxy_matched` scores through Reward Threshold, which has no such fallback;
-in the shape panel Reward Variance Ratio and Reward KDE need only 21 and 22 episodes,
-and Reward Skewness is recorded not applicable.
+**Every detector whose score is a constant below some run length declares that length
+(`min_episodes`), and the harness records `null` there.** Until f83a152 (2026-11-26)
+Reward Skewness was the only L0 detector that declared it. The others returned a fixed
+score when a run was shorter than their windows, and both boards recorded the resulting
+0.500 as a measured value; since the re-score both record `null` there. Reward
+Skewness, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window need 100
+episodes and are not applicable on the 19 families that run 40 or 60 (59 cells). Max
+Plateau and Reward MLP (50 episodes), Gradient Reversal (60) and Reward CUSUM (51: at
+exactly its 50-episode baseline the accumulation never runs) are not applicable on the 7
+families that run 40 (22 cells). Reward KDE, Reward Variance Ratio and Spectral Reward
+declare 22, 21 and 24, below every family's horizon. The eight detectors' fallbacks were
+104 of the 332 per-family values behind the 2026-11-19 board's L0 0.4876, and 7 of the
+27 behind its best, Reward CUSUM's 0.5351; the 20-draw board recorded the same 0.500 in
+every draw and now records them `null` in every draw. Re-scored, L0 reads 0.4834 over
+228 per-family values, and the best, Reward CUSUM's 0.5474, rests on 20 families. Every
+L1 detector is not applicable on `continuous_camping`, whose 40 episodes are below each
+one's `min_episodes` (50 to 101), so each is scored over 31 cells in 7 families; and
+three L2 detectors are not applicable on the short families: Feature Consistency (100
+episodes) on the 19 (64 cells measured), Feature Magnitude and Reward-Feature
+Correlation (50) on the 7 (101 measured). The admission gate is not affected:
+`proxy_matched` scores through Reward Threshold, which has no such fallback; in the
+shape panel Reward Variance Ratio and Reward KDE need only 21 and 22 episodes, and
+Reward Skewness is recorded not applicable.
 
 **Excluded from the L3 aggregate: `PerfectFeatureOracleDetector`.** It is a
 subclass of the L2 `BehavioralThresholdDetector` overriding only `access_level`
@@ -265,12 +316,13 @@ previously published "L3, n=2, mean 0.9790" was the average of one oracle and on
 copy of an L2 baseline and never measured anything. It is registered in
 `rhob.detectors.redundancy` and held out of **every** access-level aggregate — it
 is deliberately *not* re-filed under L2, which would just move the double-count
-there (moving L2's mean to 0.5641) for no new information.
+there (moving L2's mean to 0.5690) for no new information.
 
 **Consequence for the headline claim:** on this single-draw board, best-L2 0.9430
 (Trajectory MLP) vs best-L3 0.9830 is a gap of **0.0400 AUROC**. Over 20 draws the
 same step is +0.032 [+0.027, +0.037], positive in 20 of 20
-(`leaderboard/v5_replicated.json`): small, but not none.
+(`leaderboard/v5_replicated.json`): small, but not none. The step below it runs the
+other way: L1's best is above L2's, on a quarter of the cells (see below the table).
 
 ### Figure 7b: L1 must be reported over its own denominator
 
@@ -282,25 +334,26 @@ channel (`gridworld_camping`, `continuous_camping`, `distributional_shift`,
 cells, so on the board of 2026-07-17 **88/123 = 71.5%** of every L1 detector's
 published cells were the fallback.
 
-The board regenerated on 2026-11-19 records those 88 cells as `null` and scores each L1
-detector over the other 35 cells (4 of which, `continuous_camping`'s, are still the
-fallback: see below). An earlier version of this section recomputed the
-right-hand column from the old file (exact, since `overall_auroc` is an unweighted mean
-over cells); the regenerated board measures it directly and agrees with that
-recomputation on every detector to 3 decimals:
+The board re-scored on 2026-11-26 records those 88 cells as `null`, and
+`continuous_camping`'s 4 as well (its 40 episodes are below every L1 detector's declared
+`min_episodes`), and scores each L1 detector over the other 31 cells in 7 families. An
+earlier version of this section recomputed the 35-cell column from the old file (exact,
+since `overall_auroc` is an unweighted mean over cells), and the board of 2026-11-19
+agreed with that recomputation on every detector to 3 decimals; the re-scored board also
+drops `continuous_camping`'s fallback cells, so the right-hand column is over 31 cells:
 
-| L1 detector | Published 2026-07-17 (123 cells) | Measured only (8 families, 35 cells) |
-|---|---|---|
-| State Divergence | 0.621 | **0.927** |
-| State Coverage Rate | 0.514 | 0.549 |
-| Bimodal Occupancy | 0.512 | 0.542 |
-| State Frequency Anomaly | 0.510 | 0.534 |
-| Transition Entropy | 0.508 | 0.529 |
-| Visitation Entropy Trend | 0.499 | 0.496 |
-| Occupancy Polarization | 0.499 | 0.495 |
-| Centroid Drift | 0.497 | 0.489 |
-| **Suite mean** | 0.5200 | **0.5701** |
-| **Suite max** | 0.6210 | **0.9270** |
+| L1 detector | Published 2026-07-17 (123 cells) | Board of 2026-11-19 (8 families, 35 cells) | Measured only (7 families, 31 cells) |
+|---|---|---|---|
+| State Divergence | 0.621 | 0.927 | **0.982** |
+| State Coverage Rate | 0.514 | 0.549 | 0.555 |
+| Bimodal Occupancy | 0.512 | 0.542 | 0.547 |
+| State Frequency Anomaly | 0.510 | 0.534 | 0.538 |
+| Transition Entropy | 0.508 | 0.529 | 0.532 |
+| Visitation Entropy Trend | 0.499 | 0.496 | 0.495 |
+| Occupancy Polarization | 0.499 | 0.495 | 0.494 |
+| Centroid Drift | 0.497 | 0.489 | 0.488 |
+| **Suite mean** | 0.5200 | 0.5701 | **0.5789** |
+| **Suite max** | 0.6210 | 0.9270 | **0.9820** |
 
 Excluding the fabrication **raises** L1: the 0.5 constants were dragging a
 genuinely strong detector down to 0.621 and the suite mean to 0.520. The retracted
@@ -308,13 +361,13 @@ genuinely strong detector down to 0.621 and the suite mean to 0.520. The retract
 
 `scripts/v5_leaderboard_and_transfer.py` records these cells as `null` with a
 reason instead of imputing 0.5, and excludes them from `overall_auroc`. That removes
-the 0.5s of an absent channel, not every 0.5 that is not a measurement.
-`continuous_camping` does emit `state_counts`, and all 8 L1 detectors read exactly
-0.500 on it, but its runs are 40 episodes, below every L1 detector's window, so each
-returns its fallback 0.5 and the board records that as measured. A `0.5` on the
-regenerated board means *"measured, and at chance"* only outside those cells, the
-short-horizon cells of eight L0 and three L2 detectors (Figure 7) and the L0 cells of
-the six DEGENERATE families, where it is the tie convention.
+the 0.5s of an absent channel and, since every detector whose score is a constant below
+some run length declares it (`min_episodes`), those of a run shorter than the detector's
+windows. `continuous_camping` does emit `state_counts`, but its runs are 40 episodes,
+below every L1 detector's declared `min_episodes`, so all 8 are not applicable there;
+the board of 2026-11-19 recorded their fallback 0.500 as measured. A `0.5` on the
+re-scored board means *"measured, and at chance"* everywhere except the L0 cells of the
+six DEGENERATE families, where it is the tie convention.
 
 ### Figure 8: Cross-Family Transfer
 
@@ -446,16 +499,21 @@ python scripts/v5_leaderboard_and_transfer.py
 **Details:**
 - Evaluates all 30 detectors on all 33 families = 123 cells per detector
 - For each detector × family: generates runs at all default difficulty levels, evaluates with 5-fold stratified cross-validation
-- 21 of the 30 detectors score all 123 cells. The other nine have `null` cells by
-  design: the 8 L1 detectors are not applicable on the 25 families that emit no
-  `state_counts` (35 cells measured each), and Reward Skewness on the 19 families with
-  fewer than the 100 episodes its windows need (64 cells measured). There are no NaN
-  cells in the committed artifact. A number is not always a measurement: eight L0 and
-  three L2 detectors that declare no minimum horizon carry their fallback 0.5 on the
-  families shorter than their windows, and every L1 detector does on
-  `continuous_camping` (Figure 7). (Earlier revisions of this guide reported "28/30
-  detectors scoring successfully" because of NaN returns from Reward Skewness and
-  Transition Entropy. That is no longer the case.)
+- 10 of the 30 detectors score all 123 cells (Reward Threshold, Reward Variance Ratio,
+  Spectral Reward, Reward KDE, Behavioral Threshold, Angular Momentum, Centroid Tracker,
+  Trajectory MLP and both L3 oracles). The other 20 have `null` cells by design: the 8
+  L1 detectors on the 25 families that emit no `state_counts` and on
+  `continuous_camping`, below their `min_episodes` (31 cells measured each); Reward
+  Skewness, Reward Peak, Reward Autocorrelation, Reward Trend, Variance Window and Feature
+  Consistency on the 19 families shorter than 100 episodes (64 measured); Reward CUSUM,
+  Max Plateau, Reward MLP, Gradient Reversal, Feature Magnitude and Reward-Feature
+  Correlation on the 7 of 40 episodes (101 measured). There are no NaN cells in the
+  committed artifact. Every detector whose score is a constant below some run length
+  declares `min_episodes`, so no number is a fallback 0.5 (until 2026-11-26 eight L0 and
+  three L2 detectors, and every L1 detector on `continuous_camping`, carried one).
+  (Earlier revisions of this guide reported "28/30 detectors scoring successfully"
+  because of NaN returns from Reward Skewness and Transition Entropy. That is no longer
+  the case.)
 
 **Runtime:** ~2–3 hours on CPU
 
@@ -483,7 +541,7 @@ number, and it is now recorded in the artifact itself:
   `sqrt((n+m+1)/(12nm))` at n=m=5, the Mann–Whitney null. A three-decimal cell value
   carries about one meaningful digit. This single-draw board carries no confidence
   intervals; `leaderboard/v5_replicated.json` does, over 20 independent draws, for
-  every detector and 790 (detector, family) cells.
+  every detector and 626 (detector, family) cells.
 - **All 30 detectors are scored on the identical rolled-out runs**, so their cell
   values are correlated and the difference between two detectors is not a
   comparison of independent measurements.
@@ -533,8 +591,9 @@ reproducible from the recorded SHA alone. Every tracked package is a key, and on
 installed is `null` rather than omitted (`mujoco-core` exists only from MuJoCo 4.0).
 Artifacts written before 2026-11-16 carry only the first five names; the admission
 ledger of 2026-08-03 also carried gymnasium, mujoco, pettingzoo and mpe2, which
-`scripts/admission_ledger.py` added itself, and had no `git.source`. The ledger and the
-v5 board regenerated on 2026-11-19 carry all ten names and `git.source`. In an older block a
+`scripts/admission_ledger.py` added itself, and had no `git.source`. The ledger
+regenerated on 2026-11-19 and the v5 board re-scored on 2026-11-26 carry all ten names and
+`git.source`. In an older block a
 missing name means "not recorded", which is not the same as `null`, "recorded as not
 installed".
 
@@ -560,8 +619,8 @@ installed".
 
 ```json
 "cell_semantics": {
-  "per_family_null": "not applicable -- the family does not emit the RunData channel this detector's access level is defined over, so no measurement exists. Excluded from overall_auroc; never imputed as 0.5.",
-  "per_family_number": "measured mean AUROC over that family's difficulty cells"
+  "per_family_null": "not applicable -- no measurement exists: the family does not emit the RunData channel this detector's access level is defined over, or its horizon is shorter than the detector's min_episodes, or every cell's AUROC was undefined. The detector's not_applicable_reasons says which. Excluded from overall_auroc; never imputed as 0.5.",
+  "per_family_number": "measured mean AUROC over that family's scored difficulty cells. Every detector whose score is a constant below some run length declares that length as min_episodes, so a family shorter than it is null, not a fallback 0.5."
 }
 ```
 
@@ -579,17 +638,20 @@ list). The top-level `timestamp` is retained for backward compatibility with
 `provenance.generated_utc`.
 
 `behav_trace` is present in every family measured, and `proxy_rewards` /
-`true_rewards` always are, so **no L2 or L3 cell lacks its channel**. On the regenerated
-board the not-applicable cells are the 8 L1 detectors' 88 cells each and 59 cells of
-Reward Skewness (L0), which reads the proxy but is not applicable below 100 episodes.
-The `cell_semantics` text above names a missing channel, which is not the reason for
-Skewness; its `not_applicable_reasons` give the horizon instead. Its
-`per_family_number` ("measured mean AUROC") is not true of every number either: a
-detector that does not declare `min_episodes` is scored below its windows, and its
-fallback 0.5 is written as a number. On this board that is eight L0 detectors on the
-short-horizon families (104 per-family values, Figure 7), three L2 detectors there
-(Feature Consistency on 19 families, Feature Magnitude and Reward-Feature Correlation on
-7) and every L1 detector on `continuous_camping`.
+`true_rewards` always are, so **no L2 or L3 cell lacks its channel**. On the re-scored
+board the not-applicable cells are the 8 L1 detectors' 92 cells each (88 without
+`state_counts`, 4 on `continuous_camping` below their `min_episodes`); 59 cells each of
+Reward Skewness, Reward Peak, Reward Autocorrelation, Reward Trend, Variance Window (L0)
+and Feature Consistency (L2), below 100 episodes; and 22 cells each of Reward CUSUM, Max
+Plateau, Reward MLP, Gradient Reversal (L0), Feature Magnitude and Reward-Feature
+Correlation (L2), below 50 to 60 episodes. The `cell_semantics` text above names both
+reasons, and each detector's `not_applicable_reasons` says which applies. Its
+`per_family_number` holds of every number: no detector is scored below its declared
+`min_episodes`. Until 2026-11-26 the board carried 145 per-family fallback 0.5s as
+numbers (104 from eight L0 detectors, 33 from three L2 detectors, 8 from the L1
+detectors on `continuous_camping`). On the six DEGENERATE families an L0 number is the
+tie convention (0.5) or rounding error on a near-constant proxy, not evidence of
+matching (Figure 7).
 
 ## Three Critical Fixes (Validated in v1.0)
 
@@ -1337,8 +1399,9 @@ could test for it.
    `provenance` block.
 
    - `requirements/ci-admission-linux-py312.txt` is the nightly physics screen's stack,
-     exact and hashed, for Linux x86_64 and CPython 3.12. The admission ledger and
-     `leaderboard/v5_leaderboard.json`, regenerated on 2026-11-19, record its versions.
+     exact and hashed, for Linux x86_64 and CPython 3.12. The admission ledger,
+     regenerated on 2026-11-19, and `leaderboard/v5_leaderboard.json`, re-scored on
+     2026-11-26, record its versions.
    - `requirements-lock.txt` lists the direct dependencies **found present on
      2026-07-29**, not a certified provenance chain, and it pins nothing transitive. The
      admission ledger of 2026-08-03 recorded eight package versions besides rhob, and all
@@ -1346,7 +1409,9 @@ could test for it.
    - Of the committed `leaderboard/*.json`, only `v5_leaderboard.json` carries
      environment metadata in the file itself. `v5_replicated.json`'s 20 inputs under
      `results/replication/` record theirs (Python 3.11.15, numpy 2.4.6, no git commit;
-     the Reward Skewness re-score of 2026-09-03 records its own source environment).
+     each detector re-score merged into them, such as Reward Skewness's of 2026-09-03,
+     records its own source environment in a `rescored` entry; the 19 of 2026-11-26 kept
+     the draws' values and applied only the new not-applicable cells).
      The versions behind `leaderboard.json` and `cross_family_transfer.json` were never
      captured.
      `scripts/v5_leaderboard_and_transfer.py`, `scripts/cross_family_transfer.py` and
@@ -1430,15 +1495,16 @@ struck through, as a record; every other item is a real remaining limit.
   calling `certify` once per (family, difficulty).
 
 **Coverage**
-- **L1 is thin.** 25 of 33 families emit no `state_counts`; L1 is only measurable
-  on 8 families / 35 cells, and on `continuous_camping`'s 40-episode runs no L1
-  detector's window fits, so 4 of those 35 are each detector's fallback 0.5.
-- **Eight L0 detectors' short-horizon values are fallbacks.** Only Reward Skewness
-  declares its horizon and is `null` below it. Reward Peak, Reward Autocorrelation,
-  Reward Trend and Variance Window read their fallback 0.5 on the 19 families of 40 or
-  60 episodes, and Max Plateau, Reward MLP, Gradient Reversal and Reward CUSUM on the 7
-  of 40; three L2 detectors do the same. Both boards publish those as measured
-  (Figure 7, [ROADMAP.md](ROADMAP.md)).
+- **L1 is thin.** 25 of 33 families emit no `state_counts`, and `continuous_camping`,
+  which does, runs 40 episodes, below every L1 detector's `min_episodes`. So L1 is
+  measurable on 7 families / 31 cells, and its best detector's 0.9820 against the L3
+  oracle's 0.9830 over 123 cells is not a like-for-like comparison.
+- **~~Eight L0 detectors' short-horizon values are fallbacks.~~ Done (2026-11-26).**
+  Every detector whose `classify` is constant below a run length declares
+  `min_episodes` (f83a152) and is `null` below it: nine L0 detectors, three L2 detectors
+  and every L1 detector on `continuous_camping`. Both boards were re-scored on CI (runs
+  45747902322, 45747922473 and 45776113470); until then each published 145 per-family fallback 0.5s
+  as measured, in every draw (104 L0, 8 L1, 33 L2).
 - **L3 has one detector.** The oracle gap above L2 is 0.0400 on the single-draw board
   (0.9830 vs 0.9430) and +0.032 [+0.027, +0.037] over 20 draws.
 - **5 external baseline detectors ship but are unscored** — they appear in

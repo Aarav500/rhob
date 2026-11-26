@@ -4,7 +4,9 @@ One rule down from ``missing_channels``: ``required_channels`` says *which* sign
 detector needs, ``min_episodes`` says *how many episodes* of them. A cell that trips
 either is excluded from aggregates with a reason, the way an absent channel already is.
 Scoring it anyway would publish the detector's fallback constant as a property of the
-family, which is exactly what happened to the Reward Skewness row.
+family, which is exactly what happened to the Reward Skewness row -- and, until
+2026-11-26, to eight other L0 rows, every L1 row on ``continuous_camping`` and three L2
+rows (``tests/test_detectors/test_min_episodes.py``).
 """
 
 from __future__ import annotations

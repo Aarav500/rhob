@@ -59,7 +59,10 @@ Detector = PosthocDetector
 # therefore scored NaN and excluded from every mean, and reported as ``not_applicable``
 # downstream. (2026-11-19: the board recomputed there is the one committed before the
 # regeneration. The regenerated board scores L1 this way, has the same per-family L1
-# values on the 8 families that emit ``state_counts``, and reads 0.570 and 0.927.)
+# values on the 8 families that emit ``state_counts``, and reads 0.570 and 0.927.
+# 2026-11-26: every L1 detector now declares ``min_episodes``, so ``continuous_camping``
+# (40 episodes) is not applicable to any of them either; the re-scored board reads
+# 0.579 and 0.982 over 7 families, 31 cells.)
 #
 # A detector may override the default for its level by exposing a ``required_channels``
 # attribute (a tuple of ``RunData`` field names). That hook exists for the L3 ceiling

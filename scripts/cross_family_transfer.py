@@ -42,7 +42,11 @@ so the L1 State Divergence row used to be part real measurement and part hardcod
 and its "train AUROC" was computed over 25 cells of which only gridworld_camping's was
 measured: 20 came from the four train families that emit no ``state_counts``, and
 continuous_camping's 4 are 40-episode runs below the detector's 50-episode baseline, so
-they also returned its fallback 0.5.
+they also returned its fallback 0.5. (continuous_camping's 4 cells stayed a fallback 0.5
+in ``Benchmark.evaluate`` until 2026-11-26, when State Divergence declared
+``min_episodes = 50``. The pooled fit below still checks ``required_channels`` only, and
+the committed ``leaderboard/cross_family_transfer.json`` (2026-07-09) predates both
+fixes and has not been re-run.)
 
 Run: python scripts/cross_family_transfer.py [--n-seeds-train N] [--n-seeds-test N]
 """

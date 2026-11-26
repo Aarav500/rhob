@@ -183,9 +183,11 @@ def test_adapter_reads_the_committed_replicated_board():
 
     by_name = {e.detector_name: e for e in board.entries}
     l1 = by_name["State Divergence"]
-    # 8 families, not 33: the flattened entry must not have gained imputed cells.
-    assert len(l1.family_auroc) == 8
-    assert l1.n_cells == 35
+    # 7 families, not 33: the flattened entry must not have gained imputed cells.
+    # (25 families ship no state channel, and continuous_camping's 40 episodes are below
+    # every L1 detector's min_episodes.)
+    assert len(l1.family_auroc) == 7
+    assert l1.n_cells == 31
     assert board.standings()[0].detector_name == rich.standings()[0].name
 
 
@@ -285,7 +287,9 @@ def test_the_committed_l0_control_holds_per_detector_but_its_max_does_not():
     assert control.max_excludes_reference is True
     assert control.max_exceeds_every_detector is True
 
-    # And the suite mean's exclusion is far smaller than the bootstrap's own scatter
-    # (~2.4e-4 over 300 seeds, docs/figures/l0_control_robustness.md), so no direction
-    # may be read from it.
+    # And the suite mean's interval, [0.4899, 0.5000], reaches 0.500 only at its upper
+    # end (0.50001), so its margin from chance is 0.0 by a hair. That endpoint is inside
+    # the bootstrap's own scatter: replayed under 300 generator seeds it moves over
+    # [0.499879, 0.500216], at or above 0.500 in 225 of them
+    # (docs/figures/l0_control_robustness.md), so no direction may be read from it.
     assert control.mean_margin_from_reference < 1e-4

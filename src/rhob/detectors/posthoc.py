@@ -96,7 +96,9 @@ class PosthocDetector(ABC):
         It exists because the alternative was measured. A detector whose windows did
         not fit a family's horizon used to return its fallback constant, and that
         constant was published as an "at chance" result on 24 of 33 families
-        (``leaderboard/v5_replicated.json``, Reward Skewness). A number a detector
+        (``leaderboard/v5_replicated.json``, Reward Skewness). Until 2026-11-26 the same
+        held for nineteen more scored detectors on the families too short for them
+        (eight L0, every L1 on ``continuous_camping``, three L2). A number a detector
         could not have varied is not a measurement of the family.
 
         Default: 0, meaning no minimum. Declare one whenever ``classify`` returns a

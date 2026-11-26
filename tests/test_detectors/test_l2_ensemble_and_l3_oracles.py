@@ -78,13 +78,15 @@ def test_perfect_feature_oracle_keeps_its_published_labels():
 def test_perfect_feature_oracle_is_a_relabelled_l2_duplicate():
     """Lock in the audited fact that justifies excluding it from the L3 aggregate.
 
-    Structural: it overrides only ``access_level`` and ``name``, inheriting the L2
+    Structural: it overrides only ``access_level`` and ``name`` (and declares
+    ``required_channels = ("behav_trace",)``, the one channel it reads), inheriting the L2
     baseline's ``classify``/``detect_onset`` verbatim, so it reads ``behav_trace`` and
     nothing else -- never ``true_rewards``, the one channel L3 adds over L2.
     Behavioural: it therefore scores identically to the baseline on every run. In
     ``leaderboard/v5_leaderboard.json`` the two agree on 33/33 families and on the
-    overall figure (both 0.512 over 123 cells on the board regenerated on 2026-11-19,
-    with the behavioural sign randomized; both 0.9750 on the board before it). If this
+    overall figure (both 0.512 over 123 cells on the board re-scored on 2026-11-26, as on
+    the 2026-11-19 regeneration before it, with the behavioural sign randomized; both
+    0.9750 on the board before that). If this
     test ever fails, the detector
     has become an independent measurement and must be re-examined before it is either
     re-levelled or admitted back into an access-level aggregate.
@@ -97,6 +99,7 @@ def test_perfect_feature_oracle_is_a_relabelled_l2_duplicate():
         assert method not in vars(PerfectFeatureOracleDetector), (
             f"{method} is now overridden; the duplication claim no longer holds"
         )
+    assert PerfectFeatureOracleDetector.required_channels == ("behav_trace",)
 
     for behav_sign, true_low in ((0.8, True), (-0.8, False), (0.0, True), (0.35, False)):
         run = _run(behav_sign=behav_sign, true_low=true_low)

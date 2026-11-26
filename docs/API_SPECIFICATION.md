@@ -168,26 +168,34 @@ shorter, and that cell is `null` too, with the horizon as its reason. Reward Ske
 declares 100 and is `null` on the 59 cells of the 19 families that run 40 or 60
 episodes.
 
-The distinction is load-bearing, but it covers only what the detectors declare. A
-detector that does not declare `min_episodes` is still scored below its windows, where
-it falls back to a constant, and the resulting 0.5 is written as a measured number. On
-the regenerated board (`52656cb`) that is eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward
-Trend and Variance Window on the 19 short-horizon families; Max Plateau, Reward MLP,
-Gradient Reversal and Reward CUSUM on the 7 that run 40), three L2 detectors (Feature
+The distinction is load-bearing, and it covers every detector on the board: each one
+whose `classify` returns a constant below some run length declares that length
+(`f83a152`), and `tests/test_detectors/test_min_episodes.py` holds each declaration to
+the code, so a number in `per_family` is a measurement. The five external baselines
+under `src/rhob/detectors/external_baselines/`, which ship but are not scored, do not
+declare one yet: PCA Reconstruction returns 0.5 on runs shorter than its 100-episode
+window, and the other four on runs of a few episodes. Until 2026-11-26 only Reward
+Skewness declared one, and the board regenerated on 2026-11-19 (`52656cb`) published the
+fallback of eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward Trend and
+Variance Window on the 19 short-horizon families; Max Plateau, Reward MLP, Gradient
+Reversal and Reward CUSUM on the 7 that run 40), three L2 detectors (Feature
 Consistency on the 19; Feature Magnitude and Reward-Feature Correlation on the 7) and
-every L1 detector on `continuous_camping`: it does emit `state_counts`, and all 8 L1
-detectors read exactly 0.500 on it, but its 40 episodes are below each one's window, so
-that 0.500 is their fallback, not a measurement. Declaring those horizons is an open
-item ([ROADMAP.md](../ROADMAP.md)). Outside those cells, and outside the L0 cells of
-the six DEGENERATE families, where 0.5 is the tie convention, a `0.5` in an artifact
-means *"measured, and at chance"*.
+every L1 detector on `continuous_camping` (it emits `state_counts`, and all 8 L1
+detectors read exactly 0.500 on it, but its 40 episodes are below each one's window) as
+measured 0.5s. On the re-scored boards (`03d978e` for the single draw) those cells are
+`null` with the horizon as the reason. Outside the L0 cells of the six DEGENERATE
+families, where 0.5 is the tie convention, a `0.5` in an artifact means *"measured, and
+at chance"*.
 
 Imputing the fallback previously caused 88 of 123 cells (71.5%) of every L1
 detector's published row to be a constant, which understated the suite: on the
 pre-audit board (`git show c54a8cc:leaderboard/v5_leaderboard.json`, the board as it
 stood before the 2026-11-19 regeneration) the best L1 detector read 0.621 over all 123
-cells. The regenerated board (`52656cb`) records those 88 cells as `null` and scores that
-detector, State Divergence, over the 35 cells where the channel exists, at 0.927.
+cells. The re-scored board (`03d978e`) records those 88 cells as `null`, and
+`continuous_camping`'s 4 as `null` on the horizon, and scores that detector, State
+Divergence, over the remaining 31 cells (7 families) at 0.982; the 2026-11-19 board
+(`52656cb`), with `continuous_camping`'s four fallback 0.5s still in, read 0.927 over
+35.
 
 ---
 
@@ -254,7 +262,9 @@ def min_episodes(self) -> int:
 
     The benchmark and the admission gate record a family whose runs are shorter
     as not applicable (null) instead of calling classify(). Override it whenever
-    classify() falls back to a constant on short runs; today only Reward Skewness does.
+    classify() falls back to a constant on short runs; every detector on the board
+    that does so declares it, and tests/test_detectors/test_min_episodes.py checks each
+    declaration against classify(): constant one episode below it, varying at it.
     """
 ```
 
@@ -438,8 +448,8 @@ Per-detector keys under `results[detector]`:
 | Key | Meaning |
 |---|---|
 | `cells` | cells attempted |
-| `cells_measured` | cells scored: the channel is present and the horizon is at least the detector's declared `min_episodes`. A detector that declares none (`UNDECLARED_HORIZON_FALLBACKS` in `rhob.v3.leaderboard.access_summary`) returns its fallback 0.5 on runs shorter than its windows, and those cells are counted here although nothing was measured |
-| `cells_not_applicable` | cells skipped as not applicable: the family does not emit the detector's channel, or its horizon is below the detector's declared `min_episodes` (Reward Skewness); the reason is in `not_applicable_reasons` |
+| `cells_measured` | cells scored: the channel is present and the horizon is at least the detector's declared `min_episodes`. Every detector on the board whose score is a constant below some run length declares that length (`tests/test_detectors/test_min_episodes.py`), so a cell counted here is a measurement |
+| `cells_not_applicable` | cells skipped as not applicable: the family does not emit the detector's channel, or its horizon is below the detector's declared `min_episodes` (on the committed board, nine L0 detectors, every L1 detector and three L2 detectors have a minimum that some families fall below); the reason is in `not_applicable_reasons` |
 | `not_applicable_families` | list of families skipped for this detector |
 | `not_applicable_reasons` | `{reason string: count}` |
 | `per_family` | float, **or `null`** when not applicable |

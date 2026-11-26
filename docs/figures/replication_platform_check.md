@@ -39,6 +39,21 @@ third measurement basis in this repository, alongside seed count and draw count.
 *(2026-11-19: the admission ledger and the single-draw board have since been regenerated on
 CI under the hashed Linux lock, `requirements/ci-admission-linux-py312.txt`, Python 3.12.16
 (`d4b700d`, `52656cb`); the sign-randomization artifacts are still the Windows stack.)*
+*(2026-11-26: since `f83a152` every detector whose score was a constant below some run
+length declares that length, and for 19 of them that length is above some family's run
+length. Their rows in all 20 replicates were re-scored on CI under the hashed Linux lock
+(run 45747922473), a second platform check of these draws: of the 23,480 cells those 19
+detectors had scored, 23,066 (98.2%) came back with the same AUROC. Of the 414 that did
+not, 319 are on `sequence_keyword_stuffing`, whose code changed after the draws were made
+(`e7bb3f3`, 2026-09-19), 89 on three DEGENERATE families whose proxy is constant to about
+1e-16, where a tie breaks differently across the two stacks, and 6 elsewhere. The merge
+(run 45776113470, `827ae57`, `--keep-old-values`) therefore kept every value the draws
+were scored with and applied only the cells below a declared length, which changed from a
+fallback 0.500 to not applicable. The table below predates that and the 2026-09-03 re-score of
+Reward Skewness (`253c7ec`): for those 19 detectors, State Divergence's 0.927 among them,
+and for Reward Skewness (0.508 here, 0.516 since), it is not what `replicate_000.json`
+holds now; the other 10 rows are. Both stacks returned the same constant on the cells that changed, so
+none of the differences below comes from them.)*
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|

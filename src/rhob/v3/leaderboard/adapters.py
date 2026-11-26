@@ -106,7 +106,7 @@ def load_any_leaderboard_json(path: str | Path, author: str = "rhob-team") -> Le
                     timestamp="",
                     overall_auroc=float(mean),
                     # The measured denominator, not the board's cell count: an L1
-                    # detector measures 35 cells, not the 123 an L2 detector does.
+                    # detector measures 31 cells, not the 123 most L2 detectors do.
                     n_cells=int(cells) if isinstance(cells, int) and not isinstance(cells, bool) else 0,
                     # Only families the detector actually measured are present in the
                     # artifact, and only those are carried over. An absent family means

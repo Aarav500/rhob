@@ -16,7 +16,8 @@ inherited unchanged, so the single signal it reads is ``RunData.behav_trace`` --
 ``true_rewards``, the one channel L3 adds. Nothing about its behaviour is L3.
 
 Measured consequence, from the committed ``leaderboard/v5_leaderboard.json``
-(regenerated 2026-11-19 with sign randomization on): this detector and Behavioral
+(regenerated 2026-11-19 with sign randomization on and re-scored 2026-11-26; the re-score
+leaves every figure in this paragraph unchanged): this detector and Behavioral
 Threshold agree on 33 of 33 families (zero families differ) and on the overall figure,
 both 0.512 across 123 cells. Counting it would make the L3 aggregate n=2, mean 0.7475 --
 an "oracle ceiling" one of whose two members is an L2 result wearing a hat. With it
@@ -33,10 +34,10 @@ leaderboard artifacts, the paper tables and the public Space all key off
 ``"Perfect Feature Oracle"`` at ``"L3"``; silently renaming or re-levelling the class
 would desynchronize the code from data on disk without fixing anything, since the
 double-count is removed at the aggregation step and re-filing the duplicate under L2
-would merely move the double-count there (L2 mean 0.5716 -> 0.5641 on the regenerated
-board, 0.7213 -> 0.7530 on the pre-regeneration one, for no new information). The label
-is inert to measurement in any case: L2 and L3 both expose ``behav_trace``, so this
-detector scores identically either way.
+would merely move the double-count there (L2 mean 0.5771 -> 0.5690 on the board
+re-scored 2026-11-26, 0.7213 -> 0.7530 on the pre-regeneration one, for no new
+information). The label is inert to measurement in any case: L2 and L3 both expose
+``behav_trace``, so this detector scores identically either way.
 """
 
 from __future__ import annotations

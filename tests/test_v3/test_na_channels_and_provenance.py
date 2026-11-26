@@ -249,10 +249,10 @@ def _committed_package_blocks() -> list[tuple[str, dict]]:
 
 def test_artifacts_written_under_the_old_list_still_read():
     """Artifacts committed before 2026-11-16 carry the five-name list (the admission
-    ledger of 2026-08-03 also the four simulators its script added); the v5 board and the
-    ledger regenerated on 2026-11-19 carry all ten. Nothing may require the new names,
-    and no recorded name may be renamed or dropped, or old and new artifacts stop
-    comparing key by key."""
+    ledger of 2026-08-03 also the four simulators its script added); the ledger
+    regenerated on 2026-11-19 and the v5 board re-scored on CI on 2026-11-26 carry all
+    ten. Nothing may require the new names, and no recorded name may be renamed or
+    dropped, or old and new artifacts stop comparing key by key."""
     blocks = _committed_package_blocks()
     assert len(blocks) >= 23, "the scan found fewer provenance blocks than are committed"
     for where, packages in blocks:

@@ -220,8 +220,8 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     1. The best detector at each level is plotted alongside the mean. A level's mean
        measures how many weak detectors happen to have been written for it as much as it
        measures the benchmark; the max is what speaks to "is the signal present at this
-       access level?". On the board regenerated 2026-11-19 they diverge sharply at L1
-       (mean 0.5701, max 0.9270) and L2 (mean 0.5716, max 0.9430).
+       access level?". On the board re-scored 2026-11-26 they diverge sharply at L1
+       (mean 0.5789, max 0.9820) and L2 (mean 0.5771, max 0.9430).
     2. Perfect Feature Oracle is excluded from L3, because it is a relabelled copy of
        the L2 Behavioral Threshold baseline and agrees with it on 33/33 families. See
        :mod:`rhob.detectors.redundancy`. Including it made L3 look like a two-detector
