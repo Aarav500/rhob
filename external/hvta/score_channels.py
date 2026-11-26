@@ -201,8 +201,10 @@ def render(artifact) -> str:
             fit = " *(label-fitted)*" if r["label_fitted"] else ""
             w(f"| {r['detector']}{fit} | {r['access_level']} | {r['auroc']:.3f} | {mae} |")
         w("")
+        short = sum(1 for r in na if (r.get("na_reason") or "").startswith("horizon "))
         w(f"{len(scored)} detectors scored, {ties} at exactly chance by ties, "
-          f"{len(na)} N/A for a missing channel.")
+          f"{len(na) - short} N/A for a missing channel, {short} N/A because the "
+          f"{cell['n_episodes']} steps are fewer than the detector's min_episodes.")
         w("")
     return "\n".join(L) + "\n"
 

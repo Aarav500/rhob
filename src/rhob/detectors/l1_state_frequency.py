@@ -27,10 +27,15 @@ class StateFrequencyAnomalyDetector(PosthocDetector):
     def name(self) -> str:
         return "State Frequency Anomaly"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows of ``state_counts`` rows have to fit."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         """Score: concentration of state visits (high = concentrated = hacking)."""
         counts = run.state_counts
-        if counts is None or len(counts) < self.baseline_window + self.test_window:
+        if counts is None or len(counts) < self.min_episodes:
             return 0.5
 
         # Concentration: Herfindahl index (sum of squared frequencies)

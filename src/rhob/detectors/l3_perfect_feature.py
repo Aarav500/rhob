@@ -52,6 +52,12 @@ class PerfectFeatureOracleDetector(BehavioralThresholdDetector):
     #: :data:`rhob.detectors.redundancy.DUPLICATE_DIAGNOSTICS`.
     duplicate_of = "Behavioral Threshold"
 
+    #: The channel it reads. Without this the harness would check the L3 default,
+    #: ``true_rewards``, and a family with a true reward but no behavioural feature would
+    #: reach ``classify`` and be recorded as the 0.5 it returns for an absent trace
+    #: (``external/hvta`` ``logical_bug_wordle`` until 2026-11-26).
+    required_channels = ("behav_trace",)
+
     @property
     def access_level(self) -> str:
         """Reported as ``"L3"`` for artifact continuity only -- see the module docstring.

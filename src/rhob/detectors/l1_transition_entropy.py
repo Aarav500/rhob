@@ -26,9 +26,14 @@ class TransitionEntropyDetector(PosthocDetector):
     def name(self) -> str:
         return "Transition Entropy"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows of ``state_counts`` rows, plus the one transition that links them."""
+        return self.baseline_window + self.test_window + 1
+
     def classify(self, run: RunData) -> float:
         counts = run.state_counts
-        if counts is None or len(counts) < self.baseline_window + self.test_window + 1:
+        if counts is None or len(counts) < self.min_episodes:
             return 0.5
 
         # Build transition matrix from state sequences

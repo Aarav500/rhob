@@ -62,6 +62,16 @@ class TrajectoryMLPDetector(PosthocDetector):
     def name(self) -> str:
         return "Trajectory MLP"
 
+    @property
+    def min_episodes(self) -> int:
+        """A standard deviation and a range of ``behav_trace`` need two episodes.
+
+        Below that ``_extract_features`` returns None for every run, ``fit`` trains
+        nothing and ``classify`` returns 0.5. Above it the feature window shrinks to the
+        whole run, so no registered family is short enough for this to bind.
+        """
+        return 2
+
     def fit(
         self,
         runs_a: list[RunData],

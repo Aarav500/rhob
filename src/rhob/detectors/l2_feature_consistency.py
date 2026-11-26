@@ -27,11 +27,16 @@ class FeatureConsistencyDetector(PosthocDetector):
     def name(self) -> str:
         return "Feature Consistency"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows of ``behav_trace`` have to fit."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         if run.behav_trace is None:
             return 0.5
 
-        if len(run.behav_trace) < self.baseline_window + self.test_window:
+        if len(run.behav_trace) < self.min_episodes:
             return 0.5
 
         baseline_std = np.std(run.behav_trace[: self.baseline_window])

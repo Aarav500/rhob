@@ -28,10 +28,15 @@ class RewardVarianceRatioDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward Variance Ratio"
 
+    @property
+    def min_episodes(self) -> int:
+        """The baseline window plus one episode past it."""
+        return self.baseline_episodes + 1
+
     def classify(self, run: RunData) -> float:
         """Score: log variance ratio (late / early), rank-order only."""
         proxy = run.proxy_rewards
-        if len(proxy) < self.baseline_episodes + 1:
+        if len(proxy) < self.min_episodes:
             return 0.0
         early_var = float(proxy[: self.baseline_episodes].var()) + 1e-9
         late = proxy[-self.late_window :] if len(proxy) >= self.late_window else proxy

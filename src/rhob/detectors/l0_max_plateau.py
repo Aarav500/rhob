@@ -25,9 +25,14 @@ class MaxPlateauDetector(PosthocDetector):
     def name(self) -> str:
         return "Max Plateau"
 
+    @property
+    def min_episodes(self) -> int:
+        """The plateau is measured over the last ``test_window`` episodes."""
+        return self.test_window
+
     def classify(self, run: RunData) -> float:
         rewards = run.proxy_rewards
-        if len(rewards) < self.test_window:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         max_reward = np.max(rewards)

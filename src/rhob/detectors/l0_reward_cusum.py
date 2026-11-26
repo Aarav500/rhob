@@ -29,6 +29,15 @@ class RewardCUSUMDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward CUSUM"
 
+    @property
+    def min_episodes(self) -> int:
+        """The baseline window, then at least one episode for the CUSUM to accumulate.
+
+        At exactly ``baseline_window`` episodes the accumulation loop never runs and the
+        statistic is 0.0 for every run, so the shortest scoreable run is one longer.
+        """
+        return self.baseline_window + 1
+
     def classify(self, run: RunData) -> float:
         """Score: maximum absolute standardized CUSUM statistic."""
         max_stat, _ = self._cusum_trace(run)

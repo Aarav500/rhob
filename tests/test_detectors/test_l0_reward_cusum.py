@@ -49,9 +49,9 @@ def test_cusum_no_jump():
 def test_cusum_short_trajectory():
     """Test CUSUM on a trajectory shorter than the baseline window.
 
-    It returns the constant 0.0, a fallback rather than a measurement. The detector
-    declares no ``min_episodes``, so the board records this constant as an AUROC of 0.5
-    on families shorter than 50 episodes (``test_l0_window_fallbacks.py``).
+    It returns the constant 0.0, a fallback rather than a measurement. The harness never
+    sees it: the detector declares ``min_episodes`` (its baseline window plus one, 51),
+    so a family shorter than that is not applicable (``test_min_episodes.py``).
     """
     detector = RewardCUSUMDetector(baseline_window=50)
     run = RunData(

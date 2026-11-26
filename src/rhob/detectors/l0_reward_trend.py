@@ -26,10 +26,15 @@ class RewardTrendDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward Trend"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows have to fit, as ``classify`` has always required."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         """Score: magnitude of trend slope in late window."""
         rewards = run.proxy_rewards
-        if len(rewards) < self.baseline_window + self.test_window:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         def trend_slope(x: np.ndarray) -> float:

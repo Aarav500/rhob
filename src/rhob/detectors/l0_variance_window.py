@@ -25,9 +25,14 @@ class VarianceWindowDetector(PosthocDetector):
     def name(self) -> str:
         return "Variance Window"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows have to fit: a baseline and a test variance need one each."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         rewards = run.proxy_rewards
-        if len(rewards) < self.baseline_window + self.test_window:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         baseline_var = np.var(rewards[: self.baseline_window])

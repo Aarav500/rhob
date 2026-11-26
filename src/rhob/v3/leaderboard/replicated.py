@@ -18,12 +18,11 @@ aggregator drops those cells instead of imputing them; earlier boards averaged i
 hard-coded ``0.500`` for each, which made a mostly-unmeasured row read as a measurement.
 :meth:`ReplicatedDetector.family` therefore returns ``None`` -- not ``0.5``, and not
 ``0.0`` -- for a family the detector never scored, and a renderer must show that as
-"not measured" rather than as a number. One case is not caught this way: a detector
-that declares no minimum horizon returns a constant below its windows, so on a family
-too short for them the artifact carries its fallback 0.5 on every draw, with zero
-spread, as if measured. That is eight L0 detectors on the short-horizon families
-(``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``), three L2
-detectors, and every L1 detector on ``continuous_camping`` (``ROADMAP.md``).
+"not measured" rather than as a number. The same holds for a family shorter than the
+``min_episodes`` a detector declares. Until 2026-11-26 only Reward Skewness declared
+one, and the artifact carried the fallback constant of eight other L0 detectors, three
+L2 detectors and every L1 detector on the families too short for them as a 0.5 on every
+draw, with zero spread, as if measured.
 
 **Two partitions, both reportable.** Five detectors are fitted on labels under 5-fold
 cross-validation (:mod:`rhob.detectors.supervision`). The artifact carries the

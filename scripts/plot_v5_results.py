@@ -8,22 +8,13 @@ from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
 
 Outputs (written to ``docs/figures/``):
   v5_heatmap.png        30 detectors x all registered families, per-family AUROC; a
-                         family that is ``null`` on the board for a detector is drawn
-                         grey with no number, never as 0.5. The fallback 0.5 of a
-                         detector on a family shorter than its windows (the eight L0
-                         detectors named below, three L2 detectors, and every L1
-                         detector on ``continuous_camping``) is not ``null``, and is
-                         drawn as 0.50 like a measurement
+                         family that is ``null`` on the board for a detector (no
+                         channel, or fewer episodes than the detector's declared
+                         ``min_episodes``) is drawn grey with no number, never as 0.5
   v5_access_summary.png Mean AND best AUROC by access level (L0/L1/L2/L3), each detector
                          over the cells it is not null on, L0 without the families the
                          admission ledger marks DEGENERATE, duplicate detectors excluded.
-                         Not null is not always measured: eight L0 detectors return a
-                         constant below their windows, recorded as 0.5, and the figure
-                         says so (``UNDECLARED_HORIZON_FALLBACKS``). The L1 and L2 bars
-                         count the same kind of fallback (every L1 detector on
-                         ``continuous_camping``; Feature Consistency, Feature Magnitude
-                         and Reward-Feature Correlation on the short-horizon families),
-                         and the figure does not name those
+                         The L0 note names the detectors measured on fewer families
   v5_access_summary.md  The same access-level table in Markdown, for citing in docs
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
@@ -52,9 +43,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     ACCESS_LEVELS,
     degenerate_families_from_ledger,
+    fewer_families_groups,
     render_access_summary_md,
     summarize_access_levels,
-    undeclared_horizon_note,
 )
 
 # Families 1-9 order matches Table tab:families-sigma in the paper; 10-14 are the
@@ -302,24 +293,21 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     proxy = summaries["L0"]
     if proxy.excluded_families:
         including = proxy.mean_auroc_including_degenerate
-        fewer = [
-            f"{name} over {n}"
-            for name, n in sorted(proxy.n_families_scored_by_detector.items())
-            if n < (proxy.n_families_scored or 0)
-        ]
+        fewer = [f"{', '.join(names)} over {n}" for n, names in fewer_families_groups(proxy)]
         notes.append(
             f"L0 is the negative control and is computed over {proxy.n_families_scored} "
             "families"
-            + (f" ({'; '.join(fewer)}: not applicable on the rest)" if fewer else "")
+            + (
+                f" ({'; '.join(fewer)}: shorter families are below the horizon each declares)"
+                if fewer
+                else ""
+            )
             + f": {len(proxy.excluded_families)} whose proxy the admission ledger "
             "marks DEGENERATE are held out of L0 only ("
             + ", ".join(proxy.excluded_families)
             + f"). With them it reads {including:.4f} instead of {proxy.mean_auroc:.4f}. "
             "NOT ADMITTED cells stay in."
         )
-    fallback = undeclared_horizon_note(proxy)
-    if fallback:
-        notes.append(fallback)
     # Wrapped explicitly rather than with matplotlib's ``wrap=True``: that wraps at draw
     # time against the figure width, so the caller cannot know how many lines a note
     # became and the notes overprint each other.

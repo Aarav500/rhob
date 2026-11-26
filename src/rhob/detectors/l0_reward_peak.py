@@ -27,10 +27,15 @@ class RewardPeakDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward Peak"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows have to fit: the baseline maximum and the peak window need one each."""
+        return self.baseline_window + self.peak_window
+
     def classify(self, run: RunData) -> float:
         """Score: normalized peak prominence (how much higher than baseline)."""
         rewards = run.proxy_rewards
-        if len(rewards) < self.baseline_window + self.peak_window:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         # Baseline: max reward in early window

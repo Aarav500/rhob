@@ -57,6 +57,11 @@ class RewardMLPDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward MLP"
 
+    @property
+    def min_episodes(self) -> int:
+        """The network reads the last ``window_size`` episodes; ``fit`` skips shorter runs."""
+        return self.window_size
+
     def fit(
         self,
         runs_a: list[RunData],
@@ -111,7 +116,7 @@ class RewardMLPDetector(PosthocDetector):
         """Score: predicted P(hacking) from MLP."""
         if not self.is_trained or self.model is None:
             return 0.5
-        if len(run.proxy_rewards) < self.window_size:
+        if len(run.proxy_rewards) < self.min_episodes:
             return 0.5
         window = run.proxy_rewards[-self.window_size :]
         x = torch.tensor(window, dtype=torch.float32).unsqueeze(0)

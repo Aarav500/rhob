@@ -65,11 +65,11 @@ def draw_for(replicate_id: int) -> tuple[int, int]:
     2026-08-04, Reward Skewness re-scored 2026-09-03) and the board regenerated on
     2026-11-19 agree on 974 of 990 per-family entries -- 755 of the 771 non-null values,
     plus 219 entries that are ``null`` (not applicable) in both -- and 14 of the 16 that
-    differ are ``sequence_keyword_stuffing``. Non-null is not always measured: 145 of
-    those 755 agreeing values are a fallback 0.5 on families shorter than a detector's
-    windows, which is 0.5 in any draw -- 104 of eight L0 detectors
-    (``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``), 33 of three
-    L2 detectors and 8 of the L1 detectors on ``continuous_camping``.
+    differ are ``sequence_keyword_stuffing``. 145 of those 755 agreeing values were a
+    fallback 0.5 on families shorter than a detector's windows, which is 0.5 in any draw
+    -- 104 of eight L0 detectors, 33 of three L2 detectors and 8 of the L1 detectors on
+    ``continuous_camping``. Those detectors have declared ``min_episodes`` since
+    2026-11-26, and the cells are ``null`` on both boards.
     """
     return replicate_id, replicate_id * SEED_BASE_STRIDE
 
