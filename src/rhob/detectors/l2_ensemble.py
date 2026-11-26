@@ -32,6 +32,17 @@ class EnsembleDetector(PosthocDetector):
     def name(self) -> str:
         return self._name
 
+    @property
+    def min_episodes(self) -> int:
+        """The largest of the members' minimums: the mean is a score only when every term is.
+
+        A member below its own minimum contributes its fallback constant (0.5 for most,
+        NaN for Reward Skewness) instead of a score. Averaged in, the constant dilutes
+        the ensemble toward chance, and a NaN fails the cell outright, so the ensemble
+        needs every member's horizon.
+        """
+        return max(int(getattr(m, "min_episodes", 0) or 0) for m in self.members)
+
     def observe_cell(self, runs: list[RunData]) -> None:
         """Forward the cell's unlabeled runs to every member that wants them.
 

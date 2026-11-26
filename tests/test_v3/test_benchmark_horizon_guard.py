@@ -49,3 +49,23 @@ def test_a_long_horizon_still_scores_the_same_detector():
     a, b = _runs(10, 200, 0.2, rng), _runs(10, 200, 0.0, rng)
     auroc, _, reason = _evaluate_cell(RewardSkewnessDetector(), a, b, [0] * 10, "L0", 200)
     assert reason is None and np.isfinite(auroc)
+
+
+def test_an_ensemble_needs_every_members_horizon():
+    """A member below its minimum returns a fallback, not a score (NaN for Skewness).
+
+    Averaged in, that NaN used to fail the whole cell inside roc_auc_score. The ensemble
+    declares the largest of its members' minimums, so the cell is not applicable instead,
+    and it scores once the horizon covers every member.
+    """
+    from rhob.detectors import EnsembleDetector
+
+    rng = np.random.default_rng(0)
+    ens = EnsembleDetector([RewardSkewnessDetector(), RewardThresholdDetector()])
+    assert ens.min_episodes == 100
+    a, b = _runs(10, 40, 0.2, rng), _runs(10, 40, 0.0, rng)
+    auroc, _, reason = _evaluate_cell(ens, a, b, [0] * 10, "L0", 40)
+    assert np.isnan(auroc) and reason and "100" in reason, reason
+    a, b = _runs(10, 100, 0.2, rng), _runs(10, 100, 0.0, rng)
+    auroc, _, reason = _evaluate_cell(ens, a, b, [0] * 10, "L0", 100)
+    assert reason is None and np.isfinite(auroc)
