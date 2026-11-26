@@ -19,6 +19,19 @@ For each ``replicate_NNN.json`` in ``--from-dir`` (produced by
   the replicate's provenance naming the detector, the source directory, and the
   commit, so the artifact says which rows were regenerated when.
 
+With ``--keep-old-values`` the merge does not take the re-scored record. It takes the
+committed one and applies only the new not-applicable set: a cell the re-score marks
+not applicable becomes ``null``, every other cell keeps the value its draw was scored
+with, and the record's per-family means, overall AUROC and counts are recomputed. Use it
+when the re-score cannot reproduce the draw's rollouts for a reason unrelated to the fix
+(the family's code changed after the draw was made), so that every detector in a
+replicate stays scored on the same runs. A cell whose value did not reproduce must still
+be allowed, by name or by family (``--allow-changed-family``), and both values go into
+the replicate's provenance.
+
+Every replicate is compared before any is written, and the report lists every cell that
+moved in every replicate, so one run shows the whole picture.
+
 Then run ``scripts/aggregate_replication.py`` to rebuild ``leaderboard/v5_replicated.json``.
 
 Run::
@@ -34,6 +47,8 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
+import numpy as np
 
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
@@ -56,13 +71,8 @@ def _cells(record: dict) -> dict[tuple[str, float], float | None]:
     }
 
 
-def merge_one(
-    new_path: Path,
-    into_dir: Path,
-    detector: str,
-    atol: float,
-    allow_changed: set[tuple[str, float]],
-) -> dict:
+def compare_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> dict:
+    """Compare one re-scored replicate with the committed one. Writes nothing."""
     new = json.loads(new_path.read_text(encoding="utf-8"))
     old_path = into_dir / new_path.name
     if not old_path.is_file():
@@ -101,38 +111,90 @@ def merge_one(
                 unchanged += 1
         elif new_auroc is not None and old_auroc is None:
             changed.append((key, old_auroc, new_auroc))
-    not_allowed = [c for c in changed if c[0] not in allow_changed]
-    if not_allowed:
-        lines = "\n".join(f"  {k}: {a} -> {b}" for k, a, b in not_allowed[:10])
-        raise SystemExit(
-            f"{new_path.name}: {len(not_allowed)} scored cell(s) changed value; a horizon fix "
-            f"must not move a cell it could already score:\n{lines}\n"
-            f"Pass --allow-changed family:difficulty only after establishing why; the change "
-            f"is then recorded in the replicate's provenance."
-        )
-
-    old["results"][detector] = new_rec
-    prov = old.setdefault("provenance", {})
-    prov.setdefault("rescored", []).append({
-        "detector": detector,
-        "from_dir": str(Path(new_path).parent.as_posix()),
-        "commit": _commit(),
-        "cells_newly_not_applicable": len(newly_na),
-        "cells_unchanged": unchanged,
-        "cells_changed_and_allowed": [
-            {"family": k[0], "difficulty": k[1], "old_auroc": a, "new_auroc": b}
-            for k, a, b in changed
-        ],
-        "source_provenance": new.get("provenance"),
-    })
-    old_path.write_text(json.dumps(old, indent=2), encoding="utf-8")
     return {
         "file": new_path.name,
+        "old": old,
+        "old_path": old_path,
+        "new": new,
+        "new_path": new_path,
         "unchanged": unchanged,
-        "newly_na": len(newly_na),
+        "newly_na": newly_na,
         "na_families": sorted({fam for fam, _ in newly_na}),
         "changed": changed,
     }
+
+
+def _allowed(key: tuple[str, float], allow: set[tuple[str, float]], families: set[str]) -> bool:
+    return key in allow or key[0] in families
+
+
+def apply_na_only(old_rec: dict, new_rec: dict) -> dict:
+    """The committed record with only the re-score's not-applicable set applied.
+
+    Every cell the re-score marks not applicable is set to ``null``; every other cell
+    keeps its committed value. Per-family means and the overall AUROC are recomputed the
+    way ``scripts/v5_leaderboard_and_transfer.py`` computes them (mean of the scored
+    cells, rounded to 3 places), and the not-applicable bookkeeping is the re-score's.
+    """
+    new_na = {k for k, v in _cells(new_rec).items() if v is None}
+    cells = []
+    for c in old_rec["cells_detail"]:
+        key = (c["family"], round(float(c["difficulty"]), 4))
+        cells.append({**c, "auroc": None if key in new_na else c["auroc"]})
+    by_family: dict[str, list[float]] = {}
+    families: list[str] = []
+    for c in cells:
+        if c["family"] not in families:
+            families.append(c["family"])
+        if c["auroc"] is not None:
+            by_family.setdefault(c["family"], []).append(float(c["auroc"]))
+    per_family = {
+        fam: (round(float(np.mean(by_family[fam])), 3) if fam in by_family else None)
+        for fam in sorted(families)
+    }
+    scored = [float(c["auroc"]) for c in cells if c["auroc"] is not None]
+    rec = dict(old_rec)
+    rec.update({
+        "overall_auroc": round(float(np.mean(scored)), 3) if scored else None,
+        "cells": len(cells),
+        "cells_measured": len(scored),
+        "cells_not_applicable": len(cells) - len(scored),
+        "not_applicable_families": sorted(f for f, v in per_family.items() if v is None),
+        "not_applicable_reasons": new_rec.get("not_applicable_reasons", {}),
+        "per_family": per_family,
+        "cells_detail": cells,
+    })
+    return rec
+
+
+def write_one(cmp: dict, detector: str, keep_old_values: bool, source: str | None = None) -> None:
+    """Write one compared replicate back, recording what was done in its provenance."""
+    old, new = cmp["old"], cmp["new"]
+    old_rec, new_rec = old["results"][detector], new["results"][detector]
+    old["results"][detector] = apply_na_only(old_rec, new_rec) if keep_old_values else new_rec
+    prov = old.setdefault("provenance", {})
+    entry = {
+        "detector": detector,
+        "from_dir": str(Path(cmp["new_path"]).parent.as_posix()),
+        "source": source,
+        "commit": _commit(),
+        "cells_newly_not_applicable": len(cmp["newly_na"]),
+        "cells_unchanged": cmp["unchanged"],
+        "source_provenance": new.get("provenance"),
+    }
+    changed = [
+        {"family": k[0], "difficulty": k[1], "old_auroc": a, "new_auroc": b}
+        for k, a, b in cmp["changed"]
+    ]
+    if keep_old_values:
+        entry["mode"] = (
+            "kept the committed values; applied only the re-score's not-applicable set"
+        )
+        entry["cells_that_did_not_reproduce_old_value_kept"] = changed
+    else:
+        entry["cells_changed_and_allowed"] = changed
+    prov.setdefault("rescored", []).append(entry)
+    cmp["old_path"].write_text(json.dumps(old, indent=2), encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -152,25 +214,51 @@ def main(argv: list[str] | None = None) -> int:
             "silently absorbed."
         ),
     )
+    ap.add_argument(
+        "--allow-changed-family",
+        nargs="*",
+        default=[],
+        metavar="FAMILY",
+        help="As --allow-changed, for every cell of these families, in every replicate.",
+    )
+    ap.add_argument(
+        "--keep-old-values",
+        action="store_true",
+        help=(
+            "Keep each committed cell's value and apply only the re-score's not-applicable "
+            "set (see the module docstring)."
+        ),
+    )
+    ap.add_argument(
+        "--report-only", action="store_true", help="Compare and report; write nothing."
+    )
+    ap.add_argument(
+        "--source",
+        default=None,
+        help="Where the re-scored files came from (e.g. a CI run URL), for the provenance.",
+    )
     args = ap.parse_args(argv)
     allow: set[tuple[str, float]] = set()
     for spec in args.allow_changed:
         fam, _, diff = spec.rpartition(":")
         allow.add((fam, round(float(diff), 4)))
+    allow_families = set(args.allow_changed_family)
 
     files = sorted(args.from_dir.glob("replicate_*.json"))
     if not files:
         raise SystemExit(f"no replicate_*.json in {args.from_dir}")
-    summaries = [merge_one(f, args.into_dir, args.detector, args.atol, allow) for f in files]
+    compared = [compare_one(f, args.into_dir, args.detector, args.atol) for f in files]
 
-    na_sets = {tuple(s["na_families"]) for s in summaries}
-    print(f"merged {len(summaries)} replicate(s) for {args.detector!r}")
-    print(f"  scored cells unchanged, total: {sum(s['unchanged'] for s in summaries)}")
-    print(f"  cells newly not applicable, total: {sum(s['newly_na'] for s in summaries)}")
-    changed = [(s["file"], c) for s in summaries for c in s["changed"]]
-    print(f"  scored cells changed (allowed by name): {len(changed)}")
+    changed = [(c["file"], k) for c in compared for k in c["changed"]]
+    refused = [(f, k) for f, k in changed if not _allowed(k[0], allow, allow_families)]
+    na_sets = {tuple(c["na_families"]) for c in compared}
+    print(f"{args.detector!r}: {len(compared)} replicate(s) compared")
+    print(f"  scored cells unchanged, total: {sum(c['unchanged'] for c in compared)}")
+    print(f"  cells newly not applicable, total: {sum(len(c['newly_na']) for c in compared)}")
+    print(f"  scored cells that moved: {len(changed)} ({len(refused)} not allowed)")
     for f, (k, a, b) in changed:
-        print(f"    {f} {k}: {a} -> {b}")
+        tag = "" if _allowed(k, allow, allow_families) else "  NOT ALLOWED"
+        print(f"    {f} {k}: {a} -> {b}{tag}")
     if len(na_sets) == 1:
         fams = next(iter(na_sets))
         print(f"  not-applicable families, identical across every replicate ({len(fams)}):")
@@ -178,9 +266,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"    {fam}")
     else:
         print("  WARNING: the not-applicable family set differs between replicates:")
-        for s in summaries:
-            print(f"    {s['file']}: {s['na_families']}")
+        for c in compared:
+            print(f"    {c['file']}: {c['na_families']}")
         return 1
+    if refused:
+        print(
+            "Refusing: a horizon fix must not move a cell it could already score. Pass "
+            "--allow-changed family:difficulty (or --allow-changed-family) only after "
+            "establishing why; the change is then recorded in the replicate's provenance."
+        )
+        return 1
+    if args.report_only:
+        return 0
+    for c in compared:
+        write_one(c, args.detector, args.keep_old_values, args.source)
+    print(f"merged {len(compared)} replicate(s) for {args.detector!r}"
+          + (" (committed values kept; not-applicable set applied)" if args.keep_old_values else ""))
     return 0
 
 
