@@ -11,18 +11,20 @@ The duplication is both structural and measured:
 
 * ``PerfectFeatureOracleDetector`` (``l3_perfect_feature.py``) subclasses
   ``BehavioralThresholdDetector`` (``l2_behavioral_threshold.py``) and overrides only
-  ``access_level`` and ``name``. It inherits ``classify`` and ``detect_onset``
+  ``access_level`` and ``name`` (and declares ``required_channels = ("behav_trace",)``,
+  the one channel it reads). It inherits ``classify`` and ``detect_onset``
   verbatim, so it consumes exactly one signal, ``RunData.behav_trace`` -- which
   ``rhob.v3.access.restrict`` already exposes at L2. It never reads
   ``true_rewards``, the only channel L3 actually adds.
 * In ``leaderboard/v5_leaderboard.json`` the two detectors agree on 33 of 33
   families to the last recorded digit, and on the overall figure (both 0.512
-  over 123 cells on the board regenerated 2026-11-19 with sign randomization on;
-  both 0.9750 on the board before it). Zero families differ.
+  over 123 cells on the board re-scored 2026-11-26, as on the 2026-11-19
+  regeneration with sign randomization on before it; both 0.9750 on the board
+  before that). Zero families differ.
 
 Consequence for the aggregate: with the duplicate counted, L3 reads
-n=2, mean 0.7475, max 0.9830 (0.9790 and 0.9830 before the regeneration). With it
-excluded, L3 is the single genuine oracle (True Reward Oracle, 0.9830). The duplicate
+n=2, mean 0.7475, max 0.9830 (0.9790 and 0.9830 before the 2026-11-19 regeneration).
+With it excluded, L3 is the single genuine oracle (True Reward Oracle, 0.9830). The duplicate
 is *not* re-filed under L2 either -- it would then double-count Behavioral Threshold
 inside L2 and move that level's mean from 0.5771 to 0.5690 on the board re-scored
 2026-11-26 (from 0.7213 to 0.7530 before the 2026-11-19 regeneration) while adding no

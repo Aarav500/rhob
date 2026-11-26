@@ -10,8 +10,10 @@ L3 access buys. It is excluded from every per-access-level aggregate; see
 The class was originally introduced on the theory that reading "the exact feature every
 family is designed around" was itself a form of oracle knowledge deserving its own
 ceiling row. That reasoning does not survive contact with the access filter. This class
-overrides only ``access_level`` and ``name``; ``classify`` and ``detect_onset`` are
-inherited unchanged, so the single signal it reads is ``RunData.behav_trace`` -- which
+overrides only ``access_level`` and ``name`` (and declares
+``required_channels = ("behav_trace",)``, the one channel it reads); ``classify`` and
+``detect_onset`` are inherited unchanged, so the single signal it reads is
+``RunData.behav_trace`` -- which
 :func:`rhob.v3.access.restrict` already hands to any L2 detector. It never touches
 ``true_rewards``, the one channel L3 adds. Nothing about its behaviour is L3.
 

@@ -13,8 +13,8 @@ the best-detector max is ``+0.427`` over all detectors and ``-0.029`` without th
 label-fitted ones, reversing sign and separating the other way (CI [-0.054, -0.005],
 5/20 draws favour L1): under the max, unsupervised L1 sits below L0. Under the suite mean
 the step also reverses sign, ``+0.071`` to ``-0.002``, but the unsupervised step does not
-separate (CI [-0.022, +0.017], 11/20), so its direction is statistic-dependent and
-neither figure may be quoted alone. Under the max, the whole published climb from
+separate (CI [-0.022, +0.017], 11/20), so whether it separates is statistic-dependent
+(both point estimates are negative) and neither figure may be quoted alone. Under the max, the whole published climb from
 reward-only to state-visitation access is one label-fitted detector (State Divergence,
 the best L1 detector on 20/20 draws).
 

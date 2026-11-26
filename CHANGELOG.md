@@ -44,8 +44,8 @@ alongside:
 
 - `EnsembleDetector` declared no horizon, so on a run too short for one of its members it
   averaged that member's fallback in, or Reward Skewness's NaN, which failed the cell. It
-  now needs every member's horizon, the largest of their minimums. No ensemble is on
-  either board.
+  now needs every member's horizon, the largest of their minimums (`d745731`). No
+  ensemble is on either board.
 - Perfect Feature Oracle now declares `required_channels = ("behav_trace",)`. It had been
   checked for the L3 default, `true_rewards`, so a channel with no behavioural trace
   recorded its absent-trace 0.5 as scored. Every board family emits `behav_trace`, so only
@@ -58,9 +58,11 @@ The re-scores:
   every other per-family value, on all 30 detectors, is unchanged.
 - **The 20-draw board.** CI run 45747922473 re-scored the 19 detectors whose cells move on
   all 20 draws at `f83a152`. The merge (`scripts/merge_rescored_detector.py`) refused it, as
-  it should: of the 23,480 cells those detectors had scored before, 23,066 came back with
-  the same AUROC and 414 did not. None of the 414 is a cell a declaration removes, and none
-  is the fix's doing. 319 are on `sequence_keyword_stuffing`, which `e7bb3f3` rewrote on
+  it should: of the 23,480 cells those detectors score both in the committed draws and in
+  the re-score, 23,066 came back with the same AUROC and 414 did not (the other 9,180 the
+  draws had recorded, every one a fallback 0.5, are the cells now N/A). None of the 414 is
+  a cell a declaration removes, and none is the fix's doing. 319 are on
+  `sequence_keyword_stuffing`, which `e7bb3f3` rewrote on
   2026-09-19, after the draws were made (2026-08-04): the committed draws score the earlier
   version of that family, for every detector. 89 are on three DEGENERATE families whose
   proxy is constant to about 1e-16 (`orbit_chirality` 65, `rlhf_reward_model_overopt` 19,
@@ -71,16 +73,19 @@ The re-scores:
   on different runs of those families from the other 11 in the same draw, so run
   45776113470 merged them with `--keep-old-values` (`827ae57`): every draw keeps the value
   it was scored with on every cell, and only the re-score's not-applicable set is applied.
-  Each replicate's provenance lists the 414 cells with both values. The 20-draw board is
-  therefore the committed draws with the too-short cells set to `null`, which is what the
-  fix changes and all it changes. Re-drawing the 20 replicates on today's code, which
-  would bring `sequence_keyword_stuffing` up to date, is a separate item (ROADMAP.md).
+  Each replicate's provenance lists its own share of the 414 cells (11 to 38 per draw)
+  with both values. The 20-draw board is therefore the committed draws with the too-short
+  cells set to `null`, which is what the fix changes and all it changes. Re-drawing the 20
+  replicates on today's code, which would bring `sequence_keyword_stuffing` up to date, is
+  a separate item (ROADMAP.md).
   `scripts/aggregate_replication.py` then rebuilt `leaderboard/v5_replicated.json` and
-  `docs/figures/replication_summary.md` from those draws. The summary was rendered again afterwards by the updated
-  `scripts/aggregate_replication.py`, whose sentences about the label-fitted climb and about
-  each level's denominators are now derived from the data. The version the run executed
-  still wrote them by hand, and the re-score made both false: the unsupervised step no
-  longer "stops separating", and L1 is no longer 35 cells over 8 families.
+  `docs/figures/replication_summary.md` from those draws. The run's aggregator (at
+  `6e8521a`) already derived the sentences about the label-fitted climb and about each
+  level's denominators from the data (`6df73ea`), and both read correctly. It still
+  printed "Max and mean agree on every rung", because `statistic_disagreement` compared
+  only whether each statistic separates; `bfac304` added
+  `rungs_where_max_and_mean_disagree_on_direction` and re-aggregated both files from the
+  committed replicates.
 - **The HVTA channels** (`external/hvta/channels_results.json`, `1e38a27`). 132 entries
   that read 0.5 are N/A with their reason, and no other value changed: 126 were a
   detector's constant below its window on the 40- and 42-step cells (nine L0 detectors, and
@@ -138,18 +143,21 @@ L2 max (0.9430 [0.9380, 0.9478]), L3 (0.9746 [0.9712, 0.9778]) and L3 − L2 on 
   +0.0063], L2 higher in 13 of 20 draws, and did not separate; it reads −0.0555 [−0.0609,
   −0.0505], L1 higher in all 20. On the single draw the maxima are 0.5474, 0.9820, 0.9430
   and 0.9830, so the ladder of maxima is no longer monotone. The single draw's means also
-  put L1 just above L2 (0.5789 against 0.5771, 0.0018 apart), but that order does not
-  replicate: on 20 draws the paired mean puts L2 above L1 (next bullet).
+  put L1 just above L2 (0.5789 against 0.5771, 0.0017 apart from the unrounded means), but
+  that order does not replicate: on 20 draws the paired mean puts L2 above L1 (next
+  bullet).
 - **On the all-detector board no rung's separation depends on the statistic any more; in
   the unsupervised partition one now does.** L2 minus L1 separated on means and not on
-  maxima, and `statistic_disagreement` listed it; that list is now empty, and on the
+  maxima, and `statistic_disagreement` listed it under
+  `rungs_where_max_and_mean_disagree_on_separation`; that list is now empty, and on the
   all-detector board max and mean agree that every rung separates. They do not agree on the
   direction of L2 minus L1: L1 is higher on maxima, L2 on means (+0.0118 [+0.0008, +0.0235],
   higher in 13 of 20 draws, with a lower end just above zero), so that rung's direction
-  depends on the statistic and both must be quoted. `statistic_disagreement` is computed
-  for the all-detector board only. In the unsupervised partition, the L1 minus L0 step
-  separated under neither statistic before the re-score and now separates under one (next
-  bullet).
+  depends on the statistic and both must be quoted. Since `bfac304`,
+  `statistic_disagreement` lists it under `rungs_where_max_and_mean_disagree_on_direction`
+  instead. `statistic_disagreement` is computed for the all-detector board only. In the
+  unsupervised partition, the L1 minus L0 step separated under neither statistic before
+  the re-score and now separates under one (next bullet).
 - **The unsupervised L1 minus L0 step now separates on maxima, below zero, and not on
   means.** On maxima, −0.0174 [−0.0391, +0.0017], positive in 4 of 20 draws, did not
   exclude zero; −0.0293 [−0.0537, −0.0051], positive in 5 of 20, does: without the five
@@ -161,7 +169,7 @@ L2 max (0.9430 [0.9380, 0.9478]), L3 (0.9746 [0.9712, 0.9778]) and L3 − L2 on 
   carried by State Divergence, which is fitted on labels.
 - **L1's best is at the L3 oracle on the single draw and above it on 20 draws, over a
   different denominator.** State Divergence reads 0.982 on the single draw against True
-  Reward Oracle's 0.983, and 0.998 [0.996, 1.000] on 20 draws against 0.975 [0.971,
+  Reward Oracle's 0.983, and 0.998 [0.997, 1.000] on 20 draws against 0.975 [0.971,
   0.978]. It is scored on 31 cells in 7
   families (the 8 that emit `state_counts`, less `continuous_camping`), the oracle on 123
   cells in 33, and it is fitted on labels by cross-validation. That is not a like-for-like
@@ -718,8 +726,9 @@ detector reaches 0.927, while the other 7 remain near chance (0.489–0.549)**. 
 L1 figure must now be quoted with its denominator (8 families / 35 cells), because
 it is **not** comparable to the 33-family denominators used at L0 and L2. *(2026-11-26: on
 the re-scored boards `continuous_camping` is N/A at L1 too, so the statement is over 7
-families and 31 cells: the best L1 detector reaches 0.982, the other 7 sit at
-0.488–0.555, and every L1 figure carries that denominator. See the first entry.)*
+families and 31 cells: on the single draw the best L1 detector reaches 0.982 and the other
+7 sit at 0.488–0.555 (on 20 draws 0.998 and 0.458–0.576), and every L1 figure carries that
+denominator. See the first entry.)*
 
 A `0.5` in a regenerated artifact now means "measured, and at chance" — a real
 result. `continuous_camping` is the clean example: it *does* emit `state_counts`,

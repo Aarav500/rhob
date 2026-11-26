@@ -152,10 +152,10 @@ author's decision.
   which `statistic_disagreement` does not cover, the L1 minus L0 step now depends on the
   statistic: on maxima −0.0293 [−0.0537, −0.0051] (positive in 5 of 20 draws) separates,
   with L1 below L0; on means −0.0022 [−0.0217, +0.0167] (11 of 20) does not. Before the
-  re-score neither statistic separated it. L1's best, State Divergence, is at or above the
-  L3 oracle (0.982 against 0.983 on the single draw, 0.998 against 0.975 on 20), over 31
-  cells in 7 families against the oracle's 123 in 33, so that is not a like-for-like
-  comparison. The figures the repository's docs quote from either board were
+  re-score neither statistic separated it. L1's best, State Divergence, is within 0.001 of
+  the L3 oracle on the single draw (0.982 against 0.983) and above it on 20 draws (0.998
+  against 0.975), over 31 cells in 7 families against the oracle's 123 in 33, so that is
+  not a like-for-like comparison. The figures the repository's docs quote from either board were
   updated with the re-score; the paper's are under the venue milestone below.
 - **Re-draw the 20 replicates on today's code — open.** The 20 draws behind
   `leaderboard/v5_replicated.json` were made on 2026-08-04, under Python 3.11 and numpy

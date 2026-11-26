@@ -39,12 +39,15 @@ L3    0.9746            0.9746
 The L1 row is over 31 cells of 7 families and the L3 row over 123 of 33, so L1's 0.9984
 sitting above the L3 oracle's 0.9746 is not like for like.
 
-The paired L1-L0 step goes from ``+0.427 [+0.417, +0.439]``, 20/20 draws, to
-``-0.029 [-0.054, -0.005]``, 5/20 draws -- it reverses sign and separates the other way:
-without the label-fitted detectors the best L1 detector sits measurably *below* the best
-L0 one. The entire published climb from reward-only to state-visitation access is one
-supervised detector. That is a real result about RHOB, but it is not the result the
-ladder was being read as, and a reader cannot recover it from a single-column table.
+Under the best-detector max, the paired L1-L0 step goes from ``+0.427 [+0.417, +0.439]``,
+20/20 draws, to ``-0.029 [-0.054, -0.005]``, 5/20 draws -- it reverses sign and separates
+the other way: without the label-fitted detectors the best L1 detector sits measurably
+*below* the best L0 one. Under the suite mean the step goes from ``+0.071`` to
+``-0.002 [-0.022, +0.017]``, 11/20 draws, and does not separate, so whether it separates
+depends on the statistic and neither figure may be quoted alone. Under the max, the
+entire published climb from reward-only to state-visitation access is one supervised
+detector. That is a real result about RHOB, but it is not the result the ladder was being
+read as, and a reader cannot recover it from a single-column table.
 
 The paper this ships with previously applied a "supervised" caveat to Trajectory MLP
 alone, using it to deflate L2 while L1's equally-supervised champion carried no such

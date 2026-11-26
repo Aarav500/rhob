@@ -332,7 +332,9 @@ channel (`gridworld_camping`, `continuous_camping`, `distributional_shift`,
 `goal_misgeneralization`, `physics_exploitation`, `reward_channel_tampering`,
 `rlhf_reward_model_overopt`, `sensor_calibration_tampering`) carry 35 of the 123
 cells, so on the board of 2026-07-17 **88/123 = 71.5%** of every L1 detector's
-published cells were the fallback.
+published cells were the fallback for the missing channel, and with
+`continuous_camping`'s 4 cells, below every L1 window, **92/123 = 74.8%** were the 0.5
+constant.
 
 The board re-scored on 2026-11-26 records those 88 cells as `null`, and
 `continuous_camping`'s 4 as well (its 40 episodes are below every L1 detector's declared
@@ -357,7 +359,7 @@ drops `continuous_camping`'s fallback cells, so the right-hand column is over 31
 
 Excluding the fabrication **raises** L1: the 0.5 constants were dragging a
 genuinely strong detector down to 0.621 and the suite mean to 0.520. The retracted
-"L1 ≈ 0.53 (marginal)" was an artifact of averaging a constant over 71% of cells.
+"L1 ≈ 0.53 (marginal)" was an artifact of averaging a constant over 75% of cells.
 
 `scripts/v5_leaderboard_and_transfer.py` records these cells as `null` with a
 reason instead of imputing 0.5, and excludes them from `overall_auroc`. That removes
@@ -366,8 +368,13 @@ some run length declares it (`min_episodes`), those of a run shorter than the de
 windows. `continuous_camping` does emit `state_counts`, but its runs are 40 episodes,
 below every L1 detector's declared `min_episodes`, so all 8 are not applicable there;
 the board of 2026-11-19 recorded their fallback 0.500 as measured. A `0.5` on the
-re-scored board means *"measured, and at chance"* everywhere except the L0 cells of the
-six DEGENERATE families, where it is the tie convention.
+re-scored board is no longer a short-horizon fallback, but it does not always mean
+*"measured, and at chance"*: it can be a tie by construction, a score that does not differ
+between the two variants. The L0 cells of the six DEGENERATE families are that case, where
+it is the tie convention, and so are 41 per-family values outside them that are exactly
+0.5 in all 20 draws (`leaderboard/v5_replicated.json`), among them Feature Magnitude on 16
+of its 26 families, Visitation Entropy Trend on 6 of its 7, and seven of the eight L1
+detectors on `physics_exploitation`.
 
 ### Figure 8: Cross-Family Transfer
 

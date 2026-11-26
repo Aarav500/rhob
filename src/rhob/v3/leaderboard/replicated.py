@@ -365,12 +365,14 @@ class ChanceControl:
 
         On the committed L0 board (re-scored 2026-11-26) the interval [0.4899, 0.5000]
         contains 0.500 and the margin is 0.0, but only because the upper endpoint sits
-        ~1.5e-5 above 0.500. On the 2026-08-06 board the interval instead cleared 0.500, by
-        ~7.9e-5, and replaying that bootstrap under 300 different generator seeds moved the
-        endpoint over a range of ~2.4e-4 and put it at or above 0.500 in 18 of the 300
-        (``docs/figures/l0_control_robustness.md``; not recomputed since). A ~1.5e-5
-        inclusion is far inside that scatter, just as the ~7.9e-5 exclusion was: either
-        way the interval places the suite mean on **neither** side of chance. Subtracting
+        ~1.5e-5 above 0.500. Replaying that bootstrap under 300 different generator seeds
+        moves the endpoint over [0.499879, 0.500216] and puts it at or above 0.500 in 225
+        of the 300 (``docs/figures/l0_control_robustness.md``, recomputed 2026-11-26). On
+        the 2026-08-06 board the interval instead cleared 0.500, by ~7.9e-5, and the same
+        replay moved its endpoint over a range of ~2.4e-4 and put it at or above 0.500 in
+        18 of the 300. A ~1.5e-5 inclusion is far inside the current scatter, just as the
+        ~7.9e-5 exclusion was inside its own: either way the interval places the suite mean
+        on **neither** side of chance. Subtracting
         the endpoint from 0.500 and reporting the remainder is the false-precision error
         itself, not a smaller version of it.
         """

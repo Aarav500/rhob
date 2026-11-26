@@ -24,8 +24,8 @@ Standings come from ``leaderboard/v5_replicated.json``: 20 independent draws of 
 benchmark, aggregated by ``scripts/aggregate_replication.py`` into percentile-bootstrap
 intervals. They do **not** come from ``leaderboard/v5_leaderboard.json``, which is a
 single unreplicated draw with no intervals (regenerated on 2026-11-19 with behavioural
-sign randomization on and N/A cells recorded as null); it is deliberately not rendered
-anywhere on this page.
+sign randomization on, and re-scored on CI on 2026-11-26, ``03d978e``, with N/A cells
+recorded as null); it is deliberately not rendered anywhere on this page.
 
 The cross-family transfer (RTS) panel is a **separate** experiment and is not covered by
 that replication. It is also the one place where the pre-audit sign convention still had
@@ -1142,8 +1142,9 @@ def _short_horizon_txt(control: ChanceControl) -> str:
             by_gap.setdefault(gap, []).append(d.name)
     if not by_gap:
         return (
-            f"Every {_esc(control.level)} detector now declares the run length it needs, "
-            f"and every one is scored on all {n_families} families."
+            f"Every {_esc(control.level)} detector whose score is a constant below some run "
+            f"length now declares that length, and every one is scored on all {n_families} "
+            f"families."
         )
 
     def names(xs: list[str]) -> str:
@@ -1157,8 +1158,9 @@ def _short_horizon_txt(control: ChanceControl) -> str:
     listed = groups[0] if len(groups) == 1 else f"{', '.join(groups[:-1])}, and {groups[-1]}"
     n_short = sum(len(v) for v in by_gap.values())
     return (
-        f"Every {_esc(control.level)} detector now declares the run length it needs, "
-        f"and {n_short} of the {control.n_detectors} {'is' if n_short == 1 else 'are'} "
+        f"Every {_esc(control.level)} detector whose score is a constant below some run "
+        f"length now declares that length, and {n_short} of the {control.n_detectors} "
+        f"{'is' if n_short == 1 else 'are'} "
         f"n/a on the families shorter than that: {listed} of the 27."
     )
 

@@ -41,7 +41,8 @@ Reward Autocorrelation, Reward Peak, Reward Skewness, Reward Trend and Variance 
 which are not applicable on the 19 of 40 or 60. Every detector is scored on all six
 degenerate families. Both columns are family-weighted so the comparison is like for like;
 the published per-detector figure is the cell-weighted one and differs from the
-all-families column below by at most 0.0031 (Max Plateau), which is not what this check is
+all-families column below by at most 0.0032 (Reward Autocorrelation, 0.00315; Max Plateau
+0.00314), which is not what this check is
 about.
 
 | L0 detector | families | all scored families | 95% CI | contains 0.5 | without the 6 degenerate | 95% CI | contains 0.5 |

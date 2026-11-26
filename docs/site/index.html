@@ -235,7 +235,8 @@ that run 40 or 60 episodes, which padded the L0 negative control. And
 guard; it now returns DEGENERATE. Reward Skewness now declares its horizon and is null
 there, and since 2026-11-26
 (<a href="https://github.com/Aarav500/rhob/commit/f83a152">f83a152</a>) so does every other
-detector that returned a constant below some run length. For eight more L0 detectors, three
+detector on the board that returned a constant below some run length (the five unscored
+external baselines do not declare one yet). For eight more L0 detectors, three
 L2 detectors and every L1 detector that length is longer than some families' runs (for the
 L1 detectors, the 40-episode <code>continuous_camping</code>), and they are null there. Until
 then the board recorded that constant as a measured 0.5. Both boards have been re-scored

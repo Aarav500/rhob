@@ -435,8 +435,9 @@ Inappropriate uses:
   [0.971, 0.978], over 31 cells of 7 families against 123 of 33; L3−L2 is +0.032
   [+0.027, +0.037]; and without the five label-fitted detectors L1−L0 is −0.029
   [−0.054, −0.005], which separates against L1: the best unsupervised L0 detector is
-  above the best unsupervised L1 one, and only 5 of the 20 draws favour L1
-  (`leaderboard/v5_replicated.json`).
+  above the best unsupervised L1 one, and only 5 of the 20 draws favour L1 (under the
+  mean over detectors it is −0.002 [−0.022, +0.017], which does not separate, so this
+  step depends on the statistic; `leaderboard/v5_replicated.json`).
 - Citing L0-at-chance as evidence that reward-only monitoring is insufficient in
   deployed systems. It is a check on RHOB's proxy matching, consistent with it having
   worked, and the ledger is what certifies it, on 42 of the 123 cells.

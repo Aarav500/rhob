@@ -212,12 +212,12 @@ DOI is the paper named here; cite it by this title.
 > measured, 19 of those 33 admit and 14 fail on a real late-window density leak. The ladder
 > figures in the next paragraph and under [Results](#access-level-ladder) were regenerated after this re-score (`leaderboard/v5_replicated.json`), when each point estimate
 > moved by under 0.01 (the unsupervised L1−L0 interval's lower end by 0.011) and no conclusion changed, and again after the 2026-11-26 re-score (the last note in this banner).
-> That one moved the unsupervised L0 and L2 rungs up by 0.016 and 0.012 (L1 by 0.004) and changed a conclusion: the unsupervised L1−L0 step now excludes zero.
+> That one moved the unsupervised L0 and L2 rungs up by 0.016 and 0.012 (L1 by 0.004) and changed a conclusion under the max: the unsupervised L1−L0 step now excludes zero there, while under the mean it still does not.
 >
 > A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
 > the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
-> labels**, one of them the L1 champion. Removing them makes the L1−L0 gap **reverse sign**,
-> from +0.427 [+0.417, +0.439] to **−0.029 [−0.054, −0.005]**, which now excludes zero (before the 2026-11-26 re-score it did not): without them L1 sits below L0. Among unsupervised post-hoc
+> labels**, one of them the L1 champion. Removing them makes the L1−L0 gap on the max **reverse sign**,
+> from +0.427 [+0.417, +0.439] to **−0.029 [−0.054, −0.005]**, which now excludes zero (before the 2026-11-26 re-score it did not): on the max, without them L1 sits below L0. On the mean the same step is −0.002 [−0.022, +0.017], which includes zero. Among unsupervised post-hoc
 > detectors the rungs read **L0 0.568 · L1 0.538 · L2 0.599**, against **0.975** for the L3
 > oracle — all three sub-oracle rungs within 0.10 of chance.
 >
@@ -257,7 +257,7 @@ DOI is the paper named here; cite it by this title.
 > as shipped, with the behavioural sign randomized per family, and records N/A cells as
 > `null`, except where a detector that declares no horizon falls back to 0.5 on a family shorter than its windows: eight L0 detectors, three L2 detectors, and all eight L1 detectors on `continuous_camping` (see [L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding) and [L1](#l1-report-only-where-the-channel-exists)); the ledger covers all 33 families, 123 cells. The sections the note above names now quote these two artifacts, and so does every admission-ledger figure in this README that is not marked as from an earlier ledger: in What this is, the paragraph after this banner, sections 3 and 4 of The method, the Scope section, the L0 subsection under Results, Families 29–33, Adding a New Family and the Research Feedback Program.
 >
-> **Update (2026-11-26):** both boards were re-scored on CI from code at `f83a152`, where every detector whose score is a constant below some run length declares that length as `min_episodes`: the single-draw board by CI run 45747902322 (`03d978e`), the 20-draw board (`leaderboard/v5_replicated.json`, from `results/replication/`) by CI runs 45747922473 and 45776113470 (`827ae57`), which kept every value the 20 draws were scored with and applied only the new not-applicable cells (98.2% of the re-scored cells reproduced; the rest are on `sequence_keyword_stuffing`, rewritten after the draws were made, and on near-constant DEGENERATE proxies; see the CHANGELOG). The exception in the note above no longer applies. Each of those cells is `null`: 104 per-family entries behind the L0 mean, 8 at L1 (`continuous_camping`) and 33 at L2, on the single draw and on every one of the 20. No measured per-family value moved on either board. The sections the note above names now quote the re-scored boards beside the same ledger (`d4b700d`), and so do the ladder figures in this banner and under [Results](#access-level-ladder).
+> **Update (2026-11-26):** both boards were re-scored on CI from code at `f83a152`, where every detector whose score is a constant below some run length declares that length as `min_episodes`: the single-draw board by CI run 45747902322 (`03d978e`), the 20-draw board (`leaderboard/v5_replicated.json`, from `results/replication/`) by CI runs 45747922473 and 45776113470 (`827ae57`), which kept every value the 20 draws were scored with and applied only the new not-applicable cells (98.2% of the re-scored cells reproduced; of the 414 that did not, 319 are on `sequence_keyword_stuffing`, rewritten after the draws were made, 89 on three DEGENERATE families whose proxy is constant to about 1e-16, and 6 scattered across four other families; see the CHANGELOG). The exception in the note above no longer applies. Each of those cells is `null`: 104 per-family entries behind the L0 mean, 8 at L1 (`continuous_camping`) and 33 at L2, on the single draw and on every one of the 20. No measured per-family value moved on either board. The sections the note above names now quote the re-scored boards beside the same ledger (`d4b700d`), and so do the ladder figures in this banner and under [Results](#access-level-ladder).
 
 **The benchmark: matched pairs, certified by an admission gate.** Each cell mints pairs of
 a hacking run and a legitimate run whose proxy reward is meant to be indistinguishable
@@ -614,7 +614,7 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
 The table that stood here read 0.531 → 0.621 → 0.975 → 0.983 on maxima and concluded that
 essentially all of the climb happens between L1 and L2. It does not survive. It was one
 draw; its L2 rung predates the sign of the behavioural feature ceasing to encode the
-label; its L1 rung imputed a constant on 71.5% of cells; and its maxima mixed label-fitted
+label; its L1 rung imputed a constant on 74.8% of cells; and its maxima mixed label-fitted
 detectors with unsupervised ones. It is removed rather than left beside its corrections.
 
 From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 independent
@@ -630,10 +630,12 @@ draws, percentile bootstrap of the mean over draws, 10,000 resamples — the bes
 
 These are as re-scored on 2026-11-26, after every detector declared the run length its
 score needs (`f83a152`; see the correction above). All three sub-oracle rungs sit within
-0.10 of chance, and the L1−L0 step is −0.029 [−0.054, −0.005], which excludes zero:
-without the label-fitted detectors L1 sits below L0, though over different families (7 at
-L1, 8 to 27 at L0). It is positive in 5 of the 20 draws. Before the re-score it read
-−0.017 [−0.039, +0.002], which included zero. Five of the 30 detectors expose `fit()` and
+0.10 of chance, and the L1−L0 step on the max is −0.029 [−0.054, −0.005], which excludes
+zero: on the max, without the label-fitted detectors L1 sits below L0, though over
+different families (7 at L1, 8 to 27 at L0). It is positive in 5 of the 20 draws. Before
+the re-score it read −0.017 [−0.039, +0.002], which included zero. On the mean the same
+step is −0.002 [−0.022, +0.017], which includes zero (positive in 11 of 20 draws), so
+whether unsupervised L1 sits below L0 depends on the statistic. Five of the 30 detectors expose `fit()` and
 are cross-validated on the hacking/legitimate labels: Reward MLP, State Coverage Rate,
 State Divergence, Trajectory MLP and Visitation Entropy Trend. Counting them moves the
 same step to +0.427 [+0.417, +0.439], positive in 20 of 20. A per-level maximum over both
@@ -657,8 +659,8 @@ aggregate.
 
 ### L0 at chance is a negative control, not a finding
 
-L0 sits at chance **by construction**: on the single-draw board, mean 0.4834, best
-0.5474 (Reward CUSUM), over the 27 families whose proxy is readable; the 2026-11-19 board
+L0 sits at chance **by construction**: on the single-draw board, mean 0.4834 over the 27
+families whose proxy is readable, best 0.5474 (Reward CUSUM, over 20 of them); the 2026-11-19 board
 (`52656cb`) read 0.4876 and 0.5351, and the board before the 2026-11-19 regeneration 0.4866
 and 0.5311. Reward Skewness is N/A on the 19 families that run 40 or 60 episodes, so it is
 scored on 8 of those 27. Until `f83a152` it was the only L0 detector that declared the
@@ -747,8 +749,9 @@ emit the channel are `gridworld_camping`, `continuous_camping`, `distributional_
 `goal_misgeneralization`, `physics_exploitation`, `reward_channel_tampering`,
 `rlhf_reward_model_overopt`, `sensor_calibration_tampering`, carrying **35 of the 123
 cells**. So on the board before the 2026-11-19 regeneration, **88/123 = 71.5%** of every
-L1 detector's published cells were the fallback constant. The regenerated board records
-those 88 cells as `null`.
+L1 detector's published cells were the fallback constant for the missing channel, and with
+`continuous_camping`'s 4 below-window fallbacks (below) **92/123 = 74.8%** were the 0.5
+constant. The regenerated board records those 88 cells as `null`.
 
 Whole categories are affected wholesale, by design, and each shared rollout module
 documents why: all 4 `mujoco_*` (high-dimensional continuous state, no natural
@@ -760,7 +763,7 @@ shared RLHF rollout (no discrete state space), plus `eval_probe_sandbagging`,
 
 On the re-scored board, which leaves the N/A cells out, beside the pre-N/A board:
 
-| L1 detector | Pre-N/A board (123 cells, 0.5 imputed on 88) | **Re-scored board (7 families, 31 cells)** |
+| L1 detector | Pre-N/A board (123 cells, 0.5 imputed on 92) | **Re-scored board (7 families, 31 cells)** |
 |---|---|---|
 | State Divergence | 0.621 | **0.982** |
 | State Coverage Rate | 0.514 | 0.555 |
@@ -776,7 +779,7 @@ On the re-scored board, which leaves the N/A cells out, beside the pre-N/A board
 **Excluding the fabrication raises L1.** On the pre-N/A board the 0.5 constants were
 dragging a genuinely strong detector down to 0.621 and the suite mean to 0.520. The
 previously reported "L1 ≈ 0.53 (marginal)" was an artifact of averaging a fallback
-constant over 71% of the cells.
+constant over 75% of the cells.
 
 The correct statement: **on the 7 families that emit state-visitation data and run long
 enough for the L1 windows, the best L1 detector reaches 0.982; the other 7 remain near
