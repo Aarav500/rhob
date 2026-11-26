@@ -442,10 +442,10 @@
     }
   },
   "scoring_env": {
-    "python": "3.13.14",
-    "executable": "~\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
-    "platform": "Windows-11-10.0.26200-SP0",
-    "numpy": "2.4.3"
+    "python": "3.12.3",
+    "executable": "~/.venv-rhob-ci/bin/python",
+    "platform": "Linux-6.18.44-fc-v880-x86_64-with-glibc2.39",
+    "numpy": "2.5.4"
   },
   "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
   "cells": [
@@ -480,9 +480,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -504,65 +504,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -704,9 +704,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -781,9 +781,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -805,65 +805,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -1005,9 +1005,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -1085,9 +1085,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -1109,65 +1109,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -1309,9 +1309,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -1389,9 +1389,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -1413,65 +1413,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -1613,9 +1613,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -1694,9 +1694,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -1718,65 +1718,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -1918,9 +1918,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -1999,9 +1999,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -2023,65 +2023,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 40 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -2223,9 +2223,9 @@
           "detector": "Perfect Feature Oracle",
           "access_level": "L3",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "family does not provide behav_trace, which this L3 detector requires; not scored"
         },
         {
           "detector": "Page-Hinkley Test",
@@ -2311,9 +2311,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -2335,65 +2335,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -2495,25 +2495,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.146,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
@@ -2610,9 +2610,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -2634,65 +2634,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -2794,25 +2794,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.1404,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
@@ -2907,9 +2907,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -2931,65 +2931,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -3091,25 +3091,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.1405,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
@@ -3206,9 +3206,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -3230,65 +3230,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -3390,25 +3390,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.2963,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
@@ -3505,9 +3505,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -3529,65 +3529,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -3689,25 +3689,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.2963,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
@@ -3804,9 +3804,9 @@
           "detector": "Reward CUSUM",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 51 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Variance Ratio",
@@ -3828,65 +3828,65 @@
           "detector": "Reward Peak",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Autocorrelation",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Skewness",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward Trend",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Variance Window",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Max Plateau",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Gradient Reversal",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 60 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward MLP",
           "access_level": "L0",
           "label_fitted": true,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward KDE",
@@ -3988,25 +3988,25 @@
           "detector": "Feature Magnitude",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 0.2963,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Feature Consistency",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 100 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Reward-Feature Correlation",
           "access_level": "L2",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
-          "na_reason": null
+          "auroc": null,
+          "onset_mae_normalized": null,
+          "na_reason": "horizon 42 is below the 50 episodes this detector's windows need; not scored"
         },
         {
           "detector": "Trajectory MLP",
