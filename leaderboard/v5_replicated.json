@@ -532,7 +532,10 @@
   },
   "statistic_disagreement": {
     "rungs_where_max_and_mean_disagree_on_separation": [],
-    "note": "A rung listed here separates under one statistic and not the other. Reporting either alone would present a statistic-dependent result as a settled one. Quote both."
+    "rungs_where_max_and_mean_disagree_on_direction": [
+      "L2_minus_L1"
+    ],
+    "note": "The max and the mean give these rungs different verdicts: a rung listed under separation separates under one statistic and not the other, and a rung listed under direction separates under both with opposite signs. Reporting either alone would present a statistic-dependent result as a settled one. Quote both."
   },
   "detectors": {
     "Angular Momentum": {

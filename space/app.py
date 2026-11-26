@@ -503,7 +503,30 @@ def _supervision_html() -> str:
     unsup = board.unsupervised_only.separation("L0", "L1", "max")
     all_sep = board.all_detectors.separation("L0", "L1", "max")
     step = ""
-    if unsup is not None and all_sep is not None and all_sep.separates and not unsup.separates:
+    # The step is load-bearing when the label-fitted detectors carry it: with them out it
+    # either stops separating or separates the other way. Both are read off the artifact;
+    # on the re-scored board (2026-11-26) the unsupervised step separates, below zero,
+    # under the max and does not separate under the mean, so the mean is quoted with it.
+    unsup_mean = board.unsupervised_only.separation("L0", "L1", "mean")
+    flips = (
+        unsup is not None and all_sep is not None
+        and unsup.difference.mean is not None and all_sep.difference.mean is not None
+        and (unsup.difference.mean > 0) != (all_sep.difference.mean > 0)
+    )
+    if (
+        unsup is not None and all_sep is not None and all_sep.separates
+        and (flips or not unsup.separates)
+    ):
+        if unsup.separates:
+            ending = (
+                f"it reverses sign and separates the other way, with {_esc(unsup.lower)} "
+                f"above {_esc(unsup.higher)}"
+            )
+        else:
+            ending = (
+                "it reverses sign and stops separating" if flips
+                else "it keeps its sign and stops separating"
+            )
         # Name the detector the artifact says carried L1, rather than asserting one: if
         # a future board's L1 winner changes, this sentence must change with it.
         l1 = board.all_detectors.level("L1")
@@ -514,14 +537,31 @@ def _supervision_html() -> str:
             if winner and board.detectors.get(winner, None) and board.detectors[winner].label_fitted
             else ""
         )
+        # The board's rule: a rung that separates under one statistic and not the other,
+        # or under both in opposite directions, is not quoted on one alone.
+        mean_txt = ""
+        if unsup_mean is not None and _statistic_kind(unsup, unsup_mean):
+            mean_txt = (
+                f" Averaged over detectors instead of taking the best, the step without "
+                f"them is {unsup_mean.difference.text(4, signed=True)} "
+                f"({unsup_mean.replicates_with_hi_above_lo}/{unsup_mean.n_paired} draws) "
+                f"-- {_rung_verdict(unsup_mean)} -- so "
+                + (
+                    "whether it separates"
+                    if _statistic_kind(unsup, unsup_mean) == "separation"
+                    else "which way it points"
+                )
+                + " depends on the statistic. Quote both."
+            )
         step = (
-            f" It is load-bearing on this board: the published L0 &rarr; L1 step is "
+            f" It is load-bearing on this board: the published L0 &rarr; L1 step, best "
+            f"detector against best detector, is "
             f"{all_sep.difference.text(4, signed=True)} "
             f"({all_sep.replicates_with_hi_above_lo}/{all_sep.n_paired} draws) with the "
             f"label-fitted detectors in, and "
             f"{unsup.difference.text(4, signed=True)} "
             f"({unsup.replicates_with_hi_above_lo}/{unsup.n_paired} draws) without them "
-            f"-- it reverses sign and stops separating.{carried_by}"
+            f"-- {ending}.{mean_txt}{carried_by}"
         )
     return f"""
     <div class="rhob-panel">
@@ -594,29 +634,126 @@ def _separation_table(partition: LadderPartition) -> str:
     )
 
 
+def _rung_verdict(sep) -> str:
+    """Whether a paired rung difference separates, and in which direction."""
+    if not sep.separates:
+        return "it does not separate"
+    if sep.difference.mean is not None and sep.difference.mean < 0:
+        return f"it separates, with {_esc(sep.lower)} above {_esc(sep.higher)}"
+    return "it separates"
+
+
+def _statistic_kind(mx, mn) -> str:
+    """How the max and the mean disagree on one rung: "separation", "direction" or "".
+
+    The aggregator's rule, applied to whichever partition is rendered: "separation" when
+    one statistic separates the rung and the other does not, "direction" when both do,
+    with opposite signs. The artifact's ``statistic_disagreement`` records it for the
+    all-detectors partition only.
+    """
+    if mx.separates != mn.separates:
+        return "separation"
+    if (
+        mx.separates and mx.difference.mean is not None and mn.difference.mean is not None
+        and (mx.difference.mean > 0) != (mn.difference.mean > 0)
+    ):
+        return "direction"
+    return ""
+
+
+def _disagreement_txt(partition: LadderPartition, scope: str) -> str:
+    """Name each rung of ``partition`` whose verdict depends on the statistic, with both."""
+    how = {
+        "separation": "One statistic separates it and the other does not",
+        "direction": "Both statistics separate it, in opposite directions",
+    }
+
+    def says(sep) -> str:
+        return (
+            f"{sep.difference.text(4, signed=True)}, "
+            f"{sep.replicates_with_hi_above_lo}/{sep.n_paired} draws favouring "
+            f"{_esc(sep.higher)} -- {_rung_verdict(sep)}"
+        )
+
+    found = []
+    for mx in sorted(partition.separations.values(), key=lambda s: s.higher):
+        mn = partition.separation(mx.lower, mx.higher, "mean") if mx.statistic == "max" else None
+        kind = _statistic_kind(mx, mn) if mn is not None else ""
+        if kind:
+            found.append(
+                f"<b>Statistic-dependent {scope}: {_esc(mx.label)}.</b> {how[kind]}: under "
+                f"the max it is {says(mx)}; under the mean it is {says(mn)}. Quote both."
+            )
+    if not found and partition.separations:
+        return (
+            f"{scope[0].upper()}{scope[1:]}, max and mean agree on every rung, on whether "
+            f"it separates and in which direction."
+        )
+    return " ".join(found)
+
+
+def _level_denominators_txt(levels: tuple[str, ...] = ("L1", "L2", "L3")) -> str:
+    """The cells and families each level's detectors are scored on, read off the board.
+
+    Written by hand this sentence went stale twice: a detector is scored only on the
+    families that ship its channel and run at least the ``min_episodes`` it declares, so
+    the denominators move whenever a declaration does.
+    """
+    board = _board()
+
+    def span(values: list[int]) -> str:
+        return str(values[0]) if len(values) == 1 else f"{values[0]} to {values[-1]}"
+
+    parts = []
+    for lv in levels:
+        dets = [
+            d for d in board.detectors.values()
+            if d.access_level == lv and d.counted_in_ladder and d.cells_measured is not None
+        ]
+        if dets:
+            cells = sorted({d.cells_measured for d in dets})
+            fams = sorted({d.n_families_measured for d in dets})
+            parts.append(f"{span(cells)} cells over {span(fams)} families at {lv}")
+    if not parts:
+        return "the artifact records no denominators"
+    if len(parts) == 1:
+        return f"the detectors are scored on {parts[0]}"
+    return f"the detectors are scored on {', '.join(parts[:-1])} and {parts[-1]}"
+
+
 def _ladder_html() -> str:
     """The access-level ladder, both partitions, with intervals."""
     board = _board()
-    disagree = board.statistic_disagreement
-    disagree_txt = (
-        f"<b>Statistic-dependent: {', '.join(_esc(d.replace('_', ' ')) for d in disagree)}.</b> "
-        f"{_esc(board.statistic_disagreement_note)}"
-        if disagree
-        else "Max and mean agree on every rung."
+    # Per partition: the two can disagree on different rungs (on the re-scored board, L2 -
+    # L1 by direction with all detectors, L1 - L0 by separation without the label-fitted
+    # ones), and a single line under both tables would speak for one of them only.
+    disagree_all = _disagreement_txt(board.all_detectors, "with all detectors")
+    disagree_unsup = _disagreement_txt(
+        board.unsupervised_only, "with the label-fitted detectors removed"
     )
 
     unsup_l1 = board.unsupervised_only.separation("L0", "L1", "max")
     unsup_l2 = board.unsupervised_only.separation("L1", "L2", "max")
     finding = ""
     if unsup_l1 is not None and unsup_l2 is not None:
+        climbs = all(
+            s.separates and s.difference.mean is not None and s.difference.mean > 0
+            for s in (unsup_l1, unsup_l2)
+        )
+        heading = (
+            "On the unsupervised partition both of these rungs climb."
+            if climbs
+            else "On the unsupervised partition the ladder is not a staircase."
+        )
         finding = (
-            f"<p class='rhob-note'><b>On the unsupervised partition the ladder is not a "
-            f"staircase.</b> {_esc(unsup_l1.label)} (best detector) is "
+            f"<p class='rhob-note'><b>{heading}</b> {_esc(unsup_l1.label)} (best detector) is "
             f"{unsup_l1.difference.text(4, signed=True)}, "
             f"{unsup_l1.replicates_with_hi_above_lo}/{unsup_l1.n_paired} draws favouring "
-            f"L1 -- it does not separate. {_esc(unsup_l2.label)} is "
+            f"{_esc(unsup_l1.higher)} -- {_rung_verdict(unsup_l1)}. "
+            f"{_esc(unsup_l2.label)} (best detector) is "
             f"{unsup_l2.difference.text(4, signed=True)}, "
-            f"{unsup_l2.replicates_with_hi_above_lo}/{unsup_l2.n_paired} draws -- it does."
+            f"{unsup_l2.replicates_with_hi_above_lo}/{unsup_l2.n_paired} draws -- "
+            f"{_rung_verdict(unsup_l2)}."
             f"</p>"
         )
 
@@ -627,9 +764,8 @@ def _ladder_html() -> str:
         Does more access buy more detectability? Recomputed inside every draw and paired
         by draw, under both statistics, and over both partitions of the detector suite.
         Duplicate detectors are held out of every level's aggregate. Pairing does not
-        equalise denominators -- L1 aggregates 35 cells over 8 families where L2 and L3
-        aggregate 123 over 33 -- so any rung difference involving L1 is across
-        populations as well as across access levels.
+        equalise denominators -- {_level_denominators_txt()} -- so any rung difference
+        involving L1 is across populations as well as across access levels.
       </p>
       <p class="rhob-note">
         The <b>best detector</b> column is a maximum taken inside each draw, so it is
@@ -644,6 +780,7 @@ def _ladder_html() -> str:
       {_ladder_table(board.all_detectors)}
       <div class="rhob-tablecap">Adjacent-rung differences, paired within each draw</div>
       {_separation_table(board.all_detectors)}
+      <p class="rhob-note">{disagree_all}</p>
 
       <h4>Unsupervised only (label-fitted detectors removed)</h4>
       <div class="rhob-tablecap">Level aggregates</div>
@@ -652,7 +789,7 @@ def _ladder_html() -> str:
       {_separation_table(board.unsupervised_only)}
 
       {finding}
-      <p class="rhob-note">{disagree_txt}</p>
+      <p class="rhob-note">{disagree_unsup}</p>
     </div>
     """
 
@@ -908,23 +1045,39 @@ def _l0_control_html() -> str:
 
     margin = control.mean_margin_from_reference
     mean_txt = ""
-    if control.level_mean is not None:
+    level_mean = control.level_mean
+    if level_mean is not None:
         mean_txt = (
             f"<p class='rhob-note'><b>The control is carried detector by detector, not by "
             f"the suite mean.</b> The {_esc(control.level)} mean over detectors is "
-            f"{control.level_mean.text(4)}."
+            f"{level_mean.text(4)}."
         )
+        # No replay figures here: they belong to one interval, and the file linked below
+        # records them for the interval it was recomputed on.
+        scatter = (
+            f"the Monte-Carlo scatter of that endpoint itself, which straddles {ref} when "
+            f"the same bootstrap is replayed under 300 different generator seeds "
+            f"(<a href='{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md' "
+            f"target='_blank'>l0_control_robustness.md</a>). <b>The interval therefore "
+            f"places the suite mean on neither side of chance</b>, and no direction "
+            f"may be read from it. The per-detector verdicts above are not "
+            f"seed-sensitive in that way."
+        )
+        # An endpoint within 5e-5 of the reference prints as the reference at four
+        # decimals (0.50001 -> "0.5000"), which does not say whether the interval holds
+        # it. Say so, with the endpoint at five.
+        touching = [
+            (side, end)
+            for side, end in (("upper", level_mean.ci_hi), ("lower", level_mean.ci_lo))
+            if level_mean.has_bounds and f"{end:.4f}" == f"{control.reference:.4f}"
+        ]
         if margin is not None and control.mean_excludes_reference:
+            mean_txt += f" Its interval clears {ref} by {margin:.5f} &mdash; smaller than {scatter}"
+        elif touching:
+            side, end = touching[0]
             mean_txt += (
-                f" Its interval clears {ref} by {margin:.5f} &mdash; smaller than the "
-                f"Monte-Carlo scatter of that endpoint itself, which moves over a range "
-                f"about three times as wide when the same bootstrap is replayed under 300 "
-                f"different generator seeds, landing at or above {ref} in 18 of them "
-                f"(<a href='{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md' "
-                f"target='_blank'>l0_control_robustness.md</a>). <b>The interval therefore "
-                f"places the suite mean on neither side of chance</b>, and no direction "
-                f"may be read from it. The per-detector verdicts above are not "
-                f"seed-sensitive in that way."
+                f" Its {side} end is {end:.5f}, so the interval contains {ref} &mdash; by "
+                f"less than {scatter}"
             )
         mean_txt += "</p>"
 
@@ -957,23 +1110,57 @@ def _l0_control_html() -> str:
         other three), and
         there a reward-only detector returns {ref} for a reason that has nothing
         to do with proxy matching &mdash; padding the control with cells that could not
-        have come out otherwise. Padding of the same kind remains inside the other 27:
-        eight {_esc(control.level)} detectors declare no minimum horizon, fall back to a
-        constant on the families too short for their windows (19 or 7 of the 27), which
-        reads 0.500, and the board records that as measured; only Reward Skewness declares its horizon and
-        is n/a there. Re-scoring those cells is an open item in ROADMAP.md, linked below.
-        Recomputed over the 27 non-degenerate families only,
+        have come out otherwise. Padding of the same kind used to sit inside the other 27
+        as well: until 2026-11-26 eight {_esc(control.level)} detectors returned a
+        constant on the families too short for their windows, which read {ref} and was
+        recorded as measured. {_short_horizon_txt(control)}
+        Recomputed over the non-degenerate families each detector is scored on,
         family-weighted and bootstrapped over the same {board.n_replicates} replicates,
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
-        and the largest movers move away from it
+        and every detector's mean moves away from it
         (<a href="{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md" target="_blank">docs/figures/l0_control_robustness.md</a>).
         Cells the ledger measured and did not admit are held out of no
-        {_esc(control.level)} figure on this page, the 27-family recomputation included;
+        {_esc(control.level)} figure on this page, the degenerate-free recomputation included;
         whether they should be is an open question
         (<a href="{_GITHUB_BLOB}/ROADMAP.md" target="_blank">ROADMAP.md</a>).
       </p>
     </div>
     """
+
+
+def _short_horizon_txt(control: ChanceControl) -> str:
+    """Which control detectors are n/a on part of the board, and on how many families.
+
+    Read off the artifact: a detector is n/a on a family whose runs are shorter than the
+    ``min_episodes`` it declares, so its family count says how many it sits out.
+    """
+    n_families = len(_board().families())
+    by_gap: dict[int, list[str]] = {}
+    for d in control.detectors:
+        gap = n_families - d.n_families_measured
+        if gap > 0:
+            by_gap.setdefault(gap, []).append(d.name)
+    if not by_gap:
+        return (
+            f"Every {_esc(control.level)} detector now declares the run length it needs, "
+            f"and every one is scored on all {n_families} families."
+        )
+
+    def names(xs: list[str]) -> str:
+        xs = sorted(xs)
+        return xs[0] if len(xs) == 1 else f"{', '.join(xs[:-1])} and {xs[-1]}"
+
+    groups = [
+        f"{_esc(names(by_gap[gap]))} on {gap}"
+        for gap in sorted(by_gap, reverse=True)
+    ]
+    listed = groups[0] if len(groups) == 1 else f"{', '.join(groups[:-1])}, and {groups[-1]}"
+    n_short = sum(len(v) for v in by_gap.values())
+    return (
+        f"Every {_esc(control.level)} detector now declares the run length it needs, "
+        f"and {n_short} of the {control.n_detectors} {'is' if n_short == 1 else 'are'} "
+        f"n/a on the families shorter than that: {listed} of the 27."
+    )
 
 
 def _l0_winner_share() -> str:
@@ -1086,11 +1273,11 @@ Sorted by the {_board_ref.n_replicates}-draw suite mean, descending, in every vi
 for every row: a detector whose channel most families do not ship measures far fewer
 cells than a board-wide one. Selecting a family shows that family's own interval, and
 `{NOT_MEASURED}` where the detector never measured it -- which is a different statement
-from "scored at chance". A number is not always a measurement either: a detector that
-declares no minimum horizon is scored on runs shorter than its windows and shows its
-fallback 0.500 there. That is eight L0 and three L2 detectors on the families of 40 or
-60 episodes and every L1 detector on `continuous_camping`; only Reward Skewness declares
-its horizon and shows `{NOT_MEASURED}` instead.
+from "scored at chance". A detector is also not scored on a family whose runs are
+shorter than the `min_episodes` it declares, and shows `{NOT_MEASURED}` there: nine L0
+and three L2 detectors on the families of 40 or 60 episodes, and every L1 detector on
+`continuous_camping`. Until 2026-11-26 only Reward Skewness declared one, and the others
+showed the constant they return below their windows as a measured 0.500.
 """
         )
 

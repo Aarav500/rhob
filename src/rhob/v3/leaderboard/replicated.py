@@ -13,9 +13,11 @@ Three properties of the artifact are load-bearing and are preserved here rather 
 smoothed over:
 
 **A family appears only where the detector measured it.** The L1 (state-visitation)
-detectors carry 8 families, not 33, because 25 families ship no state channel. The
-aggregator drops those cells instead of imputing them; earlier boards averaged in a
-hard-coded ``0.500`` for each, which made a mostly-unmeasured row read as a measurement.
+detectors carry 7 families, not 33: 25 families ship no state channel, and
+``continuous_camping`` (40 episodes) is shorter than every L1 detector's
+``min_episodes``. The aggregator drops the 25 families' cells instead of imputing them;
+earlier boards averaged in a hard-coded ``0.500`` for each, which made a
+mostly-unmeasured row read as a measurement.
 :meth:`ReplicatedDetector.family` therefore returns ``None`` -- not ``0.5``, and not
 ``0.0`` -- for a family the detector never scored, and a renderer must show that as
 "not measured" rather than as a number. The same holds for a family shorter than the
@@ -37,13 +39,13 @@ unusually precise estimate.
 
 **A level's maximum is not a detector's score.** ``access_levels.<L>.max_auroc`` is the
 mean over draws of the *best* detector at that level, and taking a maximum over N noisy
-estimates biases it upward: at L0 it lands at 0.554 while no individual L0 detector's
-point estimate reaches 0.507 (both after the 2026-09-03 Reward Skewness re-score).
-Reading it as "the best reward-only detector scores 0.554" inverts the rung's meaning,
-which is a negative control -- reward-only detectors are *supposed* to sit at chance on a
-proxy matched between the variants (see :data:`CONTROL_LEVEL` for where the admission
-ledger certifies that match and where it does not), and the control is carried detector
-by detector, not by the max.
+estimates biases it upward: at L0 it lands at 0.571 while no individual L0 detector's
+point estimate reaches 0.507 (both after the 2026-11-26 re-score of the 19 detectors
+whose declared ``min_episodes`` rules out a family). Reading it as "the best reward-only
+detector scores 0.571" inverts the rung's meaning, which is a negative control --
+reward-only detectors are *supposed* to sit at chance on a proxy matched between the
+variants (see :data:`CONTROL_LEVEL` for where the admission ledger certifies that match
+and where it does not), and the control is carried detector by detector, not by the max.
 :meth:`ReplicatedLeaderboard.control_check` computes that per-detector statement from the
 artifact so a renderer can state it instead of inferring it from the level aggregate.
 """
@@ -249,9 +251,9 @@ class LevelSeparation:
     replicates_with_hi_above_lo: int
     n_paired: int
     #: Pairing removes between-draw variation shared by the two rungs. It does not
-    #: equalise denominators -- L1 aggregates 35 cells over 8 families where L2/L3
-    #: aggregate 123 over 33 -- so a rung difference involving L1 is across populations
-    #: as well as across access levels.
+    #: equalise denominators -- L1 aggregates 31 cells over 7 families where L2/L3
+    #: aggregate at most 123 over 33 -- so a rung difference involving L1 is across
+    #: populations as well as across access levels.
     denominators_equal: bool = False
 
     @property
@@ -344,8 +346,10 @@ class ChanceControl:
         """Bare interval arithmetic on the level mean: does it exclude ``reference``?
 
         **This is not a verdict about which side of chance the suite mean sits on**, and a
-        renderer must not present it as one. On the committed board it is ``True`` by a
-        margin of about 8e-5 -- see :attr:`mean_margin_from_reference`, and read that
+        renderer must not present it as one. On the committed board (re-scored
+        2026-11-26) it is ``False`` by a hair: the L0 suite-mean interval
+        [0.4899, 0.5000] contains 0.500 only because its upper endpoint, 0.50001, sits
+        ~1.5e-5 above it -- see :attr:`mean_margin_from_reference`, and read that
         property's docstring before quoting this one.
         """
         return self.level_mean is not None and not self.level_mean.contains(self.reference)
@@ -359,14 +363,16 @@ class ChanceControl:
         against the estimator's own noise* rather than reading
         :attr:`mean_excludes_reference` as a finding.
 
-        On the committed L0 board the margin is ~7.9e-5, while replaying the same
-        bootstrap under 300 different generator seeds moves that endpoint over a range of
-        ~2.4e-4 and puts it at or above 0.500 in 18 of the 300
-        (``docs/figures/l0_control_robustness.md``). The exclusion is therefore smaller
-        than the Monte-Carlo scatter of the endpoint that produces it: the interval places
-        the suite mean on **neither** side of chance. Subtracting the endpoint from 0.500
-        and reporting the remainder is the false-precision error itself, not a smaller
-        version of it.
+        On the committed L0 board (re-scored 2026-11-26) the interval [0.4899, 0.5000]
+        contains 0.500 and the margin is 0.0, but only because the upper endpoint sits
+        ~1.5e-5 above 0.500. On the 2026-08-06 board the interval instead cleared 0.500, by
+        ~7.9e-5, and replaying that bootstrap under 300 different generator seeds moved the
+        endpoint over a range of ~2.4e-4 and put it at or above 0.500 in 18 of the 300
+        (``docs/figures/l0_control_robustness.md``; not recomputed since). A ~1.5e-5
+        inclusion is far inside that scatter, just as the ~7.9e-5 exclusion was: either
+        way the interval places the suite mean on **neither** side of chance. Subtracting
+        the endpoint from 0.500 and reporting the remainder is the false-precision error
+        itself, not a smaller version of it.
         """
         if self.level_mean is None or not self.level_mean.has_bounds:
             return None
@@ -392,9 +398,16 @@ class ReplicatedLeaderboard:
     supervision_note: str
     zero_variance_detectors: tuple[str, ...]
     zero_variance_note: str
-    #: Rungs whose separation verdict depends on whether you read the max or the mean.
-    #: Reporting one statistic alone there presents a statistic-dependent result as
-    #: settled, so a renderer showing a rung on this list must show both.
+    #: Rungs whose verdict depends on whether you read the max or the mean: the rungs
+    #: that separate under one statistic and not the other
+    #: (``rungs_where_max_and_mean_disagree_on_separation``) followed by those that
+    #: separate under both with opposite signs
+    #: (``rungs_where_max_and_mean_disagree_on_direction``). Reporting one statistic
+    #: alone there presents a statistic-dependent result as settled, so a renderer
+    #: showing a rung on this list must show both. On the board re-scored 2026-11-26 it
+    #: holds L2_minus_L1 through the second list: the max puts L1 above L2, the mean L2
+    #: above L1. An artifact written before the second list existed carries only the
+    #: first, which compared separation and not direction.
     statistic_disagreement: tuple[str, ...] = ()
     statistic_disagreement_note: str = ""
 
@@ -615,8 +628,9 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
         supervision_note=str(supervision.get("why_it_matters") or ""),
         zero_variance_detectors=_str_tuple(degeneracy.get("detectors_with_zero_variance")),
         zero_variance_note=str(degeneracy.get("note") or ""),
-        statistic_disagreement=_str_tuple(
-            disagreement.get("rungs_where_max_and_mean_disagree_on_separation")
-        ),
+        statistic_disagreement=tuple(dict.fromkeys(
+            _str_tuple(disagreement.get("rungs_where_max_and_mean_disagree_on_separation"))
+            + _str_tuple(disagreement.get("rungs_where_max_and_mean_disagree_on_direction"))
+        )),
         statistic_disagreement_note=str(disagreement.get("note") or ""),
     )

@@ -145,7 +145,7 @@ def main() -> None:
         ci["access_level"] = level
         # The denominator, carried through from the replicates so a consumer can print
         # it next to the interval. Without it a board-wide detector (123 cells over 33
-        # families) and one whose channel most families do not ship (35 over 8) render
+        # families) and one whose channel most families do not ship (31 over 7) render
         # as if they had answered the same question -- which is exactly the reading the
         # L1 imputation finding came from. Constant across draws by construction (every
         # draw runs the same suite), so a disagreement means the draws are not
@@ -255,10 +255,15 @@ def main() -> None:
     # paired by replicate (each draw scores every level), so the comparison is not
     # confounded by between-draw variation shared by both rungs.
     # BOTH statistics, always. Reporting only one is how a one-sided conclusion gets
-    # published: on this board the two disagree about L1->L2, which separates on the
-    # suite mean (+0.015, CI excludes zero) and does not on the best-detector max
-    # (+0.001, CI spans zero). Either alone reads as a settled answer; together they are
-    # the actual finding, which is that the rung's status depends on the statistic.
+    # published: on this board both statistics separate L1->L2, in opposite directions.
+    # The suite mean puts L2 above L1 (+0.012, CI excludes zero); the best-detector max
+    # puts L1 above L2 (-0.055, CI excludes zero, 0/20 draws favouring L2). Either alone
+    # reads as a settled answer; together they are the actual finding, which is that the
+    # rung's direction depends on the statistic. A verdict is therefore the pair (does it
+    # separate, which way): ``disagree`` below lists rungs that separate under one
+    # statistic and not the other, ``disagree_direction`` rungs that separate under both
+    # with opposite signs -- which is where this one is listed. Comparing only whether
+    # each statistic separates printed "Max and mean agree on every rung" on this board.
     # The max is additionally a selection statistic -- the maximum over a level's
     # detectors exceeds the truth by construction -- and at L0, where every detector is
     # at chance, the argmax is a coin flip (see best_detector_frequency).
@@ -285,23 +290,27 @@ def main() -> None:
                     "n_paired": len(shared),
                     # Pairing removes the between-draw variation the two rungs share.
                     # It does NOT equalise denominators: within one replicate L1
-                    # aggregates 35 cells over 8 families while L0 aggregates 93 over 27
-                    # and L2/L3 aggregate 123 over 33. No resampling fixes that, so any
-                    # rung difference involving L1 is across populations as well as
-                    # across access levels.
+                    # aggregates 31 cells over 7 families while L0 aggregates at most 93
+                    # over 27 (its detectors are scored on 8 to 27 families) and L2/L3
+                    # at most 123 over 33. No resampling fixes that, so any rung
+                    # difference involving L1 is across populations as well as across
+                    # access levels.
                     "denominators_equal": False,
                 }
         return seps
 
     separations = compute_separations(ladder_by_rep, "all")
     separations_unsup = compute_separations(unsup_by_rep, "unsup")
-    disagree = [
-        f"{hi}_minus_{lo}"
+    rungs = [
+        (f"{hi}_minus_{lo}", separations[f"{hi}_minus_{lo}_max"],
+         separations[f"{hi}_minus_{lo}_mean"])
         for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:])
-        if f"{hi}_minus_{lo}_max" in separations
-        and f"{hi}_minus_{lo}_mean" in separations
-        and separations[f"{hi}_minus_{lo}_max"]["excludes_zero"]
-        != separations[f"{hi}_minus_{lo}_mean"]["excludes_zero"]
+        if f"{hi}_minus_{lo}_max" in separations and f"{hi}_minus_{lo}_mean" in separations
+    ]
+    disagree = [r for r, mx, mn in rungs if mx["excludes_zero"] != mn["excludes_zero"]]
+    disagree_direction = [
+        r for r, mx, mn in rungs
+        if mx["excludes_zero"] and mn["excludes_zero"] and (mx["mean"] > 0) != (mn["mean"] > 0)
     ]
 
     out = {
@@ -342,8 +351,11 @@ def main() -> None:
         "adjacent_level_separation": separations,
         "statistic_disagreement": {
             "rungs_where_max_and_mean_disagree_on_separation": disagree,
+            "rungs_where_max_and_mean_disagree_on_direction": disagree_direction,
             "note": (
-                "A rung listed here separates under one statistic and not the other. "
+                "The max and the mean give these rungs different verdicts: a rung listed "
+                "under separation separates under one statistic and not the other, and a "
+                "rung listed under direction separates under both with opposite signs. "
                 "Reporting either alone would present a statistic-dependent result as a "
                 "settled one. Quote both."
             ),
@@ -455,9 +467,32 @@ def _write_markdown(out: dict, path: Path) -> None:
                 f"{'yes' if v['excludes_zero'] else '**NO**'} | "
                 f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} |"
             )
-        dis = out["statistic_disagreement"]["rungs_where_max_and_mean_disagree_on_separation"]
-        L += ["", (f"**Statistic-dependent: {', '.join(dis)}.** Separates under one statistic and "
-                   f"not the other." if dis else "Max and mean agree on every rung.")]
+        seps = out["adjacent_level_separation"]
+        sd = out["statistic_disagreement"]
+
+        def says(v: dict, hi: str, lo: str) -> str:
+            ci = (f"{v['mean']:+.4f} "
+                  + (f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]" if v.get("ci_lo") is not None
+                     else "[n/a]")
+                  + f", {v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring {hi}")
+            if not v["excludes_zero"]:
+                return f"does not separate {hi} from {lo} ({ci})"
+            top, bottom = (hi, lo) if v["mean"] > 0 else (lo, hi)
+            return f"puts {top} above {bottom} ({ci})"
+
+        for kind, how in (
+            ("separation", "One statistic separates it and the other does not"),
+            ("direction", "Both statistics separate it, in opposite directions"),
+        ):
+            for rung in sd.get(f"rungs_where_max_and_mean_disagree_on_{kind}", []):
+                hi, _, lo = rung.split("_")
+                mx, mn = seps[f"{rung}_max"], seps[f"{rung}_mean"]
+                L += ["", f"**Statistic-dependent: {hi} minus {lo}.** {how}: the max "
+                          f"{says(mx, hi, lo)}; the mean {says(mn, hi, lo)}. Quote both."]
+        if not (sd["rungs_where_max_and_mean_disagree_on_separation"]
+                or sd.get("rungs_where_max_and_mean_disagree_on_direction")):
+            L += ["", "Max and mean agree on every rung, on whether it separates and in "
+                      "which direction."]
     L += [
         "",
         "## Zero-variance detectors",

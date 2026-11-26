@@ -42,7 +42,7 @@ not equalise denominators. The families each detector is scored on (a family is 
 | L2 minus L1 | mean | +0.0118 | [+0.0008, +0.0235] | yes | 13/20 |
 | L3 minus L2 | mean | +0.3963 | [+0.3904, +0.4022] | yes | 20/20 |
 
-Max and mean agree on every rung.
+**Statistic-dependent: L2 minus L1.** Both statistics separate it, in opposite directions: the max puts L1 above L2 (-0.0555 [-0.0609, -0.0505], 0/20 draws favouring L2); the mean puts L2 above L1 (+0.0118 [+0.0008, +0.0235], 13/20 draws favouring L2). Quote both.
 
 ## Zero-variance detectors
 
