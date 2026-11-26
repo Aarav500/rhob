@@ -7,6 +7,11 @@ name: regenerate artifacts
 #   leaderboard/v5_leaderboard.json   one job: the script exactly as a person runs it
 #   admission/admission_ledger.json   the full 123-cell grid, one job per cell, merged
 #   admission/ADMISSION_LEDGER.md
+#   results/replication/replicate_*.json, leaderboard/v5_replicated.json and
+#   docs/figures/replication_summary.md: `replicated` re-scores the named detectors on
+#   each of the 20 draws, one job per draw, and merges each detector's rows into the
+#   committed replicates with scripts/merge_rescored_detector.py, which refuses a scored
+#   cell whose value moved unless it is named in `allow_changed`; then re-aggregates.
 #
 # Why the board is one job and the ledger is many. The board scores 30 detectors on the
 # SAME rollouts, shared in-process (Benchmark._rollout_cache), so its cost is the rollouts
@@ -30,8 +35,16 @@ on:
       artifacts:
         description: "Which artifacts to regenerate"
         type: choice
-        options: [both, board, ledger]
+        options: [both, board, ledger, replicated]
         default: both
+      detectors:
+        description: "replicated only: comma-separated detector names to re-score"
+        type: string
+        default: ""
+      allow_changed:
+        description: "replicated only: space-separated family:difficulty cells allowed to move, each only after its cause is established"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -72,7 +85,7 @@ jobs:
 
   board:
     needs: plan
-    if: ${{ (inputs.artifacts || 'both') != 'ledger' }}
+    if: ${{ contains(fromJSON('["both", "board"]'), inputs.artifacts || 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     permissions:
@@ -141,7 +154,7 @@ jobs:
 
   ledger:
     needs: plan
-    if: ${{ (inputs.artifacts || 'both') != 'board' }}
+    if: ${{ contains(fromJSON('["both", "ledger"]'), inputs.artifacts || 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     strategy:
@@ -227,4 +240,114 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           FILES: admission/admission_ledger.json admission/ADMISSION_LEDGER.md
           WHAT: the admission ledger
+        run: bash .github/workflows/regenerate-commit.sh
+
+  replicated:
+    needs: plan
+    if: ${{ inputs.artifacts == 'replicated' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        replicate: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    name: replicate ${{ matrix.replicate }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+      - name: Fingerprint the physics stack
+        id: physics
+        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
+      - name: Restore calibration cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .rhob_cache
+          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          restore-keys: |
+            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+      - name: Re-score the named detectors on this draw
+        env:
+          DETECTORS: ${{ inputs.detectors }}
+          ID: ${{ matrix.replicate }}
+        run: |
+          IFS=',' read -ra names <<< "$DETECTORS"
+          trimmed=()
+          for n in "${names[@]}"; do n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"; [ -n "$n" ] && trimmed+=("$n"); done
+          if [ "${#trimmed[@]}" -eq 0 ]; then echo "no detectors given"; exit 1; fi
+          python -u scripts/replicate_leaderboard.py --replicate-id "$ID" \
+            --detectors "${trimmed[@]}" --out-dir "$RUNNER_TEMP/rescore"
+          python - <<'EOF'
+          import json, os, sys
+          path = os.path.join(os.environ["RUNNER_TEMP"], "rescore", f"replicate_{int(os.environ['ID']):03d}.json")
+          rep = json.load(open(path))
+          errors = {n: r["error"] for n, r in rep["results"].items() if "error" in r}
+          if errors:
+              sys.exit(f"not merging: {errors}")
+          print(len(rep["results"]), "detectors re-scored")
+          EOF
+      - uses: actions/upload-artifact@v7
+        with:
+          name: replicate-${{ matrix.replicate }}
+          path: ${{ runner.temp }}/rescore/replicate_*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  merge-replicated:
+    needs: [plan, replicated]
+    if: ${{ !cancelled() && needs.replicated.result == 'success' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Sources at the branch tip are the run's
+        run: git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: replicate-*
+          path: ${{ runner.temp }}/rescore
+          merge-multiple: true
+      # One detector at a time, as the script is written: each merge checks that every
+      # cell the committed replicate scored comes back with the same AUROC, and refuses
+      # the whole detector otherwise.
+      - name: Merge each detector's rows, then re-aggregate
+        env:
+          DETECTORS: ${{ inputs.detectors }}
+          ALLOW: ${{ inputs.allow_changed }}
+        run: |
+          ls "$RUNNER_TEMP/rescore"
+          IFS=',' read -ra names <<< "$DETECTORS"
+          for n in "${names[@]}"; do
+            n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"; [ -z "$n" ] && continue
+            echo "::group::$n"
+            # shellcheck disable=SC2086
+            python scripts/merge_rescored_detector.py --detector "$n" \
+              --from-dir "$RUNNER_TEMP/rescore" --into-dir results/replication \
+              ${ALLOW:+--allow-changed $ALLOW}
+            echo "::endgroup::"
+          done
+          python scripts/aggregate_replication.py
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FILES: results/replication leaderboard/v5_replicated.json docs/figures/replication_summary.md
+          WHAT: the replicated board (re-scored rows)
         run: bash .github/workflows/regenerate-commit.sh
