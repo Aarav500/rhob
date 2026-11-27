@@ -298,15 +298,28 @@ def test_cpu_info_without_proc_cpuinfo_falls_back_and_says_so(monkeypatch, tmp_p
     assert provenance_module.cpu_info()["source"] is None
 
 
-def test_the_torch_capability_is_read_only_when_torch_is_already_loaded(monkeypatch):
+@pytest.mark.parametrize("modules", [{}, {"torch": None}], ids=["absent", "import-blocked"])
+def test_the_torch_capability_is_read_only_when_torch_is_already_loaded(monkeypatch, modules):
     """Stamping provenance must not import torch: that would load a library the run did
-    not use, and fix its kernel choice in the stamping process."""
-    fake_sys = types.SimpleNamespace(modules={}, argv=["probe"])
-    monkeypatch.setattr(provenance_module, "sys", fake_sys)
+    not use, and fix its kernel choice in the stamping process. The module reaches torch
+    only through ``provenance.importlib.import_module``, so recording that function's
+    calls checks that no torch import is attempted when the process has not loaded it.
+    A ``None`` entry in ``sys.modules`` blocks the import, so it does not count as loaded
+    either."""
+    attempted: list[str] = []
+
+    def recording_import(name, *args, **kwargs):
+        attempted.append(name)  # provenance swallows the error; the record is the check
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(provenance_module, "sys", types.SimpleNamespace(modules=modules,
+                                                                        argv=["probe"]))
+    monkeypatch.setattr(provenance_module, "importlib",
+                        types.SimpleNamespace(import_module=recording_import))
     numerics = provenance_module.numerics_block()
     assert numerics["torch_imported"] is False
     assert numerics["torch_cpu_capability"] is None
-    assert "torch" not in fake_sys.modules
+    assert attempted == []
 
 
 def test_the_torch_capability_is_recorded_when_torch_is_loaded():
@@ -314,6 +327,46 @@ def test_the_torch_capability_is_recorded_when_torch_is_loaded():
     numerics = provenance_module.numerics_block()
     assert numerics["torch_imported"] is True
     assert isinstance(numerics["torch_cpu_capability"], str) and numerics["torch_cpu_capability"]
+
+
+#: ``torch.__config__.show()`` as torch 2.x prints it, cut to the lines that matter here.
+_TORCH_BUILD_SUMMARY = (
+    "PyTorch built with:\n"
+    "  - GCC 9.3\n"
+    "  - CPU capability usage: AVX2\n"
+    "  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, PERF_WITH_AVX512=1, \n"
+)
+
+
+@pytest.mark.parametrize("backend", [None, types.ModuleType("torch.backends.cpu")],
+                         ids=["no-torch.backends.cpu", "no-get_cpu_capability"])
+def test_the_torch_capability_falls_back_to_the_build_summary_before_torch_2_1(
+    monkeypatch, backend
+):
+    """``torch.backends.cpu.get_cpu_capability`` first shipped in torch 2.1, and
+    ``pyproject.toml`` allows 2.0: there the level is read from the build summary, so an
+    AVX2 run and an AVX512 run stay distinguishable. Stubbed, so this runs without torch."""
+    if sys.modules.get("torch") is None:
+        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    monkeypatch.setitem(sys.modules, "torch.backends.cpu", backend)
+    monkeypatch.setitem(sys.modules, "torch.__config__",
+                        types.SimpleNamespace(show=lambda: _TORCH_BUILD_SUMMARY))
+    assert provenance_module._torch_cpu_capability() == "AVX2"
+    # A summary without the line, or one that cannot be produced, is null, not a crash.
+    monkeypatch.setitem(sys.modules, "torch.__config__",
+                        types.SimpleNamespace(show=lambda: "PyTorch built with:\n"))
+    assert provenance_module._torch_cpu_capability() is None
+    monkeypatch.setitem(sys.modules, "torch.__config__", None)
+    assert provenance_module._torch_cpu_capability() is None
+
+
+def test_the_build_summary_fallback_agrees_with_get_cpu_capability(monkeypatch):
+    """On a torch that has both, the fallback reads the same string the API returns."""
+    pytest.importorskip("torch")
+    direct = provenance_module._torch_cpu_capability()
+    assert direct
+    monkeypatch.setitem(sys.modules, "torch.backends.cpu", None)
+    assert provenance_module._torch_cpu_capability() == direct
 
 
 def test_loaded_blas_records_the_kernel_and_no_machine_paths(monkeypatch):

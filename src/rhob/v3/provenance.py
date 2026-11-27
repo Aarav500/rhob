@@ -27,6 +27,7 @@ from __future__ import annotations
 import importlib
 import os
 import platform
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -257,19 +258,42 @@ def cpu_info() -> dict[str, Any]:
     return info
 
 
+#: The line of ``torch.__config__.show()`` that names the ATen kernel level, present on
+#: every torch 2.x: ``"  - CPU capability usage: AVX2"``.
+_TORCH_CAPABILITY_LINE = re.compile(r"CPU capability usage:\s*(\S+)")
+
+
+def _torch_loaded() -> bool:
+    """Whether this process has imported torch. A ``None`` entry in ``sys.modules``
+    blocks the import rather than recording one, so it counts as not loaded."""
+    return sys.modules.get("torch") is not None
+
+
 def _torch_cpu_capability() -> Optional[str]:
     """The ATen kernel level torch dispatches to, if torch is already imported.
 
     Never imports torch itself: stamping provenance must not load a library the run did
     not use, and importing torch would also fix its kernel choice in this process.
+
+    Read from ``torch.backends.cpu.get_cpu_capability()``, which first shipped in torch
+    2.1. ``pyproject.toml`` allows 2.0, so when it is missing the value is parsed from
+    the ``CPU capability usage`` line of ``torch.__config__.show()``, which carries the
+    same string (``"AVX2"`` under ``ATEN_CPU_CAPABILITY=avx2``) on every 2.x. None when
+    neither is available.
     """
-    if "torch" not in sys.modules:
+    if not _torch_loaded():
         return None
     try:
         backend = importlib.import_module("torch.backends.cpu")
         return str(backend.get_cpu_capability())
     except Exception:  # noqa: BLE001 -- provenance must never crash the run it describes
+        pass
+    try:
+        summary = importlib.import_module("torch.__config__").show()
+        match = _TORCH_CAPABILITY_LINE.search(summary)
+    except Exception:  # noqa: BLE001 -- provenance must never crash the run it describes
         return None
+    return match.group(1) if match else None
 
 
 def _loaded_blas() -> Optional[list[dict[str, Any]]]:
@@ -302,9 +326,10 @@ def numerics_block() -> dict[str, Any]:
     - ``cpu``: :func:`cpu_info`.
     - ``torch_imported`` and ``torch_cpu_capability``: whether this process had loaded
       torch when the block was stamped, and if so the ATen kernel level it dispatches to
-      (``"AVX2"`` under the pin, ``"AVX512"`` unpinned on a CPU that has it). Null when
-      torch was not imported; importing :mod:`rhob.v3` loads it with the detectors
-      whenever it is installed, so in practice null means torch is absent.
+      (``"AVX2"`` under the pin, ``"AVX512"`` unpinned on a CPU that has it; read on
+      every torch 2.x, see :func:`_torch_cpu_capability`). Null when torch was not
+      imported; importing :mod:`rhob.v3` loads it with the detectors whenever it is
+      installed, so in practice null means torch is absent.
     - ``blas``: :func:`_loaded_blas`.
 
     Two runs with equal ``env`` pins and equal ``blas`` architectures picked the same
@@ -315,7 +340,7 @@ def numerics_block() -> dict[str, Any]:
     return {
         "env": {name: os.environ.get(name) for name in NUMERICS_ENV_VARS},
         "cpu": cpu_info(),
-        "torch_imported": "torch" in sys.modules,
+        "torch_imported": _torch_loaded(),
         "torch_cpu_capability": _torch_cpu_capability(),
         "blas": _loaded_blas(),
     }

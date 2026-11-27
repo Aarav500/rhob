@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import sys
 import textwrap
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -374,21 +375,43 @@ def test_normalized_keeps_every_string_that_is_not_a_docstring(a, b):
     assert cc._normalized(a) != cc._normalized(b)
 
 
+_POSTHOC = "rhob.detectors.posthoc"
+#: The opening of ``RunData``'s docstring, which the replayed edit rewords.
+_RUNDATA_DOCSTRING = '"""A completed run'
+
+
+def _calibrated_family_modules() -> list[str]:
+    """Every family module with a ``@disk_memo`` calibration, read from the source tree
+    so a new calibrated family is covered without editing this list."""
+    families = Path(cc.__file__).resolve().parent / "families"
+    return sorted(
+        f"rhob.v3.families.{path.stem}"
+        for path in families.glob("*.py")
+        if "@disk_memo" in path.read_text(encoding="utf-8")
+    )
+
+
 def test_a_docstring_edit_to_posthoc_keeps_every_calibrated_familys_key(monkeypatch):
     """The real case. ``rhob.detectors.posthoc`` defines ``RunData``, so every calibrated
     family reaches it, and three of the five full invalidations were edits to its
-    docstrings alone (96d928c, f83a152, 67c73b4). Replayed here on the family whose
-    calibration is the most expensive, through the real import walk."""
+    docstrings alone (96d928c, f83a152, 67c73b4). Replayed here, through the real import
+    walk, on every family whose calibration is disk-memoized: a reworded docstring and an
+    added comment, each alone and together, keep every key; a code edit moves every key."""
     import importlib  # noqa: PLC0415
 
-    name = "rhob.v3.families.mujoco_joint_limit_gaming"
-    module = importlib.import_module(name)
+    names = _calibrated_family_modules()
+    assert "rhob.v3.families.mujoco_joint_limit_gaming" in names, names
+    modules = {name: importlib.import_module(name) for name in names}
     real_source_of = cc._source_of
+    posthoc_text, _ = real_source_of(_POSTHOC)
+    # The docstring edit must change real text: if RunData's docstring is reworded, a
+    # replace that matched nothing would leave this test checking the comment alone.
+    assert posthoc_text.count(_RUNDATA_DOCSTRING) == 1, "update _RUNDATA_DOCSTRING"
 
     def with_posthoc(transform):
         def source_of(dep):
             found = real_source_of(dep)
-            if dep != "rhob.detectors.posthoc" or found is None:
+            if dep != _POSTHOC or found is None:
                 return found
             text, is_package = found
             new = transform(text)
@@ -397,16 +420,27 @@ def test_a_docstring_edit_to_posthoc_keeps_every_calibrated_familys_key(monkeypa
 
         return source_of
 
-    before = cc._compute_fingerprint(name, module)
-    assert "rhob.detectors.posthoc" in cc.reachable_sources(name, module)
+    def keys():
+        return {name: cc._compute_fingerprint(name, module) for name, module in modules.items()}
 
-    monkeypatch.setattr(cc, "_source_of", with_posthoc(
-        lambda t: t.replace('"""A completed run', '"""A finished run', 1) + "\n# a comment\n"
-    ))
-    assert cc._compute_fingerprint(name, module) == before
+    before = keys()
+    for name, module in modules.items():
+        assert _POSTHOC in cc.reachable_sources(name, module), name
+        assert before[name], f"{name} is uncacheable"
 
-    monkeypatch.setattr(cc, "_source_of", with_posthoc(lambda t: t + "\n_ADDED = 1\n"))
-    assert cc._compute_fingerprint(name, module) != before
+    def reword(text):
+        return text.replace(_RUNDATA_DOCSTRING, '"""A finished run', 1)
+
+    def comment(text):
+        return text + "\n# a comment\n"
+
+    for transform in (reword, comment, lambda text: comment(reword(text))):
+        monkeypatch.setattr(cc, "_source_of", with_posthoc(transform))
+        assert keys() == before
+
+    monkeypatch.setattr(cc, "_source_of", with_posthoc(lambda text: text + "\n_ADDED = 1\n"))
+    after = keys()
+    assert [name for name in names if after[name] == before[name]] == []
 
 
 def test_normalization_is_memoized_across_families():
