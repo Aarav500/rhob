@@ -1,0 +1,81 @@
+name: diagnose continuous_camping determinism (temporary)
+# Temporary. The 2026-11-27 redraw (run 45995235365) refused: replicate_000 and the board,
+# the same draw on two hosted runners under the six numerics pins, disagree on 16
+# continuous_camping cells and on no other family. This trains the family's DQN camper and
+# rolls it out on whatever runner each job lands on, and prints the CPU model with hashes
+# of the trained weights and the rollouts, under the pins alone and under candidate extra
+# pins, so the log shows which dispatch the pins leave CPU-dependent. Delete after use.
+on:
+  push:
+    branches: [claude/project-explanation-latex-5gxonr]
+    paths: [.github/workflows/diag-camper.yml]
+permissions:
+  contents: read
+env:
+  OPENBLAS_CORETYPE: Haswell
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  ATEN_CPU_CAPABILITY: avx2
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [pins, npy, onednn, mkl, all]
+        replica: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+      - name: Probe
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          case "$VARIANT" in
+            npy|all) export NPY_DISABLE_CPU_FEATURES="AVX512F AVX512CD AVX512_SKX AVX512_CLX AVX512_CNL AVX512_ICL AVX512_SPR" ;;
+          esac
+          case "$VARIANT" in onednn|all) export ONEDNN_MAX_CPU_ISA=AVX2 ;; esac
+          case "$VARIANT" in mkl|all) export MKL_ENABLE_INSTRUCTIONS=AVX2 ;; esac
+          python - <<'EOF'
+          import hashlib, json, os, time
+          import numpy as np
+          import torch
+          from rhob.agents.dqn import train_camper
+          from rhob.environments.continuous.config import ContinuousConfig
+          from rhob.evaluation.eval_rollout import generate_continuous_rundata
+          from rhob.v3.families.continuous_camping import _SIGMA_A, difficulty_to_separation
+
+          cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "?")
+          t0 = time.time()
+          camper = train_camper(seed=0)
+          h = hashlib.sha256()
+          for k, v in sorted(camper._net.state_dict().items()):
+              h.update(k.encode()); h.update(v.detach().cpu().numpy().tobytes())
+          rh = hashlib.sha256()
+          config = ContinuousConfig(separation=difficulty_to_separation(0.9), sigma_a=_SIGMA_A)
+          for variant in ("A", "B"):
+              for s in range(5):
+                  rd, _ = generate_continuous_rundata(camper, variant, config, seed=s)
+                  for arr in (rd.proxy_rewards, rd.true_rewards, rd.behav_trace):
+                      if arr is not None:
+                          rh.update(np.ascontiguousarray(arr).tobytes())
+          x = np.linspace(0.1, 20, 100001)
+          print("DIAG " + json.dumps({
+              "variant": os.environ["VARIANT"], "cpu": cpu,
+              "camper": h.hexdigest()[:16], "rollouts": rh.hexdigest()[:16],
+              "np_exp": hashlib.sha256(np.exp(x).tobytes()).hexdigest()[:12],
+              "torch_cap": torch.backends.cpu.get_cpu_capability(),
+              "seconds": round(time.time() - t0, 1),
+          }))
+          EOF
