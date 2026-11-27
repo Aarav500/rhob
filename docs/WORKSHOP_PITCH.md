@@ -16,7 +16,9 @@
 >   standing in it is 0.706, from a label-fitted detector. *(2026-11-27: measured again
 >   under the not-applicable rule, over five trials in the shipped configuration, the
 >   ensemble transfers at 0.512 and that detector, Trajectory MLP, at 0.700;
->   `leaderboard/cross_family_transfer_v5.json`.)*
+>   `leaderboard/cross_family_transfer_v5.json`. The three-trial run itself, re-measured on
+>   CI under the same rule (run 46011028034, `0ff0d42`), reads 0.514 and 0.709, and with
+>   the sign not randomized the ensemble reads 0.993 there, not the published 0.994.)*
 >
 > A shared task asks outside groups to spend their time on a ranking. Neither premise
 > survives, so this one should not be proposed. See [ROADMAP.md](../ROADMAP.md) for what

@@ -82,6 +82,18 @@ camper trained to different weights on Intel and AMD runners under the pins. It 
 frozen weights since `ddc8ab5` (CHANGELOG.md). The table below compares the 2026-08-04
 replicate 0 on two stacks. The 10 rows the note above calls current are current for that
 file as last written in `827ae57`, not for the re-drawn `replicate_000.json`.)*
+*(2026-11-27, later: the sign-randomization artifacts, which the 2026-11-19 note leaves on
+the Windows stack, were regenerated on CI too (run 46011028034 at `54cd63c`, `0ff0d42`),
+under the hashed Linux lock and the six numerics pins on an AMD runner, so they now share
+the board's and the replicates' basis; the measurement they replaced, of 2026-08-03,
+recorded Windows, Python 3.13.14 and a dirty tree. Its cross-family transfer is a check of
+one design on two vendors' runners: its trial `k` seeds the networks with `k`, as
+`scripts/cross_family_transfer.py` does, so in the shipped configuration its 3 trials are
+the first 3 of `leaderboard/cross_family_transfer_v5.json` (run 46011034429, on an Intel
+runner), and Trajectory MLP's and the ensemble's train and transfer AUROCs agree on all
+three, to the three decimals both files record. Reward MLP is scored there only with
+randomization off, so it is not like for like: its train AUROCs agree on all three trials
+and its transfer AUROC on two, trial 2 reading 0.483 there and 0.473 in the v5 file.)*
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|

@@ -577,16 +577,17 @@ below changes what it records. The two side by side:
   run scored all 123 for each. The 2026-08-03 file keeps no per-cell AUROCs, and the two
   runs differ in code, platform, Python, package set and pins, so the artifacts do not say
   what moved the other figures.
-- **The difficulty knob is unchanged.** 27 of the 32 multi-tier families still have a
-  separation span of exactly 0.000, and the same five move, `sequence_keyword_stuffing` by
+- **The difficulty knob is unchanged.** 27 of the 32 multi-tier families still show no
+  separation span at all (0.000), and the same five move, `sequence_keyword_stuffing` by
   0.12 rather than 0.14.
-- **The orientation rule orients 58 of 123 cells (0.471) as authored,** where it oriented
-  55: `sequence_keyword_stuffing` 3 of 3 rather than 1, and `mujoco_joint_limit_gaming` 1
-  of 3 rather than 0. By family group: tabular 19 of 31 (0.613), continuous 2-D 13 of 29,
-  MuJoCo 5 of 13, PettingZoo 5 of 15, RLHF 6 of 20 and sequence 10 of 15. The 63.3% (38 of
-  60) in `docs/l2_sign_randomization.md` and in Behavioral Threshold's docstring was
-  measured over the 13 tabular and continuous families, those same 60 cells, at 20 seeds
-  per variant, not over the benchmark; at 10 seeds this run orients 32 of the 60.
+- **The orientation rule orients 58 of 123 cells (0.471) as authored,** where the
+  2026-08-03 run's oriented 55: `sequence_keyword_stuffing` 3 of 3 rather than 1, and
+  `mujoco_joint_limit_gaming` 1 of 3 rather than 0. By family group: tabular 19 of 31
+  (0.613), continuous 2-D 13 of 29, MuJoCo 5 of 13, PettingZoo 5 of 15, RLHF 6 of 20 and
+  sequence 10 of 15. The 63.3% (38 of 60) in `docs/l2_sign_randomization.md` and in
+  Behavioral Threshold's docstring was measured over the 13 tabular and continuous
+  families, those same 60 cells, at 20 seeds per variant, not over the benchmark; at 10
+  seeds this run orients 32 of the 60.
 - **Across CPU vendors.** The `after` transfer rows repeat trials 0 to 2 of
   `leaderboard/cross_family_transfer_v5.json`, trial `k` seeding its networks with `k`.
   For Trajectory MLP and the ensemble every train and transfer AUROC of those trials, as

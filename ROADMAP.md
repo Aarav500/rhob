@@ -19,7 +19,11 @@ those reasons became the paper this repository is now the case study for.
   ([leaderboard/cross_family_transfer_v5.json](leaderboard/cross_family_transfer_v5.json)).
   Even before that, the held-out families were written by one author under one
   construction recipe, so the most RTS could show was transfer within a single authored
-  convention.
+  convention. *(2026-11-27: 0.508 and 0.706 are the 2026-08-03 measurement, `b77d50d`.
+  The linked file now holds its re-run on CI under the not-applicable rule, over the same
+  three trials (run 46011028034 at `54cd63c`, `0ff0d42`), which reads 0.514 and 0.709;
+  with the sign not randomized the ensemble reads 0.993 there, against the published
+  0.994, so the pre-randomization figure no longer reproduces to the digit.)*
 - **RHOB cannot be the default measure of detection.** In 27 of its 33 families the hack
   itself is authored, and in all 33 so is the flaw it exploits. A benchmark built that way
   can say what a signal contains. It cannot say how well a detector catches hacking an
@@ -118,8 +122,8 @@ decision.
   2026-09-03, the single-draw board 2026-11-19) and for every other detector's short horizon
   (2026-11-26); for the cross-family transfer, done (2026-11-27, CI run 45987934132,
   `9c038f6`; the current file is run 46011034429's, `02c0475`, with the same results); for
-  `docs/figures/sign_randomization_impact.json`, code done (`827aec9`, `f0caa3d`), CI run
-  46011028034 pending (below); the v3 tables in `leaderboard/` were retired instead
+  `docs/figures/sign_randomization_impact.json`, done (2026-11-27, CI run 46011028034 at
+  `54cd63c`, `0ff0d42`; below); the v3 tables in `leaderboard/` were retired instead
   (`827aec9`).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row
   was fixed in the 2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
   (its windows need 100 episodes; 19 families run 40 or 60) and was re-scored on all 20
@@ -150,8 +154,9 @@ decision.
   46011034429's at `54cd63c`, `02c0475`, with the same results).
   `leaderboard/cross_family_transfer.json` stays as
   the 2026-07-09 record, which predates the provenance block, the N/A schema and the
-  horizon declarations. Still open: `docs/figures/sign_randomization_impact.json`, scored
-  before the declarations (below).
+  horizon declarations. `docs/figures/sign_randomization_impact.json`, scored before the
+  declarations on 2026-08-03, has been re-measured under them on CI (run 46011028034 at
+  `54cd63c`, `0ff0d42`; its figures are in the item below).
   The v3 tables in `leaderboard/`, which predated the N/A schema, were retired
   (`827aec9`; see Retired).
 - **Every detector declares the run length its score needs — done (2026-11-26); it changed
@@ -270,13 +275,14 @@ decision.
   Retired.
 - **Re-run the artifacts scored before the horizon declarations — the transfer done
   (2026-11-27, CI run 45987934132, `9c038f6`; the current file is run 46011034429's,
-  `02c0475`, with the same results); the sign-randomization measurement's code done
-  (`827aec9`, `f0caa3d`), CI run 46011028034 pending.**
-  `leaderboard/cross_family_transfer.json` and
+  `02c0475`, with the same results); the sign-randomization measurement done (2026-11-27,
+  CI run 46011028034 at `54cd63c`, `0ff0d42`).**
+  `leaderboard/cross_family_transfer.json` and the 2026-08-03
   [docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)
-  were scored before `f83a152`. The held-out families of both transfer runs all run at
-  least 100 episodes, and `continuous_camping` (40) is among their six training families,
-  though the Reward MLP and State Divergence fits, it turned out, already dropped its runs.
+  (`b77d50d`) were scored before `f83a152`. The held-out families of both transfer runs
+  all run at least 100 episodes, and `continuous_camping` (40) is among their six training
+  families, though the Reward MLP and State Divergence fits, it turned out, already dropped
+  its runs.
   The transfer has since been measured again under the declarations, in the shipped
   configuration, in `leaderboard/cross_family_transfer_v5.json` (CI run 45987934132 at
   `eaa75f8`, committed in `9c038f6`, and run again at `d85a60c`, run 45995248987,
@@ -286,19 +292,35 @@ decision.
   its sampling note gives the null SE at the artifact's own seed counts, 0.13 at n=m=10
   and 0.09 at the held-out cells' n=m=20):
   over five model-init trials the Top-5 ensemble transfers at 0.512 (standard deviation
-  0.011) and Trajectory MLP at 0.700 (0.022), against 0.508 and 0.706 over three trials in
-  the `after` configuration of `sign_randomization_impact.json` (What changed). Whether those three-trial figures move
-  when that measurement is re-run has not been measured. The sign-randomization run
-  scores all 33 families, so its L2 ladder (mean 0.7229 before, 0.5629 after) still
-  averages in the short-horizon fallbacks of Feature Consistency, Feature Magnitude and
-  Reward-Feature Correlation, and its
-  invariance check (123 of 123 cells identical before and after) counts the cells below
-  the declared horizons of those three and of Reward CUSUM (L0) and State Coverage Rate
-  (L1) too; its before-and-after differences for Behavioral Threshold, Centroid Tracker and
-  Trajectory MLP do not read them. The transfer script now applies the benchmark's
-  not-applicable rule, `rhob.v3.benchmark.not_applicable_reason`, outside the harness,
-  and the sign-randomization script measures transfer through the transfer script's own
-  code (`827aec9`, `f0caa3d`). `scripts/cross_family_transfer.py` applies the rule to the
+  0.011) and Trajectory MLP at 0.700 (0.022). The sign-randomization measurement was
+  re-run under the declarations on CI too (run 46011028034 at `54cd63c`, committed in
+  `0ff0d42`), on all 33 families at the published design, on an AMD runner. In its
+  `after` configuration, over three trials, the ensemble transfers at 0.514 (0.532, 0.499,
+  0.510) and Trajectory MLP at 0.709 (0.726, 0.699, 0.701); those three trials, train
+  AUROCs included, are trials 0 to 2 of `cross_family_transfer_v5.json` exactly, which ran
+  on Intel. With the sign not randomized (`before`) the ensemble reads 0.993 and
+  Trajectory MLP 0.921, against the published 0.994 and 0.931, so the pre-randomization
+  figures no longer reproduce to the digit. Its L2 ladder, with Feature Consistency not
+  applicable on 59 of the 123 cells and Feature Magnitude and Reward-Feature Correlation
+  on 22, has a mean of 0.7320 before and 0.5739 after, and a best of 0.9807 (Behavioral
+  Threshold) before and 0.9610 (Trajectory MLP) after. Over the cells scored in both
+  modes its invariance check finds every one identical: 123 of 123 for Angular Momentum
+  and True Reward Oracle, 101 of 101 for Feature Magnitude, Reward-Feature Correlation and
+  Reward CUSUM (L0), 64 of 64 for Feature Consistency and 31 of 31 for State Coverage Rate
+  (L1), with no cell scored in one mode and not the other. The two L2 detectors that read
+  the sign, Behavioral Threshold and Centroid Tracker, fall from 0.981 and 0.968 to 0.479
+  and 0.358, while the four that read only a magnitude do not move, so the finding that
+  the sign convention carried the pre-audit L2 result stands on the re-measured numbers
+  ([docs/figures/sign_randomization_impact.md](docs/figures/sign_randomization_impact.md)).
+  *(2026-11-27: until the re-run this item compared against the 2026-08-03 measurement,
+  `b77d50d`: 0.508 and 0.706 over its three trials (What changed), an L2 ladder of 0.7229
+  before and 0.5629 after that averaged in the short-horizon fallbacks of those three L2
+  detectors, and an invariance check of 123 of 123 cells per detector that counted the
+  cells below their declared horizons and those of Reward CUSUM and State Coverage Rate
+  too.)* The transfer script now applies the benchmark's not-applicable rule,
+  `rhob.v3.benchmark.not_applicable_reason`, outside the harness, and the
+  sign-randomization script measures transfer through the transfer script's own code
+  (`827aec9`, `f0caa3d`). `scripts/cross_family_transfer.py` applies the rule to the
   pooled fit and to every held-out cell, records a cell whose frozen model cannot consume the family's
   representation as N/A with its reason instead of scoring it 0.5 (State Divergence's
   published transfer row was 1200 such imputed scores), cross-validates the Top-5

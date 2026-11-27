@@ -101,7 +101,8 @@ and passed every slow screen on. `admission/admission_ledger.json`, regenerated 
 2026-11-19 (run 44447220658), `leaderboard/v5_leaderboard.json` and the 20 draws behind
 `leaderboard/v5_replicated.json`, re-drawn on 2026-11-27 (run 46011019246), and
 `leaderboard/cross_family_transfer_v5.json`, last written on 2026-11-27 (run 46011034429),
-record its versions in their provenance blocks.
+and `docs/figures/sign_randomization_impact.json`, regenerated on 2026-11-27 (run
+46011028034), record its versions in their provenance blocks.
 [requirements/README.md](requirements/README.md) says how it is generated, what was
 checked and how to regenerate it.
 
@@ -316,9 +317,18 @@ from 0.975 to 0.512 and Centroid Tracker from 0.966 to 0.360 (0.361 on the board
 2026-11-19 and 2026-11-26), almost entirely because the
 shipped configuration randomizes the sign of `behav_trace`, the effect
 [docs/figures/sign_randomization_impact.md](docs/figures/sign_randomization_impact.md)
-measured. The exception is `sequence_keyword_stuffing`, where detectors that do not read
-the sign moved too (L0 detectors, Angular Momentum, Feature Magnitude), so that family's
-change is not the sign's. State Divergence rose from 0.621 to 0.982 only because its
+measured. That measurement scores one set of rollouts with randomization off and on, and
+as regenerated on CI on 2026-11-27 (run 46011028034 at 54cd63c, committed in 0ff0d42) it
+reads Behavioral Threshold 0.981 to 0.479 and Centroid Tracker 0.968 to 0.358: on fixed
+rollouts the shipped configuration takes 0.502 and 0.610 off them, at least as much as
+the boards show (0.463 and 0.606), while the four L2 detectors that read only a
+magnitude are identical in both modes on every cell scored in both, and its L2 suite
+mean falls from 0.7320 to 0.5739. The exception is
+`sequence_keyword_stuffing`, where detectors that do not read the sign moved too (L0
+detectors, Angular Momentum, Feature Magnitude), so that family's change is not the
+sign's. In the re-draw `continuous_camping`, the family whose camper is now frozen, moved
+at L0, L2 and L3 alike, but Behavioral Threshold and Centroid Tracker only from 0.96 to
+0.95 there. State Divergence rose from 0.621 to 0.982 only because its
 not-applicable families are now excluded: the 25 that emit no `state_counts`, and
 `continuous_camping`, whose 40 episodes are below its declared `min_episodes` (Figure 7b).
 
@@ -609,6 +619,16 @@ cells' 10 runs per variant, and 0.09 at the held-out cells' 20. *(The file commi
 9c038f6 still gave 0.19, the figure at n=m=5, as every single-draw artifact's note did
 until d85a60c.)*
 
+**The same trials on another vendor's runner.** The sign-randomization measurement
+(`docs/figures/sign_randomization_impact.json`, regenerated on CI on 2026-11-27, run
+46011028034 at 54cd63c, committed in 0ff0d42) runs this design at 3 model-init trials,
+under the same lock and pins, on an AMD runner. Its trial `k` seeds the networks with
+`k`, as this script does, so in the shipped configuration its trials are this file's
+first three, and Trajectory MLP's and the ensemble's train and transfer AUROCs are
+identical on all three, to the three decimals both files record (transfer: Trajectory MLP
+0.726, 0.699, 0.701; the ensemble 0.532, 0.499, 0.510). Over its 3 trials it reads RTS
+0.709 and 0.514, against 0.700 and 0.512 over this file's 5.
+
 **The 2026-07-09 artifact** (historical, `leaderboard/cross_family_transfer.json`,
 written by the script at d872916, before behavioral sign randomization and the
 not-applicable rules; the script no longer writes it):
@@ -622,7 +642,14 @@ not-applicable rules; the script no longer writes it):
 
 The two tables differ in more than the behavioral sign: the v5 run also applies the
 not-applicable rules, cross-validates the ensemble's train figure out of fold, and runs
-under the numerics pins, so no single change accounts for a row's difference.
+under the numerics pins, so no single change accounts for a row's difference. The sign
+is isolated in the sign-randomization measurement above, which scores the same design
+with randomization off and on: off, the ensemble's RTS reads 0.993 and Trajectory MLP's
+0.921, against 0.994 and 0.931 here, so the pre-randomization figures do not reproduce
+exactly (−0.001 and −0.010); in the shipped configuration they read 0.514 and 0.709.
+*(The measurement
+of 2026-08-03 that 0ff0d42 replaced read 0.994 to 0.508 for the ensemble and 0.907 to
+0.706 for Trajectory MLP, and reported the ensemble's 0.994 as reproducing exactly.)*
 
 **What this experiment does not establish.** All 14 train and test families were
 written by the same authors under the same construction recipe, and all share one
@@ -762,7 +789,10 @@ admission ledger), `both` (the two), `replicated` and `redraw` (the 20-draw boar
 [Table 2](#table-2-cross-family-transfer-auroc-section-63)) and `signrand`
 (`docs/figures/sign_randomization_impact.json` and `.md`, from
 `python scripts/measure_sign_randomization.py ci`, the published design end to end in
-one job). Every job installs the hashed lock the nightly physics screen installs
+one job; last run on 2026-11-27, run 46011028034 at 54cd63c, committed in 0ff0d42, which
+took 3,333 s on an AMD EPYC 7763 runner, 2,474 of them the board, and replaced the
+measurement of 2026-08-03, made on Windows from a dirty tree). Every job installs the
+hashed lock the nightly physics screen installs
 (`requirements/ci-admission-linux-py312.txt`) and runs under the numerics pins
 ([Environment Setup](#environment-setup)). A `calibrate` job derives the run's
 calibrations once and saves them under the run's id and attempt, and every scoring job
