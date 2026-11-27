@@ -34,6 +34,7 @@ from rhob.v3.provenance import (
     _TRACKED_PACKAGES,
     _git,
     git_provenance,
+    null_auroc_se,
     package_versions,
     provenance_block,
     sampling_block,
@@ -537,6 +538,39 @@ def test_sampling_block_marks_a_single_draw_as_such():
     assert block["n_seeds_per_variant"] == 5
     assert block["rollout_seeds_legit"] == [1000, 1001, 1002, 1003, 1004]
     assert "Single unreplicated draw" in block["note"]
+
+
+def _single(n, **extra):
+    return sampling_block(
+        n_seeds=n, n_layouts=1, layout_seeds=[0], rollout_seeds_hacking=list(range(n)),
+        rollout_seeds_legit=[1000 + s for s in range(n)], n_replicates=1, **extra,
+    )
+
+
+def test_the_sampling_note_at_five_seeds_is_the_committed_boards():
+    """The leaderboard's n_seeds=5 note must not move, or every board would."""
+    board = json.loads((_REPO_ROOT / "leaderboard" / "v5_leaderboard.json").read_text(encoding="utf-8"))
+    assert board["sampling"]["n_seeds_per_variant"] == 5
+    assert _single(5)["note"] == board["sampling"]["note"]
+    assert _single(5)["note"].endswith("the null SE at n=m=5 is 0.19.")
+
+
+@pytest.mark.parametrize("n, se", [(10, "0.13"), (20, "0.09"), (3, "0.25")])
+def test_the_sampling_note_states_the_null_se_at_its_own_seed_count(n, se):
+    note = _single(n)["note"]
+    assert note.endswith(f"the null SE at n=m={n} is {se}.")
+    assert "n=m=5" not in note
+
+
+def test_the_sampling_note_names_the_held_out_cells_seed_count_when_it_differs():
+    note = _single(10, n_seeds_test=20)["note"]
+    assert note.endswith("the null SE at n=m=10 is 0.13 (0.09 at the held-out cells' n=m=20).")
+    assert _single(10, n_seeds_test=10)["note"].endswith("the null SE at n=m=10 is 0.13.")
+
+
+def test_null_auroc_se_is_the_mann_whitney_formula():
+    assert null_auroc_se(5, 5) == pytest.approx((11 / 300) ** 0.5)
+    assert null_auroc_se(10, 20) == pytest.approx((31 / 2400) ** 0.5)
 
 
 def test_sampling_block_replicated_run_is_not_marked_single_draw():

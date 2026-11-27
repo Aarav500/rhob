@@ -25,6 +25,7 @@ block is what tells a reader whether the two runs were pinned, and on which CPUs
 from __future__ import annotations
 
 import importlib
+import math
 import os
 import platform
 import re
@@ -371,6 +372,16 @@ def provenance_block(**extra: Any) -> dict[str, Any]:
     return block
 
 
+def null_auroc_se(n: int, m: int) -> float:
+    """The Mann-Whitney null standard error of an AUROC on ``n`` and ``m`` runs.
+
+    ``sqrt((n + m + 1) / (12 n m))``: the spread of one cell's AUROC near 0.5 when the
+    two variants are indistinguishable. 0.19 at n=m=5 (the leaderboard), 0.13 at
+    n=m=10, 0.09 at n=m=20.
+    """
+    return math.sqrt((n + m + 1) / (12 * n * m))
+
+
 def sampling_block(
     *,
     n_seeds: int,
@@ -390,7 +401,11 @@ def sampling_block(
     standard error of a single-cell AUROC near 0.5 is 0.19 -- the Mann-Whitney null
     ``sqrt((n+m+1)/(12nm))`` at n=m=5 -- so a three-decimal cell value carries about
     one meaningful digit. (This constant read 0.16 until 2026-08, which was simply
-    wrong and was stamped into every artifact generated before then.) This block is
+    wrong and was stamped into every artifact generated before then; until 2026-11-27
+    the note said 0.19 at n=m=5 whatever ``n_seeds`` was, so the transfer and
+    sign-randomization artifacts, at 10 and 20 seeds, overstated it. The note now
+    computes it with :func:`null_auroc_se`, and names the held-out cells' figure when an
+    ``n_seeds_test`` differs.) This block is
     emitted so that fact is machine-readable from the artifact itself instead of
     having to be reconstructed from the script's source.
 
@@ -406,6 +421,10 @@ def sampling_block(
             the seeds, so this holds whether they are cached or regenerated).
         **extra: Additional sampling keys (e.g. a separate test-set seed base).
     """
+    se_txt = f"the null SE at n=m={n_seeds} is {null_auroc_se(n_seeds, n_seeds):.2f}"
+    n_test = extra.get("n_seeds_test")
+    if isinstance(n_test, int) and not isinstance(n_test, bool) and n_test != n_seeds:
+        se_txt += f" ({null_auroc_se(n_test, n_test):.2f} at the held-out cells' n=m={n_test})"
     block: dict[str, Any] = {
         "n_seeds_per_variant": n_seeds,
         "n_layouts": n_layouts,
@@ -422,7 +441,7 @@ def sampling_block(
             "differences are not independent measurements. No confidence intervals "
             "are computed for this artifact; see leaderboard/v5_replicated.json for "
             "the 20-draw replication that does. Do not read the third decimal of any "
-            "AUROC here as resolved: the null SE at n=m=5 is 0.19."
+            f"AUROC here as resolved: {se_txt}."
         )
         if n_replicates == 1
         else None,
