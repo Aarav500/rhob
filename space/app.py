@@ -509,12 +509,18 @@ def _provenance_html() -> str:
     if seed is not None:
         method_bits.append(f"seed {seed}")
     method_txt = f" ({', '.join(method_bits)})" if method_bits else ""
+    # The draws committed before the 2026-11-27 layout-seed fix were all built at layout
+    # 0 whatever layout_seed they record, so only their rollout seeds vary.
+    resampled_txt = {
+        True: "layout seed and rollout seeds resampled together, ",
+        False: "rollout seeds resampled, every draw at environment layout 0, ",
+    }.get(board.layouts_resampled, "")
     return f"""
     <div id="rhob-provenance">
       <div class="rhob-prov-tag">Provenance</div>
       <div class="rhob-prov-body">
         Standings are {board.n_replicates} independent draws of the full benchmark --
-        layout seed and rollout seeds resampled together, {seeds_txt}behavioural sign
+        {resampled_txt}{seeds_txt}behavioural sign
         randomization on -- aggregated from <code>leaderboard/v5_replicated.json</code>.
         Intervals are {board.ci_percent}% percentile bootstrap over the
         {board.n_replicates} replicates{method_txt}. An interval is on the aggregate over
@@ -1043,10 +1049,12 @@ def _rts_html() -> str:
         """
       <p class="rhob-note">
         <b>Pre-declaration measurement.</b> These figures predate the 2026-11-27
-        not-applicable rules: a held-out family below a detector's declared
-        <code>min_episodes</code>, or one whose representation the frozen model cannot
-        consume, was scored at chance rather than marked not applicable. Its successor,
-        <code>"""
+        not-applicable rules: a held-out family whose representation the frozen model
+        could not consume was scored at chance rather than marked not applicable. The
+        run-length rule did not reach these figures, since every held-out family runs
+        longer than any row's declared <code>min_episodes</code>; it reached only the
+        train AUROC, not shown here, where 40-episode continuous_camping cells were
+        scored at the detector's fallback. This measurement's successor, <code>"""
         + CURRENT_TRANSFER_ARTIFACT
         + """</code>, replaces this panel's source once it is committed.
       </p>"""

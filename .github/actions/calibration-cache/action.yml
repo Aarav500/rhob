@@ -20,12 +20,16 @@ description: >-
 #                 call and the entry keys cannot see;
 #   np<hash>      the six numerics pins, readably, so pinned (regenerate.yml) and unpinned
 #                 (admission-slow) tarballs never restore each other;
-#   the physics token, the hash of src/rhob, and the run id.
+#   the physics token, the hash of src/rhob, and the run id and attempt.
 # Restore falls back to the newest tarball at the same sources, then at any sources: a
 # fallback is safe only because the per-entry keys are complete, so an entry an edit made
-# stale simply misses and is recomputed. The run id makes every save key unique; cache keys
-# cannot be overwritten, so a save under an existing key used to be skipped with a warning
-# and the run's new calibrations lost.
+# stale simply misses and is recomputed. The run id and attempt make every save key unique;
+# cache keys cannot be overwritten, so a save under an existing key is skipped with a
+# warning and the job's new calibrations lost. The run id alone was not enough: every
+# attempt of a run shares it, so a "Re-run failed jobs" (a flaky nightly, a re-run
+# calibrate job) found attempt 1's key taken and dropped what it derived. With `expect`,
+# the restore asks for that exact key first, so a scoring job re-run in a later attempt
+# still gets the tarball its calibrate job saved, whichever attempt that was.
 
 inputs:
   expect:
@@ -41,7 +45,9 @@ outputs:
     description: The key up to and including the physics token.
     value: ${{ steps.physics.outputs.prefix }}
   key:
-    description: This run's save key; what the calibrate job saves and later jobs restore.
+    description: >-
+      This job's save key (this run's id and attempt); what the calibrate job saves and
+      later jobs restore.
     value: ${{ steps.physics.outputs.key }}
   cache-matched-key:
     description: The key of the tarball that was restored, empty if none.
@@ -66,15 +72,15 @@ runs:
         {
           echo "prefix=$prefix"
           echo "sources=$prefix$SRC_HASH-"
-          echo "key=$prefix$SRC_HASH-$GITHUB_RUN_ID"
+          echo "key=$prefix$SRC_HASH-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
         } >> "$GITHUB_OUTPUT"
-        echo "key: $prefix$SRC_HASH-$GITHUB_RUN_ID"
+        echo "key: $prefix$SRC_HASH-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
     - name: Restore the newest matching tarball
       id: restore
       uses: actions/cache/restore@v6
       with:
         path: .rhob_cache
-        key: ${{ steps.physics.outputs.key }}
+        key: ${{ inputs.expect != '' && inputs.expect || steps.physics.outputs.key }}
         restore-keys: |
           ${{ steps.physics.outputs.sources }}
           ${{ steps.physics.outputs.prefix }}

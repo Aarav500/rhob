@@ -125,3 +125,29 @@ def test_contributors_are_sent_to_submissions_not_leaderboard():
     assert "Open a PR adding your submission under `leaderboard/`" not in source
     assert "under `submissions/`" in source
     assert "leaderboard/community/" in source
+
+
+@pytest.mark.parametrize(
+    "resampled, says, never",
+    [
+        (True, "layout seed and rollout seeds resampled together", "environment layout 0"),
+        (False, "every draw at environment layout 0", "resampled together"),
+        (None, "independent draws of the full benchmark", "resampled together"),
+    ],
+)
+def test_the_provenance_panel_says_what_the_draws_resampled(app, monkeypatch, resampled, says, never):
+    """Draws made before the layout-seed fix varied their rollout seeds only."""
+    board = app._board()
+    monkeypatch.setattr(type(board), "layouts_resampled", property(lambda self: resampled))
+    text = _text(app._provenance_html())
+    assert says in text
+    assert never not in text
+
+
+def test_the_committed_board_is_described_by_its_own_layout_flag(app):
+    board = app._board()
+    text = _text(app._provenance_html())
+    if board.layouts_resampled is True:
+        assert "layout seed and rollout seeds resampled together" in text
+    else:
+        assert "resampled together" not in text

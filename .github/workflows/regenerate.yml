@@ -53,6 +53,14 @@ name: regenerate artifacts
 # the f83a152 re-score (run 45747922473) each of the 20 draw jobs spent 78 minutes deriving
 # calibrations before scoring anything, about 1560 runner-minutes of the run's 2030.
 #
+# Each long compute step has its own `timeout-minutes: 330`, inside its job's 350. A job
+# that reaches its own timeout is cancelled, and a cancelled job skips every
+# `!cancelled()` step after the one that was running, so the upload that is meant to keep
+# hours of scoring downloadable would be skipped exactly when the expected failure, a
+# timeout, happens. A step that reaches its timeout only fails: the upload after it runs,
+# and the gate after that refuses. The uploads are `always()` as well, a backstop for a
+# job cancelled by hand or by its own timeout.
+#
 # Each commit job commits only if the code that produced its artifact is still the code at
 # the branch tip (src/, scripts/, requirements/ and pyproject.toml unchanged since the
 # run's commit), checked again after every rebase (regenerate-commit.sh). The commits land
@@ -183,6 +191,7 @@ jobs:
           import importlib.util
           import json
           import os
+          import pathlib
           import re
           import subprocess
           import sys
@@ -260,6 +269,21 @@ jobs:
               for family in allow_families:
                   if family not in families:
                       fail(f"allow_changed_families: no family {family!r}")
+              # merge_rescored_detector.py refuses a draw older than its MIN_DRAW_SCHEMA
+              # (made while generate_suite dropped layout_seed). Refuse here, before the
+              # twenty re-score jobs spend hours on draws the merge cannot take.
+              merge = load("_merge_rescored", "scripts/merge_rescored_detector.py")
+              stale = []
+              for path in sorted(pathlib.Path("results/replication").glob("replicate_*.json")):
+                  schema = json.loads(path.read_text(encoding="utf-8")).get("draw_schema")
+                  if (not isinstance(schema, int) or isinstance(schema, bool)
+                          or schema < merge.MIN_DRAW_SCHEMA):
+                      stale.append(f"{path.name} ({schema!r})")
+              if stale:
+                  fail(f"artifacts=replicated merges only into draws with draw_schema >= "
+                       f"{merge.MIN_DRAW_SCHEMA}; {len(stale)} committed draws are older "
+                       f"({', '.join(stale[:3])}{', ...' if len(stale) > 3 else ''}). "
+                       f"Re-draw them with artifacts=redraw first.")
 
           source_sha = env["GITHUB_SHA"]
           source_run_url = ""
@@ -353,11 +377,12 @@ jobs:
 
   calibrate:
     # Derives every calibration the run's scoring jobs will need, once, serially, and saves
-    # the tarball under this run's id, so each of them restores it instead of deriving the
-    # same amplitudes side by side. Cold, all 33 families took 42.6 minutes on a hosted
-    # runner (tests.yml run 45936287211); warm, seconds. No budget: unlike tests.yml's warm
-    # step there is nothing to protect, since every job after this one derives whatever is
-    # left cold. A failure here never blocks scoring (the `!cancelled()` below).
+    # the tarball under this run's id and attempt, so each of them restores it instead of
+    # deriving the same amplitudes side by side. Cold, all 33 families took 42.6 minutes on
+    # a hosted runner (tests.yml run 45936287211); warm, seconds. No budget: unlike
+    # tests.yml's warm step there is nothing to protect, since every job after this one
+    # derives whatever is left cold. A failure here never blocks scoring (the `!cancelled()`
+    # below).
     needs: plan
     if: ${{ needs.plan.outputs.calibrate == 'true' }}
     runs-on: ubuntu-24.04
@@ -378,8 +403,9 @@ jobs:
           pip install --no-deps -e .
           pip check
           python scripts/check_ci_lock.py --installed
-      # The key every scoring job computes (.github/actions/calibration-cache): saved
-      # under this run's id, it is exactly what they restore.
+      # The key .github/actions/calibration-cache computes, this run's id and attempt. Every
+      # scoring job passes it back as `expect` and restores exactly this tarball, even when
+      # it is re-run in a later attempt than this job's.
       - name: Restore the calibration cache
         id: calib
         uses: ./.github/actions/calibration-cache
@@ -442,6 +468,7 @@ jobs:
       # The per-cell sidecar is not committed (nothing in the repository reads it); it is
       # uploaded beside the board as the record of every cell the per-family means average.
       - name: Score 30 detectors on 33 families
+        timeout-minutes: 330 # inside the job's 350, so the upload still runs (see the header)
         run: |
           python -u scripts/v5_leaderboard_and_transfer.py --out leaderboard/v5_leaderboard.json \
             --cells-out "$RUNNER_TEMP/board/v5_leaderboard_cells.json"
@@ -449,7 +476,7 @@ jobs:
       # Saved before anything can refuse it, so a failed check, a refused commit or a
       # rejected push still leaves hours of scoring downloadable from the run.
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: board
           path: ${{ runner.temp }}/board/
@@ -750,12 +777,13 @@ jobs:
         with:
           expect: ${{ needs.calibrate.outputs.key }}
       - name: Score 30 detectors on 33 families, with the per-cell sidecar
+        timeout-minutes: 330 # inside the job's 350, so the upload still runs (see the header)
         run: |
           python -u scripts/v5_leaderboard_and_transfer.py \
             --out "$RUNNER_TEMP/board/v5_leaderboard.json" \
             --cells-out "$RUNNER_TEMP/board/v5_leaderboard_cells.json"
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: redraw-board
           path: ${{ runner.temp }}/board/
@@ -817,11 +845,12 @@ jobs:
         with:
           expect: ${{ needs.calibrate.outputs.key }}
       - name: Draw replicate ${{ matrix.replicate }}, every detector
+        timeout-minutes: 330 # inside the job's 350, so the upload still runs (see the header)
         env:
           ID: ${{ matrix.replicate }}
         run: python -u scripts/replicate_leaderboard.py --replicate-id "$ID" --out-dir "$RUNNER_TEMP/redraw"
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: redraw-replicate-${{ matrix.replicate }}
           path: ${{ runner.temp }}/redraw/replicate_*.json
@@ -830,12 +859,14 @@ jobs:
       # After the upload, so the record survives; failing here lets "Re-run failed jobs"
       # retry exactly this draw (and then the merge). check_redraw.py repeats every check
       # across the set; this one only stops a bad draw at its own job.
-      - name: The draw scored every detector, from a clean tree at the run's commit
+      - name: The draw scored every detector, from a clean tree at the run's commit, under the pins
         env:
           ID: ${{ matrix.replicate }}
         run: |
           python - <<'EOF'
           import json, os, sys
+          from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
           path = os.path.join(os.environ["RUNNER_TEMP"], "redraw", f"replicate_{int(os.environ['ID']):03d}.json")
           rep = json.load(open(path))
           prov = rep.get("provenance") or {}
@@ -848,6 +879,9 @@ jobs:
               problems.append(f"dirty: {git.get('dirty')!r}")
           if git.get("commit") != os.environ["GITHUB_SHA"]:
               problems.append(f"commit {git.get('commit')} is not {os.environ['GITHUB_SHA']}")
+          pins = {n: os.environ.get(n) for n in NUMERICS_ENV_VARS}
+          if (prov.get("numerics") or {}).get("env") != pins:
+              problems.append(f"numerics {(prov.get('numerics') or {}).get('env')} are not {pins}")
           if problems:
               sys.exit("not merging: " + "; ".join(problems))
           print(len(rep["results"]), "detectors drawn at", rep.get("layout_seed"), rep.get("seed_base"))
@@ -916,8 +950,12 @@ jobs:
           print(len(draws), "draws and the board")
           EOF
       # Before anything in the tree is touched: a refused set leaves the committed boards
-      # exactly as they were.
-      - name: The draws are one complete, clean, single-commit re-draw, and draw 0 is the board
+      # exactly as they were. This is the merge's only check on a from_run merge, whose
+      # draw jobs' gates ran in that other run (or were refused there), so it repeats them
+      # all, the numerics pins among them: every file and the board must record the pins
+      # this workflow sets (check_redraw.PINNED_NUMERICS_ENV, which
+      # tests/test_v3/test_redraw_check.py holds to the `env:` above), not merely agree.
+      - name: One complete, clean, single-commit re-draw under the pins, and draw 0 is the board
         env:
           SOURCE_SHA: ${{ needs.plan.outputs.source_sha }}
           MISMATCH: ${{ inputs.board_mismatch_allowed }}
@@ -983,11 +1021,12 @@ jobs:
       # Every design flag explicit, so a change to a default cannot silently change what is
       # committed; the gate below also checks the artifact calls itself the published design.
       - name: Train on 6 families, test on 8 held out, 5 trials
+        timeout-minutes: 330 # inside the job's 350, so the upload still runs (see the header)
         run: |
           python -u scripts/cross_family_transfer.py --n-seeds-train 10 --n-seeds-test 20 \
             --n-trials 5 --out leaderboard/cross_family_transfer_v5.json
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: transfer
           path: leaderboard/cross_family_transfer_v5.json
@@ -1052,8 +1091,9 @@ jobs:
     # through Benchmark._rollout_cache, so the board, its companions and the three transfer
     # configurations are one machine's. It is the longest mode: the board's rollout volume
     # in both orientations at n_seeds 10. If it does not fit, the stages can be split
-    # (`board`, `transfer` and `report` are separate subcommands); this timeout is the
-    # signal, not something to raise past GitHub's 360-minute job limit.
+    # (`board`, `transfer` and `report` are separate subcommands); the step's timeout below
+    # is the signal, not something to raise past GitHub's 360-minute job limit. When it
+    # fires, the stages that finished are in the uploaded intermediates.
     timeout-minutes: 350
     permissions:
       contents: write
@@ -1084,6 +1124,7 @@ jobs:
       # The intermediate boards and transfers go to the runner's temp directory, outside
       # the checkout, so the tree the provenance blocks read stays clean.
       - name: Board, companions, transfer and report, the published design
+        timeout-minutes: 330 # inside the job's 350, so the upload still runs (see the header)
         run: |
           python -u scripts/measure_sign_randomization.py ci \
             --out-json docs/figures/sign_randomization_impact.json \
@@ -1092,9 +1133,9 @@ jobs:
           cp docs/figures/sign_randomization_impact.json docs/figures/sign_randomization_impact.md \
             "$RUNNER_TEMP/signrand/"
       # The intermediates too, so a stage that finished is downloadable even if a later one
-      # or the gate refused.
+      # timed out or the gate refused.
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: signrand
           path: ${{ runner.temp }}/signrand/

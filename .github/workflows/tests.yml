@@ -132,10 +132,12 @@ jobs:
       # runs in the fast suite (tests/test_ci_lock.py), so such a change fails its own pull
       # request first.
       #
-      # The calibration-cache steps below need no change: "Fingerprint the physics stack"
-      # reads the installed versions, and on the lock those are the same every night, so
-      # its token is too. A regenerated lock that moves one of those versions starts a new
-      # tarball, and that night recalibrates from cold.
+      # The tarball key that .github/actions/calibration-cache computes reads the installed
+      # versions, and on the lock those are the same every night, so its physics token is
+      # too. A regenerated lock that moves one of those versions starts a new tarball, and
+      # that night recalibrates from cold. So does a change of the numerics variables the
+      # token and the key fold in (this job sets none), or of the runner image, which the
+      # key names.
       #
       # The `pytest` matrix above stays unpinned, on purpose. It runs on every push and
       # nightly, takes minutes, covers 3.10 and 3.11, which the lock does not, as well as
@@ -159,10 +161,10 @@ jobs:
       # scoring job of regenerate.yml. It names what the per-entry keys hash (the physics
       # token, which since 2026-11-27 includes the numerics variables) plus two things they
       # do not, the runner image and, readably, the numerics pins, then src/rhob's hash and
-      # this run's id, and restores the newest tarball at the same sources, then at any. A
-      # fallback is safe only because the per-entry keys are complete: entries an edit or
-      # upgrade made stale simply miss, and are recomputed and re-saved. The action's header
-      # has the rest, including why every save key carries the run id.
+      # this run's id and attempt, and restores the newest tarball at the same sources, then
+      # at any. A fallback is safe only because the per-entry keys are complete: entries an
+      # edit or upgrade made stale simply miss, and are recomputed and re-saved. The action's
+      # header has the rest, including why every save key carries the run id and attempt.
       #
       # This job sets no numerics pins (regenerate.yml does), so its tarballs and
       # regenerate.yml's never restore each other: the pins move a calibration's last bits,
@@ -215,9 +217,10 @@ jobs:
         run: pytest tests/ -q -m slow -n auto --durations=15
       # After the tests, so calibrations the tests derived for themselves (anything the
       # warm step left cold) are captured too, and `if: always()` so a failing assertion
-      # never costs the next run its cache. Always saved, under this run's own key: an
-      # exact restore can no longer happen, and a run that restored everything and derived
-      # nothing costs one more tarball of about 21 KB.
+      # never costs the next run its cache. Always saved, under this attempt's own key: an
+      # exact restore can no longer happen, a re-run of this job saves under a key of its
+      # own, and a run that restored everything and derived nothing costs one more tarball
+      # of about 21 KB.
       - name: Save calibration cache
         if: ${{ always() && steps.calib.outputs.key != '' }}
         uses: actions/cache/save@v6
