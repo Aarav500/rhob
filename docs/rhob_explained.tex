@@ -4,9 +4,11 @@
 %
 % Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
 % leaderboard/v5_replicated.json, leaderboard/v5_leaderboard.json,
-% admission/admission_ledger.json,
-% audit/survey_s1_frame.json, results/emergent_pilot/README.md, and the module
-% docstrings under src/rhob/.
+% docs/figures/sign_randomization_impact.json, admission/admission_ledger.json,
+% audit/survey_s1_frame.json, results/emergent_pilot/README.md, the module
+% docstrings under src/rhob/, and the docstrings of the two tests that re-run the
+% entry checks (tests/test_v3/test_ledger_reproduces.py,
+% tests/test_cannotfail_parity.py).
 
 \documentclass[11pt,a4paper]{article}
 
@@ -120,7 +122,7 @@ comes from the arm that does the task. The two arms together are a \emph{pair}.
 \subhead{Family}
 A generator that makes those pairs. There are 33. I say family rather than
 environment because one family makes many pairs, at five difficulty settings and
-many random layouts.
+many random seeds.
 
 \subhead{Cell}
 One family at one difficulty. There are 123 of them. A cell is the thing that gets
@@ -145,7 +147,8 @@ In 26 of the 33 families neither arm learns anything. Both arms are policies I
 wrote by hand. I wrote a script that behaves the way a cheating agent would behave,
 and a script that behaves the way an honest agent would behave, and I ran both.
 There is no learner at all. So no, they are not two seeds of the same learner. The
-seeds change the layout and the noise, not any optimisation.
+seeds change the noise, and in two families the setup as well. They do not change
+any optimisation.
 
 The other 7 families have a learner in them, and in 6 of those the cheating is not
 scripted, it comes out on its own. Five run real policy gradient against a reward
@@ -339,9 +342,14 @@ You asked this straight, so here is what I have and what I do not.
 
 \subhead{What backs it up}
 The comparison is like for like. The randomisation is a single flag. Turn it off
-and 0.994 comes back exactly. And 0.508 is not one run. I repeated the whole thing
-20 times with different layout and rollout seeds, which is 600 detector passes, and
-got 95\% intervals by resampling those 20 repeats.
+and 0.994 comes back exactly. And 0.508 is not one trained model. It is the mean of
+three trials, which train the networks from three different random starting points
+on the same runs, and the three land between 0.499 and 0.514.
+
+Until 27 November 2026 this paragraph said I had repeated the whole transfer
+measurement 20 times, with 95\% intervals. That was wrong. The 20 repeats are of the
+main table, not of the transfer score. They are explained at the end of this
+section, since you asked about them.
 
 \subhead{What chance means here}
 0.508 against 0.5 is not something I can tell apart from a coin flip with this
@@ -367,6 +375,23 @@ It removes the free direction and nothing else. The behaviour number is still a
 feature I picked knowing the answer. So an L2 score under randomisation means
 ``this detector did not need the sign rule''. It does not mean ``L2 is blind to the
 label''.
+
+\subhead{What confidence from twenty repeats means}
+\phantomsection\label{h:repeats}%
+I scored the whole benchmark 20 times, all 30 detectors on the whole board each
+time, which is 600 detector passes. Each summary number I quote from the repeats is the
+average over those 20. Its 95\% interval is the middle 95\% of the averages I get by
+resampling the 20 repeats with replacement. So it says how far that number moves when
+the random runs are drawn again.
+
+It does not say how far the number moves when the layout changes. The 20 repeats in
+the repo were drawn while a bug dropped the layout seed before it reached the
+families, so every one of them was built at layout 0, and scored under layout 0's
+sign for each family, whatever layout it records. Only the rollout seeds changed. The
+layout seed also does less than its name suggests: two families build a different
+setup from it (an item grid in one, the fitted reward model in the other), twelve
+ignore it, and the other nineteen use it only to shift their rollout seeds. What it
+changes in every family is the sign the family is scored under.
 
 \heading{Five of the thirty}
 \label{h:five}
@@ -692,7 +717,8 @@ All in one place, so you do not have to trust me to bring them up one at a time.
 \item \textbf{All 30 detectors share that one draw}, so their cell values move
       together and their differences are not independent.
 \item \textbf{The set I check is not the set I score.} The entry checks average
-      over 12 layouts. The public table uses one.
+      over 12 layouts. The public table uses one, and so do the 20 repeats in the
+      repo, which were all built at layout 0 (page \pageref{h:repeats}).
 \item \textbf{L0 sitting at chance is a control, not a discovery.} The families are
       \emph{built} so reward-only detectors cannot work. An earlier version of my
       README reported this as a finding that ``reward-only monitoring fails''. That
@@ -732,10 +758,19 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       123 cells the spread takes six values, so since 19 November 2026 the coding no
       longer marks it that way, though it still cannot fail on the 118. I
       keep the short name so old links work, and the long name should not be used.
-\item \textbf{The entry checks are barely covered by my own tests.} The full check
-      is never run on a real registered family anywhere in the test suite. The two
-      tests that touch it use made-up fixtures. A green test suite here means ``the
-      screens that exist passed'', not ``the families are checked''.
+\item \textbf{The entry checks are only partly covered by my own tests.} Until 27
+      November 2026 the full check was never run on a real registered family
+      anywhere in the test suite; the two tests that touched it used made-up
+      fixtures. Now two tests re-run it on real families, at the ledger's own
+      settings. One takes four families through every difficulty the ledger scores,
+      20 cells, on every push, plus one more cell nightly. It fails unless every
+      verdict matches the ledger exactly and every number matches it to within a
+      tolerance set from the drift I measured across machines and Python versions.
+      The other re-runs the six families whose cells could not be measured, two on
+      every push and four nightly, and checks that each cell still cannot be.
+      Between them they cover nine of the 33 families. For the other 24, a green
+      test suite still means ``the screens that exist passed'', not ``the families
+      are checked''.
 \end{itemize}
 
 \heading{Your questions, and where I answered them}
@@ -760,7 +795,7 @@ Would a real 0.994 mean a lot of hacking, or a little? & \pageref{h:score} \\
 What do you mean by a coding convention? Was it a bug? & \pageref{h:bug} \\
 A style rule that changed what the code does? & \pageref{h:bug} \\
 What is the significance of 0.508? Are you sure it is correct? & \pageref{h:sure} \\
-What does confidence from twenty replications mean? & \pageref{h:sure} \\
+What does confidence from twenty replications mean? & \pageref{h:repeats} \\
 Five of the thirty. Detectors or environments? & \pageref{h:five} \\
 What is an admission criterion? & \pageref{h:checks} \\
 Is your interest benchmarks, or experimental rigour? & \pageref{h:point3} \\
@@ -781,13 +816,19 @@ files that matter:
       measure, including the scripted-policy limit.
 \item \code{src/rhob/v3/sign\_randomization.py} for the fake 0.994, written up at
       the top of the file.
+\item \code{docs/figures/sign\_randomization\_impact.md} for the before-and-after
+      measurement behind 0.994, 0.508 and the L2 averages.
 \item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
 \item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
       four levels and the run format.
 \item \code{src/rhob/detectors/supervision.py} for the five fitted detectors.
 \item \code{leaderboard/v5\_replicated.json} for the 20 repeats and the intervals.
+      Its \code{replicates} block records where the repeats came from, including
+      whether their layouts reached the families.
 \item \code{admission/ADMISSION\_LEDGER.md} for every cell and every check, the
       failures alongside the passes.
+\item \code{tests/test\_v3/test\_ledger\_reproduces.py} for the test that re-runs
+      the entry checks on real families and compares them with the ledger.
 \end{itemize}
 
 \end{document}
