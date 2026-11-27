@@ -19,15 +19,17 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from transfer_stubs import TEST_STUBS, TRAIN_STUBS, one_torch_thread, register_stubs
+from transfer_stubs import TEST_STUBS, TRAIN_STUBS, StubFamily, one_torch_thread, register_stubs
 
 from rhob.detectors.l0_reward_mlp import RewardMLPDetector
 from rhob.detectors.l1_state_divergence import StateDivergenceDetector
 from rhob.detectors.l2_ensemble import EnsembleDetector
 from rhob.detectors.l2_trajectory_mlp import TrajectoryMLPDetector
 from rhob.detectors.posthoc import PosthocDetector, RunData
+from rhob.v3.access import restrict
 from rhob.v3.benchmark import Benchmark, _evaluate_cell, not_applicable_reason
 from rhob.v3.leaderboard.transfer import load_transfer_results, transfer_under_sign_randomization
+from rhob.v3.registry import FamilyRegistry
 
 _REPO = Path(__file__).resolve().parents[2]
 _HISTORICAL = _REPO / "leaderboard" / "cross_family_transfer.json"
@@ -52,6 +54,13 @@ def cft():
 def stubs(monkeypatch):
     register_stubs(monkeypatch, {**TRAIN_STUBS, **TEST_STUBS})
     return {"train": list(TRAIN_STUBS), "test": list(TEST_STUBS)}
+
+
+def _interior(values) -> list:
+    """``values``, after checking none is saturated: an equality of 0.0s cannot fail."""
+    values = list(values)
+    assert values and all(v is not None and 0.0 < v < 1.0 for v in values), values
+    return values
 
 
 def _no_nan(text: str) -> dict:
@@ -165,6 +174,47 @@ def test_a_partial_mismatch_is_not_scored_on_the_runs_that_happened_to_fit(cft, 
     assert ev.per_family["stub_test_bins"] is None
     assert ev.incompatible_runs["stub_test_bins"] == 6  # half of 2 cells x 6 runs
     assert "3 of 6 runs" in ev.reasons["stub_test_bins"]
+    assert ev.cells_scored == {"stub_test_bins": 0}
+    assert ev.cells_not_applicable == {"stub_test_bins": 2}
+    assert ev.partial_reasons == {}  # wholly N/A: its reasons are in ``reasons``
+
+
+class _ShortAtTheLowerTier(StubFamily):
+    """80 episodes at difficulty 0.9 but 40 at 0.8: one cell under a 50-episode window."""
+
+    def generate_pair(self, difficulty, seed=0):
+        n = 40 if difficulty < 0.85 else 80
+        return StubFamily(self.name, n_episodes=n, n_bins=self.n_bins).generate_pair(
+            difficulty, seed
+        )
+
+
+def test_a_family_scored_on_some_cells_only_records_the_rest(cft, stubs, monkeypatch):
+    """Its mean is over one tier, not two -- the row has to say so."""
+    monkeypatch.setitem(
+        FamilyRegistry._families, "stub_test_mixed", _ShortAtTheLowerTier("stub_test_mixed")
+    )
+    det = RewardMLPDetector(seed=0)
+    a, b, _, _ = cft.pooled_runs(["stub_train_long"], "L0", 4, det)
+    det.fit(a, b)
+    ev = cft.transfer_eval(det, ["stub_test_mixed", "stub_test_bins"], "L0", 4)
+    assert ev.per_family["stub_test_mixed"] is not None and ev.not_applicable == []
+    assert ev.cells_scored == {"stub_test_mixed": 1, "stub_test_bins": 2}
+    assert ev.cells_not_applicable == {"stub_test_mixed": 1, "stub_test_bins": 0}
+    assert list(ev.partial_reasons) == ["stub_test_mixed"]
+    assert "horizon 40" in ev.partial_reasons["stub_test_mixed"]
+    assert ev.reasons == {}
+
+    # Carried through the multi-trial aggregate the artifact is written from.
+    row = cft.run_one_multitrial(
+        "Reward MLP", lambda trial: RewardMLPDetector(seed=trial), "L0", 3, 3, 2,
+        train_families=["stub_train_long"], test_families=["stub_test_mixed"],
+    )
+    assert row["per_family_transfer_mean"]["stub_test_mixed"] is not None
+    assert row["per_family_cells_scored"] == {"stub_test_mixed": 1}
+    assert row["per_family_cells_not_applicable"] == {"stub_test_mixed": 1}
+    assert "horizon 40" in row["test_partial_not_applicable_reasons"]["stub_test_mixed"]
+    assert row["test_families_not_applicable"] == []
 
 
 # ------------------------------------------------------------------------ ensemble
@@ -190,7 +240,7 @@ def test_the_ensembles_train_auroc_is_cross_validated(cft, stubs, monkeypatch):
 def test_the_fold_fitted_ensemble_leaves_the_transfer_score_unchanged(cft, stubs):
     """Only train scoring changes: the frozen ensemble is the one the old code built."""
     train, test = stubs["train"], stubs["test"]
-    row, _ = cft.run_one(
+    row, ensemble = cft.run_one(
         "Ensemble (Top 5)", cft.build_ensemble(1), "L2", 4, 4,
         train_families=train, test_families=test,
     )
@@ -198,9 +248,32 @@ def test_the_fold_fitted_ensemble_leaves_the_transfer_score_unchanged(cft, stubs
     mlp = TrajectoryMLPDetector(seed=1)
     a, b, _, _ = cft.pooled_runs(train, "L2", 4, mlp)
     mlp.fit(a, b)
+
+    # The frozen member is that model, weight for weight: identical raw scores on every
+    # held-out run, and not a constant (an unfitted member would also agree with itself).
+    held_out = []
+    for name in test:
+        for d in FamilyRegistry.get(name).default_difficulties():
+            pair = FamilyRegistry.get(name).generate_pair_at(d)
+            runs_a, runs_b, _ = cft._rollout(pair, 4, cft.TEST_SEED_BASE, True)
+            held_out += [restrict(r, "L2") for r in runs_a + runs_b]
+    frozen = [ensemble.members[-1].classify(r) for r in held_out]
+    assert frozen == [mlp.classify(r) for r in held_out]
+    assert len(set(frozen)) > len(held_out) // 2
+
     old = EnsembleDetector(cft._stateless_l2_members() + [mlp], name="Ensemble (Top 5)")
     ev = cft.transfer_eval(old, test, "L2", 4)
-    assert row["per_family_transfer"] == {k: cft._round_or_none(v) for k, v in ev.per_family.items()}
+    expected = {k: cft._round_or_none(v) for k, v in ev.per_family.items()}
+    assert row["per_family_transfer"] == expected
+    _interior(expected.values())
+    # The equality has teeth: a member fitted at another seed transfers differently.
+    other = TrajectoryMLPDetector(seed=7)
+    other.fit(a, b)
+    ev7 = cft.transfer_eval(
+        EnsembleDetector(cft._stateless_l2_members() + [other], name="E"), test, "L2", 4
+    )
+    assert {k: cft._round_or_none(v) for k, v in ev7.per_family.items()} != expected
+    _interior([row["train_auroc"]])
     # The ensemble's own minimum (50, Feature Magnitude) makes the short family N/A for
     # its train AUROC, but its member is still trained on it.
     assert row["train_families_excluded_from_pooled_fit"] == []
@@ -227,6 +300,15 @@ def test_main_writes_a_shipped_configuration_artifact(cft, stubs, tmp_path):
     rows = payload["results"]
     for row in rows.values():
         assert "test_not_applicable_reasons" in row and row["pooled_fit_error"] is None
+        assert row["test_partial_not_applicable_reasons"] == {}
+        cells = {
+            f: row["per_family_cells_scored"][f] + row["per_family_cells_not_applicable"][f]
+            for f in stubs["test"]
+        }
+        assert cells == {f: 2 for f in stubs["test"]}  # every tier is accounted for
+    assert rows["Trajectory MLP"]["per_family_cells_scored"] == {f: 2 for f in stubs["test"]}
+    assert rows["State Divergence"]["per_family_cells_scored"] == {f: 0 for f in stubs["test"]}
+    _interior(rows["Trajectory MLP"]["all_trial_transfer_aurocs"])
     assert rows["Reward MLP"]["train_families_excluded_from_pooled_fit"] == ["stub_train_short"]
     assert rows["Reward MLP"]["train_cells_not_applicable"] == 2
     assert len(rows["Trajectory MLP"]["all_trial_transfer_aurocs"]) == 2

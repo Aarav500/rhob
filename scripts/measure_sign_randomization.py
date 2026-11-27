@@ -42,7 +42,12 @@ Sign randomization multiplies ``behav_trace`` and nothing else, and
 number on the board is bit-identical in both modes, and the L0/L1 rungs of the
 access-level ladder are unchanged by this work. That is an argument, not a measurement,
 so the ``board`` subcommand also scores two cheap deterministic detectors (one L0, one
-L1) in both modes and reports whether every cell matched exactly.
+L1) in both modes and reports whether every cell matched exactly. Both modes read one
+simulation per cell -- the randomized configurations get the un-randomized runs through
+the flip (:func:`derive_randomized_rollouts`; the board's ``sampling`` block and the
+report's ``design.sampling`` record ``rollouts_shared_across_modes``) -- so the check
+verifies that the flip reaches nothing but ``behav_trace`` and that ``restrict`` hides
+it below L2, not that two independent simulations agree.
 
 Subcommands
 -----------
@@ -66,14 +71,28 @@ Run::
         --out-json docs/figures/sign_randomization_impact.json \
         --out-md docs/figures/sign_randomization_impact.md
 
-or the stages by hand::
+or the same stages by hand, one process each (``R=results/sign_randomization``)::
 
-    python scripts/measure_sign_randomization.py board --out results/sign_randomization/board.json
-    python scripts/measure_sign_randomization.py transfer --out results/sign_randomization/transfer.json
-    git show c54a8cc:leaderboard/v5_leaderboard.json > results/sign_randomization/pre_audit_board.json
-    python scripts/measure_sign_randomization.py report --board results/sign_randomization/board_*.json \
-        --transfer results/sign_randomization/transfer_*.json \
-        --published-board results/sign_randomization/pre_audit_board.json
+    python scripts/measure_sign_randomization.py board --out $R/board.json
+    python scripts/measure_sign_randomization.py board --companion n5_v5board_reproduction \
+        --out $R/board_n5.json
+    python scripts/measure_sign_randomization.py board --companion n20_doc_13family_subset \
+        --out $R/board_n20.json
+    python scripts/measure_sign_randomization.py transfer --out $R/transfer.json
+    git show c54a8cc:leaderboard/v5_leaderboard.json > $R/pre_audit_board.json
+    python scripts/measure_sign_randomization.py report --board $R/board.json \
+        --transfer $R/transfer.json --require-all-families \
+        --companion n5_v5board_reproduction=$R/board_n5.json \
+                    n20_doc_13family_subset=$R/board_n20.json \
+        --published-board $R/pre_audit_board.json
+
+With their defaults these are ``ci``'s stages, and the report is
+``design.published_design = true`` exactly when ``ci``'s would be: ``board --companion``
+takes the families, ``n_seeds`` and detectors from :data:`COMPANIONS`, and ``transfer``
+measures :data:`TRANSFER_ROWS_BY_CONFIG` (all four rows in ``before``, the two L2 rows in
+``blind`` and ``after``) at :data:`TRANSFER_N_TRIALS` trials unless ``--rows`` or
+``--n-trials`` says otherwise. The only difference is speed: ``ci`` shares rollouts
+between the stages in memory.
 
 ``report``'s ``--published-board`` has no default (``ci`` writes it out of git itself).
 It used to be ``leaderboard/v5_leaderboard.json``, but that file was regenerated on
@@ -88,8 +107,9 @@ against the pre-randomization figure.
 
 ``board`` can be run once per family group rather than once over all 33 families: the
 groups are independent. ``report`` merges them, refusing to merge runs made at different
-``n_seeds``, a family measured twice, or inputs from different commits or package
-versions or from a tree not known to be clean (``--allow-dirty`` for a local smoke run).
+``n_seeds`` or with different ``sampling`` blocks, a family measured twice, or inputs
+from different commits or package versions or from a tree not known to be clean
+(``--allow-dirty`` for a local smoke run).
 Its output lands in ``docs/figures/`` -- ``results/`` is gitignored, and the merged file
 is the one the docs cite. It carries every per-cell AUROC (``cells``: one
 ``[family, difficulty, auroc, na_reason]`` row per cell, per detector and
@@ -352,6 +372,7 @@ def run_board(args: argparse.Namespace) -> None:
 
     payload = {
         "measurement": "board",
+        "companion": getattr(args, "companion", None),
         "n_seeds": args.n_seeds,
         "families": FamilyRegistry.list_families() if families == "all" else families,
         "configs": {k: {"randomize_behav_sign": r, "detector_infers_orientation": i}
@@ -422,6 +443,43 @@ COMPANIONS: dict[str, tuple[int, tuple[str, ...]]] = {
 }
 
 
+def companion_design(label: str) -> tuple[int, list[str], list[str]]:
+    """``(n_seeds, families, detectors)`` of the companion board ``label``.
+
+    What ``ci`` runs for it and what ``board --companion LABEL`` runs by hand: only the
+    direction-dependent detectors are read from a companion, so only they are scored.
+    """
+    if label not in COMPANIONS:
+        raise SystemExit(f"unknown companion {label!r}; choose from {sorted(COMPANIONS)}")
+    n_seeds, families = COMPANIONS[label]
+    return n_seeds, list(families), sorted(ORIENTING)
+
+
+def _resolve_board_args(args: argparse.Namespace) -> None:
+    """Fill in ``board``'s design: the primary board's, or a companion's.
+
+    ``--families``, ``--n-seeds`` and ``--only`` default to ``None`` on the command line
+    so that ``--companion`` can refuse them rather than silently override them.
+    """
+    companion = getattr(args, "companion", None)
+    if companion is None:
+        args.families = args.families or ["all"]
+        args.n_seeds = BOARD_N_SEEDS if args.n_seeds is None else args.n_seeds
+        return
+    given = [
+        flag for flag, value in (
+            ("--families", args.families), ("--n-seeds", args.n_seeds), ("--only", args.only)
+        )
+        if value is not None
+    ]
+    if given:
+        raise SystemExit(
+            f"board: --companion {companion} sets {', '.join(given)} itself "
+            f"(from COMPANIONS); pass one or the other"
+        )
+    args.n_seeds, args.families, args.only = companion_design(companion)
+
+
 @functools.lru_cache(maxsize=1)
 def _load_transfer_module():
     """Import ``scripts/cross_family_transfer.py`` as a module (once per process).
@@ -452,6 +510,13 @@ TRANSFER_ROWS_BY_CONFIG: dict[str, tuple[str, ...]] = {
 }
 
 
+def _check_transfer_rows(rows, valid, what: str) -> None:
+    """Refuse a transfer row name that is not one of ``valid`` (no silent drop)."""
+    unknown = [r for r in rows if r not in valid]
+    if unknown:
+        raise SystemExit(f"{what}: unknown transfer rows {unknown}; choose from {list(valid)}")
+
+
 def run_transfer(args: argparse.Namespace) -> None:
     """Measure RTS in each configuration, through cross_family_transfer's own code.
 
@@ -463,15 +528,24 @@ def run_transfer(args: argparse.Namespace) -> None:
     fold-fitted ensemble and the multi-trial aggregation) is the published one, so the
     ``after`` rows are the same measurement as ``leaderboard/cross_family_transfer_v5.json``'s
     at the same trials: trial ``k`` seeds the networks with ``k`` in both.
+
+    ``args.rows`` ``None`` (the command-line default) measures the published design's
+    rows per configuration, :data:`TRANSFER_ROWS_BY_CONFIG`; a list measures those rows
+    in every configuration. An unknown row name is refused, never dropped.
     """
     cft = _load_transfer_module()
     train_families = list(getattr(args, "train_families", None) or cft.TRAIN_FAMILIES)
     test_families = list(getattr(args, "test_families", None) or cft.TEST_FAMILIES)
-    rows_by_config: dict[str, list[str]] = {
-        config: [r for r in cft.ROWS if r in set(args.rows)] for config in args.configs
-    }
+    rows = getattr(args, "rows", None)
     if getattr(args, "rows_by_config", None):
         rows_by_config = {c: list(args.rows_by_config[c]) for c in args.configs}
+    elif rows is None:
+        rows_by_config = {c: list(TRANSFER_ROWS_BY_CONFIG[c]) for c in args.configs}
+    else:
+        _check_transfer_rows(rows, cft.ROWS, "transfer --rows")
+        rows_by_config = {c: [r for r in cft.ROWS if r in set(rows)] for c in args.configs}
+    for config, config_rows in rows_by_config.items():
+        _check_transfer_rows(config_rows, cft.ROWS, f"transfer ({config})")
 
     results: dict[str, dict] = {}
     timings: dict[str, dict[str, float]] = {}
@@ -624,6 +698,15 @@ def _merge_boards(paths: list[Path], allow_dirty: bool = False) -> tuple[dict, d
                 merged["n_cells_na"] += block["n_cells_na"]
     if len(n_seeds) != 1:
         raise ValueError(f"boards disagree on n_seeds: {sorted(n_seeds)}")
+    # The boards' sampling blocks must agree too -- in particular on whether both modes
+    # read one simulation (rollouts_shared_across_modes), which is what the invariance
+    # check verifies -- and the merged design carries the shared one.
+    samplings = {json.dumps(payload.get("sampling"), sort_keys=True) for _, payload in loaded}
+    if len(samplings) != 1:
+        raise ValueError(
+            "boards disagree on the sampling design (their `sampling` blocks differ); "
+            f"{[p.as_posix() for p, _ in loaded]} are not one measurement"
+        )
     # Recompute the aggregates over the merged cell list rather than averaging the
     # per-job means, which would weight a 1-family job like a 14-family one.
     for entry in detectors.values():
@@ -648,6 +731,7 @@ def _merge_boards(paths: list[Path], allow_dirty: bool = False) -> tuple[dict, d
             set(FamilyRegistry.list_families()) - set(families)
         ),
         "drawn_signs_layout_0": signs,
+        "sampling": loaded[0][1].get("sampling") if loaded else None,
         "board_files": [p.as_posix() for p, _ in loaded],
         "board_provenance": provenance,
     }
@@ -1224,7 +1308,12 @@ def _is_published_design(design: dict, transfer: Optional[dict], companions: dic
             for c in transfer["results"]
         )
     )
-    return full_board and full_transfer and set(companions) == set(COMPANIONS)
+    full_companions = set(companions) == set(COMPANIONS) and all(
+        block.get("n_seeds") == COMPANIONS[label][0]
+        and sorted(block.get("families") or []) == sorted(COMPANIONS[label][1])
+        for label, block in companions.items()
+    )
+    return full_board and full_transfer and full_companions
 
 
 def run_report(args: argparse.Namespace) -> None:
@@ -1732,15 +1821,28 @@ def render_markdown(payload: dict) -> str:
 
     inv = payload["l0_l1_and_magnitude_invariance"]
     if inv:
+        sampling = (payload.get("design") or {}).get("sampling") or {}
+        shared = sampling.get("rollouts_shared_across_modes") is True
+        what = (
+            "Both modes score one simulation per cell: the randomized configurations read "
+            "the un-randomized runs through the flip (`design.sampling."
+            "rollouts_shared_across_modes`). So this checks that the flip touches nothing "
+            "but `behav_trace` and that `restrict()` hides it below L2 -- every detector "
+            "whose score does not depend on the feature's direction must score identically "
+            "with randomization on and off -- not that two independent simulations agree, "
+            "which determinism already gives."
+            if shared
+            else "Every detector whose score does not depend on the feature's direction must "
+            "score identically with randomization on and off. The boards do not record "
+            "whether both modes read one simulation (`design.sampling`)."
+        )
         lines += [
             "",
             "## Invariance check",
             "",
-            "Every detector whose score does not depend on the feature's direction must "
-            "score identically with randomization on and off. Checked cell by cell, over "
-            "the cells scored in both modes; a cell not applicable in both is counted "
-            "separately, and one scored in only one mode would be an applicability "
-            "mismatch.",
+            what + " Checked cell by cell, over the cells scored in both modes; a cell not "
+            "applicable in both is counted separately, and one scored in only one mode "
+            "would be an applicability mismatch.",
             "",
             "| detector | access | cells | identical / scored in both | not applicable | "
             "applicability mismatches |",
@@ -1835,6 +1937,11 @@ def run_ci(args: argparse.Namespace) -> None:
     stages through ``Benchmark._rollout_cache``: the transfer's train-family runs at
     ``n_seeds_train=10`` are the board's own cells.
     """
+    if args.transfer_rows is not None:
+        # Before the board, which takes hours: a typo would otherwise skip rows, or a
+        # whole configuration, without a word.
+        _check_transfer_rows(args.transfer_rows, _load_transfer_module().ROWS,
+                             "ci --transfer-rows")
     work = Path(args.work_dir)
     work.mkdir(parents=True, exist_ok=True)
     t_start = time.time()
@@ -1856,14 +1963,17 @@ def run_ci(args: argparse.Namespace) -> None:
 
     companion_specs: list[str] = []
     if args.companions:
-        for label, (n_seeds, fams) in COMPANIONS.items():
+        for label in COMPANIONS:
+            n_seeds, fams, only = companion_design(label)
             fams = [f for f in fams if selected is None or f in selected]
-            only = sorted(ORIENTING & set(args.only)) if args.only else sorted(ORIENTING)
+            only = sorted(set(only) & set(args.only)) if args.only else only
             if not fams or not only:
                 continue
             t0 = time.time()
             path = work / f"board_{label}.json"
-            run_board(argparse.Namespace(families=fams, n_seeds=n_seeds, only=only, out=path))
+            run_board(argparse.Namespace(
+                families=fams, n_seeds=n_seeds, only=only, out=path, companion=label,
+            ))
             stage_s[f"companion_{label}"] = round(time.time() - t0, 1)
             companion_specs.append(f"{label}={path.as_posix()}")
 
@@ -1922,9 +2032,17 @@ def main(argv: Optional[list[str]] = None) -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     board = sub.add_parser("board", help="per-cell AUROC, all four configurations")
-    board.add_argument("--families", nargs="+", default=["all"])
-    board.add_argument("--n-seeds", type=int, default=BOARD_N_SEEDS)
+    board.add_argument("--families", nargs="+", default=None,
+                       help="Families to score (default: all registered).")
+    board.add_argument("--n-seeds", type=int, default=None,
+                       help=f"Seeds per variant (default {BOARD_N_SEEDS}).")
     board.add_argument("--only", nargs="+", default=None, help="detector names to score")
+    board.add_argument(
+        "--companion", default=None, choices=sorted(COMPANIONS),
+        help="Run this companion board of the published design: its families, n_seeds "
+             "and direction-dependent detectors (COMPANIONS). Excludes --families, "
+             "--n-seeds and --only.",
+    )
     board.add_argument(
         "--out", type=Path, default=Path("results/sign_randomization/board.json")
     )
@@ -1933,14 +2051,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     transfer = sub.add_parser("transfer", help="RTS in each configuration")
     transfer.add_argument("--n-seeds-train", type=int, default=10)
     transfer.add_argument("--n-seeds-test", type=int, default=20)
-    transfer.add_argument("--n-trials", type=int, default=TRANSFER_N_TRIALS)
+    transfer.add_argument(
+        "--n-trials", type=int, default=TRANSFER_N_TRIALS,
+        help=f"Model-init trials (default {TRANSFER_N_TRIALS}, the published design's and "
+             "the committed 2026-08-03 measurement's; it was 5 until 2026-11-27).",
+    )
     transfer.add_argument(
         "--configs", nargs="+", default=["before", "blind", "after"],
         choices=sorted(CONFIGS),
     )
     transfer.add_argument(
-        "--rows", nargs="+",
-        default=["Reward MLP", "State Divergence", "Trajectory MLP", "Ensemble (Top 5)"],
+        "--rows", nargs="+", default=None,
+        help="Measure these rows in every configuration. Default: the published design's "
+             "rows per configuration -- all four in `before`, the two L2 rows elsewhere.",
     )
     transfer.add_argument("--train-families", nargs="+", default=None, metavar="FAMILY",
                           help="Smoke testing only: replace the 6 train families.")
@@ -2038,6 +2161,8 @@ def main(argv: Optional[list[str]] = None) -> None:
     ci.set_defaults(func=run_ci)
 
     args = parser.parse_args(argv)
+    if args.command == "board":
+        _resolve_board_args(args)
     args.func(args)
 
 

@@ -61,6 +61,16 @@ constant in three cases, and each is recorded with its reason:
 - the pooled fit failed or left the detector untrained, in which case nothing frozen
   exists to transfer (``pooled_fit_error``).
 
+A held-out family scored on some of its difficulty cells but not all is averaged over
+the scored ones, and says so: ``per_family_cells_scored`` and
+``per_family_cells_not_applicable`` count its cells, and
+``test_partial_not_applicable_reasons`` gives the reasons for the ones left out.
+
+continuous_camping was never really training data for Reward MLP or State Divergence:
+both fits already dropped runs shorter than their windows, so the frozen models are the
+same as before these rules, and what changed is that the artifact now lists the family
+as excluded instead of implying it was used.
+
 Output: ``leaderboard/cross_family_transfer_v5.json`` by default, with a ``configs``
 block naming the configuration it was measured in (sign randomization on, detectors
 orienting themselves), so :mod:`rhob.v3.leaderboard.transfer` reads it as the shipped
@@ -70,6 +80,16 @@ script refuses to overwrite it.
 
 Run: python scripts/cross_family_transfer.py [--n-seeds-train N] [--n-seeds-test N]
          [--n-trials N] [--out PATH] [--only ROW ...]
+
+Run it with torch on one thread (``OMP_NUM_THREADS=1``; CI's numerics pins set it). The
+networks are small, and with torch's default of one thread per core they can spend most
+of their time synchronizing threads when the machine is busy. Under the pins the
+published design took 5m23s on a 4-core box; unpinned on the same box, one trial's
+Reward MLP train AUROC took anywhere from 10 s to 324 s, and the Trajectory MLP's 489 s.
+The rollout cache (:func:`_rollout`) is not what makes the difference: it stops trials
+and rows from re-simulating the pooled and held-out runs, while the model fits -- most of
+the time -- are untouched by it, and the train AUROC's rollouts were already cached by
+``Benchmark.evaluate``.
 """
 
 from __future__ import annotations
@@ -252,6 +272,11 @@ class TransferEval:
         not_applicable: families whose every cell was not applicable, in order evaluated.
         reasons: ``{family: reason}`` for each not-applicable family.
         incompatible_runs: ``{family: runs}`` -- how many ``classify`` calls raised.
+        cells_scored: ``{family: cells}`` the family's mean in ``per_family`` is over.
+        cells_not_applicable: ``{family: cells}`` left out of it.
+        partial_reasons: ``{family: reason}`` for each family that was scored on some of
+            its cells but not all, so its mean is over fewer difficulty tiers than the
+            others' -- recorded, since nothing else in the row would show it.
     """
 
     def __init__(
@@ -260,11 +285,19 @@ class TransferEval:
         not_applicable: Optional[list[str]] = None,
         reasons: Optional[dict[str, str]] = None,
         incompatible_runs: Optional[dict[str, int]] = None,
+        cells_scored: Optional[dict[str, int]] = None,
+        cells_not_applicable: Optional[dict[str, int]] = None,
+        partial_reasons: Optional[dict[str, str]] = None,
     ):
         self.per_family = per_family
         self.not_applicable = not_applicable if not_applicable is not None else []
         self.reasons = reasons if reasons is not None else {}
         self.incompatible_runs = incompatible_runs if incompatible_runs is not None else {}
+        self.cells_scored = cells_scored if cells_scored is not None else {}
+        self.cells_not_applicable = (
+            cells_not_applicable if cells_not_applicable is not None else {}
+        )
+        self.partial_reasons = partial_reasons if partial_reasons is not None else {}
 
     @property
     def average(self) -> Optional[float]:
@@ -303,7 +336,10 @@ def transfer_eval(
       since scoring only the runs the model happened to accept would select on the
       failure, and the number of runs that raised is reported per family.
 
-    Neither case is imputed at 0.5 (until 2026-11-27 the second one was).
+    Neither case is imputed at 0.5 (until 2026-11-27 the second one was). Every family's
+    scored and not-applicable cell counts are recorded, and a family scored on only some
+    of its cells keeps its reasons in ``partial_reasons``: its mean is over fewer
+    difficulty tiers, which the per-family number alone would not say.
     """
     out = TransferEval(per_family={})
     for fam_name in families:
@@ -352,8 +388,12 @@ def transfer_eval(
                 cell_reasons.append("the cell has runs of one variant only; not scored")
         if n_incompatible:
             out.incompatible_runs[fam_name] = n_incompatible
+        out.cells_scored[fam_name] = len(cell_aurocs)
+        out.cells_not_applicable[fam_name] = len(cell_reasons)
         if cell_aurocs:
             out.per_family[fam_name] = float(np.mean(cell_aurocs))
+            if cell_reasons:
+                out.partial_reasons[fam_name] = "; ".join(dict.fromkeys(cell_reasons))
         else:
             out.per_family[fam_name] = None
             out.not_applicable.append(fam_name)
@@ -369,6 +409,16 @@ def transfer_eval(
         print(
             f"  [note] not applicable and excluded from the transfer average: "
             f"{', '.join(out.not_applicable)}",
+            flush=True,
+        )
+    if out.partial_reasons:
+        print(
+            "  [note] scored on some cells only: "
+            + ", ".join(
+                f"{f} ({out.cells_scored[f]} of "
+                f"{out.cells_scored[f] + out.cells_not_applicable[f]})"
+                for f in out.partial_reasons
+            ),
             flush=True,
         )
     return out
@@ -533,6 +583,10 @@ def run_one(
             per_family={f: None for f in test_families},
             not_applicable=list(test_families),
             reasons={f: reason for f in test_families},
+            cells_scored={f: 0 for f in test_families},
+            cells_not_applicable={
+                f: len(FamilyRegistry.get(f).default_difficulties()) for f in test_families
+            },
         )
 
     avg_transfer = ev.average
@@ -564,6 +618,9 @@ def run_one(
         "per_family_transfer": {k: _round_or_none(v) for k, v in ev.per_family.items()},
         "test_families_not_applicable": ev.not_applicable,
         "test_not_applicable_reasons": ev.reasons,
+        "per_family_cells_scored": ev.cells_scored,
+        "per_family_cells_not_applicable": ev.cells_not_applicable,
+        "test_partial_not_applicable_reasons": ev.partial_reasons,
         "per_family_incompatible_runs": ev.incompatible_runs,
         "avg_transfer_auroc": _round_or_none(avg_transfer),
         "generalization_gap_pct": _round_or_none(gap, 1),
@@ -599,7 +656,10 @@ def run_one_multitrial(
     presence and run length are properties of the family, not of the seed, so in
     practice it is all or none); a family scored in some trials but not others is
     averaged over the trials that scored it and counted in
-    ``per_family_trials_not_applicable``.
+    ``per_family_trials_not_applicable``. Cell counts are aggregated conservatively:
+    ``per_family_cells_scored`` is the fewest cells any trial scored a family on and
+    ``per_family_cells_not_applicable`` the most it left out, like
+    ``per_family_incompatible_runs`` (the most runs any trial raised on).
     """
     train_aurocs: list[Optional[float]] = []
     transfer_aurocs: list[Optional[float]] = []
@@ -607,6 +667,9 @@ def run_one_multitrial(
     per_family_trials: dict[str, list[float]] = {f: [] for f in test_families}
     na_counts: dict[str, int] = {f: 0 for f in test_families}
     reasons: dict[str, str] = {}
+    partial_reasons: dict[str, str] = {}
+    cells_scored: dict[str, int] = {}
+    cells_na: dict[str, int] = {}
     incompatible: dict[str, int] = {}
     fit_errors: list[str] = []
     last_result: dict = {}
@@ -634,6 +697,12 @@ def run_one_multitrial(
                 per_family_trials.setdefault(fam, []).append(v)
         for fam, why in result["test_not_applicable_reasons"].items():
             reasons.setdefault(fam, why)
+        for fam, why in result["test_partial_not_applicable_reasons"].items():
+            partial_reasons.setdefault(fam, why)
+        for fam, n in result["per_family_cells_scored"].items():
+            cells_scored[fam] = min(cells_scored.get(fam, n), n)
+        for fam, n in result["per_family_cells_not_applicable"].items():
+            cells_na[fam] = max(cells_na.get(fam, 0), n)
         for fam, n in result["per_family_incompatible_runs"].items():
             incompatible[fam] = max(incompatible.get(fam, 0), n)
         if result["pooled_fit_error"]:
@@ -681,6 +750,9 @@ def run_one_multitrial(
         "test_families_not_applicable": not_applicable,
         "test_not_applicable_reasons": {f: reasons[f] for f in not_applicable if f in reasons},
         "per_family_trials_not_applicable": partial,
+        "per_family_cells_scored": cells_scored,
+        "per_family_cells_not_applicable": cells_na,
+        "test_partial_not_applicable_reasons": partial_reasons,
         "per_family_incompatible_runs": incompatible,
         "avg_transfer_auroc_mean": _agg(transfer_aurocs, np.mean),
         "avg_transfer_auroc_std": _agg(transfer_aurocs, np.std),
@@ -759,6 +831,13 @@ CELL_SEMANTICS: dict[str, str] = {
     "per_family_number": (
         "measured mean AUROC of the frozen model over that held-out family's scored "
         "difficulty cells; for a multi-trial row, the mean over model-init trials."
+    ),
+    "per_family_cells": (
+        "per_family_cells_scored / per_family_cells_not_applicable: how many of a "
+        "held-out family's difficulty cells its number is over and how many were not "
+        "applicable (for a multi-trial row, the fewest scored and the most left out in "
+        "any trial). A family scored on some cells but not all keeps the reasons for the "
+        "rest in test_partial_not_applicable_reasons."
     ),
     "train_auroc": (
         "5-fold stratified cross-validated AUROC per train cell (Benchmark.evaluate), "

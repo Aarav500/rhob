@@ -15,8 +15,8 @@ never scored on runs it was fit on.
 
 A cell whose family does not emit the channel the detector reads, or whose runs are
 shorter than the ``min_episodes`` the detector declares, is scored **N/A** (NaN), not
-0.5 -- see :data:`_ACCESS_LEVEL_CHANNEL` and :func:`not_applicable_reason`, the one rule
-every scoring path applies.
+0.5 -- see :data:`_ACCESS_LEVEL_CHANNEL` and :func:`not_applicable_reason`, the rule
+``Benchmark.evaluate`` and ``scripts/cross_family_transfer.py`` apply.
 
 Every cell's L2 behavioral feature arrives in a per-family orientation the benchmark
 draws and withholds (:mod:`rhob.v3.sign_randomization`), so a detector cannot read the
@@ -108,10 +108,11 @@ def not_applicable_reason(
 ) -> Optional[str]:
     """Why ``detector`` cannot be scored on ``runs``, or ``None`` if it can.
 
-    The one not-applicable rule, shared by :func:`_evaluate_cell` and by every path that
-    scores or fits a detector outside it (``scripts/cross_family_transfer.py`` pools
-    whole families for a fit and scores frozen models on held-out ones). Two checks, in
-    this order, and the first that fails names the reason:
+    The not-applicable rule shared by :func:`_evaluate_cell` and by
+    ``scripts/cross_family_transfer.py``, which pools whole families for a fit and scores
+    frozen models on held-out ones outside it. (``external/hvta/score_detectors.py``
+    still applies only the channel check, :func:`missing_channels`.) Two checks, in this
+    order, and the first that fails names the reason:
 
     1. a channel in :func:`required_channels` is absent from some run
        (:func:`missing_channels`);

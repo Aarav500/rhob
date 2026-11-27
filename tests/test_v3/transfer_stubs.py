@@ -30,6 +30,13 @@ class StubFamily(BaseFamily):
 
     ``n_bins=None`` ships no ``state_counts`` (as 25 of the 33 real families do).
     ``difficulty_range`` covers the EASY and MEDIUM tiers, so every stub has two cells.
+
+    ``noise`` is the per-episode standard deviation of ``behav_trace``. Its default keeps
+    every AUROC the tests compare strictly between 0 and 1: at the original 0.25 the
+    two variants' mean traces were five or more standard errors apart, so every frozen
+    model scored every held-out stub at exactly 0.0 or 1.0 (both train stubs
+    draw ``behav_sign`` +1 and both held-out stubs -1), whatever its seed or training
+    pool -- and an equality between two such values could not fail.
     """
 
     def __init__(
@@ -39,12 +46,14 @@ class StubFamily(BaseFamily):
         n_bins: Optional[int] = 6,
         separation: float = 0.6,
         mechanism: HackingMechanism = HackingMechanism.CAMPING_EXPLOIT,
+        noise: float = 1.0,
     ):
         self._name = name
         self.n_episodes = n_episodes
         self.n_bins = n_bins
         self.separation = separation
         self._mechanism = mechanism
+        self.noise = noise
 
     @property
     def name(self) -> str:
@@ -70,7 +79,7 @@ class StubFamily(BaseFamily):
         strength = self.separation * (difficulty - 0.5)
         onset = n // 4
         ramp = np.clip((np.arange(n) - onset) / max(1, n - onset), 0.0, 1.0)
-        behav = sign * strength * ramp + rng.normal(0.0, 0.25, n)
+        behav = sign * strength * ramp + rng.normal(0.0, self.noise, n)
         proxy = 0.5 + 0.5 * strength * (1 if hacking else 0) * ramp + rng.normal(0.0, 0.2, n)
         counts = None
         if self.n_bins:

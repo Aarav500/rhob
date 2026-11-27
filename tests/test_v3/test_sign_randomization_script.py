@@ -69,7 +69,7 @@ def _provenance(commit: str = "a" * 40, dirty=False, python="3.12.3") -> dict:
     }
 
 
-def _board(families, n_seeds=3, provenance=None, cells=None) -> dict:
+def _board(families, n_seeds=3, provenance=None, cells=None, sampling=None) -> dict:
     cells = cells or [
         {"family": f, "difficulty": 0.9, "auroc": 0.7, "na_reason": None} for f in families
     ]
@@ -78,6 +78,7 @@ def _board(families, n_seeds=3, provenance=None, cells=None) -> dict:
     return {
         "measurement": "board", "n_seeds": n_seeds, "families": list(families),
         "provenance": provenance or _provenance(),
+        **({"sampling": sampling} if sampling is not None else {}),
         "detectors": {"Feature Magnitude": {
             "access_level": "L2", "direction_dependent": False,
             "by_config": {"before": copy.deepcopy(block), "after": copy.deepcopy(block)},
@@ -196,6 +197,23 @@ def test_a_clean_uniform_merge_records_its_provenance(msr, tmp_path):
     assert design["board_provenance"]["commit"] == "a" * 40
     assert design["board_provenance"]["dirty"] is False
     assert detectors["Feature Magnitude"]["by_config"]["after"]["n_cells_scored"] == 2
+
+
+def test_the_boards_sampling_block_is_carried_into_the_design(msr, tmp_path):
+    """The committed report must say both modes read one simulation, not only the boards."""
+    shared = {"n_seeds_per_variant": 3, "rollouts_shared_across_modes": True}
+    a = _write(tmp_path, "a.json", _board(["f1"], sampling=shared))
+    b = _write(tmp_path, "b.json", _board(["f2"], sampling=dict(shared)))
+    _, design = msr._merge_boards([a, b])
+    assert design["sampling"] == shared
+
+    other = _write(tmp_path, "c.json", _board(["f3"], sampling={**shared,
+                                                                "rollouts_shared_across_modes": False}))
+    with pytest.raises(ValueError, match="sampling"):
+        msr._merge_boards([a, other])
+    bare = _write(tmp_path, "d.json", _board(["f4"]))  # a board that records none
+    with pytest.raises(ValueError, match="sampling"):
+        msr._merge_boards([a, bare])
 
 
 def test_a_configuration_measured_twice_is_refused(msr, tmp_path):
@@ -352,6 +370,14 @@ def test_ci_runs_every_stage_and_writes_an_auditable_artifact(msr, ci_run):
 
     inv = payload["l0_l1_and_magnitude_invariance"]["Feature Magnitude"]
     assert inv["n_scored"] == 6 and inv["n_na"] == 2 and inv["n_identical"] == 6
+    # Both modes read one simulation, and the committed artifact says so, not only the
+    # intermediate board files.
+    assert design["sampling"]["rollouts_shared_across_modes"] is True
+    invariance_md = md.split("## Invariance check")[1]
+    assert "one simulation per cell" in invariance_md
+    assert "not that two independent simulations agree" in invariance_md
+    for label, block in payload["sample_size_sensitivity"].items():
+        assert _no_nan(Path(block["path"]))["companion"] == label
 
     assert set(payload["sample_size_sensitivity"]) == {
         "n5_v5board_reproduction", "n20_doc_13family_subset",
@@ -404,31 +430,56 @@ def test_the_rts_sentence_follows_the_data(msr, ci_run):
     assert "N/A" in msr.render_markdown(payload)
 
 
-def test_the_after_rts_is_the_transfer_scripts_own_measurement(msr, stubs, tmp_path):
-    """The CI gate's premise: signrand ``after`` trial k == cross_family_transfer trial k.
+def test_the_after_rts_is_the_transfer_scripts_own_measurement(msr, stubs, tmp_path, monkeypatch):
+    """Signrand ``after`` trial k == ``scripts/cross_family_transfer.py``'s trial k.
 
-    The second run starts from an empty rollout cache, so it re-simulates rather than
-    reading the first run's (derived) entries back.
+    That is what "trials 0-2 here are the first three of that script's five" claims.
+    Measured the way ``ci`` measures it -- ``before`` first, so every ``after`` rollout is
+    derived from it through the flip rather than simulated -- and compared with the
+    transfer script's own artifact, written by its ``main`` from an empty rollout cache,
+    at more trials than this side ran.
     """
+    from rhob.v3.base_pair import MatchedPair
     from rhob.v3.benchmark import Benchmark
 
-    out = tmp_path / "after.json"
-    msr.main([
-        "transfer", "--configs", "after", "--rows", "Ensemble (Top 5)",
-        "--n-trials", "2", "--n-seeds-train", "3", "--n-seeds-test", "3",
-        "--train-families", *stubs["train"], "--test-families", *stubs["test"],
-        "--out", str(out),
-    ])
+    simulated: list[bool] = []
+    real_rollout = MatchedPair.rollout
+
+    def recording_rollout(self, n_seeds, seed_base=0, randomize_sign=True):
+        simulated.append(randomize_sign)
+        return real_rollout(self, n_seeds, seed_base=seed_base, randomize_sign=randomize_sign)
+
+    monkeypatch.setattr(MatchedPair, "rollout", recording_rollout)
+    rows = ["Trajectory MLP", "Ensemble (Top 5)"]
+    design = ["--n-seeds-train", "3", "--n-seeds-test", "3",
+              "--train-families", *stubs["train"], "--test-families", *stubs["test"]]
+    out = tmp_path / "signrand.json"
+    msr.main(["transfer", "--configs", "before", "after", "--rows", *rows,
+              "--n-trials", "2", *design, "--out", str(out)])
+    assert simulated and not any(simulated)  # `after` read only derived rollouts
     mine = _no_nan(out)["results"]["after"]
+
     Benchmark._rollout_cache.clear()
-    cft = msr._load_transfer_module()
-    theirs = cft.run_rows(
-        ["Ensemble (Top 5)"], n_seeds_train=3, n_seeds_test=3, n_trials=2,
-        train_families=stubs["train"], test_families=stubs["test"],
-    )
-    for row in ("Ensemble (Top 5)",):
-        assert mine[row]["all_trial_transfer_aurocs"] == theirs[row]["all_trial_transfer_aurocs"]
-        assert mine[row]["all_trial_train_aurocs"] == theirs[row]["all_trial_train_aurocs"]
+    simulated.clear()
+    v5 = tmp_path / "v5.json"
+    assert msr._load_transfer_module().main(
+        ["--only", *rows, "--n-trials", "3", *design, "--out", str(v5)]
+    ) == 0
+    assert simulated and all(simulated)  # the transfer script simulated its own
+    theirs = _no_nan(v5)["results"]
+
+    for row in rows:
+        for key in ("all_trial_train_aurocs", "all_trial_transfer_aurocs"):
+            assert len(mine[row][key]) == 2
+            assert mine[row][key] == theirs[row][key][:2], (row, key)
+        # Not saturated, so the equalities could fail: every held-out RTS is interior (a
+        # train AUROC over two cells at 3 seeds can reach 1.0 in one trial, not in all).
+        assert all(0.0 < v < 1.0 for v in mine[row]["all_trial_transfer_aurocs"]), mine[row]
+        assert any(0.0 < v < 1.0 for v in mine[row]["all_trial_train_aurocs"]), mine[row]
+        # The two trials differ, so a shifted or repeated trial index would not match.
+        pairs = list(zip(mine[row]["all_trial_train_aurocs"],
+                         mine[row]["all_trial_transfer_aurocs"]))
+        assert pairs[0] != pairs[1], (row, pairs)
 
 
 def test_the_report_requires_the_pre_audit_board(msr, tmp_path):
@@ -436,3 +487,101 @@ def test_the_report_requires_the_pre_audit_board(msr, tmp_path):
     with pytest.raises(SystemExit, match="published-board is required"):
         msr.main(["report", "--board", str(board),
                   "--out-json", str(tmp_path / "x.json"), "--out-md", str(tmp_path / "x.md")])
+
+
+# ------------------------------------------------------------- the by-hand stages
+def test_transfer_defaults_to_the_published_rows_per_configuration(msr, monkeypatch, tmp_path):
+    """So ``transfer`` by hand produces what ``ci`` does and can be the published design."""
+    cft = msr._load_transfer_module()
+    asked: dict[bool, list] = {}
+
+    def fake_run_rows(rows, *, randomize_sign, **_):
+        asked.setdefault(randomize_sign, []).append(list(rows))
+        return {}
+
+    monkeypatch.setattr(cft, "run_rows", fake_run_rows)
+    out = tmp_path / "t.json"
+    msr.main(["transfer", "--out", str(out)])
+    payload = _no_nan(out)
+    assert payload["rows_by_config"] == {
+        c: list(msr.TRANSFER_ROWS_BY_CONFIG[c]) for c in ("before", "blind", "after")
+    }
+    assert payload["n_trials"] == msr.TRANSFER_N_TRIALS == 3
+    assert asked[False] == [list(msr.TRANSFER_ROWS_BY_CONFIG["before"])]
+
+    msr.main(["transfer", "--configs", "after", "--rows", "Reward MLP", "--out", str(out)])
+    assert _no_nan(out)["rows_by_config"] == {"after": ["Reward MLP"]}
+
+
+@pytest.mark.parametrize("argv", [
+    ["transfer", "--rows", "Ensemble (Top 5)", "Trajectory MLP "],
+    ["transfer", "--rows", "trajectory mlp"],
+])
+def test_an_unknown_transfer_row_is_refused_not_dropped(msr, monkeypatch, tmp_path, argv):
+    cft = msr._load_transfer_module()
+    monkeypatch.setattr(cft, "run_rows", lambda *a, **k: pytest.fail("measured anyway"))
+    out = tmp_path / "t.json"
+    with pytest.raises(SystemExit, match="unknown transfer rows"):
+        msr.main([*argv, "--out", str(out)])
+    assert not out.exists()
+
+
+def test_ci_refuses_an_unknown_transfer_row_before_the_board(msr, monkeypatch, tmp_path):
+    monkeypatch.setattr(msr, "run_board", lambda args: pytest.fail("board ran"))
+    with pytest.raises(SystemExit, match="unknown transfer rows"):
+        msr.main(["ci", "--out-json", str(tmp_path / "x.json"), "--out-md", str(tmp_path / "x.md"),
+                  "--work-dir", str(tmp_path / "w"), "--transfer-rows", "Ensemble"])
+
+
+def test_board_companion_is_the_companion_design(msr):
+    import argparse
+
+    args = argparse.Namespace(companion="n5_v5board_reproduction", families=None,
+                              n_seeds=None, only=None)
+    msr._resolve_board_args(args)
+    n_seeds, families = msr.COMPANIONS["n5_v5board_reproduction"]
+    assert (args.n_seeds, args.families) == (n_seeds, list(families))
+    assert args.only == sorted(msr.ORIENTING)
+
+    plain = argparse.Namespace(companion=None, families=None, n_seeds=None, only=None)
+    msr._resolve_board_args(plain)
+    assert (plain.families, plain.n_seeds) == (["all"], msr.BOARD_N_SEEDS)
+
+
+@pytest.mark.parametrize("flag", [["--n-seeds", "10"], ["--families", "gridworld_camping"],
+                                  ["--only", "Behavioral Threshold"]])
+def test_board_companion_refuses_a_design_flag(msr, flag):
+    with pytest.raises(SystemExit, match=flag[0]):
+        msr.main(["board", "--companion", "n20_doc_13family_subset", *flag])
+
+
+def _published_inputs(msr):
+    design = {"families_not_measured": [], "n_seeds": msr.BOARD_N_SEEDS}
+    transfer = {
+        "results": {c: dict.fromkeys(msr.TRANSFER_ROWS_BY_CONFIG[c])
+                    for c in ("before", "blind", "after")},
+        "n_trials": msr.TRANSFER_N_TRIALS, "n_seeds_train": 10, "n_seeds_test": 20,
+    }
+    companions = {
+        label: {"n_seeds": n, "families": list(reversed(fams))}
+        for label, (n, fams) in msr.COMPANIONS.items()
+    }
+    return design, transfer, companions
+
+
+def test_a_companion_counts_only_at_its_own_design(msr):
+    design, transfer, companions = _published_inputs(msr)
+    assert msr._is_published_design(design, transfer, companions) is True
+    for label in companions:
+        wrong = copy.deepcopy(companions)
+        wrong[label]["n_seeds"] = msr.BOARD_N_SEEDS
+        assert msr._is_published_design(design, transfer, wrong) is False
+        wrong = copy.deepcopy(companions)
+        wrong[label]["families"] = wrong[label]["families"][1:]
+        assert msr._is_published_design(design, transfer, wrong) is False
+    # The by-hand `transfer` default rows are the published ones; all four rows in
+    # every configuration are not.
+    every = copy.deepcopy(transfer)
+    every["results"] = {c: dict.fromkeys(msr.TRANSFER_ROWS_BY_CONFIG["before"])
+                        for c in ("before", "blind", "after")}
+    assert msr._is_published_design(design, every, companions) is False
