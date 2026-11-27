@@ -603,13 +603,15 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
   comparison at layout seed 0. **SE near AUROC 0.5 is ≈ 0.19** — the Mann–Whitney
   null, `sqrt((n+m+1)/(12nm))` at n=m=5. That board carries no confidence intervals;
   do not read its third decimal, and do not rank two of its detectors that differ by
-  less than ~0.2. **This limitation is closed for the aggregates, over rollout seeds**:
-  the suite has been replicated over 20 draws and `leaderboard/v5_replicated.json`
-  publishes bootstrap intervals per detector and per family. The committed draws resample
-  the rollout seeds only. Each records its own `(layout_seed, seed_base)`, but until
-  2026-11-27 `FamilyRegistry.generate_suite` dropped the layout seed, so every draw was
-  built, and had its behavioural signs drawn, at layout 0; the file says so
-  (`replicates.layouts_resampled` is false). Forwarding the seed changes less than its
+  less than ~0.2. **This limitation is closed for the aggregates, over rollout seeds and
+  layout seeds**: the suite has been replicated over 20 draws and
+  `leaderboard/v5_replicated.json` publishes bootstrap intervals per detector and per
+  family. Each draw is built at its own `(layout_seed, seed_base)`, layout seeds 0 to 19
+  (`draw_schema` 2; the file records `replicates.layouts_resampled` as true), as re-drawn
+  on 2026-11-27 by CI run 46011019246 at `54cd63c` (`b93c351`). Until then
+  `FamilyRegistry.generate_suite` dropped the layout seed, so every committed draw, the
+  2026-08-04 set, was built, and had its behavioural signs drawn, at layout 0, and its
+  intervals covered rollout-seed variation only. Forwarding the seed changes less than its
   name suggests: 12 of the 33 families ignore it, 19 use it only as an offset to their
   rollout seeds, and 2 (`proxy_correlation_gaming`, `rlhf_reward_model_overopt`) build a
   different layout from it; in every family it also draws the behavioural sign.
@@ -617,7 +619,8 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
 - **All 30 detectors share that draw**, so their cell values are correlated and their
   differences are not independent measurements.
 - **The certified distribution is not the scored distribution.** The gate averages
-  over 12 layout seeds; the leaderboard evaluates layout seed 0 only.
+  over 12 layout seeds; the single-draw leaderboard evaluates layout seed 0 only, and each
+  of the 20 draws one layout seed.
 - **Some cells are not certifiable at all, and are marked so.** Where a family's proxy
   reward is constant, or constant run to run, the proxy criteria are DEGENERATE — not
   measurable — rather than passing. Those cells carry no matched-proxy claim and are
@@ -638,38 +641,48 @@ draw; its L2 rung predates the sign of the behavioural feature ceasing to encode
 label; its L1 rung imputed a constant on 74.8% of cells; and its maxima mixed label-fitted
 detectors with unsupervised ones. It is removed rather than left beside its corrections.
 
-From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 draws that
-resample the rollout seeds, every one at environment layout 0 (see
+From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 draws, each
+at its own layout seed (0 to 19) and rollout seeds (see
 [Scope](#scope-limits-and-what-the-numbers-do-not-say)), percentile bootstrap of the mean
 over draws, 10,000 resamples — the best **unsupervised** detector at each level scores:
 
 | Access level | Best unsupervised detector, mean AUROC [95% CI] |
 |---|---|
-| L0 (reward-only) | 0.568 [0.555, 0.580] |
+| L0 (reward-only) | 0.570 [0.560, 0.579] |
 | L1 (state-visitation) | 0.538 [0.517, 0.561] |
-| L2 (behavioural) | 0.599 [0.589, 0.610] |
-| L3 (oracle) | 0.975 [0.971, 0.978] |
+| L2 (behavioural) | 0.608 [0.595, 0.624] |
+| L3 (oracle) | 0.979 [0.976, 0.981] |
 
-These are as re-scored on 2026-11-26, after every detector declared the run length its
-score needs (`f83a152`; see the correction above). All three sub-oracle rungs sit within
-0.10 of chance, and the L1−L0 step on the max is −0.029 [−0.054, −0.005], which excludes
-zero: on the max, without the label-fitted detectors L1 sits below L0, though over
-different families (7 at L1, 8 to 27 at L0). It is positive in 5 of the 20 draws. Before
-the re-score it read −0.017 [−0.039, +0.002], which included zero. On the mean the same
-step is −0.002 [−0.022, +0.017], which includes zero (positive in 11 of 20 draws), so
-whether unsupervised L1 sits below L0 depends on the statistic. Five of the 30 detectors expose `fit()` and
+These are as re-drawn on 2026-11-27 (`b93c351`; see the last note in the correction
+above), with every detector declaring the run length its score needs (`f83a152`). The L0
+and L1 rungs sit within 0.10 of chance; the L2 rung, at 0.608, sits just outside, its
+interval reaching from 0.595 to 0.624. The L1−L0 step on the max is −0.032 [−0.055,
+−0.009], which excludes zero: on the max, without the label-fitted detectors L1 sits below
+L0, though over different families (7 at L1, 8 to 27 at L0). It is positive in 4 of the 20
+draws. On the mean the same step is −0.005 [−0.024, +0.014], which includes zero (positive
+in 10 of 20 draws), so whether unsupervised L1 sits below L0 depends on the statistic. Five of the 30 detectors expose `fit()` and
 are cross-validated on the hacking/legitimate labels: Reward MLP, State Coverage Rate,
 State Divergence, Trajectory MLP and Visitation Entropy Trend. Counting them moves the
-same step to +0.427 [+0.417, +0.439], positive in 20 of 20. A per-level maximum over both
+same step to +0.423 [+0.413, +0.433], positive in 20 of 20. A per-level maximum over both
 kinds reports whichever question produced the larger number, so the two must be read
 separately.
+
+> **2026-11-27:** re-drawn at layout seeds 0 to 19 (CI run 46011019246 at `54cd63c`,
+> `b93c351`). On the 2026-08-04 draws, all built at layout 0, as re-scored on 2026-11-26,
+> the table read 0.568 [0.555, 0.580], 0.538 [0.517, 0.561], 0.599 [0.589, 0.610] and
+> 0.975 [0.971, 0.978], and all three sub-oracle rungs sat within 0.10 of chance. The
+> L1−L0 step read −0.029 [−0.054, −0.005] on the max (positive in 5 of 20 draws), −0.002
+> [−0.022, +0.017] on the mean (11 of 20) and +0.427 [+0.417, +0.439] with the
+> label-fitted detectors; before the 2026-11-26 re-score it read −0.017 [−0.039, +0.002] on
+> the max, which included zero. Below, the oracle's 20-draw figure was 0.975, the L2
+> best's 0.943, and L2 minus L1 on the max −0.055 [−0.061, −0.050].
 
 The L3 oracle reads `true_rewards`, the one channel the other levels never see. It is a
 ceiling on what a detector reads, not an access level a deployed detector could have, and
 not a ceiling on score. State Divergence, label-fitted and scored only on the 7 families /
 31 cells L1 can measure, reaches 0.982 on the single draw (the oracle 0.983, over 33
-families / 123 cells) and 0.998 [0.997, 1.000] over 20 draws, above the oracle's 0.975 and
-the L2 best's 0.943 (L2 minus L1 on the max: −0.055 [−0.061, −0.050], 0 of 20 draws
+families / 123 cells) and 0.998 [0.997, 1.000] over 20 draws, above the oracle's 0.979 and
+the L2 best's 0.947 (L2 minus L1 on the max: −0.052 [−0.058, −0.046], 0 of 20 draws
 favouring L2). Neither comparison is like for like. Perfect Feature Oracle, which
 earlier versions of this file counted as a second L3 detector, is a subclass of the L2
 Behavioral Threshold detector that overrides only `access_level` and `name`, plus (since

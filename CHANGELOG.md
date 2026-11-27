@@ -80,7 +80,8 @@ carries 20 detector rows re-scored after it was drawn. That re-aggregation's pro
 was stamped from a clean tree at `f192797` under the numerics pins (`eaa75f8`), with
 everything outside it unchanged. The Space's provenance panel reads `layouts_resampled`
 and, for these draws, says that the rollout seeds were resampled with every draw at layout
-0.
+0. For the re-drawn set the block reads `layouts_resampled: true` and `single_source:
+true`, and the panel says "layout seed and rollout seeds resampled together".
 
 **Re-drawing.** `regenerate.yml`'s new `redraw` mode draws the single board and all 20
 replicates, every detector, at one commit, and commits them together.
@@ -102,7 +103,11 @@ are written with. `scripts/check_redraw.py` refuses the set unless all of these 
 - every file has the sidecar's cell grid, and `replicate_000`, the board's own draw, equals
   the board cell for cell, up to `--max-board-mismatch` (default 0).
 
-The set is then aggregated with `--require-single-source`.
+The set is then aggregated with `--require-single-source`. The first re-draw (run
+45995235365, at `d85a60c`) failed the last check, on `continuous_camping` alone (the
+`continuous_camping` entry below). The second (run 46011019246, at `54cd63c`) passed every
+check, with replicate 0 equal to the board in all 3,690 cells, and is committed in
+`b93c351`; its figures are in the re-draw entry below.
 
 ### Fixed (2026-11-27): Bayesian Online Changepoint Detection (BOCPD) scored a constant, and its HVTA figures change
 
@@ -186,9 +191,16 @@ runners under them. See the next entry.)*
 For a reader of the published numbers: the artifacts committed before this change were
 computed without the pins and record no `numerics` block (the re-stamp of
 `v5_replicated.json`'s provenance in `eaa75f8` records them, but its 2026-08-04 draws
-record none). Every artifact CI writes from now on is computed under them. A figure from a
-pinned run need not match an unpinned run of the same code bit for bit, so quote each
-figure with the environment it came from. `tests.yml` sets none of the pins.
+record none). Every artifact CI writes from now on is computed under them. The first
+pinned artifacts are `leaderboard/cross_family_transfer_v5.json` (`9c038f6`, at
+`eaa75f8`, measured again in `7d34989` and `02c0475`, every time on a GenuineIntel runner)
+and both boards with the 20 draws (`b93c351`, at `54cd63c`): the board on an AuthenticAMD
+runner and the draws on 12 GenuineIntel and 8 AuthenticAMD ones. One draw was scored on
+both vendors, replicate 0 on an Intel Xeon 6975P-C and the board on an AMD EPYC 9V74, and
+the two agree in every cell, which needed `continuous_camping`'s frozen camper (the next
+entry). A figure from a pinned run need not match an unpinned run of the same code bit for
+bit, so quote each figure with the environment it came from. `tests.yml` sets none of the
+pins.
 
 Every artifact's `provenance` block gains `numerics`: `env` (the six variables, null when
 unset), `cpu` (vendor, model, family, model number and stepping, and the ISA flags that
@@ -256,10 +268,14 @@ includes `continuous_camping` holds the camper its runner trained. Those artifac
 the board of 2026-11-26 (`f83a152`, unpinned), the 2026-08-04 draws, and the admission
 ledger's four `continuous_camping` cells (certified unpinned). Their `continuous_camping`
 figures depend on which CPU vendor ran them, and on the kernel level without the pins. The
-cross-family transfer artifact (`7d34989`, at `d85a60c`) ran on an Intel runner under the
-pins, so its camper, `continuous_camping` being a training family, is the frozen one. The
-legacy scripts that build the v1 pairs (`scripts/validate_pair_0*.py`,
-`scripts/generate_eval_data.py`) still train their own campers.
+board and the draws have since been re-drawn on the frozen weights (`b93c351`, the next
+entry). The cross-family transfer artifact was measured three times under the pins, each
+time on an Intel runner: `9c038f6` (at `eaa75f8`) and `7d34989` (at `d85a60c`) trained the
+camper, which on Intel gives the frozen weights, and `02c0475` (at `54cd63c`) loads them.
+`continuous_camping` being a training family, all three use the frozen camper's weights,
+and their results are identical. The legacy scripts that build the v1 pairs
+(`scripts/validate_pair_0*.py`, `scripts/generate_eval_data.py`) still train their own
+campers.
 
 ### Fixed (2026-11-27): cross-family transfer and the sign-randomization measurement leave what they cannot measure N/A, and both scripts run again
 
