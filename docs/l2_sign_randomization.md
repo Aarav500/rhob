@@ -119,13 +119,10 @@ board, the same 13 families at 20 seeds per variant and layout seed 0. Its CI ru
 0.604, so the `after` row above, 0.615, has not been reproduced. The companion keeps no
 per-cell AUROCs, so the 38 of 60 below has not been recounted at 20 seeds.)*
 
-Orientation accuracy of the shipped rule on these 60 cells: **63.3%** (38/60). That is
-a figure for the 13 tabular and continuous families, not for the benchmark: on all 33
-families, at 10 seeds per variant, the rule orients 58 of 123 cells as authored (47.1%),
-at or below a coin flip, and 32 of these 60
-([below](#measured-on-all-33-families)). The errors are family-level, not cell-level — a
-family is almost always oriented correctly at every tier or at none — which is expected,
-since the orientation is a property of the family's trace shape:
+Orientation accuracy of the shipped rule: **63.3%** of cells (38/60). The errors are
+family-level, not cell-level — a family is almost always oriented correctly at every
+tier or at none — which is expected, since the orientation is a property of the family's
+trace shape:
 
 | family | drawn sign | before | after | cells oriented |
 | --- | --- | --- | --- | --- |
@@ -142,6 +139,13 @@ since the orientation is a property of the family's trace shape:
 | goal_misgeneralization | -1 | 1.000 | 0.000 | 0/5 |
 | gridworld_camping | +1 | 1.000 | 0.000 | 0/1 |
 | orbit_chirality | -1 | 1.000 | 0.000 | 0/5 |
+
+*(2026-11-27: these 60 cells are the 13 tabular and continuous families, so 63.3% is not
+the benchmark's figure. On all 33 families, at 10 seeds per variant, the rule orients 58
+of 123 cells as authored (47.1%), at or below a coin flip, and 32 of these 60
+([below](#measured-on-all-33-families)). "Almost always" also overstates the table: 7 of
+its 12 multi-tier families are oriented the same way at every tier, and on the full board
+24 of 32.)*
 
 A partial pass over the expensive tier — 10 cells across `mujoco_camping`,
 `mujoco_goal_misgeneralization` and `mujoco_joint_limit_gaming` — measures **before
@@ -192,10 +196,10 @@ every per-cell AUROC in its JSON. The committed measurement is CI run 4601102803
 `54cd63c` (`0ff0d42`): 33 of 33 families, 10 seeds per variant per cell, layout seed 0,
 one draw, from a clean tree under the six numerics pins on an AMD EPYC 7763 runner. Both
 modes read one simulation per cell, the randomized configurations seeing it through the
-flip. Its sampling note puts the null SE of a cell AUROC at n=m=10 at 0.13, so no third
-decimal of a single cell is resolved. The transfer rows train on 6 families and are
-evaluated frozen on 8 held out, at 10 train and 20 test seeds, over 3 trials (trial `k`
-seeds the networks with `k`).
+flip. Its sampling note puts the null SE of a cell AUROC at n=m=10 at 0.13 and says not
+to read the third decimal of any AUROC in the artifact as resolved. The transfer rows
+train on 6 families and are evaluated frozen on 8 held out, at 10 train and 20 test
+seeds, over 3 trials (trial `k` seeds the networks with `k`).
 
 | figure | `before` | `after` |
 | --- | --- | --- |
@@ -209,12 +213,14 @@ seeds the networks with `k`).
 - **The pre-randomization figure does not reproduce to the digit.** With randomization
   off the ensemble's RTS reads 0.993 (trials 0.993, 0.993, 0.994) against the published
   0.994 (`leaderboard/cross_family_transfer.json`, 2026-07-09), 0.001 lower. Trajectory
-  MLP's reads 0.921 against 0.931 (−0.010) and Reward MLP's 0.477 against 0.478. State
-  Divergence's published 0.500 has no counterpart: its frozen model raised on every
-  held-out run, so the row is not applicable. Against the pre-audit board (`c54a8cc`),
-  over the same families and cells, `before` reads an L2 suite mean of 0.7320 against
-  0.7269 and Behavioral Threshold 0.9807 against 0.9753; that board records no sampling
-  block, so its seed count is not recoverable from it.
+  MLP's reads 0.921 against 0.931 (-0.010) and Reward MLP's 0.477 against 0.478. State
+  Divergence's published 0.500 has no counterpart: its frozen model cannot consume the
+  `state_counts` of the six held-out families that emit them and raised on every run of
+  each, and the other two emit none, so no held-out family is scored and the row is not
+  applicable. Against the pre-audit board (`c54a8cc`), over the same families and cells,
+  `before` reads an L2 suite mean of 0.7320 against 0.7269 and Behavioral Threshold
+  0.9807 against 0.9753; that board records no sampling block, so its seed count is not
+  recoverable from it.
 - **The shipped RTS is 0.514** (trials 0.532, 0.499, 0.510), and Trajectory MLP's 0.709
   (0.726, 0.699, 0.701). With the flip on and no orientation inferred (`blind`) the
   ensemble reads 0.375.
@@ -235,7 +241,7 @@ seeds the networks with `k`).
   `novelty_farming` (0.09) and `pettingzoo_free_rider_exploitation` (0.05). Sign
   randomization does not make a dose-response sweep viable.
 - **The orientation rule is at or below a coin flip on the benchmark.** It orients 58 of
-  the 123 cells as authored (0.471). On the 60 tabular and continuous cells it orients 32
+  the 123 cells as authored (0.472). On the 60 tabular and continuous cells it orients 32
   at 10 seeds, against 38 (63.3%) at 20 in the table above, and 24 of the 32 multi-tier
   families are oriented the same way at every tier.
 
@@ -255,21 +261,21 @@ seeds the networks with `k`).
 
 *(2026-11-27: the measurement above replaced the one committed on 2026-08-03
 (`b77d50d`), whose provenance records a dirty tree on Windows under Python 3.13.14, no
-numerics block, and a report merged from 13 per-suite boards. That one read RTS 0.994 →
-0.508 and said the 0.994 "reproduces exactly"; Trajectory MLP 0.907 → 0.706; L2 suite
-mean 0.7229 → 0.5629; best 0.9749 (Behavioral Threshold) → 0.9585 (Trajectory MLP); 55 of
-123 cells oriented; and the same 27 of 32 families with no separation span, with
-`sequence_keyword_stuffing` moving by 0.14. `git show
-0ff0d42^:docs/figures/sign_randomization_impact.md` recovers it. The artifacts account
-for part of the difference. Behavioral Threshold's `before` differs only on
-`sequence_keyword_stuffing`, 0.65, 0.75 and 0.61 at its three tiers then and 0.96, 0.92
-and 0.84 now, which is all of its +0.006; `e7bb3f3` rewrote that family on 2026-09-19.
-Its `after` also differs at `mujoco_joint_limit_gaming`'s 0.90 tier, now oriented the
-other way. Feature Magnitude and Reward-Feature Correlation are not applicable on 22 of
-the 123 cells and Feature Consistency on 59, below the run lengths they declare since
-`f83a152`, where the 2026-08-03 run scored all 123. Beyond that the two runs differ in
-code, platform, Python, packages and pins, and the artifacts do not say what moved the
-other figures.)*
+numerics block, and a report merged from 13 per-suite boards. That one read, `before` to
+`after`, the ensemble's RTS 0.994 to 0.508, and said the 0.994 "reproduces exactly";
+Trajectory MLP's RTS 0.907 to 0.706; L2 suite mean 0.7229 to 0.5629; L2 best 0.9749
+(Behavioral Threshold) to 0.9585 (Trajectory MLP); 55 of 123 cells oriented; and the
+same 27 of 32 families with no separation span, with `sequence_keyword_stuffing` moving
+by 0.14. `git show 0ff0d42^:docs/figures/sign_randomization_impact.md` recovers it. The
+artifacts account for part of the difference. Behavioral Threshold's `before` differs
+only on `sequence_keyword_stuffing`, 0.65, 0.75 and 0.61 at its three tiers then and
+0.96, 0.92 and 0.84 now, which is all of its +0.006; `e7bb3f3` rewrote that family on
+2026-09-19. Its `after` also differs at `mujoco_joint_limit_gaming`'s 0.90 tier, now
+oriented the other way. Feature Magnitude and Reward-Feature Correlation are not
+applicable on 22 of the 123 cells and Feature Consistency on 59, below the run lengths
+they declare since `f83a152`, where the 2026-08-03 run scored all 123. Beyond that the
+two runs differ in code, platform, Python, packages and pins, and the artifacts do not
+say what moved the other figures.)*
 
 ## Scope: what this does not fix
 

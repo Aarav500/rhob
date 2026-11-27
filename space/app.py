@@ -25,8 +25,9 @@ Standings come from ``leaderboard/v5_replicated.json``: 20 independent draws of 
 benchmark, aggregated by ``scripts/aggregate_replication.py`` into percentile-bootstrap
 intervals. They do **not** come from ``leaderboard/v5_leaderboard.json``, which is a
 single unreplicated draw with no intervals (regenerated on 2026-11-19 with behavioural
-sign randomization on, and re-scored on CI on 2026-11-26, ``03d978e``, with N/A cells
-recorded as null); it is deliberately not rendered anywhere on this page.
+sign randomization on, re-scored on CI on 2026-11-26, ``03d978e``, with N/A cells
+recorded as null, and re-drawn on CI on 2026-11-27 under the numerics pins,
+``b93c351``); it is deliberately not rendered anywhere on this page.
 
 The cross-family transfer (RTS) panel is a **separate** experiment and is not covered by
 that replication. It is also the one place where the pre-audit sign convention still had
@@ -108,8 +109,8 @@ _CURRENT_TRANSFER_FILE = _LEADERBOARD_DIR / Path(CURRENT_TRANSFER_ARTIFACT).name
 
 #: The measured before/after sign-randomization artifact, which is where this page's
 #: transfer numbers come from when the current transfer artifact above is absent.
-#: Written by ``scripts/measure_sign_randomization.py``. The
-#: Space deploy step stages it next to the app (see .github/workflows/deploy_space.yml).
+#: Written by ``scripts/measure_sign_randomization.py``; the Space deploy step stages it
+#: next to the app (see .github/workflows/deploy_space.yml).
 _CANDIDATE_FIGURE_DIRS = [
     _HERE / "figures",  # deployed Space
     _HERE.parent / "docs" / "figures",  # local dev, full repo clone

@@ -21,8 +21,10 @@ to 19 (`b93c351`), and those figures supersede the 2026-11-26 ones for both boar
 Bayesian Online Changepoint Detection's HVTA figures were those of a constant score and
 are re-scored on HVTA's primary draw and its three other channels, though not on its three
 replicate seed draws. The sign-randomization measurement of 2026-08-03 was re-run at
-`54cd63c` under the pins (`0ff0d42`): with randomization off its RTS reads 0.993, not the
-published 0.994, and with it on 0.514, not 0.508. See the 2026-11-27 entries.)*
+`54cd63c` under the pins (`0ff0d42`): with randomization off the Top-5 ensemble's RTS
+reads 0.993, not the published 0.994, and in the shipped configuration (randomization on,
+orientation inferred) 0.514, where the 2026-08-03 run read 0.508. See the 2026-11-27
+entries.)*
 
 ### Fixed (2026-11-27): the layout seed never reached the families, so the 20 draws all ran at layout 0
 
@@ -201,13 +203,14 @@ AuthenticAMD runner and the draws on 12 GenuineIntel and 8 AuthenticAMD ones; an
 `docs/figures/sign_randomization_impact.json` (`0ff0d42`, at `54cd63c`, on an
 AuthenticAMD runner). One draw was scored on both vendors, replicate 0 on an Intel Xeon
 6975P-C and the board on an AMD EPYC 9V74, and the two agree in every cell, which needed
-`continuous_camping`'s frozen camper (the next entry). Fitted transfer rows agree across
-vendors too: the sign-randomization measurement, on an AMD EPYC 7763, repeats trials 0 to
-2 of the v5 transfer file's two L2 rows, and their train and transfer AUROCs, as both
-files store them to three decimals, are the Intel runs' (the sign-randomization entry
-below). A figure from a pinned run need not match an unpinned run of the same code bit for
-bit, so quote each figure with the environment it came from. `tests.yml` sets none of the
-pins.
+`continuous_camping`'s frozen camper (the next entry). The two L2 transfer rows agree
+across vendors too: the sign-randomization measurement, on an AMD EPYC 7763, repeats
+trials 0 to 2 of the v5 transfer file, and the two rows' train and transfer AUROCs, as
+both files store them to three decimals, are the Intel runs'. Reward MLP, measured there
+in `before` only, differs in trial 2's transfer AUROC, 0.483 against 0.473 (the
+sign-randomization entry below). A figure from a pinned run need not match an unpinned
+run of the same code bit for bit, so quote each figure with the environment it came from.
+`tests.yml` sets none of the pins.
 
 Every artifact's `provenance` block gains `numerics`: `env` (the six variables, null when
 unset), `cpu` (vendor, model, family, model number and stepping, and the ISA flags that
@@ -280,9 +283,13 @@ entry). The cross-family transfer artifact was measured three times under the pi
 time on an Intel runner: `9c038f6` (at `eaa75f8`) and `7d34989` (at `d85a60c`) trained the
 camper, which on Intel gives the frozen weights, and `02c0475` (at `54cd63c`) loads them.
 `continuous_camping` being a training family, all three use the frozen camper's weights,
-and their results are identical. The legacy scripts that build the v1 pairs
-(`scripts/validate_pair_0*.py`, `scripts/generate_eval_data.py`) still train their own
-campers.
+and their results are identical. *(The sign-randomization measurement of 2026-08-03
+(`b77d50d`, unpinned, on Windows) also holds the camper its runner trained. Its re-run
+(`0ff0d42`, at `54cd63c`, on an AMD EPYC 7763) loads the frozen weights, and its `after`
+transfer trials 0 to 2 for the two L2 rows, whose pooled fits include
+`continuous_camping`, equal the Intel runs'; see the sign-randomization entry below.)*
+The legacy scripts that build the v1 pairs (`scripts/validate_pair_0*.py`,
+`scripts/generate_eval_data.py`) still train their own campers.
 
 ### Changed (2026-11-27): both boards re-drawn under the pins, the 20 draws at layout seeds 0 to 19
 
@@ -448,12 +455,13 @@ single-draw artifact's note said 0.19 at n=m=5 whatever its `n_seeds`, which is 
 only for the board's 5 seeds; the board's note does not change.
 `cross_family_transfer_v5.json` as first committed, in `9c038f6`, was written before
 `d85a60c` and read 0.19; the two runs since (`7d34989`, `02c0475`) read "0.13 (0.09 at
-the held-out cells' n=m=20)". The sign-randomization report of 2026-08-03 had no sampling
-note; its re-run (`0ff0d42`) gives 0.13 at its own n=m=10. Under the CI pins, with torch
-on one thread, the published design took 5m23s on a 4-core machine. The documented 1–2 h
-came mostly from torch's default thread count on a busy machine, where one trial's
-Trajectory MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows
-from re-simulating runs. Set `OMP_NUM_THREADS=1` when running it by hand.
+the held-out cells' n=m=20)". The sign-randomization measurement of 2026-08-03 had no
+sampling note; the JSON of its re-run (`0ff0d42`) gives 0.13 at its own n=m=10
+(`design.sampling.note`). Under the CI pins, with torch on one thread, the transfer
+script's published design took 5m23s on a 4-core machine. The documented 1–2 h came
+mostly from torch's default thread count on a busy machine, where one trial's Trajectory
+MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows from
+re-simulating runs. Set `OMP_NUM_THREADS=1` when running it by hand.
 `scripts/plot_v5_results.py` plots the v5 file, never the 2026-07-09 one, and labels a
 null transfer AUROC "n/a" instead of drawing a bar. The Space renders the v5 file when it
 is present, and otherwise the `after` configuration of `sign_randomization_impact.json`,
@@ -539,7 +547,7 @@ below changes what it records. The two side by side:
 | L2 best, `after` (Trajectory MLP) | 0.9585 | 0.9610 |
 | Behavioral Threshold, `before` / `after` | 0.975 / 0.459 | 0.981 / 0.479 |
 | Centroid Tracker, `before` / `after` | 0.964 / 0.353 | 0.968 / 0.358 |
-| Cells the shipped orientation rule orients as authored | 55/123 (0.447) | 58/123 (0.471) |
+| Cells the shipped orientation rule orients as authored | 55/123 (0.4472) | 58/123 (0.4715) |
 
 - **The pre-randomization RTS no longer reproduces to the digit.** Against the published
   0.994 (`leaderboard/cross_family_transfer.json`, 2026-07-09), `before` reads 0.993,
@@ -548,8 +556,9 @@ below changes what it records. The two side by side:
   it does not. Trajectory MLP's `before` reads 0.921 against the published 0.931
   (−0.010), and did not reproduce on 2026-08-03 either (0.907, −0.024); Reward MLP reads
   0.477 against 0.478, as it did. State Divergence's published 0.500 has no counterpart:
-  its frozen model raised on every held-out run, so the row is N/A (the entry above),
-  where the 2026-08-03 run recorded the imputed 0.500.
+  its frozen model raised on every run of the six held-out families that emit
+  `state_counts`, and the other two emit none, so the row is N/A (the entry above), where
+  the 2026-08-03 run recorded the imputed 0.500.
 - **The shipped RTS is 0.514, 0.006 above 0.508 as stored** (the means of the stored
   trials differ by 0.005), over trials of 0.532, 0.499 and 0.510; Trajectory MLP's is
   0.709 against 0.706 (0.726, 0.699, 0.701). With the flip on and no orientation inferred
@@ -574,13 +583,16 @@ below changes what it records. The two side by side:
   `mujoco_joint_limit_gaming` @0.9, now oriented the other way (1.0, where it read 0.0).
   Feature Magnitude and Reward-Feature Correlation are N/A on 22 of the 123 cells and
   Feature Consistency on 59, below their declared run lengths (`f83a152`); the 2026-08-03
-  run scored all 123 for each. The 2026-08-03 file keeps no per-cell AUROCs, and the two
+  run, before those declarations, scored all 123 for each, the short-horizon cells at the
+  constant `f83a152` describes. Apart from Behavioral Threshold's 123 cells in its
+  `difficulty_axis` (to two decimals) and up to 20 differing cells per mode pair for four
+  detectors in `config_deltas`, the 2026-08-03 file keeps no per-cell AUROCs, and the two
   runs differ in code, platform, Python, package set and pins, so the artifacts do not say
   what moved the other figures.
 - **The difficulty knob is unchanged.** 27 of the 32 multi-tier families still show no
   separation span at all (0.000), and the same five move, `sequence_keyword_stuffing` by
   0.12 rather than 0.14.
-- **The orientation rule orients 58 of 123 cells (0.471) as authored,** where the
+- **The orientation rule orients 58 of 123 cells (0.4715) as authored,** where the
   2026-08-03 run's oriented 55: `sequence_keyword_stuffing` 3 of 3 rather than 1, and
   `mujoco_joint_limit_gaming` 1 of 3 rather than 0. By family group: tabular 19 of 31
   (0.613), continuous 2-D 13 of 29, MuJoCo 5 of 13, PettingZoo 5 of 15, RLHF 6 of 20 and
@@ -596,12 +608,21 @@ below changes what it records. The two side by side:
   and 0.532, 0.499 and 0.510. The v5 file was measured three times, each on an Intel
   runner (the transfer entry above), and this run on AMD. With replicate 0 against the
   board (the re-draw entry above), that is a second cross-vendor agreement under the pins,
-  this one for fitted transfer rows. Reward MLP, measured here in `before` only, matches
-  the v5 file's trials 0 and 1 and trial 2's train AUROC; trial 2's transfer AUROC reads
-  0.483 against 0.473. `before` is not the v5 file's configuration, though the flip never
-  reaches an L0 detector, and neither artifact says which difference moved it.
+  this one for the two L2 transfer rows. Reward MLP, measured here in `before` only,
+  matches the v5 file's trials 0 and 1 and trial 2's train AUROC; trial 2's transfer AUROC
+  reads 0.483 against 0.473. `before` is not the v5 file's configuration, though the flip
+  never reaches an L0 detector, and neither artifact says which difference moved it.
 - **The Space** renders the v5 file, which is committed. As the fallback, the re-measured
   file would render without the pre-declaration label or its note (the entry above).
+- **Two sentences of the report, re-rendered from the same JSON.** The `.md` the run
+  committed said its transfer trials "are the first 3" of the v5 file's, which Reward
+  MLP's trial 2 contradicts, and printed 58/123 as 0.471, rounding the stored 0.4715 a
+  second time. `scripts/measure_sign_randomization.py` now says the trials share their
+  seeds with the v5 file's first three, a design statement, and prints each ratio from its
+  counts (0.472). The `.md` was re-rendered from the unchanged `0ff0d42` JSON with
+  `render_markdown`; those two lines are the whole difference, and
+  `tests/test_v3/test_sign_randomization_artifact.py` now checks that the committed `.md`
+  is exactly what the generator renders from the JSON.
 
 ### Removed (2026-11-27): the v3.2 tables, their two scripts, and `rhob submit` writing the tracked board
 

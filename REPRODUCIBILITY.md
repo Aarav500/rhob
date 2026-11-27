@@ -99,7 +99,7 @@ with sha256 hashes, including torch from PyPI. It does not install on macOS, Win
 or another Python. It is the stack the 2026-11-15 verification run (43679157068) installed
 and passed every slow screen on. `admission/admission_ledger.json`, regenerated on
 2026-11-19 (run 44447220658), `leaderboard/v5_leaderboard.json` and the 20 draws behind
-`leaderboard/v5_replicated.json`, re-drawn on 2026-11-27 (run 46011019246), and
+`leaderboard/v5_replicated.json`, re-drawn on 2026-11-27 (run 46011019246),
 `leaderboard/cross_family_transfer_v5.json`, last written on 2026-11-27 (run 46011034429),
 and `docs/figures/sign_randomization_impact.json`, regenerated on 2026-11-27 (run
 46011028034), record its versions in their provenance blocks.
@@ -321,16 +321,19 @@ measured. That measurement scores one set of rollouts with randomization off and
 as regenerated on CI on 2026-11-27 (run 46011028034 at 54cd63c, committed in 0ff0d42) it
 reads Behavioral Threshold 0.981 to 0.479 and Centroid Tracker 0.968 to 0.358: on fixed
 rollouts the shipped configuration takes 0.502 and 0.610 off them, at least as much as
-the boards show (0.463 and 0.606), while the four L2 detectors that read only a
-magnitude are identical in both modes on every cell scored in both, and its L2 suite
-mean falls from 0.7320 to 0.5739. The exception is
-`sequence_keyword_stuffing`, where detectors that do not read the sign moved too (L0
-detectors, Angular Momentum, Feature Magnitude), so that family's change is not the
-sign's. In the re-draw `continuous_camping`, the family whose camper is now frozen, moved
-at L0, L2 and L3 alike, but Behavioral Threshold and Centroid Tracker only from 0.96 to
-0.95 there. State Divergence rose from 0.621 to 0.982 only because its
-not-applicable families are now excluded: the 25 that emit no `state_counts`, and
-`continuous_camping`, whose 40 episodes are below its declared `min_episodes` (Figure 7b).
+the boards show (0.463 and 0.606), while the four L2 detectors that read only a magnitude
+are identical in both modes on every cell scored in both, and its L2 suite mean falls
+from 0.7320 to 0.5739. The exception is `sequence_keyword_stuffing`, where detectors that
+do not read the sign moved too (L0 detectors, Angular Momentum, Feature Magnitude), so
+that family's change is not the sign's. On `mujoco_joint_limit_gaming` L0 detectors moved
+as well, between the boards of 2026-07-17 and 2026-11-19, but Angular Momentum, the one
+magnitude-only L2 detector scored there, did not, and the measurement shows Behavioral
+Threshold's fall there, 1.000 to 0.333, on fixed rollouts too. In the re-draw
+`continuous_camping`, the family whose camper is now frozen, moved at L0, L2 and L3 alike,
+but Behavioral Threshold and Centroid Tracker only from 0.96 to 0.95 there. State
+Divergence rose from 0.621 to 0.982 only because its not-applicable families are now
+excluded: the 25 that emit no `state_counts`, and `continuous_camping`, whose 40 episodes
+are below its declared `min_episodes` (Figure 7b).
 
 **The L0 row holds out the six families the ledger marks DEGENERATE**, and only the L0
 row. `distributional_shift`, `monitored_sandbagging`, `orbit_chirality`,
@@ -627,7 +630,11 @@ under the same lock and pins, on an AMD runner. Its trial `k` seeds the networks
 first three, and Trajectory MLP's and the ensemble's train and transfer AUROCs are
 identical on all three, to the three decimals both files record (transfer: Trajectory MLP
 0.726, 0.699, 0.701; the ensemble 0.532, 0.499, 0.510). Over its 3 trials it reads RTS
-0.709 and 0.514, against 0.700 and 0.512 over this file's 5.
+0.709 and 0.514, against 0.700 and 0.512 over this file's 5. Reward MLP, which the
+measurement scores only with randomization off (a flag that does not reach an L0
+detector's input: the flip multiplies only `behav_trace`, which `restrict` withholds
+below L2), agrees on all three train AUROCs and on two of its three transfer AUROCs; on
+trial 2 it reads 0.483 against this file's 0.473, a difference neither artifact explains.
 
 **The 2026-07-09 artifact** (historical, `leaderboard/cross_family_transfer.json`,
 written by the script at d872916, before behavioral sign randomization and the
@@ -647,9 +654,9 @@ is isolated in the sign-randomization measurement above, which scores the same d
 with randomization off and on: off, the ensemble's RTS reads 0.993 and Trajectory MLP's
 0.921, against 0.994 and 0.931 here, so the pre-randomization figures do not reproduce
 exactly (−0.001 and −0.010); in the shipped configuration they read 0.514 and 0.709.
-*(The measurement
-of 2026-08-03 that 0ff0d42 replaced read 0.994 to 0.508 for the ensemble and 0.907 to
-0.706 for Trajectory MLP, and reported the ensemble's 0.994 as reproducing exactly.)*
+*(The measurement of 2026-08-03 that 0ff0d42 replaced read 0.994 to 0.508 for the
+ensemble and 0.907 to 0.706 for Trajectory MLP, and reported the ensemble's 0.994 as
+reproducing exactly.)*
 
 **What this experiment does not establish.** All 14 train and test families were
 written by the same authors under the same construction recipe, and all share one
@@ -789,10 +796,10 @@ admission ledger), `both` (the two), `replicated` and `redraw` (the 20-draw boar
 [Table 2](#table-2-cross-family-transfer-auroc-section-63)) and `signrand`
 (`docs/figures/sign_randomization_impact.json` and `.md`, from
 `python scripts/measure_sign_randomization.py ci`, the published design end to end in
-one job; last run on 2026-11-27, run 46011028034 at 54cd63c, committed in 0ff0d42, which
-took 3,333 s on an AMD EPYC 7763 runner, 2,474 of them the board, and replaced the
-measurement of 2026-08-03, made on Windows from a dirty tree). Every job installs the
-hashed lock the nightly physics screen installs
+one job; last run on 2026-11-27 (run 46011028034 at 54cd63c, committed in 0ff0d42),
+in 3,333 s on an AMD EPYC 7763 runner, 2,474 of them the board; it replaced the
+measurement of 2026-08-03, made on Windows under Python 3.13.14 from a dirty tree).
+Every job installs the hashed lock the nightly physics screen installs
 (`requirements/ci-admission-linux-py312.txt`) and runs under the numerics pins
 ([Environment Setup](#environment-setup)). A `calibrate` job derives the run's
 calibrations once and saves them under the run's id and attempt, and every scoring job
@@ -1884,8 +1891,9 @@ could test for it.
    - `requirements/ci-admission-linux-py312.txt` is the nightly physics screen's stack,
      exact and hashed, for Linux x86_64 and CPython 3.12. The admission ledger,
      regenerated on 2026-11-19, `leaderboard/v5_leaderboard.json` and the 20 draws behind
-     `leaderboard/v5_replicated.json`, re-drawn on 2026-11-27, and
-     `leaderboard/cross_family_transfer_v5.json`, last written on 2026-11-27, record its
+     `leaderboard/v5_replicated.json`, re-drawn on 2026-11-27,
+     `leaderboard/cross_family_transfer_v5.json`, last written on 2026-11-27, and
+     `docs/figures/sign_randomization_impact.json`, regenerated on 2026-11-27, record its
      versions.
    - `requirements-lock.txt` lists the direct dependencies **found present on
      2026-07-29**, not a certified provenance chain, and it pins nothing transitive. The

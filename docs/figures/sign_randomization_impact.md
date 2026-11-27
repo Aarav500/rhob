@@ -52,7 +52,7 @@ SD is the spread across the detectors at the level, not a confidence interval: t
 
 ## Cross-family transfer (RTS)
 
-Train on 6 families, evaluate frozen on 8 held out. `n_seeds_train=10`, `n_seeds_test=20`, `n_trials=3`: trial `k` seeds the networks with `k`, as `scripts/cross_family_transfer.py` does, so these trials are the first 3 of the ones in `leaderboard/cross_family_transfer_v5.json` (the +/- across model inits is reported in the JSON, not here).
+Train on 6 families, evaluate frozen on 8 held out. `n_seeds_train=10`, `n_seeds_test=20`, `n_trials=3`: trial `k` seeds the networks with `k`, as `scripts/cross_family_transfer.py` does, so these trials share their seeds with the first 3 in `leaderboard/cross_family_transfer_v5.json`. Sharing a seed is the design, not a measurement: whether a trial reproduces there is checked against that file, not assumed here (the +/- across model inits is reported in the JSON, not here).
 
 The L0 and L1 rows are measured in `before` only, and marked `—` elsewhere rather than re-run: `restrict()` nulls `behav_trace` below L2, so their cells are bit-identical in both modes. That is not taken on trust -- the invariance table at the end of this file checks it cell by cell on the full board. `N/A` is a row no held-out family could be scored for; it is not 0.5.
 
@@ -97,7 +97,7 @@ Published (2026-07-09, pre-randomization) RTS against this run's `before` RTS:
 
 Of the **32** measured families with more than one tier, **27** have a separation span of exactly **0.000**. The families where the knob does move anything: `proxy_correlation_gaming` (0.310), `continuous_camping` (0.290), `sequence_keyword_stuffing` (0.120), `novelty_farming` (0.090), `pettingzoo_free_rider_exploitation` (0.050).
 
-Cells oriented as the family's authored coordinate: **58/123** (0.471) — the shipped orientation rule is at or below a coin flip on the families measured here. Split by family group, because the 63.3% in `docs/l2_sign_randomization.md` (38 of 60) was measured on the tabular and continuous families alone:
+Cells oriented as the family's authored coordinate: **58/123** (0.472) — the shipped orientation rule is at or below a coin flip on the families measured here. Split by family group, because the 63.3% in `docs/l2_sign_randomization.md` (38 of 60) was measured on the tabular and continuous families alone:
 
 | family group | cells oriented | accuracy | mean AUROC `after` |
 | --- | --- | --- | --- |

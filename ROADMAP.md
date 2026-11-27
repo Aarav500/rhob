@@ -278,11 +278,11 @@ decision.
   `02c0475`, with the same results); the sign-randomization measurement done (2026-11-27,
   CI run 46011028034 at `54cd63c`, `0ff0d42`).**
   `leaderboard/cross_family_transfer.json` and the 2026-08-03
-  [docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)
-  (`b77d50d`) were scored before `f83a152`. The held-out families of both transfer runs
-  all run at least 100 episodes, and `continuous_camping` (40) is among their six training
-  families, though the Reward MLP and State Divergence fits, it turned out, already dropped
-  its runs.
+  `docs/figures/sign_randomization_impact.json` (`git show
+  b77d50d:docs/figures/sign_randomization_impact.json`; the file now holds the re-run)
+  were scored before `f83a152`. The held-out families of both transfer runs all run at
+  least 100 episodes, and `continuous_camping` (40) is among their six training families,
+  though the Reward MLP and State Divergence fits, it turned out, already dropped its runs.
   The transfer has since been measured again under the declarations, in the shipped
   configuration, in `leaderboard/cross_family_transfer_v5.json` (CI run 45987934132 at
   `eaa75f8`, committed in `9c038f6`, and run again at `d85a60c`, run 45995248987,
@@ -297,27 +297,30 @@ decision.
   `0ff0d42`), on all 33 families at the published design, on an AMD runner. In its
   `after` configuration, over three trials, the ensemble transfers at 0.514 (0.532, 0.499,
   0.510) and Trajectory MLP at 0.709 (0.726, 0.699, 0.701); those three trials, train
-  AUROCs included, are trials 0 to 2 of `cross_family_transfer_v5.json` exactly, which ran
-  on Intel. With the sign not randomized (`before`) the ensemble reads 0.993 and
-  Trajectory MLP 0.921, against the published 0.994 and 0.931, so the pre-randomization
-  figures no longer reproduce to the digit. Its L2 ladder, with Feature Consistency not
-  applicable on 59 of the 123 cells and Feature Magnitude and Reward-Feature Correlation
-  on 22, has a mean of 0.7320 before and 0.5739 after, and a best of 0.9807 (Behavioral
-  Threshold) before and 0.9610 (Trajectory MLP) after. Over the cells scored in both
-  modes its invariance check finds every one identical: 123 of 123 for Angular Momentum
-  and True Reward Oracle, 101 of 101 for Feature Magnitude, Reward-Feature Correlation and
-  Reward CUSUM (L0), 64 of 64 for Feature Consistency and 31 of 31 for State Coverage Rate
-  (L1), with no cell scored in one mode and not the other. The two L2 detectors that read
-  the sign, Behavioral Threshold and Centroid Tracker, fall from 0.981 and 0.968 to 0.479
-  and 0.358, while the four that read only a magnitude do not move, so the finding that
-  the sign convention carried the pre-audit L2 result stands on the re-measured numbers
+  AUROCs included, agree with trials 0 to 2 of `cross_family_transfer_v5.json`, which ran
+  on Intel, to the three decimals both files record. With the sign not randomized
+  (`before`) the ensemble reads 0.993 against the published 0.994, so it no longer
+  reproduces to the digit, as it did in the 2026-08-03 run; Trajectory MLP reads 0.921
+  against the published 0.931, which the 2026-08-03 run, at 0.907, did not reproduce
+  either. Its L2 ladder, with Feature Consistency not applicable on 59 of the 123 cells
+  and Feature Magnitude and Reward-Feature Correlation on 22, has a mean of 0.7320 before
+  and 0.5739 after, and a best of 0.9807 (Behavioral Threshold) before and 0.9610
+  (Trajectory MLP) after. Over the cells scored in both modes its invariance check finds
+  every one identical: 123 of 123 for Angular Momentum and True Reward Oracle, 101 of 101
+  for Feature Magnitude, Reward-Feature Correlation and Reward CUSUM (L0), 64 of 64 for
+  Feature Consistency and 31 of 31 for State Coverage Rate (L1), with no cell scored in
+  one mode and not the other. The two L2 detectors that read the sign, Behavioral
+  Threshold and Centroid Tracker, fall from 0.981 and 0.968 to 0.479 and 0.358, while the
+  four that read only a magnitude do not move, so the finding that the sign convention
+  carried the pre-audit L2 result stands on the re-measured numbers
   ([docs/figures/sign_randomization_impact.md](docs/figures/sign_randomization_impact.md)).
   *(2026-11-27: until the re-run this item compared against the 2026-08-03 measurement,
   `b77d50d`: 0.508 and 0.706 over its three trials (What changed), an L2 ladder of 0.7229
   before and 0.5629 after that averaged in the short-horizon fallbacks of those three L2
   detectors, and an invariance check of 123 of 123 cells per detector that counted the
-  cells below their declared horizons and those of Reward CUSUM and State Coverage Rate
-  too.)* The transfer script now applies the benchmark's not-applicable rule,
+  cells below their declared horizons and Reward CUSUM's too, and all 92 cells State
+  Coverage Rate cannot score, 88 of them in families that provide no state counts.)* The
+  transfer script now applies the benchmark's not-applicable rule,
   `rhob.v3.benchmark.not_applicable_reason`, outside the harness, and the
   sign-randomization script measures transfer through the transfer script's own code
   (`827aec9`, `f0caa3d`). `scripts/cross_family_transfer.py` applies the rule to the

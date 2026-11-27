@@ -92,8 +92,10 @@ one design on two vendors' runners: its trial `k` seeds the networks with `k`, a
 the first 3 of `leaderboard/cross_family_transfer_v5.json` (run 46011034429, on an Intel
 runner), and Trajectory MLP's and the ensemble's train and transfer AUROCs agree on all
 three, to the three decimals both files record. Reward MLP is scored there only with
-randomization off, so it is not like for like: its train AUROCs agree on all three trials
-and its transfer AUROC on two, trial 2 reading 0.483 there and 0.473 in the v5 file.)*
+randomization off, which does not reach an L0 detector's input (the flip multiplies only
+`behav_trace`, which `restrict` withholds below L2): its train AUROCs agree on all three
+trials and its transfer AUROC on two, trial 2 reading 0.483 there and 0.473 in the v5
+file, a difference neither artifact explains.)*
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|
