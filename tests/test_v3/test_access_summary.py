@@ -114,14 +114,19 @@ def test_max_is_the_best_detector_not_the_mean():
 def test_committed_v5_board_ladder(v5_results):
     """Pin the published ladder on the real, committed board.
 
-    Means and maxima on ``leaderboard/v5_leaderboard.json`` as re-scored on CI on
-    2026-11-26 (33 families, 123 cells). Every detector is ``null`` on a family that does
+    Means and maxima on ``leaderboard/v5_leaderboard.json`` as re-drawn on CI on
+    2026-11-27 (``b93c351``: under the numerics pins, with the frozen
+    ``continuous_camping`` camper; 33 families, 123 cells). Every detector is ``null`` on a family that does
     not emit its channel (each L1 detector has 25) and on a family that runs fewer
     episodes than the ``min_episodes`` it declares
     (``test_no_detector_is_scored_below_its_declared_horizon``). The six degenerate-proxy
     families are held out of L0, which is what makes L0 the negative control the docs
     describe rather than a mean padded with cells that could not have come out any other
     way. L3 has exactly one member after the Perfect Feature Oracle duplicate is removed.
+
+    The board of 2026-11-26 (``f83a152``, unpinned, its camper trained on the runner)
+    read L0 0.4834 and L2 0.5771 (best 0.943, Trajectory MLP); six detectors' overall
+    AUROCs moved in the re-draw, none by more than 0.013 (Reward KDE, 0.495 to 0.482).
 
     The board of 2026-11-19 (``52656cb``) read L0 0.4876 (best 0.5351, Reward CUSUM), L1
     0.5701 (best 0.927, State Divergence) and L2 0.5716 (best 0.943, Trajectory MLP). It
@@ -145,7 +150,7 @@ def test_committed_v5_board_ladder(v5_results):
 
     assert [s[lv].n_detectors for lv in ACCESS_LEVELS] == [13, 8, 7, 1]
 
-    assert s["L0"].mean_auroc == pytest.approx(0.4834, abs=5e-4)
+    assert s["L0"].mean_auroc == pytest.approx(0.4835, abs=5e-4)
     assert s["L1"].mean_auroc == pytest.approx(0.5789, abs=5e-4)
     assert s["L2"].mean_auroc == pytest.approx(0.5771, abs=5e-4)
     assert s["L3"].mean_auroc == pytest.approx(0.9830, abs=5e-4)
@@ -180,7 +185,7 @@ def test_committed_v5_board_ladder(v5_results):
     assert (s["L1"].best_detector, s["L1"].max_auroc) == ("State Divergence", pytest.approx(0.982))
     assert (s["L2"].best_detector, s["L2"].max_auroc) == (
         "Trajectory MLP",
-        pytest.approx(0.943),
+        pytest.approx(0.944),
     )
     assert (s["L3"].best_detector, s["L3"].max_auroc) == (
         "True Reward Oracle",
@@ -191,10 +196,11 @@ def test_committed_v5_board_ladder(v5_results):
     # regeneration, was 0.008 (0.983 against Behavioral Threshold's 0.975, a figure that
     # depended on the behavioural feature's fixed sign). With the sign randomized,
     # Behavioral Threshold reads 0.512, the best L2 detector is the label-fitted
-    # Trajectory MLP, and the gap is 0.040 on this single draw. The best L1 detector is
+    # Trajectory MLP, and the gap is 0.039 on this single draw (0.040 on the 2026-11-26
+    # board, whose Trajectory MLP read 0.943 before the pins). The best L1 detector is
     # within 0.001 of the oracle, but over the 31 cells of the 7 families it can score,
     # against the oracle's 123, so the two maxima are not like for like.
-    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.040, abs=5e-4)
+    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.039, abs=5e-4)
     assert s["L3"].max_auroc - s["L1"].max_auroc == pytest.approx(0.001, abs=5e-4)
 
     assert s["L3"].excluded_duplicates == [("Perfect Feature Oracle", "Behavioral Threshold")]
@@ -206,33 +212,35 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     Holding families out forces the L0 rung to be computed family-weighted (the artifact
     records AUROCs per family, not per cell), and a re-weighting is not a finding. Both
     figures below are family-weighted, so the difference between them is the exclusion
-    and nothing else: **0.4877 with the degenerate families, 0.4834 without**, an
-    exclusion worth 0.0043 (0.004340 from unrounded values). For scale, the re-weighting
-    on its own is worth 0.0004 -- family-weighted over every family each detector has a
-    value on is 0.4877 against the cell-weighted 0.4881 the un-excluded ladder reports
-    (0.000363 unrounded).
+    and nothing else: **0.4871 with the degenerate families, 0.4835 without**, an
+    exclusion worth 0.0036 (0.003590 from unrounded values). For scale, the re-weighting
+    on its own is worth 0.0001 -- family-weighted over every family each detector has a
+    value on is 0.4871 against the cell-weighted 0.4872 the un-excluded ladder reports
+    (0.000090 unrounded).
 
-    On the board of 2026-11-19 the same three figures were 0.4876, 0.4898 and 0.4903: an
+    On the board of 2026-11-26 (``f83a152``, before the re-draw under the numerics pins)
+    the same three figures were 0.4877, 0.4834 and 0.4881: an exclusion of 0.0043 against
+    a re-weighting of 0.00036. On the board of 2026-11-19 the same three figures were 0.4876, 0.4898 and 0.4903: an
     exclusion of 0.0023 against a re-weighting of 0.0005. On the board before that they
     were 0.4866, 0.4895 and 0.4898: 0.0029 against 0.00036.
     """
     excluded = summarize_access_levels(
         v5_results, degenerate_families=DEGENERATE_FAMILIES
     )["L0"]
-    assert excluded.mean_auroc == pytest.approx(0.4834, abs=5e-4)
-    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4877, abs=5e-4)
+    assert excluded.mean_auroc == pytest.approx(0.4835, abs=5e-4)
+    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4871, abs=5e-4)
 
     cell_weighted = summarize_access_levels(v5_results)["L0"]
-    assert cell_weighted.mean_auroc == pytest.approx(0.4881, abs=5e-4)
+    assert cell_weighted.mean_auroc == pytest.approx(0.4872, abs=5e-4)
     assert cell_weighted.excluded_families == []
     assert cell_weighted.mean_auroc_including_degenerate is None
 
-    # The exclusion moves L0 further than the re-weighting does: 0.0043 against 0.0004,
-    # about twelve times.
+    # The exclusion moves L0 further than the re-weighting does: 0.0036 against 0.0001,
+    # about forty times.
     exclusion = abs(excluded.mean_auroc - excluded.mean_auroc_including_degenerate)
     reweighting = abs(excluded.mean_auroc_including_degenerate - cell_weighted.mean_auroc)
-    assert exclusion == pytest.approx(0.0043, abs=1e-4)
-    assert reweighting == pytest.approx(0.0004, abs=1e-4)
+    assert exclusion == pytest.approx(0.0036, abs=1e-4)
+    assert reweighting == pytest.approx(0.0001, abs=1e-4)
     assert exclusion > 10 * reweighting
 
 
@@ -366,7 +374,7 @@ def test_markdown_reports_mean_max_and_the_exclusion(v5_results):
     md = render_access_summary_md(summarize_access_levels(v5_results))
     assert "| Access level | Detectors | Mean AUROC | SD across detectors | Best AUROC | Best detector |" in md
     # Mean and max are both present on the same row, and they differ at L2.
-    assert "| L2 | 7 | 0.5771 | 0.1639 | 0.9430 | Trajectory MLP |" in md
+    assert "| L2 | 7 | 0.5771 | 0.1644 | 0.9440 | Trajectory MLP |" in md
     assert "| L3 | 1 | 0.9830 | 0.0000 | 0.9830 | True Reward Oracle |" in md
     assert "**Perfect Feature Oracle** is a relabelled duplicate of **Behavioral Threshold**" in md
     assert "not a confidence interval" in md
@@ -383,7 +391,7 @@ def test_markdown_states_the_l0_exclusion_and_what_it_cost(v5_results):
     md = render_access_summary_md(
         summarize_access_levels(v5_results, degenerate_families=DEGENERATE_FAMILIES)
     )
-    assert "| L0 | 13 | 0.4834 |" in md
+    assert "| L0 | 13 | 0.4835 |" in md
     assert "L0 is computed over 27 families" in md
     assert (
         "Gradient Reversal, Max Plateau, Reward CUSUM and Reward MLP over 20 of them; "
@@ -394,7 +402,7 @@ def test_markdown_states_the_l0_exclusion_and_what_it_cost(v5_results):
     assert "6 are held out" in md
     for family in DEGENERATE_FAMILIES:
         assert f"**{family}**" in md
-    assert "Putting them back would read 0.4877 instead of 0.4834" in md
+    assert "Putting them back would read 0.4871 instead of 0.4835" in md
     assert "held out of L0 only" in md
 
 
@@ -446,4 +454,4 @@ def test_the_published_ladder_was_generated_with_the_exclusion(v5_results):
     )
     # Named explicitly as well, because this row is the one the audit found wrong and
     # an equality assertion alone would not say which number matters.
-    assert "| L0 | 13 | 0.4834 | 0.0324 | 0.5474 | Reward CUSUM |" in published
+    assert "| L0 | 13 | 0.4835 | 0.0328 | 0.5474 | Reward CUSUM |" in published

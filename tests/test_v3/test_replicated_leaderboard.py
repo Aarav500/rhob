@@ -350,22 +350,32 @@ def test_the_level_mean_margin_is_reported_alongside_the_exclusion(tmp_path):
 
 
 @pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
-def test_the_committed_l0_control_holds_per_detector_but_its_max_does_not():
-    """Regression guard for the reading that put a selection-biased 0.548 on the page."""
+def test_the_committed_l0_control_has_one_below_chance_exception_and_its_max_does_not_hold():
+    """Regression guard for the reading that put a selection-biased 0.548 on the page.
+
+    On the 2026-08-04 draws (layout 0 only) every one of the 13 L0 detectors had an
+    interval containing 0.500. On the re-draw of 2026-11-27 (``b93c351``: real layouts,
+    the numerics pins, the frozen ``continuous_camping`` camper) 12 do; Reward CUSUM's,
+    0.486 [0.475, 0.497], lies wholly below chance. Below, not above: it separates the
+    variants weakly in the direction that would not flag hacking.
+    """
     control = load_replicated_leaderboard(_REPLICATED).control_check()
 
     assert control.level == "L0"
     assert control.n_detectors == 13
-    assert control.holds is True, [d.name for d in control.exceptions]
+    assert control.holds is False
+    assert [d.name for d in control.exceptions] == ["Reward CUSUM"]
+    (cusum,) = control.exceptions
+    assert cusum.overall.ci_hi < 0.5
     assert control.highest.overall.mean < 0.51
 
     # The level's "best detector" cell excludes 0.500 and beats every detector in it.
     assert control.max_excludes_reference is True
     assert control.max_exceeds_every_detector is True
 
-    # And the suite mean's interval, [0.4899, 0.5000], reaches 0.500 only at its upper
-    # end (0.50001), so its margin from chance is 0.0 by a hair. That endpoint is inside
-    # the bootstrap's own scatter: replayed under 300 generator seeds it moves over
-    # [0.499879, 0.500216], at or above 0.500 in 225 of them
-    # (docs/figures/l0_control_robustness.md), so no direction may be read from it.
+    # And the suite mean's interval, [0.4918, 0.5036], contains 0.500 with room on both
+    # sides. (On the 2026-08-04 draws it was [0.4899, 0.5000], reaching 0.500 only at its
+    # upper end and within the bootstrap's own scatter there;
+    # docs/figures/l0_control_robustness.md replays that.)
+    assert control.mean_excludes_reference is False
     assert control.mean_margin_from_reference < 1e-4
