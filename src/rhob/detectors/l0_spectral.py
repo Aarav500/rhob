@@ -28,10 +28,15 @@ class SpectralRewardDetector(PosthocDetector):
     def name(self) -> str:
         return "Spectral Reward"
 
+    @property
+    def min_episodes(self) -> int:
+        """The baseline window plus the four episodes a spectral entropy needs."""
+        return self.baseline_episodes + 4
+
     def classify(self, run: RunData) -> float:
         """Score: |spectral entropy shift| between the early and late windows."""
         proxy = run.proxy_rewards
-        if len(proxy) < self.baseline_episodes + 4:
+        if len(proxy) < self.min_episodes:
             return 0.0
         early = proxy[: self.baseline_episodes]
         late = proxy[-self.late_window :] if len(proxy) >= self.late_window else proxy

@@ -60,6 +60,13 @@ class StateDivergenceDetector(PosthocDetector):
     def name(self) -> str:
         return "State Divergence"
 
+    @property
+    def min_episodes(self) -> int:
+        """``fit`` and ``classify`` see no steady-state histogram below ``baseline_episodes``
+        rows of ``state_counts``.
+        """
+        return self.baseline_episodes
+
     def fit(self, runs_a: list[RunData], runs_b: list[RunData]) -> None:
         """Estimate each variant's mean steady-state visitation histogram."""
         hist_a = [self._steady_hist(r) for r in runs_a]

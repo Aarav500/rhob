@@ -26,7 +26,7 @@ name: dependency drift
 # the nightly unpinned pytest (3.12) job already runs; it is here so one run's page answers
 # the whole question.
 #
-# Cost, per run, on a standard ubuntu-latest runner: about 25 to 40 minutes, estimated
+# Cost, per run, on a standard ubuntu-24.04 runner: about 25 to 40 minutes, estimated
 # rather than yet observed. Install and the fast suite took about 2 and 4 minutes in the
 # 2026-11-06 nightly. The MuJoCo screens took 21 minutes cold on a 4-core scratch machine
 # on 2026-11-16. How that translates to CI depends on the runner: in two runs of the same
@@ -54,7 +54,13 @@ jobs:
   drift:
     # Read-only. This job runs code from releases nobody has reviewed yet, so it holds no
     # token that can write anything; the issue is written by `report` below.
-    runs-on: ubuntu-latest
+    #
+    # ubuntu-24.04, the image tests.yml's admission-slow job and regenerate.yml run on, not
+    # ubuntu-latest: the question is what new releases would do to the nightly, so the
+    # runner image must not change underneath the answer. ubuntu-latest was already 26.04
+    # in the 2026-11-07 run logs (requirements/README.md); moving to it is a separate change,
+    # made once, deliberately, in all three.
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     outputs:
       install: ${{ steps.install.outcome }}

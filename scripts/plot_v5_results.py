@@ -4,30 +4,26 @@ Unlike ``scripts/plot_results.py`` (which plots the original 6-detector x
 4-variant-set Family 1-2 case study from ``results/detector_evaluation/``),
 this script plots the full v5 scope: 30 detectors x all registered families, from
 ``leaderboard/v5_leaderboard.json``, plus the cross-family transfer results
-from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
+from ``leaderboard/cross_family_transfer_v5.json`` when that file is present (committed
+since 2026-11-27, most recently in ``02c0475``).
+``leaderboard/cross_family_transfer.json`` (the run of 2026-07-09, made before the
+behavioural sign was randomized) is a historical record and is never plotted.
 
 Outputs (written to ``docs/figures/``):
   v5_heatmap.png        30 detectors x all registered families, per-family AUROC; a
-                         family that is ``null`` on the board for a detector is drawn
-                         grey with no number, never as 0.5. The fallback 0.5 of a
-                         detector on a family shorter than its windows (the eight L0
-                         detectors named below, three L2 detectors, and every L1
-                         detector on ``continuous_camping``) is not ``null``, and is
-                         drawn as 0.50 like a measurement
+                         family that is ``null`` on the board for a detector (no
+                         channel, or fewer episodes than the detector's declared
+                         ``min_episodes``) is drawn grey with no number, never as 0.5
   v5_access_summary.png Mean AND best AUROC by access level (L0/L1/L2/L3), each detector
                          over the cells it is not null on, L0 without the families the
                          admission ledger marks DEGENERATE, duplicate detectors excluded.
-                         Not null is not always measured: eight L0 detectors return a
-                         constant below their windows, recorded as 0.5, and the figure
-                         says so (``UNDECLARED_HORIZON_FALLBACKS``). The L1 and L2 bars
-                         count the same kind of fallback (every L1 detector on
-                         ``continuous_camping``; Feature Consistency, Feature Magnitude
-                         and Reward-Feature Correlation on the short-horizon families),
-                         and the figure does not name those
+                         The L0 note names the detectors measured on fewer families
   v5_access_summary.md  The same access-level table in Markdown, for citing in docs
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
-                         if leaderboard/cross_family_transfer.json exists.
+                         if leaderboard/cross_family_transfer_v5.json exists. A row
+                         whose transfer AUROC is null (no held-out family scored) is
+                         drawn without a transfer bar and labelled n/a
 """
 
 from __future__ import annotations
@@ -52,9 +48,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     ACCESS_LEVELS,
     degenerate_families_from_ledger,
+    fewer_families_groups,
     render_access_summary_md,
     summarize_access_levels,
-    undeclared_horizon_note,
 )
 
 # Families 1-9 order matches Table tab:families-sigma in the paper; 10-14 are the
@@ -229,8 +225,9 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     1. The best detector at each level is plotted alongside the mean. A level's mean
        measures how many weak detectors happen to have been written for it as much as it
        measures the benchmark; the max is what speaks to "is the signal present at this
-       access level?". On the board regenerated 2026-11-19 they diverge sharply at L1
-       (mean 0.5701, max 0.9270) and L2 (mean 0.5716, max 0.9430).
+       access level?". On the board re-scored 2026-11-26 they diverge sharply at L1
+       (mean 0.5789, max 0.9820) and L2 (mean 0.5771, max 0.9430); on the re-draw of
+       2026-11-27 (``b93c351``) only the L2 max moved, to 0.9440.
     2. Perfect Feature Oracle is excluded from L3, because it is a relabelled copy of
        the L2 Behavioral Threshold baseline and agrees with it on 33/33 families. See
        :mod:`rhob.detectors.redundancy`. Including it made L3 look like a two-detector
@@ -302,24 +299,21 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
     proxy = summaries["L0"]
     if proxy.excluded_families:
         including = proxy.mean_auroc_including_degenerate
-        fewer = [
-            f"{name} over {n}"
-            for name, n in sorted(proxy.n_families_scored_by_detector.items())
-            if n < (proxy.n_families_scored or 0)
-        ]
+        fewer = [f"{', '.join(names)} over {n}" for n, names in fewer_families_groups(proxy)]
         notes.append(
             f"L0 is the negative control and is computed over {proxy.n_families_scored} "
             "families"
-            + (f" ({'; '.join(fewer)}: not applicable on the rest)" if fewer else "")
+            + (
+                f" ({'; '.join(fewer)}: shorter families are below the horizon each declares)"
+                if fewer
+                else ""
+            )
             + f": {len(proxy.excluded_families)} whose proxy the admission ledger "
             "marks DEGENERATE are held out of L0 only ("
             + ", ".join(proxy.excluded_families)
             + f"). With them it reads {including:.4f} instead of {proxy.mean_auroc:.4f}. "
             "NOT ADMITTED cells stay in."
         )
-    fallback = undeclared_horizon_note(proxy)
-    if fallback:
-        notes.append(fallback)
     # Wrapped explicitly rather than with matplotlib's ``wrap=True``: that wraps at draw
     # time against the figure width, so the caller cannot know how many lines a note
     # became and the notes overprint each other.
@@ -345,18 +339,26 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     Neural-net detectors (Reward MLP, Trajectory MLP, Ensemble) are run across
     multiple independently-seeded trials and stored under ``*_mean``/``*_std``
     keys (see ``scripts/cross_family_transfer.py``); deterministic detectors
-    (State Divergence) keep the older single-run keys. Handle both.
+    (State Divergence) keep the single-run keys. Handle both.
+
+    A value is ``null`` when nothing was measured (no held-out family passed the
+    not-applicable rule, or the pooled fit failed). Such a bar is left out and the
+    row is labelled "n/a"; it is never drawn as 0.5.
     """
     data = json.loads(transfer_path.read_text())
     results = data["results"]
     names = list(results.keys())
 
-    def get(n: str, key: str) -> float:
+    def get(n: str, key: str) -> float | None:
         r = results[n]
         return r.get(f"{key}_mean", r.get(key))
 
     def get_std(n: str, key: str) -> float:
-        return results[n].get(f"{key}_std", 0.0)
+        v = results[n].get(f"{key}_std")
+        return 0.0 if v is None else float(v)
+
+    def bars(vals: list[float | None]) -> list[float]:
+        return [np.nan if v is None else float(v) for v in vals]
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
     x = np.arange(len(names))
@@ -365,28 +367,40 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     train_errs = [get_std(n, "train_auroc") for n in names]
     transfer_vals = [get(n, "avg_transfer_auroc") for n in names]
     transfer_errs = [get_std(n, "avg_transfer_auroc") for n in names]
-    ax.bar(x - width / 2, train_vals, width, yerr=train_errs, capsize=3,
-           label="Train (Families 1-6, in-distribution)")
-    ax.bar(x + width / 2, transfer_vals, width, yerr=transfer_errs, capsize=3,
-           label="Transfer (Families 7-14, held-out)")
+    train_fams = data.get("train_families") or []
+    test_fams = data.get("test_families") or []
+    ax.bar(x - width / 2, bars(train_vals), width, yerr=train_errs, capsize=3,
+           label=f"Train ({len(train_fams)} families, in-distribution 5-fold CV)")
+    ax.bar(x + width / 2, bars(transfer_vals), width, yerr=transfer_errs, capsize=3,
+           label=f"Transfer ({len(test_fams)} held-out families)")
     ax.axhline(0.5, color="gray", ls=":", lw=1)
     for i, n in enumerate(names):
-        gap = results[n].get("generalization_gap_pct", results[n].get("generalization_gap_pct_mean"))
+        r = results[n]
+        gap = r.get("generalization_gap_pct", r.get("generalization_gap_pct_mean"))
+        present = [v for v in (train_vals[i], transfer_vals[i]) if v is not None]
+        top = max(present) if present else 0.0
         # gap = (train - transfer) / train * 100, so a positive gap is a real
         # drop from train to transfer and a negative gap means transfer beat
         # train. Label as a signed "change" so it reads correctly either way
         # instead of always showing a leading minus sign.
-        ax.text(i, max(train_vals[i], transfer_vals[i]) + 0.05, f"{-gap:+.0f}%", ha="center", fontsize=9)
+        label = "n/a" if gap is None or transfer_vals[i] is None else f"{-gap:+.0f}%"
+        ax.text(i, top + 0.05, label, ha="center", fontsize=9)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=15, ha="right")
     ax.set_ylabel("AUROC")
     ax.set_ylim(0.0, 1.1)
-    ax.set_title("Cross-Family Transfer Gap (Train on 1-6, Test on 7-14)")
+    ax.set_title("Cross-Family Transfer: train families vs. held-out families")
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(out_path, dpi=130)
     plt.close(fig)
     print(f"wrote {out_path}")
+
+
+#: The transfer artifact this script plots. The 2026-07-09 file
+#: (``leaderboard/cross_family_transfer.json``) is deliberately not a fallback: it was
+#: measured while the sign of the behavioural feature was the label.
+TRANSFER_PATH = Path("leaderboard/cross_family_transfer_v5.json")
 
 
 def main() -> None:
@@ -401,7 +415,7 @@ def main() -> None:
     print(f"wrote {summary_path}")
     print(summary_md)
 
-    transfer_path = Path("leaderboard/cross_family_transfer.json")
+    transfer_path = TRANSFER_PATH
     if transfer_path.exists():
         plot_transfer(transfer_path, figures_dir / "v5_transfer.png")
     else:

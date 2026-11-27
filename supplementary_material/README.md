@@ -9,6 +9,24 @@
 > covers all 33 families since `d4b700d`: of 123 cells, 42 ADMITTED, 30 DEGENERATE and 51
 > NOT ADMITTED. `leaderboard/cross_family_transfer.json` was last changed in v1.4
 > (`d872916`), with 6 training and 8 held-out families.
+>
+> *(2026-11-27: the board was re-drawn on CI at `54cd63c` (run 46011019246, `b93c351`),
+> under the CI lock and the six numerics pins, in the same run as the 20 replicates behind
+> `leaderboard/v5_replicated.json`; it still scores 30 detectors on 33 families, 123 cells.)*
+>
+> *(2026-11-27: `scripts/cross_family_transfer.py` no longer writes
+> `cross_family_transfer.json`. It refuses to overwrite that file, which is kept as the
+> 2026-07-09 record, and writes `leaderboard/cross_family_transfer_v5.json` under the
+> current rules: sign randomization on, and a cell the detector cannot score not
+> applicable rather than 0.5 (`827aec9`). CI first wrote it on 2026-11-27, at the
+> published design: 10 training and 20 held-out seeds per variant, five trials (run
+> 45987934132, committed in `9c038f6`), and again at `d85a60c` (run 45995248987,
+> `7d34989`) and at `54cd63c` (run 46011034429, `02c0475`), with the same results, each
+> time on an Intel runner: the frozen weights the training family `continuous_camping`
+> loads since `ddc8ab5` are the ones Intel runners train, so that fix moved nothing. Run
+> with torch on one thread (`OMP_NUM_THREADS=1`), its published design took about five
+> minutes on a 4-core machine, not the 1.5–2 hours given below; the current file's
+> `wall_clock_s` sums to about 200 seconds over its four detectors on the CI runner.)*
 
 This directory contains supporting material for the RHOB v1.0 paper.
 

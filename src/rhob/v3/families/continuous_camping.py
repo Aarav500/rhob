@@ -4,8 +4,13 @@ Wraps the frozen continuous tier in the v3 family interface. Unlike the gridworl
 this family is a genuine *parameterized generator*: a requested difficulty (target
 behavioral separability, L2-AUROC) is mapped to the attractor separation ``d`` by
 inverting the paper's law ``L2 = Phi(d / (sqrt(2) sigma_a))``, so the family can mint
-a pair at any difficulty in its range. The shared DQN camper is trained once and
-cached (training is the expensive step; rollouts are cheap). No frozen code is modified.
+a pair at any difficulty in its range. The shared DQN camper is loaded from frozen weights
+(``rhob.environments.continuous.frozen_camper``), the weights ``train_camper(seed=0)``
+produces under the numerics pins on an Intel CPU. Until 2026-11-27 it was trained in every
+process that rolled the family out, which is reproducible on one CPU vendor but not across
+vendors: an AMD runner trained a different policy under the same pins, so one draw of
+this family differed with the runner it landed on (``scripts/freeze_camper.py`` has the
+evidence and regenerates the weights). No frozen code is modified.
 """
 
 from __future__ import annotations
@@ -29,9 +34,12 @@ _camper = None  # cached shared policy (trained lazily on first rollout)
 def _get_camper():
     global _camper
     if _camper is None:
-        from rhob.agents.dqn import train_camper  # deferred: torch is optional (see rhob.agents.dqn)
+        # deferred: torch is optional (see rhob.agents.dqn)
+        from rhob.environments.continuous.frozen_camper import SEED, load_frozen_camper
 
-        _camper = train_camper(seed=_CAMPER_SEED)
+        if SEED != _CAMPER_SEED:
+            raise ValueError(f"the frozen camper is seed {SEED}, not {_CAMPER_SEED}")
+        _camper = load_frozen_camper()
     return _camper
 
 

@@ -26,10 +26,11 @@ That feature **is the watcher label**. HVTB decides that a run hacked precisely 
 watching those paths, so a detector fed that feature would score a perfect AUROC by
 reading the answer. RHOB has made this exact mistake twice and documented both: the
 pre-2026-08 behavioural convention in which the sign of the feature *was* the label
-(headline transfer score 0.994 -> 0.508 once randomized), and the Wordle port, where
-guess length was the label and no honest L2 feature existed. So L2 is absent here until
-someone proposes a behavioural feature that is not a restatement of the watcher. Filling
-it in would not be an improvement; it would be the third instance of the same bug.
+(headline transfer score 0.994; re-measured on 2026-11-27, 0.993 with the sign fixed and
+0.514 once randomized), and the Wordle port, where guess length was the label and no
+honest L2 feature existed. So L2 is absent here until someone proposes a behavioural
+feature that is not a restatement of the watcher. Filling it in would not be an
+improvement; it would be the third instance of the same bug.
 
 **L3 (oracle) -- supplied, as a positive control only.** Reads the watcher timestamps
 directly. It exists to show the measure can detect detection when detection is present,

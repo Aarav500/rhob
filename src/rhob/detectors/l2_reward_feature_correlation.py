@@ -24,11 +24,16 @@ class RewardFeatureCorrelationDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward-Feature Correlation"
 
+    @property
+    def min_episodes(self) -> int:
+        """The correlation is taken over the last ``test_window`` episodes of both channels."""
+        return self.test_window
+
     def classify(self, run: RunData) -> float:
         if run.behav_trace is None:
             return 0.5
 
-        if len(run.proxy_rewards) < self.test_window or len(run.behav_trace) < self.test_window:
+        if len(run.proxy_rewards) < self.min_episodes or len(run.behav_trace) < self.min_episodes:
             return 0.5
 
         rewards_late = run.proxy_rewards[-self.test_window :]

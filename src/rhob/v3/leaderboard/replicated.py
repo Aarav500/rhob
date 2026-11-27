@@ -13,23 +13,35 @@ Three properties of the artifact are load-bearing and are preserved here rather 
 smoothed over:
 
 **A family appears only where the detector measured it.** The L1 (state-visitation)
-detectors carry 8 families, not 33, because 25 families ship no state channel. The
-aggregator drops those cells instead of imputing them; earlier boards averaged in a
-hard-coded ``0.500`` for each, which made a mostly-unmeasured row read as a measurement.
+detectors carry 7 families, not 33: 25 families ship no state channel, and
+``continuous_camping`` (40 episodes) is shorter than every L1 detector's
+``min_episodes``. The aggregator drops the 25 families' cells instead of imputing them;
+earlier boards averaged in a hard-coded ``0.500`` for each, which made a
+mostly-unmeasured row read as a measurement.
 :meth:`ReplicatedDetector.family` therefore returns ``None`` -- not ``0.5``, and not
 ``0.0`` -- for a family the detector never scored, and a renderer must show that as
-"not measured" rather than as a number. One case is not caught this way: a detector
-that declares no minimum horizon returns a constant below its windows, so on a family
-too short for them the artifact carries its fallback 0.5 on every draw, with zero
-spread, as if measured. That is eight L0 detectors on the short-horizon families
-(``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``), three L2
-detectors, and every L1 detector on ``continuous_camping`` (``ROADMAP.md``).
+"not measured" rather than as a number. The same holds for a family shorter than the
+``min_episodes`` a detector declares. Until 2026-11-26 only Reward Skewness declared
+one, and the artifact carried the fallback constant of eight other L0 detectors, three
+L2 detectors and every L1 detector on the families too short for them as a 0.5 on every
+draw, with zero spread, as if measured.
 
 **Two partitions, both reportable.** Five detectors are fitted on labels under 5-fold
 cross-validation (:mod:`rhob.detectors.supervision`). The artifact carries the
 access-level ladder computed with and without them, because on this board the published
 L0->L1 step is carried entirely by one of them and reverses sign without it. Both are
-exposed as :class:`LadderPartition` and neither is the default.
+exposed as :class:`LadderPartition` and neither is the default, and each carries the
+rungs on which the max and the mean disagree
+(:attr:`LadderPartition.statistic_disagreement`): on the unsupervised partition that is
+the L0->L1 step itself, which separates under the max and not under the mean.
+
+**What a draw resampled.** A replicate drawn before 2026-11-27 was built and oriented at
+layout 0 whatever layout seed it records, and resampled only its rollout seeds. The
+artifact's ``replicates`` block says which kind its draws were and whether they come
+from one source; :attr:`ReplicatedLeaderboard.layouts_resampled` and
+:attr:`ReplicatedLeaderboard.single_source` read it, and are ``None`` for an artifact
+written before the block existed, so a renderer can say "layout seed and rollout seeds
+resampled together" only when the artifact says so.
 
 **Zero variance is saturation, not precision.** A detector that returned the same score
 on all 20 draws has a zero-width interval by construction.
@@ -38,13 +50,15 @@ unusually precise estimate.
 
 **A level's maximum is not a detector's score.** ``access_levels.<L>.max_auroc`` is the
 mean over draws of the *best* detector at that level, and taking a maximum over N noisy
-estimates biases it upward: at L0 it lands at 0.554 while no individual L0 detector's
-point estimate reaches 0.507 (both after the 2026-09-03 Reward Skewness re-score).
-Reading it as "the best reward-only detector scores 0.554" inverts the rung's meaning,
-which is a negative control -- reward-only detectors are *supposed* to sit at chance on a
-proxy matched between the variants (see :data:`CONTROL_LEVEL` for where the admission
-ledger certifies that match and where it does not), and the control is carried detector
-by detector, not by the max.
+estimates biases it upward: on the re-draw of 2026-11-27 (``b93c351``) it lands at 0.575
+at L0 while no individual L0 detector's point estimate reaches 0.508 (Reward Skewness's,
+the highest, is 0.507). On the 2026-08-04 draws as re-scored 2026-11-26 for the 19
+detectors whose declared ``min_episodes`` rules out a family, it was 0.571, with none
+reaching 0.507. Reading it as "the best reward-only detector scores 0.575" inverts the
+rung's meaning, which is a negative control -- reward-only detectors are *supposed* to
+sit at chance on a proxy matched between the variants (see :data:`CONTROL_LEVEL` for
+where the admission ledger certifies that match and where it does not), and the control
+is carried detector by detector, not by the max.
 :meth:`ReplicatedLeaderboard.control_check` computes that per-detector statement from the
 artifact so a renderer can state it instead of inferring it from the level aggregate.
 """
@@ -250,9 +264,9 @@ class LevelSeparation:
     replicates_with_hi_above_lo: int
     n_paired: int
     #: Pairing removes between-draw variation shared by the two rungs. It does not
-    #: equalise denominators -- L1 aggregates 35 cells over 8 families where L2/L3
-    #: aggregate 123 over 33 -- so a rung difference involving L1 is across populations
-    #: as well as across access levels.
+    #: equalise denominators -- L1 aggregates 31 cells over 7 families where L2/L3
+    #: aggregate at most 123 over 33 -- so a rung difference involving L1 is across
+    #: populations as well as across access levels.
     denominators_equal: bool = False
 
     @property
@@ -276,6 +290,13 @@ class LadderPartition:
     name: str
     levels: Mapping[str, LevelStats]
     separations: Mapping[str, LevelSeparation]
+    #: Rungs (``"L1_minus_L0"``) on which the max and the mean disagree for this
+    #: partition: those separating under one statistic and not the other, then those
+    #: separating under both with opposite signs. A renderer showing one statistic for a
+    #: rung on this list must show both. ``None`` when the artifact does not record it
+    #: for this partition (the unsupervised one before 2026-11-27), which is not the same
+    #: statement as "they agree everywhere".
+    statistic_disagreement: Optional[tuple[str, ...]] = None
 
     def level(self, name: str) -> Optional[LevelStats]:
         return self.levels.get(name)
@@ -345,8 +366,12 @@ class ChanceControl:
         """Bare interval arithmetic on the level mean: does it exclude ``reference``?
 
         **This is not a verdict about which side of chance the suite mean sits on**, and a
-        renderer must not present it as one. On the committed board it is ``True`` by a
-        margin of about 8e-5 -- see :attr:`mean_margin_from_reference`, and read that
+        renderer must not present it as one. On the committed board (re-drawn
+        2026-11-27, ``b93c351``) it is ``False`` with room: the L0 suite-mean interval
+        [0.4918, 0.5036] contains 0.500 with its upper endpoint ~3.6e-3 above it. On the
+        2026-08-04 draws as re-scored 2026-11-26 it was ``False`` by a hair: the interval
+        [0.4899, 0.5000] contained 0.500 only because its upper endpoint, 0.50001, sat
+        ~1.5e-5 above it -- see :attr:`mean_margin_from_reference`, and read that
         property's docstring before quoting this one.
         """
         return self.level_mean is not None and not self.level_mean.contains(self.reference)
@@ -360,14 +385,22 @@ class ChanceControl:
         against the estimator's own noise* rather than reading
         :attr:`mean_excludes_reference` as a finding.
 
-        On the committed L0 board the margin is ~7.9e-5, while replaying the same
-        bootstrap under 300 different generator seeds moves that endpoint over a range of
-        ~2.4e-4 and puts it at or above 0.500 in 18 of the 300
-        (``docs/figures/l0_control_robustness.md``). The exclusion is therefore smaller
-        than the Monte-Carlo scatter of the endpoint that produces it: the interval places
-        the suite mean on **neither** side of chance. Subtracting the endpoint from 0.500
-        and reporting the remainder is the false-precision error itself, not a smaller
-        version of it.
+        On the L0 board of the 2026-08-04 draws as re-scored 2026-11-26 the interval
+        [0.4899, 0.5000] contained 0.500 and the margin was 0.0, but only because the
+        upper endpoint sat ~1.5e-5 above 0.500. Replaying that bootstrap under 300
+        different generator seeds moved the endpoint over [0.499879, 0.500216] and put it
+        at or above 0.500 in 225 of the 300 (``docs/figures/l0_control_robustness.md``,
+        recomputed 2026-11-26). On the 2026-08-06 board the interval instead cleared
+        0.500, by ~7.9e-5, and the same replay moved its endpoint over a range of ~2.4e-4
+        and put it at or above 0.500 in 18 of the 300. A ~1.5e-5 inclusion was far inside
+        that board's scatter, just as the ~7.9e-5 exclusion was inside its own: either way
+        the interval placed the suite mean on **neither** side of chance. Subtracting
+        the endpoint from 0.500 and reporting the remainder is the false-precision error
+        itself, not a smaller version of it.
+
+        On the committed board (re-drawn 2026-11-27, ``b93c351``) the interval is
+        [0.4918, 0.5036] and the margin is again 0.0, with the upper endpoint ~3.6e-3
+        above 0.500; the seed replay has not been redone on it.
         """
         if self.level_mean is None or not self.level_mean.has_bounds:
             return None
@@ -393,13 +426,50 @@ class ReplicatedLeaderboard:
     supervision_note: str
     zero_variance_detectors: tuple[str, ...]
     zero_variance_note: str
-    #: Rungs whose separation verdict depends on whether you read the max or the mean.
-    #: Reporting one statistic alone there presents a statistic-dependent result as
-    #: settled, so a renderer showing a rung on this list must show both.
+    #: Rungs whose verdict depends on whether you read the max or the mean: the rungs
+    #: that separate under one statistic and not the other
+    #: (``rungs_where_max_and_mean_disagree_on_separation``) followed by those that
+    #: separate under both with opposite signs
+    #: (``rungs_where_max_and_mean_disagree_on_direction``). Reporting one statistic
+    #: alone there presents a statistic-dependent result as settled, so a renderer
+    #: showing a rung on this list must show both. On the board re-scored 2026-11-26, and
+    #: on the re-draw of 2026-11-27 (``b93c351``), it holds L2_minus_L1 through the second
+    #: list: the max puts L1 above L2, the mean L2 above L1. An artifact written before
+    #: the second list existed carries only the first, which compared separation and
+    #: not direction.
     statistic_disagreement: tuple[str, ...] = ()
     statistic_disagreement_note: str = ""
+    #: The aggregation's own provenance block; empty for an artifact written before it.
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    #: The ``replicates`` block: the input replicates' provenance, tallied by
+    #: ``scripts/aggregate_replication.py``. Empty for an artifact written before it.
+    replicates: Mapping[str, Any] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ accessors
+    @property
+    def layouts_resampled(self) -> Optional[bool]:
+        """Whether every draw's layout seed reached the families (``draw_schema`` >= 2).
+
+        ``False`` means at least one draw was built and oriented at layout 0 and
+        resampled only its rollout seeds; ``None`` that the artifact does not say.
+        """
+        value = self.replicates.get("layouts_resampled")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def single_source(self) -> Optional[bool]:
+        """Whether the draws are one clean commit's, under one environment, unpatched.
+
+        ``None`` when the artifact does not say; :attr:`single_source_problems` lists
+        why not when it is ``False``.
+        """
+        value = self.replicates.get("single_source")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def single_source_problems(self) -> tuple[str, ...]:
+        return _str_tuple(self.replicates.get("single_source_problems"))
+
     def standings(self) -> list[ReplicatedDetector]:
         """Every detector, best mean first. Detectors with no estimate sort last."""
         return sorted(
@@ -541,6 +611,20 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(v) for v in values)
 
 
+def _disagreement(blob: Any) -> Optional[tuple[str, ...]]:
+    """The rungs a ``statistic_disagreement`` block lists, or ``None`` if there is none.
+
+    Separation-disagreements first, then direction-disagreements; an artifact written
+    before the direction list existed carries only the first.
+    """
+    if not isinstance(blob, Mapping):
+        return None
+    return tuple(dict.fromkeys(
+        _str_tuple(blob.get("rungs_where_max_and_mean_disagree_on_separation"))
+        + _str_tuple(blob.get("rungs_where_max_and_mean_disagree_on_direction"))
+    ))
+
+
 def is_replicated_schema(data: Mapping[str, Any]) -> bool:
     """Whether ``data`` is the replicated artifact rather than one of the point schemas.
 
@@ -592,6 +676,7 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
         if isinstance(data.get("statistic_disagreement"), Mapping)
         else {}
     )
+    all_disagreement = _disagreement(data.get("statistic_disagreement"))
     n = data.get("n_replicates")
 
     return ReplicatedLeaderboard(
@@ -604,6 +689,7 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
             name="all detectors",
             levels=_level_stats(data.get("access_levels")),
             separations=_separations(data.get("adjacent_level_separation")),
+            statistic_disagreement=all_disagreement,
         ),
         unsupervised_only=LadderPartition(
             name="unsupervised only",
@@ -611,13 +697,16 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
             separations=_separations(
                 supervision.get("adjacent_level_separation_unsupervised_only")
             ),
+            statistic_disagreement=_disagreement(
+                supervision.get("statistic_disagreement_unsupervised_only")
+            ),
         ),
         label_fitted_detectors=label_fitted,
         supervision_note=str(supervision.get("why_it_matters") or ""),
         zero_variance_detectors=_str_tuple(degeneracy.get("detectors_with_zero_variance")),
         zero_variance_note=str(degeneracy.get("note") or ""),
-        statistic_disagreement=_str_tuple(
-            disagreement.get("rungs_where_max_and_mean_disagree_on_separation")
-        ),
+        statistic_disagreement=all_disagreement or (),
         statistic_disagreement_note=str(disagreement.get("note") or ""),
+        provenance=data.get("provenance") if isinstance(data.get("provenance"), Mapping) else {},
+        replicates=data.get("replicates") if isinstance(data.get("replicates"), Mapping) else {},
     )

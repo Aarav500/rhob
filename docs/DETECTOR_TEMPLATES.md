@@ -361,10 +361,21 @@ class FeatureDriftDetector(PosthocDetector):
    than its windows. That 0.5 is not a measurement, and the harness can tell only if the
    detector says so: override the `min_episodes` property (the windows it compares, e.g.
    `self.baseline_window + self.test_window`; for L0 Template 2, `2 * self.window_size`)
-   and the benchmark records a shorter family as not applicable. Reward Skewness does
-   this. Eight shipped L0 detectors, three L2 detectors and the eight L1 detectors do not
-   yet, and their fallback 0.5 is in the published boards as a measured value on the
-   families too short for them ([ROADMAP.md](../ROADMAP.md)).
+   and the benchmark records a shorter family as not applicable. Every detector on the
+   board whose score is a constant below some run length does this, and
+   `tests/test_detectors/test_min_episodes.py` checks each declaration against
+   `classify`: constant one episode below it, varying at it. Since 2026-11-27 the five
+   external baselines in `src/rhob/detectors/external_baselines/`, which are on no
+   board (the HVTA bridge in `external/hvta/` scores them), declare one too and are held
+   to it by the same test: Page-Hinkley Test 3, Isolation Forest 2, AR(p) Residual
+   `order + 1` (6 by default), PCA Reconstruction `steady_window` (100 by default) and
+   Bayesian Online Changepoint Detection 5. The same test file fails on any
+   `PosthocDetector` defined under `rhob.detectors` that is not exported, and on any
+   exported one that is in neither of its tables (the abstract base and
+   `EnsembleDetector`, which need constructor arguments, are named exceptions); see
+   Next Steps below. Until 2026-11-26 only Reward Skewness declared a minimum, and the
+   published boards carried the others' fallback 0.5 as a measured value on the
+   families too short for them.
 4. **Test it**: Create a test file following the CONTRIBUTING guide
 5. **Submit**: Open a PR with your new detector
 
@@ -372,6 +383,12 @@ class FeatureDriftDetector(PosthocDetector):
 
 After creating your detector:
 - Add to `src/rhob/detectors/__init__.py` __all__
+- Add the class to `_CLASSES` and its `min_episodes` (0 if it declares none) to
+  `_DECLARED` in `tests/test_detectors/test_min_episodes.py`. That table must also list
+  exactly the detectors on the committed `leaderboard/v5_leaderboard.json`, so a
+  detector that is not yet on the board fails one test or the other; how a new detector
+  should pass the suite before the board includes it is open (CONTRIBUTING.md, Step 3:
+  Add to Exports)
 - Create corresponding test file
 - Run `pytest tests/test_detectors/test_lX_your_detector.py -v`
 - Submit PR with link to design discussion (if applicable)

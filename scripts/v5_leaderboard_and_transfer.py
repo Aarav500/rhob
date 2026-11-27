@@ -7,38 +7,29 @@ they're added) with cross-family transfer analysis.
 
 Two properties of the emitted JSON are load-bearing and easy to miss:
 
-1. **A missing channel, and Reward Skewness's short horizon, are ``null``, not 0.5.** A
-   detector is scored only on families that emit the channel its access level is
-   defined over, and a detector that declares ``min_episodes`` (only Reward Skewness
-   does, 100) only on families whose horizon is at least that long. A family that ships
-   no state-visitation histogram gives every L1 detector nothing to read, and the old
-   artifact recorded the detectors' 0.5 no-signal constant there as though it were a
-   measurement -- on 25 of the 33 families and 88 of the 123 cells (Reward Skewness's
-   constant 0.5 below its horizon, likewise, on 19 families and 59 cells).
-   ``per_family`` now carries ``null`` for such families, they are listed under
-   ``not_applicable_families``, and they are excluded from ``overall_auroc``.
-   Two kinds of 0.5 in this file are still not measurements at chance. Eight L0
-   detectors declare no ``min_episodes`` and return a constant below their windows
-   (``rhob.v3.leaderboard.access_summary.UNDECLARED_HORIZON_FALLBACKS``), so the board
-   records their fallback 0.5 on every family shorter than that: on the board of
-   2026-11-19, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window on
-   the 19 families with horizon 40 or 60 (59 cells), and Reward CUSUM, Max Plateau,
-   Reward MLP and Gradient Reversal on the 7 with horizon 40 (22 cells). Three L2
-   detectors do the same (Feature Consistency on those 19 families, Feature Magnitude
-   and Reward-Feature Correlation on those 7), and so does every L1 detector on
-   ``continuous_camping``, whose 40 episodes are below each L1 window. Fixing that is
-   an open item in ``ROADMAP.md``. And on the six families whose proxy the admission
-   ledger marks DEGENERATE, an L0 detector's AUROC is the tie convention or rounding
-   error: every L0 detector reads exactly 0.5 there, except Reward KDE on
-   ``orbit_chirality`` (0.6, ordering a proxy that is constant to one ULP). Outside those
-   cells, a ``0.5`` here means "measured, and at chance", which is a real result.
-   The board committed on 2026-11-19 (``52656cb``) was written before
-   ``cell_semantics.per_family_null`` named the horizon case, so its text there mentions
-   only a missing channel, although 59 of its Reward Skewness cells are null because
-   the horizon is too short. Each detector's ``not_applicable_reasons`` in that file is
-   the authoritative record of why a cell is null. Its ``per_family_number`` text,
-   "measured mean AUROC", does not hold for the fallback entries above; this script now
-   writes a text that says so, and the committed board predates it.
+1. **A missing channel, and a horizon shorter than the detector needs, are ``null``,
+   not 0.5.** A detector is scored only on families that emit the channel its access
+   level is defined over, and only on families whose horizon is at least the
+   ``min_episodes`` it declares. Every shipped detector whose ``classify`` returns a
+   constant below some length declares that length
+   (``tests/test_detectors/test_min_episodes.py``). ``per_family`` carries ``null`` for
+   such families, they are listed under ``not_applicable_families`` with the reason in
+   ``not_applicable_reasons``, and they are excluded from ``overall_auroc``.
+   Earlier boards recorded the constant as though it were a measurement. A family that
+   ships no state-visitation histogram gave every L1 detector nothing to read, and the
+   artifact before 2026-11-19 recorded the detectors' 0.5 there on 25 of the 33
+   families and 88 of the 123 cells. Until 2026-11-26 only Reward Skewness declared a
+   horizon, so the board of 2026-11-19 (``52656cb``) still recorded a fallback 0.5 for
+   eight other L0 detectors (Reward Peak, Reward Autocorrelation, Reward Trend and
+   Variance Window on the 19 families with horizon 40 or 60, 59 cells; Reward CUSUM,
+   Max Plateau, Reward MLP and Gradient Reversal on the 7 with horizon 40, 22 cells),
+   for three L2 detectors on the same short families, and for every L1 detector on
+   ``continuous_camping``; its ``per_family_number`` text says so.
+   On the six families whose proxy the admission ledger marks DEGENERATE, an L0
+   detector's AUROC is the tie convention or rounding error: every L0 detector reads
+   exactly 0.5 there, except Reward KDE on ``orbit_chirality`` (0.6, ordering a proxy
+   that is constant to one ULP). Outside those cells, a ``0.5`` here means "measured,
+   and at chance", which is a real result.
 2. **The whole file is one draw.** Every detector is scored on the identical rolled-out
    runs from a single layout seed and a single set of rollout seeds; there is no
    replication and there are no confidence intervals; the null SE near AUROC 0.5 is
@@ -47,8 +38,16 @@ Two properties of the emitted JSON are load-bearing and easy to miss:
    ``scripts/replicate_leaderboard.py`` over several draws and aggregate with
    ``scripts/aggregate_replication.py``.
 
+The board keeps per-family means. ``--cells-out PATH`` also writes every detector's
+per-cell AUROCs to a sidecar, ``{"provenance": ..., "cells": {detector: cells_detail}}``,
+where ``provenance`` is the board's own block and each ``cells_detail`` comes from
+:func:`_cells_detail` -- the function ``scripts/replicate_leaderboard.py`` writes its
+``cells_detail`` with, so the two round identically. The board is the draw
+``(layout_seed, seed_base) = (0, 0)``, which is replicate 0 of a re-draw, and
+``scripts/check_redraw.py`` requires that replicate to equal this sidecar cell for cell.
+
 Run: python scripts/v5_leaderboard_and_transfer.py [--families ...] [--detectors ...]
-     [--n-seeds N] [--out PATH]
+     [--n-seeds N] [--out PATH] [--cells-out PATH]
 """
 
 import argparse
@@ -152,10 +151,13 @@ DETECTORS = [
 ROLLOUT_SEED_BASE = 0
 LEGIT_SEED_OFFSET = 1000
 
-# FamilyRegistry.generate_suite() calls ``fam.generate_pair(d)`` without a seed, i.e.
-# with BaseFamily.generate_pair's default ``seed=0``. The leaderboard therefore samples
-# exactly one environment layout per (family, difficulty) -- one draw, not a
-# distribution -- which is the fact the ``sampling`` block below makes explicit.
+# The board is the draw ``(layout_seed, seed_base) = (0, 0)``, passed to Benchmark.evaluate
+# explicitly below so that the ``sampling`` block is true by construction:
+# FamilyRegistry.generate_suite builds every cell as ``generate_pair_at(d, seed=0)`` and
+# MatchedPair.rollout draws from seed_base 0. That is exactly one environment layout per
+# (family, difficulty) -- one draw, not a distribution -- which is the fact the
+# ``sampling`` block makes explicit. It is also replicate 0 of
+# ``scripts/replicate_leaderboard.py`` (``draw_for(0) == (0, 0)``).
 LAYOUT_SEEDS = [0]
 
 
@@ -168,6 +170,33 @@ def _jsonable(value: float | None) -> float | None:
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     return round(float(value), 3)
+
+
+def _cells_detail(results) -> list[dict]:
+    """Every cell of one detector's :class:`BenchmarkResults`, in suite order.
+
+    One ``{"family", "difficulty", "auroc"}`` record per cell. ``auroc`` is ``null`` where
+    the cell is not applicable or its AUROC is undefined (NaN), and is otherwise rounded
+    to 6 places; ``difficulty`` is rounded to 4.
+
+    This is the one definition of a cell record. The board's ``--cells-out`` sidecar and
+    every replicate's ``cells_detail`` (``scripts/replicate_leaderboard.py``) are both
+    written by it, so ``scripts/check_redraw.py`` can require replicate 0 of a re-draw to
+    equal the board cell for cell with no rounding difference to explain away, and
+    ``scripts/merge_rescored_detector.py`` keys cells by the same rounded difficulty.
+    """
+    return [
+        {
+            "family": c.family,
+            "difficulty": round(float(c.difficulty), 4),
+            "auroc": (
+                None
+                if not c.applicable or math.isnan(float(c.discrimination_auroc))
+                else round(float(c.discrimination_auroc), 6)
+            ),
+        }
+        for c in results.cells
+    ]
 
 
 def _summarize(results, level: str) -> dict:
@@ -207,7 +236,7 @@ def _summarize(results, level: str) -> dict:
     }
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
     """Run v5 leaderboard and transfer analysis."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -224,7 +253,13 @@ def main():
         help="Output JSON path. Point this elsewhere for smoke runs so the published "
              "artifact is not overwritten by a subset evaluation.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--cells-out", type=Path, default=None,
+        help="Also write every detector's per-cell AUROCs here, as "
+             '{"provenance": <the board\'s block>, "cells": {detector: cells_detail}}, '
+             "for scripts/check_redraw.py to compare replicate 0 of a re-draw against.",
+    )
+    args = parser.parse_args(argv)
 
     families = args.families if args.families else "all"
     family_names = FamilyRegistry.list_families() if families == "all" else list(families)
@@ -243,6 +278,7 @@ def main():
     print()
 
     results_by_detector = {}
+    cells_by_detector: dict[str, list[dict]] = {}
     for i, detector in enumerate(detectors, 1):
         name = detector.name
         level = detector.access_level
@@ -255,9 +291,12 @@ def main():
                 difficulties="all",
                 n_seeds=args.n_seeds,  # Reduced for speed
                 verbose=False,
+                layout_seed=LAYOUT_SEEDS[0],
+                seed_base=ROLLOUT_SEED_BASE,
             )
             record = _summarize(results, level)
             results_by_detector[name] = record
+            cells_by_detector[name] = _cells_detail(results)
 
             overall = record["overall_auroc"]
             n_na = record["cells_not_applicable"]
@@ -307,11 +346,10 @@ def main():
                         "never imputed as 0.5."
                     ),
                     "per_family_number": (
-                        "mean AUROC over that family's scored difficulty cells. A detector "
-                        "that declares no minimum horizon (rhob.v3.leaderboard."
-                        "access_summary.UNDECLARED_HORIZON_FALLBACKS) returns its fallback "
-                        "0.5 on runs shorter than its windows, and such cells are counted "
-                        "here as scored although nothing was measured."
+                        "measured mean AUROC over that family's scored difficulty cells. "
+                        "Every detector whose score is a constant below some run length "
+                        "declares that length as min_episodes, so a family shorter than "
+                        "it is null, not a fallback 0.5."
                     ),
                 },
                 "results": results_by_detector,
@@ -320,9 +358,19 @@ def main():
             indent=2,
         )
 
+    if args.cells_out is not None:
+        # The same provenance object as the board's, so a reader (and check_redraw.py)
+        # can tell that the sidecar and the board came from one run.
+        cells_path = Path(args.cells_out)
+        cells_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cells_path, "w") as f:
+            json.dump({"provenance": prov, "cells": cells_by_detector}, f, indent=2)
+
     print()
     print("=" * 70)
     print(f"[OK] Leaderboard saved to {board_path}")
+    if args.cells_out is not None:
+        print(f"[OK] Per-cell AUROCs saved to {args.cells_out}")
 
     # Summary stats
     scored = [

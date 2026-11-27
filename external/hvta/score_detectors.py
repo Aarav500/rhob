@@ -61,11 +61,18 @@ Run::
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
+import datetime as _dt
+import hashlib
+import inspect
+import io
 import json
 import math
 import platform
+import subprocess
 import sys
+import tokenize
 from pathlib import Path
 
 import numpy as np
@@ -90,6 +97,149 @@ def _scrub_home(path: str) -> str:
     if home and path.lower().startswith(home.lower()):
         return "~" + path[len(home):]
     return path
+
+
+#: What :func:`source_sha256` hashes, recorded beside every hash. A hash taken another way
+#: (the first record, 2026-11-27, hashed the raw text and carries no ``hashed`` key) is
+#: then a different source to every comparison rather than a silent match or mismatch.
+SOURCE_HASHED = "code: docstrings, comments, trailing whitespace and blank lines removed"
+
+
+def _git(*args: str) -> str | None:
+    """``git -C <repository root> <args>``'s stdout, or None. Provenance is best-effort."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(HERE.parents[1]), *args],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+    except Exception:  # noqa: BLE001 -- provenance is best-effort, never fatal
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def rhob_revision() -> dict:
+    """The RHOB commit checked out, and the ``src/`` files that differ from it."""
+    dirty = _git("status", "--porcelain", "--", "src")
+    return {
+        "rhob_git_head": (_git("rev-parse", "HEAD") or "").strip() or None,
+        "rhob_src_uncommitted": (
+            None if dirty is None else sorted(line[3:] for line in dirty.splitlines())
+        ),
+    }
+
+
+def _char_pos(lines: list, row: int, byte_col: int) -> tuple:
+    """``ast`` counts columns in UTF-8 bytes; ``tokenize`` and ``lines`` in characters."""
+    return row, len(lines[row - 1].encode("utf-8")[:byte_col].decode("utf-8"))
+
+
+def code_text(source: str) -> str:
+    """``source`` without what cannot change a score: docstrings, comments and layout.
+
+    A docstring is the first statement of a module, class or function when that statement
+    is a bare string; comments are the tokenizer's ``COMMENT`` tokens. Both are blanked
+    where they stand, then trailing whitespace and blank lines go, and line endings are
+    normalised. Everything else is kept, indentation included.
+
+    Unlike a dump of the syntax tree, this is the same text under every Python version
+    the package supports: it relies only on the positions ``ast`` and ``tokenize`` give a
+    string statement and a comment, which have not changed since Python 3.8. That
+    matters here because the draws are scored on different interpreters (the primary on
+    Windows, Python 3.13; the re-score on Linux, 3.12).
+    """
+    source = source.replace("\r\n", "\n").replace("\r", "\n")
+    lines = source.split("\n")
+    spans = []  # ((row, col), (row, col)): 1-based rows, 0-based character columns
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+            continue
+        first = node.body[0] if node.body else None
+        if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            spans.append((_char_pos(lines, first.lineno, first.col_offset),
+                          _char_pos(lines, first.end_lineno, first.end_col_offset)))
+    for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+        if tok.type == tokenize.COMMENT:
+            spans.append((tok.start, tok.end))
+    for (r0, c0), (r1, c1) in spans:
+        for r in range(r0, r1 + 1):
+            line = lines[r - 1]
+            a, b = (c0 if r == r0 else 0), (c1 if r == r1 else len(line))
+            lines[r - 1] = line[:a] + " " * (b - a) + line[b:]
+    return "\n".join(s for s in (line.rstrip() for line in lines) if s) + "\n"
+
+
+def source_sha256(cls) -> dict:
+    """A detector's source module: repository-relative path, code hash and git blob.
+
+    Recorded per detector in every artifact (``detector_sources``), so a later report can
+    tell which draws were scored by a detector's current code and which by an older one
+    (``make_results.py`` marks the latter pre-fix, and
+    ``tests/test_detectors/test_external_baselines.py`` fails when the committed BOCPD
+    rows no longer attest the current ``bocpd.py``).
+
+    ``sha256`` is of :func:`code_text`, so a docstring or comment edit does not orphan an
+    attestation and a Windows checkout with ``autocrlf`` attests the same source as a
+    Linux one. ``git_blob`` is the file's blob id as git would store it (``git
+    hash-object`` applies the checkout's line-ending filters): it names the exact text,
+    and once that text is committed ``git log --find-object=<blob>`` finds the commit.
+    """
+    path = Path(inspect.getsourcefile(cls)).resolve()
+    text = path.read_text(encoding="utf-8")
+    try:
+        shown = path.relative_to(HERE.parents[1]).as_posix()
+    except ValueError:
+        shown = path.name
+    return {
+        "path": shown,
+        "sha256": hashlib.sha256(code_text(text).encode("utf-8")).hexdigest(),
+        "hashed": SOURCE_HASHED,
+        "git_blob": (_git("hash-object", "--", str(path)) or "").strip() or None,
+    }
+
+
+def same_source(a: dict | None, b: dict | None) -> bool:
+    """Whether two ``detector_sources`` entries attest the same code, hashed the same way."""
+    if not a or not b:
+        return False
+    return (a.get("hashed"), a.get("sha256")) == (b.get("hashed"), b.get("sha256"))
+
+
+def current_source(artifact: dict, name: str) -> dict | None:
+    """The source ``artifact``'s rows for ``name`` were scored with, if it records one.
+
+    The latest ``rescored`` record that re-scored ``name``, else the full run's
+    ``detector_sources``. Kept in step with the copy in ``make_results.py``, which reads
+    artifacts without importing RHOB.
+    """
+    for rec in reversed(artifact.get("rescored", [])):
+        src = (rec.get("detector_sources") or {}).get(name)
+        if src:
+            return src
+    return (artifact.get("detector_sources") or {}).get(name)
+
+
+def fix_history(previous: dict | None) -> list:
+    """The detector fixes ``previous`` records, to carry into the artifact replacing it.
+
+    A ``rescore_detector.py`` record (``rescored``) says a detector was fixed and from
+    which source its rows were re-scored. A full run replaces every row, so those records
+    stop describing the new artifact's rows, but the fix they record still decides which
+    other draws hold pre-fix rows (``make_results.py``). Without this a full run, which is
+    the report's own *Reproduce* step 2, would erase it, and the report would silently
+    average the replicates' pre-fix rows into every across-draw statistic. Each fix is
+    kept as ``{date_utc, detectors, reason, detector_sources}``; earlier carried fixes
+    come first.
+    """
+    if not previous:
+        return []
+    fixes = list(previous.get("detector_fixes", []))
+    for rec in previous.get("rescored", []):
+        fixes.append({k: rec.get(k) for k in ("date_utc", "detectors", "reason",
+                                               "detector_sources")})
+    return fixes
+
 
 from sklearn.metrics import roc_auc_score  # noqa: E402
 
@@ -552,6 +702,12 @@ def main() -> int:
     ap.add_argument("--out", default=str(HERE / "hvta_results.json"))
     args = ap.parse_args()
 
+    # Read before the ~30 min of scoring, so an unreadable file fails now, not after it.
+    out_path = Path(args.out)
+    previous = (
+        json.loads(out_path.read_text(encoding="utf-8")) if out_path.exists() else None
+    )
+
     meta, cells = load_cells(Path(args.pairs_stem))
     print(f"loaded {len(cells)} cells from {args.pairs_stem}.npz")
 
@@ -578,6 +734,9 @@ def main() -> int:
             "numpy": np.__version__,
         },
         "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
+        "date_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **rhob_revision(),
+        "detector_sources": {f().name: source_sha256(f) for f in DETECTOR_FACTORIES},
         "n_pairs_per_cell": n_pairs,
         "auroc_null_se": null_se(n_pairs),
         "auroc_null_se_note": (
@@ -591,9 +750,10 @@ def main() -> int:
         "per_detector": agg,
         "access_level_summary": access_level_summary(agg),
     }
-    Path(args.out).write_text(
-        json.dumps(artifact, indent=2, default=_json_safe), encoding="utf-8"
-    )
+    fixes = fix_history(previous)
+    if fixes:
+        artifact["detector_fixes"] = fixes
+    out_path.write_text(json.dumps(artifact, indent=2, default=_json_safe), encoding="utf-8")
     print(f"\nwrote {args.out}")
     return 0
 

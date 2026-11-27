@@ -35,6 +35,13 @@ class VisitationEntropyTrendDetector(PosthocDetector):
     def name(self) -> str:
         return "Visitation Entropy Trend"
 
+    @property
+    def min_episodes(self) -> int:
+        """The baseline entropy needs ``baseline_episodes`` rows of ``state_counts``; ``fit``
+        and ``classify`` see no features below that.
+        """
+        return self.baseline_episodes
+
     def fit(self, runs_a: list[RunData], runs_b: list[RunData]) -> None:
         feats_a = [f for f in (self._features(r) for r in runs_a) if f is not None]
         feats_b = [f for f in (self._features(r) for r in runs_b) if f is not None]

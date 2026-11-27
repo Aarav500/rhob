@@ -41,8 +41,8 @@ def test_fit_and_classify_separable_data():
 def test_short_run_returns_neutral_after_fit():
     """Below its window a fitted detector returns the fallback 0.5, not a score.
 
-    The detector declares no ``min_episodes``, so the board records this constant as an
-    AUROC of 0.5 on families shorter than 50 episodes (``test_l0_window_fallbacks.py``).
+    The harness never sees it: the detector declares ``min_episodes`` (its window, 50),
+    so a family shorter than that is not applicable (``test_min_episodes.py``).
     """
     detector = RewardMLPDetector(window_size=50, hidden=16)
     runs_a = _make_runs(20, shift=0.8, seed=0)

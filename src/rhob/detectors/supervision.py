@@ -20,25 +20,41 @@ question happened to produce the larger number at that level.
 
 Why this is load-bearing here
 -----------------------------
-On the 20-draw replication (``leaderboard/v5_replicated.json``, after the 2026-09-03
-Reward Skewness re-score) the access ladder's best detector is label-fitted at L1
-(State Divergence) and at L2 (Trajectory MLP), and unsupervised at L0 and L3. Removing
-the five label-fitted detectors and re-deriving the ladder from the same draws:
+On the 20-draw replication (``leaderboard/v5_replicated.json``, re-drawn on 2026-11-27
+at layout seeds 0 to 19, ``b93c351``) the access ladder's best detector is label-fitted
+at L1 (State Divergence) and at L2 (Trajectory MLP) on every draw, and unsupervised at
+L3. At L0 the best detector changes from draw to draw; the label-fitted Reward MLP is
+one of three that win 2 of the 20. Removing the five label-fitted detectors and
+re-deriving the ladder from the same draws:
 
 ===== ================= =====================
 level all detectors     unsupervised only
 ===== ================= =====================
-L0    0.5540            0.5514
-L1    0.9416            0.5340
-L2    0.9430            0.5872
-L3    0.9746            0.9746
+L0    0.5755            0.5699
+L1    0.9984            0.5384
+L2    0.9466            0.6082
+L3    0.9789            0.9789
 ===== ================= =====================
 
-The paired L1-L0 step goes from ``+0.388 [+0.378, +0.397]``, 20/20 draws, to
-``-0.017 [-0.039, +0.002]``, 4/20 draws -- it reverses sign and stops separating. The
+The L1 row is over 31 cells of 7 families and the L3 row over 123 of 33, so L1's 0.9984
+sitting above the L3 oracle's 0.9789 is not like for like.
+
+Under the best-detector max, the paired L1-L0 step goes from ``+0.423 [+0.413, +0.433]``,
+20/20 draws, to ``-0.032 [-0.055, -0.009]``, 4/20 draws -- it reverses sign and separates
+the other way: without the label-fitted detectors the best L1 detector sits measurably
+*below* the best L0 one. Under the suite mean the step goes from ``+0.069`` to
+``-0.005 [-0.024, +0.014]``, 10/20 draws, and does not separate, so whether it separates
+depends on the statistic and neither figure may be quoted alone. Under the max, the
 entire published climb from reward-only to state-visitation access is one supervised
-detector. That is a real result about RHOB, but it is not the result the ladder was
-being read as, and a reader cannot recover it from a single-column table.
+detector. That is a real result about RHOB, but it is not the result the ladder was being
+read as, and a reader cannot recover it from a single-column table.
+
+(Until the re-draw this paragraph quoted the 2026-08-04 draws, all built at layout 0, as
+re-scored on 2026-11-26 for the 19 detectors whose declared ``min_episodes`` rules out a
+family: L0 0.5713 / 0.5677, L2 0.9430 / 0.5990, L3 0.9746, L1 unchanged; Reward MLP one
+of four that won 3 of the 20; the max step ``+0.427 [+0.417, +0.439]`` to
+``-0.029 [-0.054, -0.005]``, 5/20 draws, and the mean step ``+0.071`` to
+``-0.002 [-0.022, +0.017]``, 11/20. Every verdict above is the same on both.)
 
 The paper this ships with previously applied a "supervised" caveat to Trajectory MLP
 alone, using it to deflate L2 while L1's equally-supervised champion carried no such

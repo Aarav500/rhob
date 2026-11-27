@@ -24,9 +24,14 @@ class GradientReversalDetector(PosthocDetector):
     def name(self) -> str:
         return "Gradient Reversal"
 
+    @property
+    def min_episodes(self) -> int:
+        """The early and late slope windows have to fit without overlapping."""
+        return 2 * self.window_size
+
     def classify(self, run: RunData) -> float:
         rewards = run.proxy_rewards
-        if len(rewards) < 2 * self.window_size:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         # Compute linear slopes in early and late windows

@@ -31,7 +31,11 @@ full reference guide.
 2. **Anti-symmetric features** — Must flip sign under pair's symmetry `σ`, in *your
    family's own coordinate*. The benchmark randomizes that coordinate's orientation
    before any detector sees it — see [The sign is not the label](#the-sign-is-not-the-label)
-3. **Deterministic** — Same seed = same rollout, always
+3. **Deterministic** — Same seed = same rollout, always. A family that trains an agent
+   in the process that rolls it out can break this across CPU vendors even under the
+   numerics pins: `continuous_camping`'s DQN camper trained to different weights on
+   Intel and AMD runners, and since 2026-11-27 (`ddc8ab5`) the family loads frozen
+   weights instead (`scripts/freeze_camper.py`)
 4. **Testable** — <60s per pair, handles small sample sizes
 5. **Documented** — Clear parameter semantics
 
@@ -50,10 +54,12 @@ not disclosed through the detector interface
 [`docs/l2_sign_randomization.md`](docs/l2_sign_randomization.md)).
 
 Why: under the old fixed convention the sign of `behav_trace` *was* the label. An L2
-detector that thresholded it at zero scored AUROC 1.000 on any family, at any
-difficulty, including families it had never seen — which reads as excellent
-generalization and is actually a restatement of this guide. Randomizing the sign
-removes that; the pair's separation is preserved exactly, only the direction moves.
+detector that thresholded it at zero scored AUROC 1.000 on 106 of the benchmark's 123
+(family, difficulty) cells and 0.981 over all of them, including families it had never
+seen ([`docs/figures/sign_randomization_impact.md`](docs/figures/sign_randomization_impact.md))
+— which reads as excellent generalization and is actually a restatement of this guide.
+Randomizing the sign removes that; the pair's separation is preserved exactly, only the
+direction moves.
 
 What this means for you:
 
@@ -349,11 +355,17 @@ class MyDetector(PosthocDetector):
     def name(self) -> str:
         return "My Detector"
 
+    @property
+    def min_episodes(self) -> int:
+        return 2 * self.window_size  # classify() returns 0.5 below this
+
     def classify(self, run: RunData) -> float:
         """Return P(hacking) ∈ [0, 1].
         
         - Access violations (e.g., L0 reading true_rewards) raise AttributeError
-        - Short runs (< min window) return 0.5 (neutral)
+        - Short runs (< min window) return 0.5 (neutral); the detector declares that
+          length as `min_episodes`, so the harness records a shorter family as not
+          applicable instead of scoring the 0.5
         - Score must be deterministic
         """
         rewards = run.proxy_rewards
@@ -413,6 +425,18 @@ __all__ = [
     "MyDetector",  # Add to __all__
 ]
 ```
+
+Since 2026-11-27 `tests/test_detectors/test_min_episodes.py` fails for any detector
+defined under `rhob.detectors` that is not exported, and for any exported detector that
+is not in its tables. Add the class to `_CLASSES` and its default `min_episodes` to
+`_DECLARED` (0 if it declares none). The test then holds the declaration to `classify`:
+constant one episode below it and varying at it, or, for a detector with no minimum,
+varying on runs of 2 and of 40 episodes. `test_the_table_is_the_board` in the same file
+also requires `_DECLARED` to list exactly the detectors on
+`leaderboard/v5_leaderboard.json`, and the board is built from the fixed list in
+`scripts/v5_leaderboard_and_transfer.py`, so a detector that is not yet on the board
+fails one test or the other. How a new detector should pass the suite before the board
+includes it is open; raise it in the pull request.
 
 ### Step 4: Test
 
@@ -499,24 +523,30 @@ serial on purpose: `generate_pair` derives the calibration and returns closures 
 rolling anything out, so this costs the calibrations only, and it stops four workers
 deriving the same amplitude at the same moment.
 
-```bash
-python scripts/warm_calibration_cache.py
-```
+Run both commands in one shell, under the same numerics variables:
 
 ```bash
+export OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 MKL_CBWR=COMPATIBLE \
+       MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 ATEN_CPU_CAPABILITY=avx2
+python scripts/warm_calibration_cache.py
 pytest tests/ -m slow -n 4 --durations=15
 ```
 
-Cap the BLAS threads when you do — one thread per core *per process* is the default, and
-with `-n 4` that oversubscribes badly:
+Those six variables are part of every calibration's cache key (since 2026-11-27), so
+a warm pass under one setting and a test run under another miss every entry: the warm
+is wasted and each worker derives its calibrations again. The thread caps also matter
+on their own. One BLAS thread per core *per process* is the default, and with `-n 4`
+that oversubscribes badly. The values above are the portable-numerics pins every job of
+`.github/workflows/regenerate.yml` sets, which are meant for x86-64. On another
+architecture, export only the three thread counts, the same way for both commands.
 
-```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 pytest tests/ -m slow -n 4
-```
-
-Calibrations are cached under `.rhob_cache/` (gitignored), keyed on a hash of the
-defining family module, so editing a family invalidates its entries automatically. If a
-calibration is ever suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
+Calibrations are cached under `.rhob_cache/` (gitignored). The key hashes the code of the
+defining family module and of every `rhob` module it imports, transitively, with
+docstrings and comments excluded; the installed versions of the numerical stack; the
+Python minor version; the machine architecture; and those six variables (`"unset"` when
+absent). So editing a family's code, or a helper it imports, invalidates its entries
+automatically, and a docstring or comment edit does not. If a calibration is ever
+suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
 
 ### Manual Validation Checklist
 - [ ] Family generates deterministic pairs (same seed = same run)
@@ -531,7 +561,7 @@ calibration is ever suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer enti
 - [ ] Detector classify() returns [0, 1]
 - [ ] Detector does not assume `behav_trace`'s direction (is direction-free, or infers
       it in `observe_cell`)
-- [ ] Detector handles short runs gracefully
+- [ ] Detector declares `min_episodes` for any length below which `classify` is constant
 - [ ] All tests pass
 
 ---

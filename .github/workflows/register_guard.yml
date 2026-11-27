@@ -70,7 +70,7 @@ jobs:
             git -C "$d" init -q
             git -C "$d" config core.symlinks false
             git -C "$d" config core.hooksPath /dev/null
-            git -C "$d" remote add origin https://github.com/${{ github.repository }}
+            git -C "$d" remote add origin "https://github.com/$GITHUB_REPOSITORY"
             if git -C "$d" fetch -q --depth 1 --no-tags origin "$sha"; then
               echo "OK   $sha is fetchable"
             else
@@ -182,7 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           git init -q pinned
-          git -C pinned remote add origin https://github.com/${{ github.repository }}
+          git -C pinned remote add origin "https://github.com/$GITHUB_REPOSITORY"
           git -C pinned fetch -q --depth 1 --no-tags origin "$PIN"
           git -C pinned checkout -q --detach FETCH_HEAD
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3; upstream publishes no major tags after v7
@@ -203,15 +203,22 @@ jobs:
     needs: [guard, pinned-suite]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       issues: write
     steps:
       # One rolling issue, reopened rather than duplicated, because a guard that files a
       # fresh issue every morning is a guard everyone mutes. GITHUB_TOKEN is the only
       # credential this workflow uses; there are no repository secrets.
+      #
+      # GH_REPO, because this job has no checkout: without it `gh` has no repository to
+      # talk to and both the lookup and the create fail, at exactly the moment the guard is
+      # trying to report something. The lookup matches the title exactly (as drift.yml's
+      # does): a search alone ranks by relevance, and its first hit can be another issue.
       - name: Open or update the tracking issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TITLE: "register-guard: the HVTB register entry needs attention"
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -236,9 +243,9 @@ jobs:
             "merges, the docs registration is ahead of the published lint result and our row" \
             "reads \"Out of date: registration changed\" with no score. Expect that, and update" \
             "\`PIN\` in this workflow in the same change as the bump.")"
-          existing="$(gh issue list --state all --search "$TITLE in:title" --json number,state --jq '.[0]' || echo '')"
-          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
-            n="$(printf '%s' "$existing" | python3 -c 'import json,sys;print(json.load(sys.stdin)["number"])')"
+          n="$(gh issue list --state all --limit 100 --search "\"$TITLE\" in:title" \
+            --json number,title --jq '[.[] | select(.title == env.TITLE) | .number] | max // empty')" || n=""
+          if [ -n "$n" ]; then
             gh issue reopen "$n" 2>/dev/null || true
             gh issue comment "$n" --body "$body"
           else

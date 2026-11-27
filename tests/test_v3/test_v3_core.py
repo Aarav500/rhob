@@ -126,7 +126,14 @@ def test_benchmark_evaluate_on_mock_family_reproduces_separation():
 
 
 def test_benchmark_evaluate_cross_validates_trainable_detectors():
-    """A detector with .fit() must be scored out-of-fold, not fit on the test data."""
+    """A trainable detector on a family without its channel: N/A, and the original untouched.
+
+    This end-to-end run stops at the missing-channel guard (mock_camping ships no
+    ``state_counts``), which ``_evaluate_cell`` checks before its fit/CV branch, so it
+    cannot see cross-validation itself. That path -- scored out-of-fold, never fit on
+    the test data -- is exercised by
+    ``test_evaluate_cell_scores_a_trainable_detector_out_of_fold`` below.
+    """
     from rhob.detectors import StateDivergenceDetector
 
     detector = StateDivergenceDetector(baseline_episodes=5, steady_window=10)
@@ -134,5 +141,56 @@ def test_benchmark_evaluate_cross_validates_trainable_detectors():
     res = Benchmark.evaluate(detector, families="mock_camping", n_seeds=10, verbose=False)
     assert len(res.cells) >= 1
     # StateDivergenceDetector needs state_counts; mock_camping's RunData has none, so
-    # it should gracefully report chance rather than crash or silently score itself.
-    assert not detector.is_trained  # the ORIGINAL instance is untouched (CV forks copies)
+    # its cells come back not applicable rather than crashing or silently scoring itself.
+    assert all(c.na_reason and "state_counts" in c.na_reason for c in res.cells)
+    assert not detector.is_trained  # the ORIGINAL instance is untouched
+
+
+def _state_run(hacking: bool, seed: int, n: int = 30, n_bins: int = 4) -> RunData:
+    """A run with a visitation histogram: after episode 10 the hacking variant camps
+    on bin 0 and the legitimate one on bin 1; the proxy reward is matched."""
+    rng = np.random.default_rng(seed)
+    counts = rng.poisson(2.0, size=(n, n_bins)).astype(float)
+    counts[10:, 0 if hacking else 1] += 6.0
+    proxy = np.full(n, 0.5) + rng.normal(0, 0.02, n)
+    return RunData(proxy_rewards=proxy, true_rewards=np.zeros(n), state_counts=counts, behav_trace=None)
+
+
+def test_evaluate_cell_scores_a_trainable_detector_out_of_fold():
+    """A detector with .fit() must be scored out-of-fold, not fit on the test data.
+
+    Every run here carries ``state_counts`` and more rows than ``min_episodes``, so the
+    cell passes both guards and reaches the fit/CV branch: ``_evaluate_cell`` must fork
+    the detector once per fold, fit each fork on its training fold only, score every run
+    with a fork that never saw it, and leave the caller's instance unfitted.
+    """
+    from rhob.detectors import StateDivergenceDetector
+    from rhob.v3.benchmark import _evaluate_cell
+
+    class _Spy(StateDivergenceDetector):
+        # Class-level, so every deepcopied fold fork reports into the same lists.
+        fit_sizes: list = []
+        leaks: list = []
+
+        def fit(self, runs_a, runs_b):
+            self._seen = {id(r) for r in (*runs_a, *runs_b)}
+            type(self).fit_sizes.append(len(self._seen))
+            super().fit(runs_a, runs_b)
+
+        def classify(self, run):
+            if id(run) in getattr(self, "_seen", ()):
+                type(self).leaks.append(id(run))
+            return super().classify(run)
+
+    detector = _Spy(baseline_episodes=5, steady_window=10)
+    assert detector.min_episodes == 5
+    runs_a = [_state_run(True, seed=s) for s in range(10)]
+    runs_b = [_state_run(False, seed=100 + s) for s in range(10)]
+
+    auroc, _, reason = _evaluate_cell(detector, runs_a, runs_b, [10] * 10, "L1", 30)
+
+    assert reason is None, reason  # scored, not routed to a not-applicable guard
+    assert _Spy.fit_sizes == [16] * 5, "expected five folds, each fit on 16 of the 20 runs"
+    assert not _Spy.leaks, "a run was scored by a fork that had been fit on it"
+    assert auroc > 0.9  # out-of-fold scores still recover the planted visitation split
+    assert not detector.is_trained and not hasattr(detector, "_seen")  # caller's copy unfit

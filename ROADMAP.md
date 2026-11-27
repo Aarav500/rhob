@@ -13,9 +13,17 @@ those reasons became the paper this repository is now the case study for.
   families fell to 0.508, chance, once each family's behavioural feature stopped carrying
   the label in its sign. That is one run of three trials, and in it the label-fitted
   Trajectory MLP kept 0.706 ([docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)),
-  so what survives is a label-fitted detector's transfer, not the headline. Even before
-  that, the held-out families were written by one author under one construction recipe, so
-  the most RTS could show was transfer within a single authored convention.
+  so what survives is a label-fitted detector's transfer, not the headline. Measured again
+  on 2026-11-27 under the not-applicable rule, over five trials in the shipped
+  configuration, the ensemble transfers at 0.512 and Trajectory MLP at 0.700
+  ([leaderboard/cross_family_transfer_v5.json](leaderboard/cross_family_transfer_v5.json)).
+  Even before that, the held-out families were written by one author under one
+  construction recipe, so the most RTS could show was transfer within a single authored
+  convention. *(2026-11-27: 0.508 and 0.706 are the 2026-08-03 measurement, `b77d50d`.
+  The linked file now holds its re-run on CI under the not-applicable rule, over the same
+  three trials (run 46011028034 at `54cd63c`, `0ff0d42`), which reads 0.514 and 0.709;
+  with the sign not randomized the ensemble reads 0.993 there, against the published
+  0.994, so the pre-randomization figure no longer reproduces to the digit.)*
 - **RHOB cannot be the default measure of detection.** In 27 of its 33 families the hack
   itself is authored, and in all 33 so is the flaw it exploits. A benchmark built that way
   can say what a signal contains. It cannot say how well a detector catches hacking an
@@ -51,8 +59,19 @@ them introduced by the fix to an earlier one. Two more were found in the release
 after the paper (`584ba13`): Reward Skewness returned a constant 0.5 below its 100-episode
 horizon, on 19 families, which padded the L0 negative control, and `true_reward_diverges`
 reported FAIL on arms tied by arithmetic, with no tie guard; it now returns DEGENERATE.
-Eight other L0 detectors still return a constant below their own windows, which pads the
-same control; that was found on 2026-11-19 and is open (Milestones).
+Eight other L0 detectors returned a constant below their own windows, which padded the
+same control, as did every L1 detector on `continuous_camping` and three L2 detectors on
+the short-horizon families. That was found on 2026-11-19 and fixed on 2026-11-26
+(`f83a152`): each now declares `min_episodes`, and both boards were re-scored with those
+cells N/A (Milestones). An external baseline that is not on the board had a constant
+score too: Bayesian Online Changepoint Detection scored `max_t P(r_t = 0)`, which a
+constant hazard pins to the hazard, so every HVTA run scored 0.004 and its onset rule
+could never fire. It now scores `1 - P(no changepoint over the run)`, and HVTA's primary
+draw was re-scored with it (`827aec9`, `f192797`). Whether either is a further instance
+in the paper's count is the author's decision. Whether BOCPD should score the log-odds of
+a changepoint instead, which keeps runs ordered where the probability rounds to 1.0 in
+float64 (no committed HVTA run comes within 10 nats of that), is open, also the author's
+decision.
 
 ## Retired
 
@@ -60,11 +79,21 @@ same control; that was found on 2026-11-19 and is open (Milestones).
 - The challenge cadence and the workshop shared task built around it.
   [docs/WORKSHOP_PITCH.md](docs/WORKSHOP_PITCH.md) is kept as a withdrawn record.
 - The internal onset column, for the reason above.
+- The v3.2 tables in `leaderboard/` (`leaderboard.json`, the standings in its `README.md`,
+  `by_mechanism.md`, `by_difficulty.md`) and the two scripts that wrote them,
+  `scripts/populate_leaderboard_v32.py` and `scripts/populate_v3_leaderboard.py`
+  (`827aec9`). Nothing read them, they predated the 2026-08-03 audit and the
+  not-applicable rule, and every detector they ranked except
+  `Ensemble(BehavioralThreshold x2)` is on both v5 boards. They remain in the history
+  ([leaderboard/README.md](leaderboard/README.md) gives the commands).
+  `python -m rhob submit` now records self-reported submissions in `leaderboard/community/`.
 - Any claim that RHOB detects reward hacking. The replicated result is that the three
-  sub-oracle rungs sit within 0.09 of chance for unsupervised detectors: max AUROC L0 0.551
-  [0.541, 0.562], L1 0.534 [0.515, 0.554] and L2 0.587 [0.576, 0.600], against 0.975
-  [0.971, 0.978] for the L3 oracle, over 20 draws
-  ([leaderboard/v5_replicated.json](leaderboard/v5_replicated.json)).
+  sub-oracle rungs sit near chance for unsupervised detectors, L2's the furthest at 0.108
+  above it: max AUROC L0 0.570 [0.560, 0.579], L1 0.538 [0.517, 0.561] and L2 0.608
+  [0.595, 0.624], against 0.979 [0.976, 0.981] for the L3 oracle, over 20 draws at their
+  own layouts ([leaderboard/v5_replicated.json](leaderboard/v5_replicated.json)).
+  *(2026-11-27: this item said "within 0.10 of chance" of the 2026-08-04 draws, all built
+  at layout 0, where the four were 0.568, 0.538, 0.599 and 0.975.)*
 - The old v1.5, v1.6 and v2.0 milestones — RTS for every detector, a multi-agent
   extension, 25 or more families. Each would enlarge a benchmark whose central construction
   is now the thing in question.
@@ -75,9 +104,12 @@ same control; that was found on 2026-11-19 and is open (Milestones).
   (2026-11-15).** D1 and D2 as a standalone package in
   [`tools/cannotfail`](tools/cannotfail), installable without RHOB and held to RHOB's
   admission gate by [`tests/test_cannotfail_parity.py`](tests/test_cannotfail_parity.py).
-  It is packaged for PyPI, so `pip install cannotfail` and `uvx cannotfail` work once 0.1.0
-  is uploaded; [docs/RELEASING_CANNOTFAIL.md](docs/RELEASING_CANNOTFAIL.md) holds the
-  steps. Until then it installs only from this repository, by the `git+https` line in its
+  Since `827aec9` that test also holds the third copy of the gate's tie rule, the Inspect
+  eval's (`inspect_eval/hvtb_hack_detection/metrics.py`), to the gate: its tolerances and
+  its rule, read with `ast`, so `inspect_ai` need not be installed. It is packaged for
+  PyPI, so `pip install cannotfail` and `uvx cannotfail` work once 0.1.0 is uploaded;
+  [docs/RELEASING_CANNOTFAIL.md](docs/RELEASING_CANNOTFAIL.md) holds the steps. Until then
+  it installs only from this repository, by the `git+https` line in its
   [README](tools/cannotfail/README.md#install). Its own CI,
   [`.github/workflows/cannotfail.yml`](.github/workflows/cannotfail.yml), installs the built
   wheel the way an outside maintainer would and runs the README's examples from it. Green
@@ -85,44 +117,229 @@ same control; that was found on 2026-11-19 and is open (Milestones).
   checks it is run on. A run on another benchmark reaches the author through
   [an issue form](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml),
   or by email to the address in [SECURITY.md](SECURITY.md#private-reports-that-are-not-security-issues) when it should not be public.
-- **One convention for every published number — open; done for the missing channel on
-  the L1 rows and for the Reward Skewness row on both boards (the 20-draw Skewness re-score
-  2026-09-03, the single-draw board 2026-11-19), not for the short horizons of eight other
-  L0 rows, three L2 rows and the L1 rows on `continuous_camping`.** A cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
-  2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
+- **One convention for every published number — done on both boards for the missing
+  channel on the L1 rows, for the Reward Skewness row (the 20-draw Skewness re-score
+  2026-09-03, the single-draw board 2026-11-19) and for every other detector's short horizon
+  (2026-11-26); for the cross-family transfer, done (2026-11-27, CI run 45987934132,
+  `9c038f6`; the current file is run 46011034429's, `02c0475`, with the same results); for
+  `docs/figures/sign_randomization_impact.json`, done (2026-11-27, CI run 46011028034 at
+  `54cd63c`, `0ff0d42`; below); the v3 tables in `leaderboard/` were retired instead
+  (`827aec9`).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row
+  was fixed in the 2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
   (its windows need 100 episodes; 19 families run 40 or 60) and was re-scored on all 20
   draws in `9da6b21`: those 19 families are now N/A, leaving 0.504 [0.494, 0.514] over 64
   cells on 14 families. Five of the 14 are still at exactly 0.500, from a near-constant
-  proxy rather than the horizon. That is disclosed and not fixed. The single-draw board
-  (`leaderboard/v5_leaderboard.json`) was regenerated on CI on 2026-11-19 (run 44447220658,
-  `52656cb`) under the shipped configuration, with the behavioural sign randomized: its 8
-  L1 rows are `null` on 88 of 123 cells and its Reward Skewness row on 59. Its ladder of
-  means is L0 0.4876, L1 0.5701, L2 0.5716, L3 0.9830, against 0.4866, 0.5200, 0.7213 and
-  0.9830 on the 2026-07-17 board, and of maxima 0.5351, 0.9270, 0.9430 and 0.9830
-  ([CHANGELOG.md](CHANGELOG.md)). Still open: the short-horizon rows in the next item, and
-  `leaderboard/cross_family_transfer.json`, which has not been regenerated and predates both
-  the provenance block and the N/A schema.
-- **Eight L0 detectors publish a constant below their windows — open; the fix changes the
-  L0 ladder.** Reward Skewness is the only L0 detector that declares `min_episodes`. Below
-  their windows, Reward Peak, Reward Autocorrelation, Reward Trend and Variance Window
-  (100 episodes), Max Plateau and Reward MLP (50) and Gradient Reversal (60) return 0.5, and
-  Reward CUSUM (50) scores every run 0, which ties at 0.5. Both boards record that constant
+  proxy rather than the horizon. That is disclosed and not fixed. *(2026-11-27: on the
+  re-drawn 20 draws the row is 0.507 [0.496, 0.519] over the same 64 cells. Four of the 14
+  families are at exactly 0.500 in every draw; the fifth, `rlhf_reward_model_overopt`, which
+  builds a real layout from the layout seed, is at 0.500 in 19 of the 20.)* The single-draw
+  board (`leaderboard/v5_leaderboard.json`) was regenerated on CI on 2026-11-19 (run
+  44447220658, `52656cb`) under the shipped configuration, with the behavioural sign
+  randomized, re-scored on 2026-11-26 with every detector's horizon declared (CI run
+  45747902322, `03d978e`), and re-drawn on 2026-11-27 at `54cd63c` under the CI lock and the
+  six numerics pins (run 46011019246, `b93c351`; see the re-draw item below): its 8 L1 rows
+  are `null` on 92 of 123 cells (26 families), its Reward
+  Skewness, Reward Peak, Reward Autocorrelation, Reward Trend, Variance Window and Feature
+  Consistency rows on 59, and its Reward CUSUM, Max Plateau, Gradient Reversal, Reward MLP,
+  Feature Magnitude and Reward-Feature Correlation rows on 22. Its ladder of means is L0
+  0.4835, L1 0.5789, L2 0.5771, L3 0.9830, against 0.4866, 0.5200, 0.7213 and 0.9830 on the
+  2026-07-17 board, and of maxima 0.5474, 0.9820, 0.9440 and 0.9830: L1's best, over 7
+  families and 31 cells, is above L2's and within 0.001 of L3's
+  ([CHANGELOG.md](CHANGELOG.md)). *(2026-11-27: the 2026-11-26 re-score's L0 mean was
+  0.4834 and its L2 maximum 0.9430. The re-draw moved six detectors' overall AUROC, by at
+  most 0.013, Reward KDE's from 0.495 to 0.482; the null counts did not change.)* The
+  transfer is now measured under
+  the current rules in `leaderboard/cross_family_transfer_v5.json` (five trials; first CI
+  run 45987934132 at `eaa75f8`, committed in `9c038f6`; the current file is run
+  46011034429's at `54cd63c`, `02c0475`, with the same results).
+  `leaderboard/cross_family_transfer.json` stays as
+  the 2026-07-09 record, which predates the provenance block, the N/A schema and the
+  horizon declarations. `docs/figures/sign_randomization_impact.json`, scored before the
+  declarations on 2026-08-03, has been re-measured under them on CI (run 46011028034 at
+  `54cd63c`, `0ff0d42`; its figures are in the item below).
+  The v3 tables in `leaderboard/`, which predated the N/A schema, were retired
+  (`827aec9`; see Retired).
+- **Every detector declares the run length its score needs — done (2026-11-26); it changed
+  the L0 ladder.** Until `f83a152`, Reward Skewness was the only L0 detector that declared
+  `min_episodes`. Below their windows, Reward Peak, Reward Autocorrelation, Reward Trend and
+  Variance Window (100 episodes), Max Plateau and Reward MLP (50) and Gradient Reversal (60)
+  returned 0.5, and Reward CUSUM (51: at exactly its 50-episode baseline the accumulation
+  loop never runs) scored every run 0, which ties at 0.5. Both boards recorded that constant
   as a measured 0.5: the first four on the 19 families that run 40 or 60 episodes, the other
-  four on the 7 of those that run 40. On the single-draw board that is 104 of the
+  four on the 7 of those that run 40. On the single-draw board that was 104 of the
   per-family values behind the L0 mean of 0.4876, and in all 20 draws every one of those
-  cells is 0.5. It is the defect `584ba13` fixed for Reward Skewness. The admission gate is
-  not affected: it reads none of the eight. The same defect sits outside L0, in 41 more
+  cells was 0.5. It is the defect `584ba13` fixed for Reward Skewness. The admission gate is
+  not affected: it reads none of the eight. The same defect sat outside L0, in 41 more
   per-family values: three L2 detectors (Feature Consistency below 100 episodes, on the 19
   families; Feature Magnitude and Reward-Feature Correlation below 50, on the 7), and all
   eight L1 detectors on `continuous_camping`, whose 40-episode runs are below every L1
-  window; those move the L1 and L2 figures, not the L0 ladder. The fix: declare each
-  detector's minimum horizon; re-score those rows on the single-draw board and on the 20
-  draws by the procedure of `scripts/merge_rescored_detector.py` (the same draws, and every
-  cell scored before comes back unchanged); rebuild `leaderboard/v5_replicated.json`; then
-  update every figure quoted from either board that moves, the L0 ladder first. Dropping
-  the 104 L0 values from the committed single-draw board gives an L0 mean of 0.4834 and a
-  best of 0.5474 (Reward CUSUM, over 20 families), against 0.4876 and 0.5351, and moves
-  Reward Peak from third to second.
+  window. Each detector now declares its minimum horizon, derived from its own attributes,
+  and a cell below it is N/A (`f83a152`); `EnsembleDetector` needs the largest of its
+  members' minimums, and Perfect Feature Oracle declares the `behav_trace` channel it reads.
+  The five external baselines, which are not on the board and which the HVTA bridge
+  evaluates (PCA Reconstruction, an L1 detector, is N/A on every HVTA cell), declare theirs
+  since `827aec9`: Page-Hinkley 3, Isolation Forest 2, AR(p) Residual `order + 1` (6 by
+  default), PCA Reconstruction its 100-episode `steady_window`, and Bayesian Online
+  Changepoint Detection 5. `tests/test_detectors/test_min_episodes.py` holds every shipped
+  detector to its declaration: constant one episode below it, varying at it.
+  Both boards were re-scored on CI: the single draw in run 45747902322 (`03d978e`), which is
+  the 2026-11-19 board with exactly those 145 values set to `null`, and the 20 draws in run
+  45747922473, merged by run 45776113470 (`827ae57`) with
+  `scripts/merge_rescored_detector.py --keep-old-values`: every draw keeps the value it was
+  scored with and only the new not-applicable cells are applied, because 414 of the 23,480
+  re-scored cells did not reproduce on the CI lock (319 on `sequence_keyword_stuffing`; see
+  the next item), after which `scripts/aggregate_replication.py`
+  rebuilt `leaderboard/v5_replicated.json` and `docs/figures/replication_summary.md`. The
+  summary was rendered again by the updated aggregator, whose sentences on the label-fitted
+  climb and on each level's denominators are now derived from the data. The HVTA
+  channels were re-scored too (`1e38a27`, 132 entries now N/A). Re-scored, the single-draw
+  L0 mean was 0.4834 and the best 0.5474 (Reward CUSUM, over 20 families), against 0.4876
+  and 0.5351, and Reward Peak moved from third to second (0.5375). On 20 draws the L0
+  control mean was 0.4951 [0.4899, 0.5000], against 0.4972 [0.4939, 0.5005]; its upper end
+  was 0.50001 to five decimals, so 0.5 was only just inside. L2 minus L1 on maxima was
+  −0.0555 [−0.0609, −0.0505] and separated, with L1 above L2; on means L2 was still above L1
+  (+0.0118 [+0.0008, +0.0235]). So on the all-detector board both statistics separated every
+  rung, and they disagreed on the direction of that one. In the unsupervised partition,
+  which the top-level `statistic_disagreement` does not cover (since `827aec9` the
+  aggregator applies the same rule to it, in
+  `supervision.statistic_disagreement_unsupervised_only`, which lists this step), the L1
+  minus L0 step came to depend on the statistic: on maxima −0.0293 [−0.0537, −0.0051]
+  (positive in 5 of 20 draws) separated, with L1 below L0; on means −0.0022
+  [−0.0217, +0.0167] (11 of 20) did not. Before the re-score neither statistic separated
+  it. L1's best, State Divergence, was within 0.001 of the L3 oracle on the single draw (0.982 against 0.983) and above it on 20 draws (0.998
+  against 0.975), over 31 cells in 7 families against the oracle's 123 in 33, so that is
+  not a like-for-like comparison. The figures the repository's docs quote from either board were
+  updated with the re-score; the paper's are under the venue milestone below. The re-draw of
+  2026-11-27 replaced both boards; its figures are in the next item.
+- **Re-draw the 20 replicates on today's code — done (2026-11-27, CI run 46011019246 at
+  `54cd63c`, `b93c351`).** The 20 draws behind `leaderboard/v5_replicated.json` until then
+  were made on 2026-08-04, under Python 3.11 and numpy 2.4.6 with no git commit recorded,
+  and every later fix had been merged into them detector by detector. `e7bb3f3`
+  (2026-09-19) rewrote `sequence_keyword_stuffing`, whose keyword branch had been dead code,
+  so every detector's 20-draw value on that family still measured the old version: the
+  2026-11-26 re-score could not reproduce 319 of its cells and kept the drawn values (see
+  the item above). Nor did the draws vary the layout. Until `827aec9`,
+  `FamilyRegistry.generate_suite` dropped its `layout_seed`, so draws 1 to 19, which
+  record layout seeds 1 to 19, were built and oriented at layout 0 and resampled only
+  their rollout seeds: the intervals were over rollout seeds at one layout, with
+  every family under one behavioural orientation. A re-draw adds the orientation in every
+  family, since each family's behavioural sign is drawn per layout, and a new environment
+  layout in two: 12 of the 33 families never read the layout seed, 19 use it only as an
+  offset to rollout seeds the draws already resample, and `proxy_correlation_gaming` and
+  `rlhf_reward_model_overopt` build a real layout from it.
+  Replicates drawn since `827aec9` record `draw_schema` 2 (the 20 drawn on 2026-08-04
+  recorded none), and a draw without it is refused by
+  `scripts/merge_rescored_detector.py` and, for `artifacts=replicated`, by
+  `regenerate.yml`'s plan job (`320b7b7`). `regenerate.yml`'s `redraw` mode draws the
+  board and all 20 replicates, every detector, at one commit under the CI lock and the six
+  numerics pins, after one `calibrate` job derives the calibrations for all of them.
+  `scripts/check_redraw.py` refuses the set unless it is complete, at draw schema 2, from
+  one clean commit under the pins themselves (`d36d60f`), and replicate 0 equals the board
+  cell for cell; `scripts/aggregate_replication.py --require-single-source` then rebuilds
+  the intervals. The aggregator now gives `v5_replicated.json` its own `provenance` block and
+  a `replicates` block that tallies the inputs' sources (`827aec9`). Re-aggregating the
+  2026-08-04 draws with it changed no number, and their `replicates` block read
+  `layouts_resampled: false` and `single_source: false`.
+  The first re-draw (run 45995235365, at `d85a60c`) was refused by `check_redraw.py`:
+  replicate 0 and the board differed on 16 `continuous_camping` cells, because that
+  family's DQN camper trained to different weights on Intel and AMD runners under the pins
+  (diagnostic run 46007050078). The family now loads frozen weights (`ddc8ab5`;
+  [CHANGELOG.md](CHANGELOG.md)), which a second diagnostic run, 46009249347, rolled out
+  identically on 16 Intel and AMD runners at all four scored difficulties. The second
+  re-draw passed every check, with the board
+  drawn on an AMD runner and the 20 replicates on 12 Intel and 8 AMD runners, replicate 0
+  equal to the board cell for cell. The re-drawn set's `replicates` block reads
+  `draw_schema` 2 in all 20, `layouts_resampled: true` and `single_source: true`: one clean
+  commit, one Python (3.12.16), one package set (mujoco 3.17.0 among it), one numerics
+  signature.
+  `sequence_keyword_stuffing` is now measured at its current code in every draw. Against
+  the 2026-11-26 re-score of the old draws, three things moved. The L0 control: 12 of the
+  13 L0 detectors' 95% intervals contain 0.500, and Reward CUSUM's, 0.486 [0.475, 0.497],
+  lies wholly below it, so Reward CUSUM separates the variants weakly, in the direction
+  that would not flag hacking. On the 2026-08-04 draws all 13 contained 0.500. Whether
+  that matters for the control is open, the author's decision. The level's best-detector
+  maximum still excludes 0.500, as a maximum over 13 detectors does by selection, at 0.575
+  [0.565, 0.586] (was 0.571 [0.560, 0.582]); the suite mean is 0.4977 [0.4918, 0.5036]
+  (was 0.4951 [0.4899, 0.5000]), whose interval now contains 0.500 with room rather than at
+  its endpoint. The ladder: means L0 0.4977, L1 0.5665, L2 0.5930, L3 0.9789, against 0.4951,
+  0.5665, 0.5784 and 0.9746; maxima 0.5755, 0.9984, 0.9466 and 0.9789, against 0.5713,
+  0.9984, 0.9430 and 0.9746. L1 is unchanged because no L1 value moved in any draw: L1
+  does not read the behavioural trace, and the state counts it reads came out the same in
+  all seven of its families, `rlhf_reward_model_overopt` included. State Divergence, at
+  0.998, is still above the oracle's 0.979. The rungs: every all-detector rung still
+  separates under both statistics, and `statistic_disagreement` still lists L2 minus L1 by
+  direction, on maxima −0.0518 [−0.0577, −0.0460] (no draw favours L2) and on means
+  +0.0264 [+0.0103, +0.0440] (13 of 20). Its unsupervised counterpart still lists L1 minus
+  L0 by separation: on maxima −0.0315 [−0.0548, −0.0087] (4 of 20 favour L1) separates, on
+  means −0.0050 [−0.0242, +0.0142] (10 of 20) does not. The unsupervised maxima are under
+  Retired.
+- **Re-run the artifacts scored before the horizon declarations — the transfer done
+  (2026-11-27, CI run 45987934132, `9c038f6`; the current file is run 46011034429's,
+  `02c0475`, with the same results); the sign-randomization measurement done (2026-11-27,
+  CI run 46011028034 at `54cd63c`, `0ff0d42`).**
+  `leaderboard/cross_family_transfer.json` and the 2026-08-03
+  `docs/figures/sign_randomization_impact.json` (`git show
+  b77d50d:docs/figures/sign_randomization_impact.json`; the file now holds the re-run)
+  were scored before `f83a152`. The held-out families of both transfer runs all run at
+  least 100 episodes, and `continuous_camping` (40) is among their six training families,
+  though the Reward MLP and State Divergence fits, it turned out, already dropped its runs.
+  The transfer has since been measured again under the declarations, in the shipped
+  configuration, in `leaderboard/cross_family_transfer_v5.json` (CI run 45987934132 at
+  `eaa75f8`, committed in `9c038f6`, and run again at `d85a60c`, run 45995248987,
+  `7d34989`, and at `54cd63c`, run 46011034429, `02c0475`, each time on an Intel runner
+  and with identical results, across `ddc8ab5` too, since the frozen camper
+  `continuous_camping` now loads holds the weights Intel runners train; since `d85a60c`
+  its sampling note gives the null SE at the artifact's own seed counts, 0.13 at n=m=10
+  and 0.09 at the held-out cells' n=m=20):
+  over five model-init trials the Top-5 ensemble transfers at 0.512 (standard deviation
+  0.011) and Trajectory MLP at 0.700 (0.022). The sign-randomization measurement was
+  re-run under the declarations on CI too (run 46011028034 at `54cd63c`, committed in
+  `0ff0d42`), on all 33 families at the published design, on an AMD runner. In its
+  `after` configuration, over three trials, the ensemble transfers at 0.514 (0.532, 0.499,
+  0.510) and Trajectory MLP at 0.709 (0.726, 0.699, 0.701); those three trials, train
+  AUROCs included, agree with trials 0 to 2 of `cross_family_transfer_v5.json`, which ran
+  on Intel, to the three decimals both files record. With the sign not randomized
+  (`before`) the ensemble reads 0.993 against the published 0.994, so it no longer
+  reproduces to the digit, as it did in the 2026-08-03 run; Trajectory MLP reads 0.921
+  against the published 0.931, which the 2026-08-03 run, at 0.907, did not reproduce
+  either. Its L2 ladder, with Feature Consistency not applicable on 59 of the 123 cells
+  and Feature Magnitude and Reward-Feature Correlation on 22, has a mean of 0.7320 before
+  and 0.5739 after, and a best of 0.9807 (Behavioral Threshold) before and 0.9610
+  (Trajectory MLP) after. Over the cells scored in both modes its invariance check finds
+  every one identical: 123 of 123 for Angular Momentum and True Reward Oracle, 101 of 101
+  for Feature Magnitude, Reward-Feature Correlation and Reward CUSUM (L0), 64 of 64 for
+  Feature Consistency and 31 of 31 for State Coverage Rate (L1), with no cell scored in
+  one mode and not the other. The two L2 detectors that read the sign, Behavioral
+  Threshold and Centroid Tracker, fall from 0.981 and 0.968 to 0.479 and 0.358, while the
+  four that read only a magnitude do not move, so the finding that the sign convention
+  carried the pre-audit L2 result stands on the re-measured numbers
+  ([docs/figures/sign_randomization_impact.md](docs/figures/sign_randomization_impact.md)).
+  *(2026-11-27: until the re-run this item compared against the 2026-08-03 measurement,
+  `b77d50d`: 0.508 and 0.706 over its three trials (What changed), an L2 ladder of 0.7229
+  before and 0.5629 after that averaged in the short-horizon fallbacks of those three L2
+  detectors, and an invariance check of 123 of 123 cells per detector that counted the
+  cells below their declared horizons and Reward CUSUM's too, and all 92 cells State
+  Coverage Rate cannot score, 88 of them in families that provide no state counts.)* The
+  transfer script now applies the benchmark's not-applicable rule,
+  `rhob.v3.benchmark.not_applicable_reason`, outside the harness, and the
+  sign-randomization script measures transfer through the transfer script's own code
+  (`827aec9`, `f0caa3d`). `scripts/cross_family_transfer.py` applies the rule to the
+  pooled fit and to every held-out cell, records a cell whose frozen model cannot consume the family's
+  representation as N/A with its reason instead of scoring it 0.5 (State Divergence's
+  published transfer row was 1200 such imputed scores), cross-validates the Top-5
+  ensemble's train AUROC with a fold-fitted Trajectory MLP, and writes
+  `leaderboard/cross_family_transfer_v5.json`; it refuses to overwrite the 2026-07-09 file,
+  which is kept as the record. `scripts/measure_sign_randomization.py`, which had crashed
+  on its first board cell since the onset column was removed (2026-09-02), runs again: its
+  invariance check compares only the cells scored in both modes, and its `ci` subcommand
+  runs the published design end to end. `regenerate.yml` runs the two as its `transfer`
+  (5 trials) and `signrand` modes. The sign-randomization measurement's `transfer` stage
+  keeps `--n-trials` at 3, the published design's (it was 5 until 2026-11-27); whether
+  that default stays is open, the author's decision. `scripts/populate_v3_leaderboard.py`
+  and the v3 tables it wrote to `leaderboard/` (`leaderboard.json`, `README.md`,
+  `by_mechanism.md`, `by_difficulty.md`, last committed on 2026-07-07) predated the N/A
+  schema as well. They were retired (`827aec9`): nothing read them, and every detector
+  they ranked except `Ensemble(BehavioralThreshold x2)` is on both v5 boards.
 - **Extend the admission ledger to the short-horizon families — done (2026-11-19).** The
   nightly smoke screen has been re-measured with Reward Skewness declaring its horizon: 19
   short-horizon cells admit and 14 fail on a real late-window density leak (`9da6b21`; the
@@ -171,8 +388,31 @@ same control; that was found on 2026-11-19 and is open (Milestones).
   computation the axis-A plan pins first reaches 0.80 at an AUROC of 0.944, inside the
   range ([docs/SURVEY_AXIS_A_PREREG.md](docs/SURVEY_AXIS_A_PREREG.md), "What is already
   known"). Also among them, and open: any figure the paper quotes from the single-draw
-  board or the admission ledger is from the versions before their 2026-11-19 regeneration
-  and must be updated to the regenerated ones before submission.
+  board, the 20-draw board or the admission ledger must be updated before submission. The
+  single-draw board and the ledger were regenerated on 2026-11-19, both boards were
+  re-scored on 2026-11-26 with every detector's horizon declared, and both were re-drawn
+  whole on 2026-11-27, at one commit under the numerics pins (run 46011019246, `b93c351`).
+  The re-score's changes included the L0 control on 20 draws, 0.4951 [0.4899, 0.5000] (was
+  0.4972 [0.4939, 0.5005]); L2 minus L1 on maxima, which came to separate with L1 above L2
+  (−0.0555 [−0.0609, −0.0505]) where it had been the one rung that separated under one
+  statistic and not the other; and the unsupervised L1 minus L0 step on maxima,
+  −0.0293 [−0.0537, −0.0051], which separated where −0.0174 [−0.0391, +0.0017] had not,
+  while on means it still did not (−0.0022 [−0.0217, +0.0167]), so that step's status came
+  to depend on the statistic. The re-draw moved them again, and the paper must quote the
+  re-drawn figures: the L0 control mean is 0.4977 [0.4918, 0.5036]; 12 of the 13 L0
+  detectors' intervals contain 0.500 and Reward CUSUM's, 0.486 [0.475, 0.497], lies below
+  it; L2 minus L1 is −0.0518 [−0.0577, −0.0460] on maxima and +0.0264 [+0.0103, +0.0440] on
+  means, so both statistics still separate it, in opposite directions; the unsupervised L1
+  minus L0 step is −0.0315 [−0.0548, −0.0087] on maxima and −0.0050 [−0.0242, +0.0142] on
+  means, so its status still depends on the statistic; and the unsupervised L2 maximum is
+  0.608 [0.595, 0.624], 0.108 above chance (under Retired). The single-draw board moved
+  less: six detectors' overall AUROC, by at most 0.013 (under "One convention for every
+  published number" above). HVTA's figures
+  moved too, with the re-score of Bayesian Online Changepoint Detection (`827aec9`,
+  `f192797`): on the primary draw it is now the strongest external baseline, 0.739
+  against Page-Hinkley's 0.690, and the best onset correlation among detectors that fire
+  on most runs is its r = 0.44 (primary draw only; its other three draws are pre-fix),
+  where it was Reward Peak's 0.43.
 - **The survey: the port, then axis A — open; a pre-registration of axis A's power re-run
   written (2026-11-16), awaiting its sealed record and then a deposit dated by a third
   party.** The analysis plan for the re-run on the 15 sub-class A claims is written before
@@ -233,8 +473,24 @@ construction, not a new benchmark member.
   `onset_localizable`'s statistic fixed over the 118 cells of the 31 families whose onset
   label is the configured schedule, for the reason under What changed. Over all 123 it
   does not: the 5 cells of `continuous_camping` and `gridworld_camping` give the statistic
-  six distinct values, and the verdict is `ok`. Recomputing the 30 from score
-  vectors would need the runs regenerated, since the ledger stores aggregates.
+  six distinct values, and the verdict is `ok`. The ledger stores aggregates, not score
+  vectors, so since `827aec9` `tests/test_cannotfail_parity.py` also re-certifies the six
+  DEGENERATE families at the ledger's design: `cannotfail` must recompute each per-layout
+  resolution and dispersion from the captured score vectors bit for bit against the gate
+  re-run on the same machine, match the ledger's per-cell means within 1e-12
+  (resolution) and 1e-6 relative (informativeness), or 1e-15 absolute for a dust-level
+  proxy, and call each cell degenerate on its own. Two of the six, one of each kind of
+  degeneracy, run on every push and the other four nightly (`2130ab2`). Beside it,
+  `tests/test_v3/test_ledger_reproduces.py` re-certifies four families at every tier the
+  ledger scores, on every push, and requires their statuses and outcomes exactly and
+  every number within measured tolerances (5e-3 absolute on rank-derived numbers, 1e-9
+  relative on the rest), so a change to a detector the gate uses, to one of those
+  families or to the gate that moves a status, an outcome or any number beyond those
+  tolerances fails a test. The four reach every status and every outcome value the ledger
+  records; the one (criterion, outcome) pair they do not, `proxy_matched`'s FAIL, is
+  re-certified nightly at `rlhf_feature_blindspot_gaming` @0.80. The binding detector's
+  name is pinned only where the ledger's choice is clear by more than 0.01
+  (2 × `RANK_ATOL`) (`827aec9`, `2130ab2`).
 - **A worked example of a check built so it can fail.** The matched-pair construction and
   the admission gate. Its nightly smoke screen first failed twelve families (2026-08-17,
   recorded in `ba26a4a`). 33 of its 36 DEGENERATE cells turned out to be Reward Skewness

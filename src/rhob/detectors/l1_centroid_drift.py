@@ -26,10 +26,15 @@ class CentroidDriftDetector(PosthocDetector):
     def name(self) -> str:
         return "Centroid Drift"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows of ``state_counts`` rows have to fit."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         """Score: drift magnitude in visitation centroid."""
         counts = run.state_counts
-        if counts is None or len(counts) < self.baseline_window + self.test_window:
+        if counts is None or len(counts) < self.min_episodes:
             return 0.5
 
         def centroid(freq: np.ndarray) -> float:

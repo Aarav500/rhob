@@ -1,7 +1,8 @@
 """Tests for per-access-level aggregation, including the duplicate-detector exclusion.
 
 The numbers asserted against ``leaderboard/v5_leaderboard.json`` are the committed
-board's, as regenerated on CI on 2026-11-19 (``52656cb``), and the docs quote them. They
+board's, as re-scored on CI on 2026-11-26 once every detector declared the horizon it
+needs, and the docs quote them. They
 are pinned here so that a regeneration that changes the access-level ladder cannot slip
 through unnoticed, and so that the specific defect these tests were written for -- an L3
 "oracle ceiling" that was half a copy of an L2 detector -- cannot silently return.
@@ -20,7 +21,8 @@ from rhob.v3.leaderboard import (
     render_access_summary_md,
     summarize_access_levels,
 )
-from rhob.v3.leaderboard.access_summary import UNDECLARED_HORIZON_FALLBACKS
+import rhob.detectors as detectors
+from rhob.detectors.posthoc import PosthocDetector
 
 _BOARD = Path(__file__).resolve().parents[2] / "leaderboard" / "v5_leaderboard.json"
 
@@ -112,31 +114,31 @@ def test_max_is_the_best_detector_not_the_mean():
 def test_committed_v5_board_ladder(v5_results):
     """Pin the published ladder on the real, committed board.
 
-    Means and maxima on ``leaderboard/v5_leaderboard.json`` as regenerated on CI on
-    2026-11-19 (33 families, 123 cells; each L1 detector has a value on 35 of them and
-    Reward Skewness on 64, and the rest are ``null``; the other L0 detectors have a value
-    on all 123, but for eight of them the value on the short-horizon families is their
-    fallback 0.5, not a measurement -- see
-    ``test_the_l0_figures_include_eight_detectors_fallback_values``), with the six
-    degenerate-proxy families held
-    out of L0 -- which is what makes L0 the negative control the docs describe rather
-    than a mean padded with cells that could not have come out any other way. L3 has
-    exactly one member after the Perfect Feature Oracle duplicate is removed.
+    Means and maxima on ``leaderboard/v5_leaderboard.json`` as re-drawn on CI on
+    2026-11-27 (``b93c351``: under the numerics pins, with the frozen
+    ``continuous_camping`` camper; 33 families, 123 cells). Every detector is ``null`` on a family that does
+    not emit its channel (each L1 detector has 25) and on a family that runs fewer
+    episodes than the ``min_episodes`` it declares
+    (``test_no_detector_is_scored_below_its_declared_horizon``). The six degenerate-proxy
+    families are held out of L0, which is what makes L0 the negative control the docs
+    describe rather than a mean padded with cells that could not have come out any other
+    way. L3 has exactly one member after the Perfect Feature Oracle duplicate is removed.
 
-    On the board before that regeneration (2026-07-17; ``git show
-    acd35c2:leaderboard/v5_leaderboard.json``), L0 moved from 0.4898 (cell-weighted, all
-    33 families) to 0.4866 when the exclusion was implemented, and its best detector's
-    figure from 0.5180 to 0.5311 (still Reward CUSUM). Of that L0 shift, 0.00036 was the
-    re-weighting the exclusion forces (family-weighted over the retained families,
-    against the cell-weighted ``overall_auroc`` the other rungs use -- see
-    ``rhob.v3.leaderboard.access_summary``) and 0.00291 the exclusion itself, from
-    unrounded values; differences of the rounded figures (0.4898, 0.4895, 0.4866) read
-    0.0003 and 0.0029. ``test_the_l0_exclusion_is_worth_this_much`` separates the two on
-    the current board.
-    That board read L1 0.5200, L2 0.7213 (best 0.975, Behavioral Threshold) and L3
-    0.9830; the regenerated one scores the behavioural feature with its sign randomized
-    and leaves not-applicable cells out instead of imputing 0.5. Only cells that are not
-    applicable are left out: the eight L0 detectors' fallback 0.5s are still in.
+    The board of 2026-11-26 (``f83a152``, unpinned, its camper trained on the runner)
+    read L0 0.4834 and L2 0.5771 (best 0.943, Trajectory MLP); six detectors' overall
+    AUROCs moved in the re-draw, none by more than 0.013 (Reward KDE, 0.495 to 0.482).
+
+    The board of 2026-11-19 (``52656cb``) read L0 0.4876 (best 0.5351, Reward CUSUM), L1
+    0.5701 (best 0.927, State Divergence) and L2 0.5716 (best 0.943, Trajectory MLP). It
+    recorded eight L0 detectors' fallback constant as 0.5 on the families shorter than
+    their windows (104 per-family entries), every L1 detector's on ``continuous_camping``,
+    and three L2 detectors' on the short-horizon families. Those entries are ``null`` now,
+    and that is all that moved: every other per-family value is unchanged.
+
+    The board before that (2026-07-17; ``git show acd35c2:leaderboard/v5_leaderboard.json``)
+    read L0 0.4866, L1 0.5200, L2 0.7213 (best 0.975, Behavioral Threshold) and L3 0.9830.
+    The 2026-11-19 regeneration scored the behavioural feature with its sign randomized
+    and left cells without the channel out instead of imputing 0.5.
 
     These are pins on a committed artifact, not on library behaviour: regenerating
     ``v5_leaderboard.json`` or ``admission/admission_ledger.json`` will move them. That
@@ -148,29 +150,42 @@ def test_committed_v5_board_ladder(v5_results):
 
     assert [s[lv].n_detectors for lv in ACCESS_LEVELS] == [13, 8, 7, 1]
 
-    assert s["L0"].mean_auroc == pytest.approx(0.4876, abs=5e-4)
-    assert s["L1"].mean_auroc == pytest.approx(0.5701, abs=5e-4)
-    assert s["L2"].mean_auroc == pytest.approx(0.5716, abs=5e-4)
+    assert s["L0"].mean_auroc == pytest.approx(0.4835, abs=5e-4)
+    assert s["L1"].mean_auroc == pytest.approx(0.5789, abs=5e-4)
+    assert s["L2"].mean_auroc == pytest.approx(0.5771, abs=5e-4)
     assert s["L3"].mean_auroc == pytest.approx(0.9830, abs=5e-4)
 
     assert s["L0"].n_families_scored == 27
     assert s["L0"].excluded_families == sorted(DEGENERATE_FAMILIES)
-    # Reward Skewness is null on the 19 families that run fewer than the 100 episodes
-    # its windows need, so it is averaged over 8 of the 27. Every other L0 detector has a
-    # non-null value on all 27, though for eight of them the value on the short-horizon
-    # families is the fallback 0.5 from their window guard, not a measurement.
+    # Nine L0 detectors need more episodes than some families run. The five that need
+    # 100 are null on the 19 families with horizon 40 or 60 and averaged over 8 of the
+    # 27; the four that need 50, 51 or 60 are null on the 7 with horizon 40 and averaged
+    # over 20. The other four have a value on all 27.
     by_detector = s["L0"].n_families_scored_by_detector
-    assert by_detector.pop("Reward Skewness") == 8
-    assert len(by_detector) == 12 and set(by_detector.values()) == {27}
+    assert {n: k for n, k in by_detector.items() if k != 27} == {
+        "Reward Autocorrelation": 8,
+        "Reward Peak": 8,
+        "Reward Skewness": 8,
+        "Reward Trend": 8,
+        "Variance Window": 8,
+        "Gradient Reversal": 20,
+        "Max Plateau": 20,
+        "Reward CUSUM": 20,
+        "Reward MLP": 20,
+    }
+    assert len(by_detector) == 13
 
     assert (s["L0"].best_detector, s["L0"].max_auroc) == (
         "Reward CUSUM",
-        pytest.approx(0.5351, abs=5e-4),
+        pytest.approx(0.5474, abs=5e-4),
     )
-    assert (s["L1"].best_detector, s["L1"].max_auroc) == ("State Divergence", pytest.approx(0.927))
+    # State Divergence's 0.5 on continuous_camping was its untrained fallback: below its
+    # 50-episode baseline ``fit`` sees no histogram. Over the 7 families it can score it
+    # reads 0.982.
+    assert (s["L1"].best_detector, s["L1"].max_auroc) == ("State Divergence", pytest.approx(0.982))
     assert (s["L2"].best_detector, s["L2"].max_auroc) == (
         "Trajectory MLP",
-        pytest.approx(0.943),
+        pytest.approx(0.944),
     )
     assert (s["L3"].best_detector, s["L3"].max_auroc) == (
         "True Reward Oracle",
@@ -181,8 +196,12 @@ def test_committed_v5_board_ladder(v5_results):
     # regeneration, was 0.008 (0.983 against Behavioral Threshold's 0.975, a figure that
     # depended on the behavioural feature's fixed sign). With the sign randomized,
     # Behavioral Threshold reads 0.512, the best L2 detector is the label-fitted
-    # Trajectory MLP, and the gap is 0.040 on this single draw.
-    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.040, abs=5e-4)
+    # Trajectory MLP, and the gap is 0.039 on this single draw (0.040 on the 2026-11-26
+    # board, whose Trajectory MLP read 0.943 before the pins). The best L1 detector is
+    # within 0.001 of the oracle, but over the 31 cells of the 7 families it can score,
+    # against the oracle's 123, so the two maxima are not like for like.
+    assert s["L3"].max_auroc - s["L2"].max_auroc == pytest.approx(0.039, abs=5e-4)
+    assert s["L3"].max_auroc - s["L1"].max_auroc == pytest.approx(0.001, abs=5e-4)
 
     assert s["L3"].excluded_duplicates == [("Perfect Feature Oracle", "Behavioral Threshold")]
 
@@ -193,57 +212,65 @@ def test_the_l0_exclusion_is_worth_this_much(v5_results):
     Holding families out forces the L0 rung to be computed family-weighted (the artifact
     records AUROCs per family, not per cell), and a re-weighting is not a finding. Both
     figures below are family-weighted, so the difference between them is the exclusion
-    and nothing else: **0.4898 with the degenerate families, 0.4876 without**, an
-    exclusion worth 0.0023 (0.002259 from unrounded values; the rounded figures'
-    difference reads 0.0022). For scale, the re-weighting on its own is worth 0.0005 --
-    family-weighted over every family each detector has a value on is 0.4898 against the
-    cell-weighted 0.4903 the un-excluded ladder reports (0.000497 unrounded).
+    and nothing else: **0.4871 with the degenerate families, 0.4835 without**, an
+    exclusion worth 0.0036 (0.003590 from unrounded values). For scale, the re-weighting
+    on its own is worth 0.0001 -- family-weighted over every family each detector has a
+    value on is 0.4871 against the cell-weighted 0.4872 the un-excluded ladder reports
+    (0.000090 unrounded).
 
-    On the board before the 2026-11-19 regeneration the same three figures were 0.4866,
-    0.4895 and 0.4898: an exclusion of 0.0029 against a re-weighting of 0.00036 (0.0003
-    as the difference of the rounded figures).
+    On the board of 2026-11-26 (``f83a152``, before the re-draw under the numerics pins)
+    the same three figures were 0.4877, 0.4834 and 0.4881: an exclusion of 0.0043 against
+    a re-weighting of 0.00036. On the board of 2026-11-19 the same three figures were 0.4876, 0.4898 and 0.4903: an
+    exclusion of 0.0023 against a re-weighting of 0.0005. On the board before that they
+    were 0.4866, 0.4895 and 0.4898: 0.0029 against 0.00036.
     """
     excluded = summarize_access_levels(
         v5_results, degenerate_families=DEGENERATE_FAMILIES
     )["L0"]
-    assert excluded.mean_auroc == pytest.approx(0.4876, abs=5e-4)
-    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4898, abs=5e-4)
+    assert excluded.mean_auroc == pytest.approx(0.4835, abs=5e-4)
+    assert excluded.mean_auroc_including_degenerate == pytest.approx(0.4871, abs=5e-4)
 
     cell_weighted = summarize_access_levels(v5_results)["L0"]
-    assert cell_weighted.mean_auroc == pytest.approx(0.4903, abs=5e-4)
+    assert cell_weighted.mean_auroc == pytest.approx(0.4872, abs=5e-4)
     assert cell_weighted.excluded_families == []
     assert cell_weighted.mean_auroc_including_degenerate is None
 
-    # The exclusion still moves L0 further than the re-weighting does: 0.0023 against
-    # 0.0005, about four and a half times (about eight, 0.0029 against 0.00036, on the
-    # board before the regeneration).
+    # The exclusion moves L0 further than the re-weighting does: 0.0036 against 0.0001,
+    # about forty times.
     exclusion = abs(excluded.mean_auroc - excluded.mean_auroc_including_degenerate)
     reweighting = abs(excluded.mean_auroc_including_degenerate - cell_weighted.mean_auroc)
-    assert exclusion == pytest.approx(0.0023, abs=1e-4)
-    assert reweighting == pytest.approx(0.0005, abs=1e-4)
-    assert exclusion > 4 * reweighting
+    assert exclusion == pytest.approx(0.0036, abs=1e-4)
+    assert reweighting == pytest.approx(0.0001, abs=1e-4)
+    assert exclusion > 10 * reweighting
 
 
 _LEDGER = Path(__file__).resolve().parents[2] / "admission" / "admission_ledger.json"
 
 
-def test_the_l0_figures_include_eight_detectors_fallback_values(v5_results):
-    """The L0 figures above count 104 per-family entries that are not measurements.
+def _declared_minimum() -> dict[str, int]:
+    """Board name -> ``min_episodes``, for every detector buildable with no arguments."""
+    out = {}
+    for attr in detectors.__all__:
+        cls = getattr(detectors, attr)
+        if isinstance(cls, type) and issubclass(cls, PosthocDetector):
+            try:
+                det = cls()
+            except TypeError:  # EnsembleDetector needs members
+                continue
+            out[det.name] = int(det.min_episodes)
+    return out
 
-    Eight L0 detectors declare no ``min_episodes`` and return a constant below their
-    windows (:data:`UNDECLARED_HORIZON_FALLBACKS`), so on a family that short they tie on
-    every pair and the board records 0.5 with ``cells_measured`` unchanged. Family
-    horizons come from the committed ledger (``onset_localizable.horizon``, one per
-    family). On the board regenerated 2026-11-19: the four that need 100 episodes read
-    exactly 0.5 on all 19 families with horizon 40 or 60 (59 cells), and the four that
-    need 50 or 60 on all 7 with horizon 40 (22 cells); none of those families is
-    degenerate, so all 104 entries are in the 27-family L0 ladder. Left out, the L0 mean
-    would read 0.4834 instead of 0.4876, and the best detector would still be Reward CUSUM,
-    at 0.5474 over 20 families instead of 0.5351 over 27.
 
-    This pins an open defect, not a design (``ROADMAP.md``). When those detectors declare
-    their horizons and the board is re-scored, these entries become ``null`` and this
-    test, and the L0 pins above, have to change with the figures the docs quote.
+def test_no_detector_is_scored_below_its_declared_horizon(v5_results):
+    """A family shorter than a detector's ``min_episodes`` is ``null``, with a reason.
+
+    Until 2026-11-26 only Reward Skewness declared one, and the board recorded the
+    fallback constant of the others on the families too short for them as an AUROC of
+    0.5: 104 per-family entries behind the L0 figures, 8 behind L1 (every L1 detector on
+    ``continuous_camping``) and 33 behind L2 (Feature Consistency on the 19 families with
+    horizon 40 or 60, Feature Magnitude and Reward-Feature Correlation on the 7 with
+    horizon 40). Family horizons come from the committed ledger
+    (``onset_localizable.horizon``, one per family).
     """
     horizon: dict[str, float] = {}
     cells: dict[str, int] = {}
@@ -251,40 +278,51 @@ def test_the_l0_figures_include_eight_detectors_fallback_values(v5_results):
         horizon[row["family"]] = row["metrics"]["onset_localizable"]["horizon"]
         cells[row["family"]] = cells.get(row["family"], 0) + 1
 
-    assert set(UNDECLARED_HORIZON_FALLBACKS) <= set(v5_results)
-    short = {
-        name: sorted(f for f in v5_results[name]["per_family"] if horizon[f] < length)
-        for name, length in UNDECLARED_HORIZON_FALLBACKS.items()
+    # L1 reads state_counts, which these 8 families emit; every other level reads a
+    # channel all 33 emit. A family without the channel is null for that reason first.
+    state_families = {
+        "continuous_camping",
+        "distributional_shift",
+        "goal_misgeneralization",
+        "gridworld_camping",
+        "physics_exploitation",
+        "reward_channel_tampering",
+        "rlhf_reward_model_overopt",
+        "sensor_calibration_tampering",
     }
-    for name, families in short.items():
-        assert v5_results[name]["cells_measured"] == 123, name
-        assert all(v5_results[name]["per_family"][f] == 0.5 for f in families), name
-        assert not set(families) & set(DEGENERATE_FAMILIES), name
-    by_length = {
-        length: {len(short[n]) for n, k in UNDECLARED_HORIZON_FALLBACKS.items() if k == length}
-        for length in set(UNDECLARED_HORIZON_FALLBACKS.values())
-    }
-    assert by_length == {100: {19}, 60: {7}, 50: {7}}
-    assert sum(cells[f] for f in short["Reward Peak"]) == 59
-    assert sum(cells[f] for f in short["Reward CUSUM"]) == 22
-    assert sum(len(f) for f in short.values()) == 104
+    needed = _declared_minimum()
+    assert set(v5_results) <= set(needed)
+    short: dict[str, list[str]] = {}
+    for name, info in v5_results.items():
+        families = sorted(
+            f
+            for f in info["per_family"]
+            if horizon[f] < needed[name]
+            and (info["access_level"] != "L1" or f in state_families)
+        )
+        short[name] = families
+        for f in families:
+            assert info["per_family"][f] is None, (name, f)
+            assert f in info["not_applicable_families"], (name, f)
+        reasons = info["not_applicable_reasons"]
+        assert sum(
+            k for r, k in reasons.items() if r.startswith("horizon ")
+        ) == sum(cells[f] for f in families), name
 
-    stripped = {
-        name: {
-            **info,
-            "per_family": {
-                f: (None if f in short.get(name, ()) else v)
-                for f, v in info["per_family"].items()
-            },
-        }
-        if "per_family" in info
-        else info
-        for name, info in v5_results.items()
+    level = {name: info["access_level"] for name, info in v5_results.items()}
+    by_level = {
+        lv: sum(len(f) for n, f in short.items() if level[n] == lv and n != "Reward Skewness")
+        for lv in ACCESS_LEVELS
     }
-    s = summarize_access_levels(stripped, degenerate_families=DEGENERATE_FAMILIES)["L0"]
-    assert s.mean_auroc == pytest.approx(0.4834, abs=5e-5)
-    assert (s.best_detector, s.max_auroc) == ("Reward CUSUM", pytest.approx(0.5474, abs=5e-5))
-    assert s.n_families_scored_by_detector["Reward CUSUM"] == 20
+    # Reward Skewness's 19 have been null since 2026-09-03 and are not counted. At L1,
+    # continuous_camping (40 episodes) is the only state_counts family shorter than an L1
+    # detector needs, so each of the 8 is null there and measured on the other 7.
+    assert by_level == {"L0": 104, "L1": 8, "L2": 33, "L3": 0}
+    for name in (n for n in v5_results if level[n] == "L1"):
+        assert short[name] == ["continuous_camping"], name
+        assert v5_results[name]["cells_measured"] == 31, name
+    assert v5_results["Reward Peak"]["cells_measured"] == 123 - 59
+    assert v5_results["Reward CUSUM"]["cells_measured"] == 123 - 22
 
 
 def test_the_exclusion_applies_to_l0_and_only_to_l0(v5_results):
@@ -336,7 +374,7 @@ def test_markdown_reports_mean_max_and_the_exclusion(v5_results):
     md = render_access_summary_md(summarize_access_levels(v5_results))
     assert "| Access level | Detectors | Mean AUROC | SD across detectors | Best AUROC | Best detector |" in md
     # Mean and max are both present on the same row, and they differ at L2.
-    assert "| L2 | 7 | 0.5716 | 0.1647 | 0.9430 | Trajectory MLP |" in md
+    assert "| L2 | 7 | 0.5771 | 0.1644 | 0.9440 | Trajectory MLP |" in md
     assert "| L3 | 1 | 0.9830 | 0.0000 | 0.9830 | True Reward Oracle |" in md
     assert "**Perfect Feature Oracle** is a relabelled duplicate of **Behavioral Threshold**" in md
     assert "not a confidence interval" in md
@@ -353,32 +391,29 @@ def test_markdown_states_the_l0_exclusion_and_what_it_cost(v5_results):
     md = render_access_summary_md(
         summarize_access_levels(v5_results, degenerate_families=DEGENERATE_FAMILIES)
     )
-    assert "| L0 | 13 | 0.4876 |" in md
+    assert "| L0 | 13 | 0.4835 |" in md
     assert "L0 is computed over 27 families" in md
-    assert "Reward Skewness over 8 of them" in md
+    assert (
+        "Gradient Reversal, Max Plateau, Reward CUSUM and Reward MLP over 20 of them; "
+        "Reward Autocorrelation, Reward Peak, Reward Skewness, Reward Trend and Variance "
+        "Window over 8 of them: the other families run fewer episodes than the detector "
+        "declares it needs"
+    ) in md
     assert "6 are held out" in md
     for family in DEGENERATE_FAMILIES:
         assert f"**{family}**" in md
-    assert "Putting them back would read 0.4898 instead of 0.4876" in md
+    assert "Putting them back would read 0.4871 instead of 0.4835" in md
     assert "held out of L0 only" in md
 
 
-def test_markdown_says_which_l0_values_are_a_fallback(v5_results):
-    """The L0 row counts eight detectors' fallback 0.5s, and the table has to say so."""
+def test_markdown_has_no_fallback_left_to_name(v5_results):
+    """Until 2026-11-26 the table named eight L0 detectors whose short-run 0.5 was a
+    fallback. They declare their horizons now, so there is nothing to name."""
     for degenerate in ([], DEGENERATE_FAMILIES):
         md = render_access_summary_md(
             summarize_access_levels(v5_results, degenerate_families=degenerate)
         )
-        assert "Eight L0 detectors declare no minimum horizon" in md
-        for name in UNDECLARED_HORIZON_FALLBACKS:
-            assert name in md.split("Eight L0 detectors", 1)[1].split("\n", 1)[0]
-        assert "That 0.5 is a fallback, not a measurement" in md
-        assert "Only Reward Skewness declares its horizon" in md
-    # A level with none of them says nothing about them.
-    md = render_access_summary_md(
-        summarize_access_levels({"Reward Threshold": {"access_level": "L0", "overall_auroc": 0.5}})
-    )
-    assert "fallback" not in md
+        assert "fallback" not in md
 
 
 #: The generated ladder that the docs cite, written by ``scripts/plot_v5_results.py``.
@@ -419,4 +454,4 @@ def test_the_published_ladder_was_generated_with_the_exclusion(v5_results):
     )
     # Named explicitly as well, because this row is the one the audit found wrong and
     # an equality assertion alone would not say which number matters.
-    assert "| L0 | 13 | 0.4876 | 0.0258 | 0.5351 | Reward CUSUM |" in published
+    assert "| L0 | 13 | 0.4835 | 0.0328 | 0.5474 | Reward CUSUM |" in published

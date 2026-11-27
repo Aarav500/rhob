@@ -1,10 +1,11 @@
 """RHOB interactive leaderboard viewer (Gradio).
 
 A read-only viewer over the committed leaderboard JSON files -- no submission form,
-no auth, no write path. Community detector results are submitted via a PR touching
-``leaderboard/`` (validated by ``python -m rhob validate``, see
-``.github/workflows/leaderboard_validate.yml``), not through this UI. This matches the
-project's existing "static files are fine" leaderboard design
+no auth, no write path. Community detector results are submitted via a PR adding a file
+under ``submissions/`` (the only path ``.github/workflows/leaderboard_validate.yml``
+validates, with ``python -m rhob validate``), not through this UI; ``python -m rhob
+submit`` then records a validated submission in ``leaderboard/community/``. This matches
+the project's existing "static files are fine" leaderboard design
 (see ``src/rhob/v3/leaderboard/board.py``).
 
 Run locally (from within a full clone of the repo):
@@ -24,19 +25,30 @@ Standings come from ``leaderboard/v5_replicated.json``: 20 independent draws of 
 benchmark, aggregated by ``scripts/aggregate_replication.py`` into percentile-bootstrap
 intervals. They do **not** come from ``leaderboard/v5_leaderboard.json``, which is a
 single unreplicated draw with no intervals (regenerated on 2026-11-19 with behavioural
-sign randomization on and N/A cells recorded as null); it is deliberately not rendered
-anywhere on this page.
+sign randomization on, re-scored on CI on 2026-11-26, ``03d978e``, with N/A cells
+recorded as null, and re-drawn on CI on 2026-11-27 under the numerics pins,
+``b93c351``); it is deliberately not rendered anywhere on this page.
 
 The cross-family transfer (RTS) panel is a **separate** experiment and is not covered by
 that replication. It is also the one place where the pre-audit sign convention still had
 live numbers: ``leaderboard/cross_family_transfer.json`` was generated on 2026-07-09, and
 behavioural sign randomization landed on 2026-08-03, so its L2 figures measure compliance
-with a house orientation convention rather than transfer (the published RTS of 0.994
-re-measures at 0.508 with randomization on). This page therefore renders the *measured
-post-randomization* figures from ``docs/figures/sign_randomization_impact.json`` and shows
-the published numbers only in a column labelled as superseded. If that measurement file is
-absent the panel says so and renders nothing -- it deliberately does not fall back to the
-superseded artifact.
+with a house orientation convention rather than transfer. This page therefore renders
+current figures from one of two measurements, and shows the 2026-07-09 numbers only in a
+column labelled as superseded:
+
+1. ``leaderboard/cross_family_transfer_v5.json``, when present: written by
+   ``scripts/cross_family_transfer.py`` under the shipped configuration and the
+   not-applicable rules of 2026-11-27 (a family a detector cannot be scored on, by channel,
+   run length or representation, is N/A rather than 0.5).
+2. Otherwise the ``after`` configuration of ``docs/figures/sign_randomization_impact.json``,
+   labelled *pre-declaration* only while its rows predate those rules. The measurement
+   committed on 2026-08-03 did, since it was made before the detectors declared
+   ``min_episodes`` on 2026-11-26; the one that replaced it on 2026-11-27 (``0ff0d42``,
+   measured at ``54cd63c``) records them, so it is served without the label.
+
+If neither is present the panel says so and renders nothing -- it deliberately does not
+fall back to the superseded 2026-07-09 artifact.
 
 Schema knowledge lives in ``rhob.v3.leaderboard.replicated`` and
 ``rhob.v3.leaderboard.transfer``, not here. This module reads both artifacts through those
@@ -63,6 +75,8 @@ from rhob.v3.leaderboard.replicated import (
     load_replicated_leaderboard,
 )
 from rhob.v3.leaderboard.transfer import (
+    CURRENT_TRANSFER_ARTIFACT,
+    HISTORICAL_TRANSFER_ARTIFACT,
     TransferBoard,
     TransferComparison,
     load_transfer_results,
@@ -82,14 +96,21 @@ _LEADERBOARD_DIR = next((d for d in _CANDIDATE_LEADERBOARD_DIRS if d.is_dir()), 
 #: page that promises confidence intervals.
 _REPLICATED_FILE = _LEADERBOARD_DIR / "v5_replicated.json"
 
-#: The published transfer artifact. Pre-sign-randomization (2026-07-09) and pre-dating the
-#: fix that stopped absent channels being imputed as 0.5, so it is read only to report
-#: which figure each current one supersedes -- never as a current standing.
-_PUBLISHED_TRANSFER_FILE = _LEADERBOARD_DIR / "cross_family_transfer.json"
+#: The 2026-07-09 transfer artifact. Pre-sign-randomization and pre-dating the fix that
+#: stopped absent channels being imputed as 0.5, so it is read only to report which figure
+#: each current one supersedes -- never as a current standing.
+_PUBLISHED_TRANSFER_FILE = _LEADERBOARD_DIR / Path(HISTORICAL_TRANSFER_ARTIFACT).name
+#: It records no provenance block, so its date comes from git history (``d872916``).
+_PUBLISHED_TRANSFER_DATE = "2026-07-09"
+
+#: The current transfer artifact, preferred whenever it is present: measured under the
+#: shipped configuration with the 2026-11-27 not-applicable rules.
+_CURRENT_TRANSFER_FILE = _LEADERBOARD_DIR / Path(CURRENT_TRANSFER_ARTIFACT).name
 
 #: The measured before/after sign-randomization artifact, which is where this page's
-#: transfer numbers come from. Written by ``scripts/measure_sign_randomization.py``. The
-#: Space deploy step stages it next to the app (see .github/workflows/deploy_space.yml).
+#: transfer numbers come from when the current transfer artifact above is absent.
+#: Written by ``scripts/measure_sign_randomization.py``; the Space deploy step stages it
+#: next to the app (see .github/workflows/deploy_space.yml).
 _CANDIDATE_FIGURE_DIRS = [
     _HERE / "figures",  # deployed Space
     _HERE.parent / "docs" / "figures",  # local dev, full repo clone
@@ -107,29 +128,45 @@ def _board() -> ReplicatedLeaderboard:
 
 
 @lru_cache(maxsize=1)
+def _transfer_board() -> TransferBoard | None:
+    """The measurement the RTS panel's current figures come from, or None.
+
+    ``leaderboard/cross_family_transfer_v5.json`` when present, else the
+    sign-randomization measurement. Never the 2026-07-09 artifact: on its own it cannot
+    produce a current number, so a missing measurement must yield no panel rather than
+    the superseded figures.
+    """
+    for path in (_CURRENT_TRANSFER_FILE, _SIGN_RANDOMIZATION_FILE):
+        if path.exists():
+            return load_transfer_results(path)
+    return None
+
+
+def _transfer_is_pre_declaration(board: TransferBoard | None) -> bool:
+    """Whether the panel's source predates the 2026-11-27 not-applicable rules.
+
+    Read off the rows' own bookkeeping rather than off which file was found, so a
+    regenerated sign-randomization measurement stops being labelled the moment it
+    records the rules.
+    """
+    return board is not None and not board.applies_na_rules
+
+
+@lru_cache(maxsize=1)
 def _transfer_rows() -> tuple[TransferComparison, ...]:
     """Transfer rows valid under sign randomization, with the figures they supersede.
 
-    Empty when the measurement artifact is not present. That is the safe direction: the
-    published artifact alone cannot produce a current number, so a missing measurement
-    must yield no panel rather than the superseded ones.
+    Empty when no measurement artifact is present (see :func:`_transfer_board`).
     """
-    if not _SIGN_RANDOMIZATION_FILE.exists():
+    measured = _transfer_board()
+    if measured is None:
         return ()
-    measured: TransferBoard = load_transfer_results(_SIGN_RANDOMIZATION_FILE)
     published = (
         load_transfer_results(_PUBLISHED_TRANSFER_FILE)
         if _PUBLISHED_TRANSFER_FILE.exists()
         else None
     )
     return tuple(transfer_under_sign_randomization(measured, published))
-
-
-@lru_cache(maxsize=1)
-def _transfer_board() -> TransferBoard | None:
-    if not _SIGN_RANDOMIZATION_FILE.exists():
-        return None
-    return load_transfer_results(_SIGN_RANDOMIZATION_FILE)
 
 
 def _esc(text: object) -> str:
@@ -476,12 +513,18 @@ def _provenance_html() -> str:
     if seed is not None:
         method_bits.append(f"seed {seed}")
     method_txt = f" ({', '.join(method_bits)})" if method_bits else ""
+    # The draws committed before the 2026-11-27 layout-seed fix were all built at layout
+    # 0 whatever layout_seed they record, so only their rollout seeds vary.
+    resampled_txt = {
+        True: "layout seed and rollout seeds resampled together, ",
+        False: "rollout seeds resampled, every draw at environment layout 0, ",
+    }.get(board.layouts_resampled, "")
     return f"""
     <div id="rhob-provenance">
       <div class="rhob-prov-tag">Provenance</div>
       <div class="rhob-prov-body">
         Standings are {board.n_replicates} independent draws of the full benchmark --
-        layout seed and rollout seeds resampled together, {seeds_txt}behavioural sign
+        {resampled_txt}{seeds_txt}behavioural sign
         randomization on -- aggregated from <code>leaderboard/v5_replicated.json</code>.
         Intervals are {board.ci_percent}% percentile bootstrap over the
         {board.n_replicates} replicates{method_txt}. An interval is on the aggregate over
@@ -503,7 +546,30 @@ def _supervision_html() -> str:
     unsup = board.unsupervised_only.separation("L0", "L1", "max")
     all_sep = board.all_detectors.separation("L0", "L1", "max")
     step = ""
-    if unsup is not None and all_sep is not None and all_sep.separates and not unsup.separates:
+    # The step is load-bearing when the label-fitted detectors carry it: with them out it
+    # either stops separating or separates the other way. Both are read off the artifact;
+    # on the re-scored board (2026-11-26) the unsupervised step separates, below zero,
+    # under the max and does not separate under the mean, so the mean is quoted with it.
+    unsup_mean = board.unsupervised_only.separation("L0", "L1", "mean")
+    flips = (
+        unsup is not None and all_sep is not None
+        and unsup.difference.mean is not None and all_sep.difference.mean is not None
+        and (unsup.difference.mean > 0) != (all_sep.difference.mean > 0)
+    )
+    if (
+        unsup is not None and all_sep is not None and all_sep.separates
+        and (flips or not unsup.separates)
+    ):
+        if unsup.separates:
+            ending = (
+                f"it reverses sign and separates the other way, with {_esc(unsup.lower)} "
+                f"above {_esc(unsup.higher)}"
+            )
+        else:
+            ending = (
+                "it reverses sign and stops separating" if flips
+                else "it keeps its sign and stops separating"
+            )
         # Name the detector the artifact says carried L1, rather than asserting one: if
         # a future board's L1 winner changes, this sentence must change with it.
         l1 = board.all_detectors.level("L1")
@@ -514,14 +580,31 @@ def _supervision_html() -> str:
             if winner and board.detectors.get(winner, None) and board.detectors[winner].label_fitted
             else ""
         )
+        # The board's rule: a rung that separates under one statistic and not the other,
+        # or under both in opposite directions, is not quoted on one alone.
+        mean_txt = ""
+        if unsup_mean is not None and _statistic_kind(unsup, unsup_mean):
+            mean_txt = (
+                f" Averaged over detectors instead of taking the best, the step without "
+                f"them is {unsup_mean.difference.text(4, signed=True)} "
+                f"({unsup_mean.replicates_with_hi_above_lo}/{unsup_mean.n_paired} draws) "
+                f"-- {_rung_verdict(unsup_mean)} -- so "
+                + (
+                    "whether it separates"
+                    if _statistic_kind(unsup, unsup_mean) == "separation"
+                    else "which way it points"
+                )
+                + " depends on the statistic. Quote both."
+            )
         step = (
-            f" It is load-bearing on this board: the published L0 &rarr; L1 step is "
+            f" It is load-bearing on this board: the published L0 &rarr; L1 step, best "
+            f"detector against best detector, is "
             f"{all_sep.difference.text(4, signed=True)} "
             f"({all_sep.replicates_with_hi_above_lo}/{all_sep.n_paired} draws) with the "
             f"label-fitted detectors in, and "
             f"{unsup.difference.text(4, signed=True)} "
             f"({unsup.replicates_with_hi_above_lo}/{unsup.n_paired} draws) without them "
-            f"-- it reverses sign and stops separating.{carried_by}"
+            f"-- {ending}.{mean_txt}{carried_by}"
         )
     return f"""
     <div class="rhob-panel">
@@ -594,29 +677,126 @@ def _separation_table(partition: LadderPartition) -> str:
     )
 
 
+def _rung_verdict(sep) -> str:
+    """Whether a paired rung difference separates, and in which direction."""
+    if not sep.separates:
+        return "it does not separate"
+    if sep.difference.mean is not None and sep.difference.mean < 0:
+        return f"it separates, with {_esc(sep.lower)} above {_esc(sep.higher)}"
+    return "it separates"
+
+
+def _statistic_kind(mx, mn) -> str:
+    """How the max and the mean disagree on one rung: "separation", "direction" or "".
+
+    The aggregator's rule, applied to whichever partition is rendered: "separation" when
+    one statistic separates the rung and the other does not, "direction" when both do,
+    with opposite signs. The artifact's ``statistic_disagreement`` records it for the
+    all-detectors partition only.
+    """
+    if mx.separates != mn.separates:
+        return "separation"
+    if (
+        mx.separates and mx.difference.mean is not None and mn.difference.mean is not None
+        and (mx.difference.mean > 0) != (mn.difference.mean > 0)
+    ):
+        return "direction"
+    return ""
+
+
+def _disagreement_txt(partition: LadderPartition, scope: str) -> str:
+    """Name each rung of ``partition`` whose verdict depends on the statistic, with both."""
+    how = {
+        "separation": "One statistic separates it and the other does not",
+        "direction": "Both statistics separate it, in opposite directions",
+    }
+
+    def says(sep) -> str:
+        return (
+            f"{sep.difference.text(4, signed=True)}, "
+            f"{sep.replicates_with_hi_above_lo}/{sep.n_paired} draws favouring "
+            f"{_esc(sep.higher)} -- {_rung_verdict(sep)}"
+        )
+
+    found = []
+    for mx in sorted(partition.separations.values(), key=lambda s: s.higher):
+        mn = partition.separation(mx.lower, mx.higher, "mean") if mx.statistic == "max" else None
+        kind = _statistic_kind(mx, mn) if mn is not None else ""
+        if kind:
+            found.append(
+                f"<b>Statistic-dependent {scope}: {_esc(mx.label)}.</b> {how[kind]}: under "
+                f"the max it is {says(mx)}; under the mean it is {says(mn)}. Quote both."
+            )
+    if not found and partition.separations:
+        return (
+            f"{scope[0].upper()}{scope[1:]}, max and mean agree on every rung, on whether "
+            f"it separates and in which direction."
+        )
+    return " ".join(found)
+
+
+def _level_denominators_txt(levels: tuple[str, ...] = ("L1", "L2", "L3")) -> str:
+    """The cells and families each level's detectors are scored on, read off the board.
+
+    Written by hand this sentence went stale twice: a detector is scored only on the
+    families that ship its channel and run at least the ``min_episodes`` it declares, so
+    the denominators move whenever a declaration does.
+    """
+    board = _board()
+
+    def span(values: list[int]) -> str:
+        return str(values[0]) if len(values) == 1 else f"{values[0]} to {values[-1]}"
+
+    parts = []
+    for lv in levels:
+        dets = [
+            d for d in board.detectors.values()
+            if d.access_level == lv and d.counted_in_ladder and d.cells_measured is not None
+        ]
+        if dets:
+            cells = sorted({d.cells_measured for d in dets})
+            fams = sorted({d.n_families_measured for d in dets})
+            parts.append(f"{span(cells)} cells over {span(fams)} families at {lv}")
+    if not parts:
+        return "the artifact records no denominators"
+    if len(parts) == 1:
+        return f"the detectors are scored on {parts[0]}"
+    return f"the detectors are scored on {', '.join(parts[:-1])} and {parts[-1]}"
+
+
 def _ladder_html() -> str:
     """The access-level ladder, both partitions, with intervals."""
     board = _board()
-    disagree = board.statistic_disagreement
-    disagree_txt = (
-        f"<b>Statistic-dependent: {', '.join(_esc(d.replace('_', ' ')) for d in disagree)}.</b> "
-        f"{_esc(board.statistic_disagreement_note)}"
-        if disagree
-        else "Max and mean agree on every rung."
+    # Per partition: the two can disagree on different rungs (on the re-scored board, L2 -
+    # L1 by direction with all detectors, L1 - L0 by separation without the label-fitted
+    # ones), and a single line under both tables would speak for one of them only.
+    disagree_all = _disagreement_txt(board.all_detectors, "with all detectors")
+    disagree_unsup = _disagreement_txt(
+        board.unsupervised_only, "with the label-fitted detectors removed"
     )
 
     unsup_l1 = board.unsupervised_only.separation("L0", "L1", "max")
     unsup_l2 = board.unsupervised_only.separation("L1", "L2", "max")
     finding = ""
     if unsup_l1 is not None and unsup_l2 is not None:
+        climbs = all(
+            s.separates and s.difference.mean is not None and s.difference.mean > 0
+            for s in (unsup_l1, unsup_l2)
+        )
+        heading = (
+            "On the unsupervised partition both of these rungs climb."
+            if climbs
+            else "On the unsupervised partition the ladder is not a staircase."
+        )
         finding = (
-            f"<p class='rhob-note'><b>On the unsupervised partition the ladder is not a "
-            f"staircase.</b> {_esc(unsup_l1.label)} (best detector) is "
+            f"<p class='rhob-note'><b>{heading}</b> {_esc(unsup_l1.label)} (best detector) is "
             f"{unsup_l1.difference.text(4, signed=True)}, "
             f"{unsup_l1.replicates_with_hi_above_lo}/{unsup_l1.n_paired} draws favouring "
-            f"L1 -- it does not separate. {_esc(unsup_l2.label)} is "
+            f"{_esc(unsup_l1.higher)} -- {_rung_verdict(unsup_l1)}. "
+            f"{_esc(unsup_l2.label)} (best detector) is "
             f"{unsup_l2.difference.text(4, signed=True)}, "
-            f"{unsup_l2.replicates_with_hi_above_lo}/{unsup_l2.n_paired} draws -- it does."
+            f"{unsup_l2.replicates_with_hi_above_lo}/{unsup_l2.n_paired} draws -- "
+            f"{_rung_verdict(unsup_l2)}."
             f"</p>"
         )
 
@@ -627,9 +807,8 @@ def _ladder_html() -> str:
         Does more access buy more detectability? Recomputed inside every draw and paired
         by draw, under both statistics, and over both partitions of the detector suite.
         Duplicate detectors are held out of every level's aggregate. Pairing does not
-        equalise denominators -- L1 aggregates 35 cells over 8 families where L2 and L3
-        aggregate 123 over 33 -- so any rung difference involving L1 is across
-        populations as well as across access levels.
+        equalise denominators -- {_level_denominators_txt()} -- so any rung difference
+        involving L1 is across populations as well as across access levels.
       </p>
       <p class="rhob-note">
         The <b>best detector</b> column is a maximum taken inside each draw, so it is
@@ -644,6 +823,7 @@ def _ladder_html() -> str:
       {_ladder_table(board.all_detectors)}
       <div class="rhob-tablecap">Adjacent-rung differences, paired within each draw</div>
       {_separation_table(board.all_detectors)}
+      <p class="rhob-note">{disagree_all}</p>
 
       <h4>Unsupervised only (label-fitted detectors removed)</h4>
       <div class="rhob-tablecap">Level aggregates</div>
@@ -652,7 +832,7 @@ def _ladder_html() -> str:
       {_separation_table(board.unsupervised_only)}
 
       {finding}
-      <p class="rhob-note">{disagree_txt}</p>
+      <p class="rhob-note">{disagree_unsup}</p>
     </div>
     """
 
@@ -675,24 +855,42 @@ def _worst_supersession_note() -> str:
     if not superseded:
         return ""
     worst = max(superseded, key=lambda c: abs(c.published_delta or 0.0))
+    if worst.published is None or worst.rts is None or worst.row.sd is None:
+        return ""
+    # Whether the old figure reproduces with randomization off is only known when the
+    # source measured that configuration too (the sign-randomization artifact does;
+    # cross_family_transfer_v5.json measures the shipped configuration only).
+    board = _transfer_board()
+    baseline = board.baseline_config() if board else None
+    off = board.row(worst.name, baseline) if board and baseline else None
+    if off is not None and off.avg_transfer_auroc is not None:
+        same = f"{off.avg_transfer_auroc:.3f}" == f"{worst.published:.3f}"
+        off_clause = (
+            "reproduces with randomization off"
+            if same
+            else f"reads {off.avg_transfer_auroc:.3f} with randomization off"
+        )
+        on_clause = f" and re-measures at {worst.rts:.3f} with it on"
+    else:
+        off_clause = f"re-measures at {worst.rts:.3f} with randomization on"
+        on_clause = ""
     return (
-        f" The published <b>{_esc(worst.name)}</b> figure of {worst.published:.3f} "
-        f"reproduces with randomization off and re-measures at {worst.rts:.3f} with it on "
-        f"&mdash; a drop of {abs(worst.published_delta):.3f}, against a trial-to-trial "
-        f"spread of {worst.row.sd:.3f}."
-        if worst.published is not None and worst.rts is not None and worst.row.sd is not None
-        else ""
+        f" The {_PUBLISHED_TRANSFER_DATE} <b>{_esc(worst.name)}</b> figure of "
+        f"{worst.published:.3f} {off_clause}{on_clause} &mdash; a change of "
+        f"{worst.published_delta:+.3f}, against a trial-to-trial spread of {worst.row.sd:.3f}."
     )
 
 
 def _flat_rows_note() -> str:
     """Name any row that returned the identical value on every family it could score.
 
-    Such a row has not measured a gradient of transfer, and the reason it can happen
-    without the detector discriminating anything is documented in the experiment: a frozen
-    model that can read a family's channel but cannot consume that family's own
-    discretization of it is scored at chance rather than dropped. Computed from the
-    artifact so the sentence disappears if a regenerated run stops being flat.
+    Such a row has not measured a gradient of transfer. In a measurement made before the
+    2026-11-27 not-applicable rules, the documented way it happens without the detector
+    discriminating anything is that a frozen model which could read a family's channel
+    but not consume that family's own discretization of it was scored at chance; under
+    the rules that cell is N/A instead, so the explanation is given only for such a
+    measurement. Computed from the artifact so the sentence disappears if a regenerated
+    run stops being flat.
     """
     flat = [
         (c, value)
@@ -706,14 +904,30 @@ def _flat_rows_note() -> str:
         f"{c.row.n_families_scored} families it could score"
         for c, value in flat
     )
+    if not _transfer_is_pre_declaration(_transfer_board()):
+        return f" {described} &mdash; a flat row, not a gradient."
     return (
-        f" {described} &mdash; a flat row, not a gradient. Where a frozen model can read a "
-        "family's channel but cannot consume that family's own discretization of it, the "
-        "cell is scored at chance rather than dropped, on the grounds that the channel was "
-        "there and the model failed to use it "
-        "(<code>scripts/cross_family_transfer.py::transfer_eval</code>), so a flat 0.500 "
-        "row should be read as transfer failure rather than as a measured near-chance "
-        "separation."
+        f" {described} &mdash; a flat row, not a gradient. This measurement predates the "
+        "2026-11-27 rules: where a frozen model could read a family's channel but could "
+        "not consume that family's own discretization of it, the cell was scored at "
+        "chance rather than marked not applicable, so a flat 0.500 row here is a column "
+        "of imputed scores, not a measured near-chance separation."
+    )
+
+
+def _unmeasurable_rows_note() -> str:
+    """Name each row no held-out family could be scored for, with the artifact's reason."""
+    rows = [c for c in _transfer_rows() if c.rts is None]
+    if not rows:
+        return ""
+    parts = []
+    for c in rows:
+        reasons = list(dict.fromkeys(c.row.not_applicable_reasons.values()))
+        why = f" ({_esc(reasons[0])})" if reasons else ""
+        parts.append(f"<b>{_esc(c.name)}</b> scored no held-out family{why}")
+    return (
+        " " + "; ".join(parts) + ". Its RTS is not applicable, and it is not 0.5: there is "
+        "no measurement to average."
     )
 
 
@@ -726,25 +940,28 @@ def _rts_html() -> str:
     mechanisms and tests on 8 held out, at a single benchmark draw. It carries no
     bootstrap interval and none of the replication's uncertainty estimates apply to it.
 
-    Second, the published artifact's numbers are superseded. It was generated before
+    Second, the 2026-07-09 artifact's numbers are superseded. It was generated before
     behavioural sign randomization, when ``behav_trace``'s sign *was* the label, so its L2
-    figures scored compliance with a house convention: the published 0.994 re-measures at
-    0.508 once the orientation is randomized. The numbers rendered here are the measured
-    post-randomization ones; the published figures appear only in a column that says they
-    are superseded. L0 and L1 rows carry over unchanged from the pre-randomization run,
-    because ``restrict()`` nulls ``behav_trace`` below L2 and leaves them no axis to flip.
+    figures scored compliance with a house convention. The numbers rendered here are the
+    measured post-randomization ones (see :func:`_transfer_board` for which file); the
+    2026-07-09 figures appear only in a column that says they are superseded. From the
+    sign-randomization measurement, L0 and L1 rows carry over from its pre-randomization
+    configuration, because ``restrict()`` nulls ``behav_trace`` below L2 and leaves them
+    no axis to flip; ``leaderboard/cross_family_transfer_v5.json`` measures every row
+    under the shipped configuration directly.
     """
     rows = _transfer_rows()
     if not rows:
-        return """
+        return f"""
     <div class="rhob-panel" id="rhob-rts-panel">
       <h3>THE RHOB TRANSFER SCORE (RTS)<span class="rhob-scope single">not shown</span></h3>
       <p>
-        The cross-family transfer figures are not rendered on this build. The published
-        artifact <code>leaderboard/cross_family_transfer.json</code> predates behavioural
-        sign randomization, so its L2 numbers measure the old orientation convention
-        rather than transfer, and the post-randomization measurement
-        (<code>docs/figures/sign_randomization_impact.json</code>) is not present here.
+        The cross-family transfer figures are not rendered on this build. The
+        {_PUBLISHED_TRANSFER_DATE} artifact <code>{HISTORICAL_TRANSFER_ARTIFACT}</code>
+        predates behavioural sign randomization, so its L2 numbers measure the old
+        orientation convention rather than transfer, and neither post-randomization
+        measurement (<code>{CURRENT_TRANSFER_ARTIFACT}</code>,
+        <code>docs/figures/sign_randomization_impact.json</code>) is present here.
         Showing the superseded figures instead would be the worse of the two options, so
         the panel shows none.
       </p>
@@ -752,20 +969,24 @@ def _rts_html() -> str:
     """
 
     board = _transfer_board()
+    pre_declaration = _transfer_is_pre_declaration(board)
     body = ""
     for c in rows:
         r = c.row
         rts = c.rts
         if rts is None:
-            continue
-        # No "near-perfect" band any more: under randomization nothing reaches it, and a
-        # band that only ever fired on the sign-convention artifact was decoration for it.
-        color = "var(--rhob-red)" if rts < 0.55 else "var(--rhob-amber)"
-        spread = (
-            f" <span class='rhob-na'>&plusmn; {r.sd:.3f}</span>"
-            if isinstance(r.sd, float)
-            else ""
-        )
+            rts_cell = f"<td><span class='rhob-na'>{NOT_MEASURED}</span></td>"
+        else:
+            # No "near-perfect" band any more: under randomization nothing reaches it,
+            # and a band that only ever fired on the sign-convention artifact was
+            # decoration for it.
+            color = "var(--rhob-red)" if rts < 0.55 else "var(--rhob-amber)"
+            spread = (
+                f" <span class='rhob-na'>&plusmn; {r.sd:.3f}</span>"
+                if isinstance(r.sd, float)
+                else ""
+            )
+            rts_cell = f"<td style='color:{color};font-weight:700;'>{rts:.3f}{spread}</td>"
         scored = (
             f"{r.n_families_scored} of {r.n_families}"
             if r.n_families_not_applicable
@@ -788,8 +1009,12 @@ def _rts_html() -> str:
             if c.published is not None and c.published_differs
             else (
                 f"<span class='rhob-na'>{c.published:.3f} (unchanged)</span>"
-                if c.published is not None
-                else f"<span class='rhob-na'>{NOT_MEASURED}</span>"
+                if c.published is not None and rts is not None
+                else (
+                    f"<span class='rhob-no'>{c.published:.3f}</span>"
+                    if c.published is not None
+                    else f"<span class='rhob-na'>{NOT_MEASURED}</span>"
+                )
             )
         )
         # The surviving L2 maximum under randomization is a label-fitted detector, which
@@ -802,7 +1027,7 @@ def _rts_html() -> str:
         )
         body += (
             f"<tr><td>{_esc(r.name)}{fitted}</td><td>{_esc(r.access_level)}</td>"
-            f"<td style='color:{color};font-weight:700;'>{rts:.3f}{spread}</td>"
+            f"{rts_cell}"
             f"<td>{scored}{na_note}</td>"
             f"<td>{basis}</td>"
             f"<td>{superseded}</td></tr>\n"
@@ -821,7 +1046,25 @@ def _rts_html() -> str:
     provenance = ""
     if board and board.generated_utc:
         commit = f", commit <code>{_esc(board.git_commit)}</code>" if board.git_commit else ""
-        provenance = f" Measured {_esc(board.generated_utc[:10])}{commit}."
+        source = _esc(board.path.as_posix().split("/")[-1]) if board.path else "the artifact"
+        provenance = f" Measured {_esc(board.generated_utc[:10])}{commit} (<code>{source}</code>)."
+    published_date = _PUBLISHED_TRANSFER_DATE
+    pre_note = (
+        """
+      <p class="rhob-note">
+        <b>Pre-declaration measurement.</b> These figures predate the 2026-11-27
+        not-applicable rules: a held-out family whose representation the frozen model
+        could not consume was scored at chance rather than marked not applicable. The
+        run-length rule did not reach these figures, since every held-out family runs
+        longer than any row's declared <code>min_episodes</code>; it reached only the
+        train AUROC, not shown here, where 40-episode continuous_camping cells were
+        scored at the detector's fallback. This measurement's successor, <code>"""
+        + CURRENT_TRANSFER_ARTIFACT
+        + """</code>, replaces this panel's source once it is committed.
+      </p>"""
+        if pre_declaration
+        else ""
+    )
 
     return f"""
     <div class="rhob-panel" id="rhob-rts-panel">
@@ -836,15 +1079,15 @@ def _rts_html() -> str:
             <th>Test families scored</th><th>Under randomization</th>
             <th>Superseded figure</th></tr>
         {body}
-      </table>
+      </table>{pre_note}
       <p class="rhob-note">
-        <b>These are not the published RTS figures, and the published ones are wrong.</b>
-        <code>leaderboard/cross_family_transfer.json</code> was generated on 2026-07-09;
+        <b>These are not the {published_date} RTS figures, and those are wrong.</b>
+        <code>{HISTORICAL_TRANSFER_ARTIFACT}</code> was generated on {published_date};
         behavioural sign randomization landed on 2026-08-03. Before it, every family
         emitted its behavioural trace under one fixed global orientation with positive =
         hacking, so the sign of the observation <i>was</i> the label and an L2 detector
         that &ldquo;transferred&rdquo; had learned the repository's house convention. The
-        L2 rows above are re-measured with that orientation randomized
+        L2 rows above are measured with that orientation randomized
         (<a href="{_GITHUB_BLOB}/docs/figures/sign_randomization_impact.md" target="_blank">measured
         before/after</a>).{_worst_supersession_note()}{provenance}
       </p>
@@ -852,8 +1095,8 @@ def _rts_html() -> str:
         <b>Scope.</b> This is one benchmark draw, so nothing here carries the
         {_board().n_replicates}-draw replication's bootstrap intervals and the confidence
         stated elsewhere on this page does not extend to it. {spread_note}
-        A test family that emits no channel the detector reads is <code>{NOT_MEASURED}</code>
-        &mdash; excluded from the average, never imputed at 0.5.{_flat_rows_note()}
+        A test family a detector cannot be scored on is <code>{NOT_MEASURED}</code>
+        &mdash; excluded from the average, never imputed at 0.5.{_unmeasurable_rows_note()}{_flat_rows_note()}
       </p>
     </div>
     """
@@ -908,23 +1151,39 @@ def _l0_control_html() -> str:
 
     margin = control.mean_margin_from_reference
     mean_txt = ""
-    if control.level_mean is not None:
+    level_mean = control.level_mean
+    if level_mean is not None:
         mean_txt = (
             f"<p class='rhob-note'><b>The control is carried detector by detector, not by "
             f"the suite mean.</b> The {_esc(control.level)} mean over detectors is "
-            f"{control.level_mean.text(4)}."
+            f"{level_mean.text(4)}."
         )
+        # No replay figures here: they belong to one interval, and the file linked below
+        # records them for the interval it was recomputed on.
+        scatter = (
+            f"the Monte-Carlo scatter of that endpoint itself, which straddles {ref} when "
+            f"the same bootstrap is replayed under 300 different generator seeds "
+            f"(<a href='{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md' "
+            f"target='_blank'>l0_control_robustness.md</a>). <b>The interval therefore "
+            f"places the suite mean on neither side of chance</b>, and no direction "
+            f"may be read from it. The per-detector verdicts above are not "
+            f"seed-sensitive in that way."
+        )
+        # An endpoint within 5e-5 of the reference prints as the reference at four
+        # decimals (0.50001 -> "0.5000"), which does not say whether the interval holds
+        # it. Say so, with the endpoint at five.
+        touching = [
+            (side, end)
+            for side, end in (("upper", level_mean.ci_hi), ("lower", level_mean.ci_lo))
+            if level_mean.has_bounds and f"{end:.4f}" == f"{control.reference:.4f}"
+        ]
         if margin is not None and control.mean_excludes_reference:
+            mean_txt += f" Its interval clears {ref} by {margin:.5f} &mdash; smaller than {scatter}"
+        elif touching:
+            side, end = touching[0]
             mean_txt += (
-                f" Its interval clears {ref} by {margin:.5f} &mdash; smaller than the "
-                f"Monte-Carlo scatter of that endpoint itself, which moves over a range "
-                f"about three times as wide when the same bootstrap is replayed under 300 "
-                f"different generator seeds, landing at or above {ref} in 18 of them "
-                f"(<a href='{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md' "
-                f"target='_blank'>l0_control_robustness.md</a>). <b>The interval therefore "
-                f"places the suite mean on neither side of chance</b>, and no direction "
-                f"may be read from it. The per-detector verdicts above are not "
-                f"seed-sensitive in that way."
+                f" Its {side} end is {end:.5f}, so the interval contains {ref} &mdash; by "
+                f"less than {scatter}"
             )
         mean_txt += "</p>"
 
@@ -957,23 +1216,59 @@ def _l0_control_html() -> str:
         other three), and
         there a reward-only detector returns {ref} for a reason that has nothing
         to do with proxy matching &mdash; padding the control with cells that could not
-        have come out otherwise. Padding of the same kind remains inside the other 27:
-        eight {_esc(control.level)} detectors declare no minimum horizon, fall back to a
-        constant on the families too short for their windows (19 or 7 of the 27), which
-        reads 0.500, and the board records that as measured; only Reward Skewness declares its horizon and
-        is n/a there. Re-scoring those cells is an open item in ROADMAP.md, linked below.
-        Recomputed over the 27 non-degenerate families only,
+        have come out otherwise. Padding of the same kind used to sit inside the other 27
+        as well: until 2026-11-26 eight {_esc(control.level)} detectors returned a
+        constant on the families too short for their windows, which read {ref} and was
+        recorded as measured. {_short_horizon_txt(control)}
+        Recomputed over the non-degenerate families each detector is scored on,
         family-weighted and bootstrapped over the same {board.n_replicates} replicates,
         <b>zero verdicts flip</b>: all {control.n_detectors} intervals still contain {ref},
-        and the largest movers move away from it
+        and every detector's mean moves away from it
         (<a href="{_GITHUB_BLOB}/docs/figures/l0_control_robustness.md" target="_blank">docs/figures/l0_control_robustness.md</a>).
         Cells the ledger measured and did not admit are held out of no
-        {_esc(control.level)} figure on this page, the 27-family recomputation included;
+        {_esc(control.level)} figure on this page, the degenerate-free recomputation included;
         whether they should be is an open question
         (<a href="{_GITHUB_BLOB}/ROADMAP.md" target="_blank">ROADMAP.md</a>).
       </p>
     </div>
     """
+
+
+def _short_horizon_txt(control: ChanceControl) -> str:
+    """Which control detectors are n/a on part of the board, and on how many families.
+
+    Read off the artifact: a detector is n/a on a family whose runs are shorter than the
+    ``min_episodes`` it declares, so its family count says how many it sits out.
+    """
+    n_families = len(_board().families())
+    by_gap: dict[int, list[str]] = {}
+    for d in control.detectors:
+        gap = n_families - d.n_families_measured
+        if gap > 0:
+            by_gap.setdefault(gap, []).append(d.name)
+    if not by_gap:
+        return (
+            f"Every {_esc(control.level)} detector whose score is a constant below some run "
+            f"length now declares that length, and every one is scored on all {n_families} "
+            f"families."
+        )
+
+    def names(xs: list[str]) -> str:
+        xs = sorted(xs)
+        return xs[0] if len(xs) == 1 else f"{', '.join(xs[:-1])} and {xs[-1]}"
+
+    groups = [
+        f"{_esc(names(by_gap[gap]))} on {gap}"
+        for gap in sorted(by_gap, reverse=True)
+    ]
+    listed = groups[0] if len(groups) == 1 else f"{', '.join(groups[:-1])}, and {groups[-1]}"
+    n_short = sum(len(v) for v in by_gap.values())
+    return (
+        f"Every {_esc(control.level)} detector whose score is a constant below some run "
+        f"length now declares that length, and {n_short} of the {control.n_detectors} "
+        f"{'is' if n_short == 1 else 'are'} "
+        f"n/a on the families shorter than that: {listed} of the 27."
+    )
 
 
 def _l0_winner_share() -> str:
@@ -1022,6 +1317,7 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
     )
     _best_rts_note = (
         f"{_best_transfer_row.name} — sign randomization on, single draw, no CI"
+        + (" (pre-declaration)" if _transfer_is_pre_declaration(_transfer_board()) else "")
         if _best_transfer_row is not None
         else "superseded by sign randomization; not shown"
     )
@@ -1086,11 +1382,11 @@ Sorted by the {_board_ref.n_replicates}-draw suite mean, descending, in every vi
 for every row: a detector whose channel most families do not ship measures far fewer
 cells than a board-wide one. Selecting a family shows that family's own interval, and
 `{NOT_MEASURED}` where the detector never measured it -- which is a different statement
-from "scored at chance". A number is not always a measurement either: a detector that
-declares no minimum horizon is scored on runs shorter than its windows and shows its
-fallback 0.500 there. That is eight L0 and three L2 detectors on the families of 40 or
-60 episodes and every L1 detector on `continuous_camping`; only Reward Skewness declares
-its horizon and shows `{NOT_MEASURED}` instead.
+from "scored at chance". A detector is also not scored on a family whose runs are
+shorter than the `min_episodes` it declares, and shows `{NOT_MEASURED}` there: nine L0
+and three L2 detectors on the families of 40 or 60 episodes, and every L1 detector on
+`continuous_camping`. Until 2026-11-26 only Reward Skewness declared one, and the others
+showed the constant they return below their windows as a measured 0.500.
 """
         )
 
@@ -1109,14 +1405,16 @@ This viewer is read-only by design (no auth, no write path -- see
 `src/rhob/v3/leaderboard/board.py`'s "static files are fine" approach). To get a result
 included here:
 
-1. Evaluate your detector: `python -m rhob evaluate --detector your_detector.py`
-2. Validate the submission: `python -m rhob validate submission.json`
-3. Open a PR adding your submission under `leaderboard/`, or run
-   `python -m rhob submit submission.json` to merge it into the tracked leaderboard
-   files locally before committing.
+1. Evaluate your detector:
+   `python -m rhob evaluate --detector your_detector.py --output submissions/your_detector.json`
+2. Validate the submission: `python -m rhob validate submissions/your_detector.json`
+3. Open a PR adding that file under `submissions/`. A CI workflow
+   (`.github/workflows/leaderboard_validate.yml`) re-validates every changed
+   `submissions/*.json` in the PR; a file anywhere else is not validated.
 
-A CI workflow (`.github/workflows/leaderboard_validate.yml`) automatically validates
-any submission JSON added in a PR.
+Once a submission is validated, `python -m rhob submit submissions/your_detector.json`
+records it in the community board, `leaderboard/community/`: self-reported, single-draw
+results, kept apart from the benchmark's own boards.
 
 The standings on this page are the replicated board, `leaderboard/v5_replicated.json`,
 built by `scripts/replicate_leaderboard.py` (one run of the full suite per draw) and

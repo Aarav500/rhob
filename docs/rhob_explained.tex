@@ -3,9 +3,13 @@
 % pdflatex on a base TeX Live install.
 %
 % Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
-% leaderboard/v5_replicated.json, admission/admission_ledger.json,
-% audit/survey_s1_frame.json, results/emergent_pilot/README.md, and the module
-% docstrings under src/rhob/.
+% leaderboard/v5_replicated.json, leaderboard/v5_leaderboard.json,
+% docs/figures/sign_randomization_impact.json,
+% leaderboard/cross_family_transfer_v5.json, admission/admission_ledger.json,
+% audit/survey_s1_frame.json, results/emergent_pilot/README.md, the module
+% docstrings under src/rhob/, and the docstrings of the two tests that re-run the
+% entry checks (tests/test_v3/test_ledger_reproduces.py,
+% tests/test_cannotfail_parity.py).
 
 \documentclass[11pt,a4paper]{article}
 
@@ -80,7 +84,7 @@ and I score how often they get it right.
 I published a headline number of 0.994 out of 1. Then I went back and checked my
 own setup, and the number was fake. It came from a formatting rule I had written in
 my own contributor guide, not from anything about reward hacking. Take that rule
-away and the number drops to 0.508, which is a coin flip.
+away and the number drops to 0.514, which is a coin flip.
 
 The rest of this explains each piece, and then what is left standing.
 
@@ -119,7 +123,7 @@ comes from the arm that does the task. The two arms together are a \emph{pair}.
 \subhead{Family}
 A generator that makes those pairs. There are 33. I say family rather than
 environment because one family makes many pairs, at five difficulty settings and
-many random layouts.
+many random seeds.
 
 \subhead{Cell}
 One family at one difficulty. There are 123 of them. A cell is the thing that gets
@@ -144,7 +148,8 @@ In 26 of the 33 families neither arm learns anything. Both arms are policies I
 wrote by hand. I wrote a script that behaves the way a cheating agent would behave,
 and a script that behaves the way an honest agent would behave, and I ran both.
 There is no learner at all. So no, they are not two seeds of the same learner. The
-seeds change the layout and the noise, not any optimisation.
+seeds change the noise, and in two families the setup as well. They do not change
+any optimisation.
 
 The other 7 families have a learner in them, and in 6 of those the cheating is not
 scripted, it comes out on its own. Five run real policy gradient against a reward
@@ -153,7 +158,10 @@ gridworld, where a simple learner finds the cheat, though I chose the episode it
 becomes available (250) and forced 20 episodes of exploration right after, so I
 still decide when it starts. But the hole they find, and the label saying which arm
 is which, are still mine. In the seventh the network was trained on a different task
-and then frozen, and it switches to cheating at an episode I wrote down.
+and then frozen, and it switches to cheating at an episode I wrote down. Since 27
+November 2026 its weights are stored in the repo. Until then the code trained it again,
+from the same seed, every time the family was used, and that training came out
+different on Intel and AMD machines (page \pageref{h:repeats}).
 
 So what does the benchmark show? It shows what you could detect \emph{in principle}
 from each kind of information. It does not show what real trained agents leave
@@ -206,7 +214,11 @@ forget to follow.
 \subhead{L3 is not a real level}
 No real monitoring system gets the true reward. If you had it you would not need a
 detector. L3 is there as a ceiling, to say how well detection could possibly do on
-these tasks. It should never be quoted as a practical result.
+these tasks. It should never be quoted as a practical result. It is not a strict
+ceiling either: over the 20 repeats the best state-count detector, State Divergence,
+which is trained on labels, scores 0.998 against the oracle's 0.979. But it is scored
+on 31 cells in 7 families and the oracle on 123 in 33, so the two are not like for
+like.
 
 \subhead{L2 is a number I chose, and that is a problem I have only half fixed}
 I picked the behaviour number knowing which arm was the cheating one, and I picked
@@ -324,22 +336,50 @@ because the opposite signs are what makes it a pair in the first place. Every si
 is kept exactly, so the entry checks and the difficulty knob are untouched. The
 only thing removed is the constant that let a detector read the label off a sign.
 
-The transfer score falls from 0.994 to 0.508. The L2 average falls from 0.7229 to
-0.5629.
+With the randomisation off the transfer score is 0.993, just under the 0.994 I
+published. With it on, the score is 0.514. The L2 average falls from 0.7320 to
+0.5739.
 
-\heading{Am I sure about the 0.508?}
+\heading{Am I sure about the 0.514?}
 \label{h:sure}
 
 You asked this straight, so here is what I have and what I do not.
 
 \subhead{What backs it up}
-The comparison is like for like. The randomisation is a single flag. Turn it off
-and 0.994 comes back exactly. And 0.508 is not one run. I repeated the whole thing
-20 times with different layout and rollout seeds, which is 600 detector passes, and
-got 95\% intervals by resampling those 20 repeats.
+The comparison is like for like. The runs before and after differ in two switches and
+nothing else: the randomisation itself, and the detectors working the orientation out
+for themselves. Turn both off and the transfer score reads 0.993, against the 0.994 I
+published. That is close,
+but it is not the same number, so the published figure does not come back exactly.
+
+And 0.514 does not rest on one trained model. It and the 0.994 are the transfer
+score of one detector, which combines five L2 detectors. Four of them are fixed
+formulas; the fifth, Trajectory MLP, is a network trained on labels. (Its own
+transfer score, with the randomisation off, is further from what I published than
+the combined one: 0.921 against 0.931.) 0.514 is the mean of three trials. Each
+trains that network from a different random seed, which sets its starting weights
+and the order it sees the training runs in. The runs are the same in all three, and
+the three land between 0.499 and 0.532. They are also the first three of the five
+trials in the re-run of the transfer score alone (page \pageref{h:sources}), and
+match them to every digit, though that re-run was on Intel machines and this
+measurement on an AMD machine. The five average 0.512.
+
+Until 27 November 2026 the paragraph above said I had repeated the whole transfer
+measurement 20 times, with 95\% intervals. That was wrong. The 20 repeats are of the
+main table, not of the transfer score. They are explained at the end of this
+section, since you asked about them.
+
+The before-and-after figures in this letter are from the sign-randomisation
+measurement made again, on 27 November 2026. Until then the letter gave the
+figures it read on 3 August 2026: 0.508 where it now says 0.514, three trials
+between 0.499 and 0.514 where it now says between 0.499 and 0.532, 0.994 coming
+back exactly with the randomisation off, and the L2 average falling from 0.7229 to
+0.5629. The score with the randomisation on moved up by 0.006 and the one with it
+off down by 0.001, and the conclusion did not move: with the sign hidden, the
+transfer score is at chance.
 
 \subhead{What chance means here}
-0.508 against 0.5 is not something I can tell apart from a coin flip with this
+0.514 against 0.5 is not something I can tell apart from a coin flip with this
 sample. I am not claiming the detectors are slightly better than chance.
 
 \subhead{What would overturn it}
@@ -362,6 +402,34 @@ It removes the free direction and nothing else. The behaviour number is still a
 feature I picked knowing the answer. So an L2 score under randomisation means
 ``this detector did not need the sign rule''. It does not mean ``L2 is blind to the
 label''.
+
+\subhead{What confidence from twenty repeats means}
+\phantomsection\label{h:repeats}%
+I scored the whole benchmark 20 times, all 30 detectors on the whole board each
+time, which is 600 detector passes. Each repeat is built at a layout of its own,
+layouts 0 to 19, with rollout seeds of its own. Each summary number I quote from the
+repeats is the average over those 20. Its 95\% interval is the middle 95\% of the
+averages I get by resampling the 20 repeats with replacement. So it says how far that
+number moves when the layout and the random runs are drawn again.
+
+Until 27 November 2026 it did not say that. The 20 repeats then in the repo had been
+drawn while a bug dropped the layout seed before it reached the families, so every
+one of them was built at layout 0, and scored under layout 0's sign for each family,
+whatever layout it recorded. Only the rollout seeds changed. All 20, and the public
+table with them, have since been drawn again, at one version of the code, with the
+layouts reaching the families, and the first of the 20, at layout 0, gives back the
+public table cell for cell. Six detectors' overall scores in the public table moved
+in that re-draw, none by more than 0.013. The first try at it was refused, because
+the two did not match on 16 cells of \code{continuous\_camping}: the network in that
+family, trained afresh every time the family was used, came out with different
+weights on Intel and AMD machines. It now loads stored weights instead.
+
+The layout seed also does less than its name suggests: two families build a different
+setup from it (an item grid in one, the fitted reward model in the other), twelve
+ignore it, and the other nineteen use it only to shift their rollout seeds. What it
+does reach in every family is the sign the family is scored under: each layout seed
+draws that sign again, so at any one layout other than 0 about half the families get
+the opposite sign to the one they have at layout 0.
 
 \heading{Five of the thirty}
 \label{h:five}
@@ -396,38 +464,51 @@ Split the two kinds of detector apart, on the same 20 repeats:
 \toprule
 Level & Best of all detectors & Best of the fixed-formula ones \\
 \midrule
-L0 (reward only)      & 0.5540 & 0.5514 \\
-L1 (+ state counts)   & 0.9416 & 0.5340 \\
-L2 (+ behaviour)      & 0.9430 & 0.5872 \\
-L3 (+ true reward)    & 0.9746 & 0.9746 \\
+L0 (reward only)      & 0.5755 & 0.5699 \\
+L1 (+ state counts)   & 0.9984 & 0.5384 \\
+L2 (+ behaviour)      & 0.9466 & 0.6082 \\
+L3 (+ true reward)    & 0.9789 & 0.9789 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
 
-And each step of the ladder, measured across the 20 repeats:
+And each step of the ladder, best detector against best detector, measured across the
+20 repeats:
 
 \vspace{0.3em}
 \begin{tabular}{@{}llcc@{}}
 \toprule
 Step & Detectors & Gap [95\% interval] & Repeats where the step held \\
 \midrule
-L1 $-$ L0 & all            & $+0.388$ \ $[+0.378,\ +0.397]$ & 20 of 20 \\
-L1 $-$ L0 & fixed-formula  & $-0.017$ \ $[-0.039,\ +0.002]$ & 4 of 20 \\
+L1 $-$ L0 & all            & $+0.423$ \ $[+0.413,\ +0.433]$ & 20 of 20 \\
+L1 $-$ L0 & fixed-formula  & $-0.032$ \ $[-0.055,\ -0.009]$ & 4 of 20 \\
 \addlinespace
-L2 $-$ L1 & all            & $+0.001$ \ $[-0.004,\ +0.006]$ & 13 of 20 \\
-L3 $-$ L2 & all            & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
+L2 $-$ L1 & all            & $-0.052$ \ $[-0.058,\ -0.046]$ & 0 of 20 \\
+L3 $-$ L2 & all            & $+0.032$ \ $[+0.025,\ +0.039]$ & 19 of 20 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
 
-Read the first two rows together. The gap flips sign and stops being a gap. The
-whole published climb from reward-only to state counts was one detector that had
-been trained on labels. That is a real result about my benchmark. It is not the
-result the ladder was being read as, and nobody could have got it out of a
-single-column table.
+Read the first two rows together. The gap flips sign, and its interval sits below
+zero: without the detectors trained on labels, the best fixed-formula state-count
+detector does measurably worse than the best reward-only one, on far fewer families
+(7, against up to 27). Averaged over detectors instead, the two do not separate
+($-0.005$ \ $[-0.024,\ +0.014]$), so whether state counts sit measurably below
+reward-only depends on the statistic, and neither answer should be quoted alone. The
+whole published climb from reward-only to state counts was one detector that had been
+trained on labels. That is a real result about my benchmark. It is not the result the
+ladder was being read as, and nobody could have got it out of a single-column table.
 
-The third row matters too. The step from state counts to behaviour has an interval
-that includes zero, so there is no measurable step there either.
+The third row matters too. The step from state counts to behaviour runs backwards:
+the best L1 detector is above the best L2 one in all 20 repeats, and the interval
+leaves out zero. Averaged over detectors it runs forwards instead,
+$+0.026$ \ $[+0.010,\ +0.044]$, so which way this step points depends on the statistic
+too. The best-detector reading does not mean behaviour tells you less than state counts
+do.
+The best L1 detector is State Divergence, trained on labels, at 0.998 on 31 cells in
+7 families; the best L2 one is Trajectory MLP at 0.947 on 123 cells in 33. They are
+not scored on the same cells, so the two are not like for like, and the 0.998 is
+above even the oracle's 0.979.
 
 \heading{What I meant by admission criteria}
 \label{h:checks}
@@ -589,8 +670,9 @@ Of those 24, 8 have the mean outside the band; the other 16 have it inside, but 
 interval reaches past the band, so for them the check could not show a match. That
 is not the same as a match: in 15 of the 16 the interval leaves out 0.5, so the
 proxy is off chance there, by less than 0.10.
-Those 51 still count in the L0 average; only the 30 that could not be measured
-are left out. Whether the 51 should be left out too is open, and it is in
+Those 51 still count in the L0 average (all 51 for the detectors scored on every
+family, fewer for the nine that need longer runs); only the 30 that could not be
+measured are left out. Whether the 51 should be left out too is open, and it is in
 \code{ROADMAP.md}.
 
 \heading{What I actually want to work on}
@@ -642,7 +724,7 @@ demonstration that it can fail. A control is decoration unless the failures get
 published next to the passes.
 
 Second, does a result that holds on the data you have survive a change you named in
-advance? The 0.994 to 0.508 collapse is one case of that. I named the change first,
+advance? The 0.994 to 0.514 collapse is one case of that. I named the change first,
 and the result did not survive it.
 
 You are right that people already check their own tests, more or less carefully. My
@@ -673,21 +755,40 @@ All in one place, so you do not have to trust me to bring them up one at a time.
 \item \textbf{All 30 detectors share that one draw}, so their cell values move
       together and their differences are not independent.
 \item \textbf{The set I check is not the set I score.} The entry checks average
-      over 12 layouts. The public table uses one.
+      over 12 layouts. The public table uses one, and each of the 20 repeats uses one
+      of its own, layouts 0 to 19 (page \pageref{h:repeats}). Until 27 November 2026
+      the repeats in the repo were all built at layout 0.
 \item \textbf{L0 sitting at chance is a control, not a discovery.} The families are
       \emph{built} so reward-only detectors cannot work. An earlier version of my
       README reported this as a finding that ``reward-only monitoring fails''. That
       was wrong. It is only useful in the failure direction: an L0 detector going
-      above chance means the construction leaked.
-\item \textbf{Some of the 0.5s are not measurements.} Eight of my reward-only
-      detectors do not say how many episodes they need. On families too short for
-      their windows (7 or 19 of the 27 I keep) they return a fixed score, which reads
-      as 0.5, and both tables record it as a result at chance: 104 of the 332 family values behind
-      the L0 figures. Only Reward Skewness says how long it needs, and it is left
-      blank there. Three behaviour detectors, and every state-count detector on the
-      40-episode \code{continuous\_camping}, do the same. Fixing it means declaring
-      each detector's length and scoring both tables again, which will move the L0
-      numbers. It is in \code{ROADMAP.md}.
+      above chance means the construction leaked. On the 20 repeats, 12 of the 13
+      reward-only detectors have a 95\% interval with 0.5 in it. The thirteenth,
+      Reward CUSUM, is at 0.486 $[0.475,\ 0.497]$, wholly below 0.5: it tells the two
+      arms apart weakly, in the direction that would not flag the cheating one.
+      Before the re-draw of 27 November 2026 all 13 intervals held 0.5. Whether a
+      detector below chance counts against the control is open. The best of the 13
+      in each repeat averages 0.575 $[0.565,\ 0.586]$, which leaves out 0.5, but it is
+      the largest of 13 numbers, picked after the fact, and picking the largest pushes
+      it up by itself. The average over the 13 is 0.498 $[0.492,\ 0.504]$, with 0.5
+      inside it, not at its edge.
+\item \textbf{Some of the 0.5s were not measurements.} Until 26 November 2026 eight
+      of my reward-only detectors did not say how many episodes they need. On
+      families too short for their windows (7 or 19 of the 27 I keep) they returned a
+      fixed score, which reads as 0.5, and both tables recorded it as a result at
+      chance: 104 of the 332 family values behind the L0 figures. Only Reward
+      Skewness said how long it needed, and it was left blank there. Three behaviour
+      detectors, and every state-count detector on the 40-episode
+      \code{continuous\_camping}, did the same. Every detector in the tables that
+      returned a fixed score below some length now declares that length and is left
+      blank below it, and both tables have been scored again. The
+      20-repeat L0 mean moved from 0.4972 to 0.4951 $[0.4899,\ 0.5000]$, an interval
+      that holds 0.5 only at its very top; the single-draw one moved from 0.4876 to
+      0.4834. Taking the fixed score out of \code{continuous\_camping} is what moved
+      the best state-count detector from 0.942 to 0.998. Since the re-draw of 27
+      November 2026 the 20-repeat L0 mean is 0.4977 $[0.4918,\ 0.5036]$, an interval
+      with 0.5 inside it rather than at its top, and the single-draw one is 0.4835;
+      the best state-count detector is still at 0.998.
 \item \textbf{One row in the table is a duplicate.} The detector I labelled
       ``Perfect Feature Oracle'' at L3 is a subclass of an L2 detector that
       overrides only its name and its level. It never reads the true reward. It
@@ -708,10 +809,23 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       123 cells the spread takes six values, so since 19 November 2026 the coding no
       longer marks it that way, though it still cannot fail on the 118. I
       keep the short name so old links work, and the long name should not be used.
-\item \textbf{The entry checks are barely covered by my own tests.} The full check
-      is never run on a real registered family anywhere in the test suite. The two
-      tests that touch it use made-up fixtures. A green test suite here means ``the
-      screens that exist passed'', not ``the families are checked''.
+\item \textbf{The entry checks are only partly covered by my own tests.} Until 27
+      November 2026 no test compared what the checks find with the ledger. Two tests
+      ran them at the ledger's settings on one cell each of two real families, and
+      checked that each gave the verdict written into the test. The two that run
+      them across every difficulty use made-up families, and still do. Now two more
+      tests re-run the checks on real families at the ledger's settings and compare
+      the results with the ledger. One takes four families through every difficulty
+      the ledger scores, 20 cells, on every push, plus, nightly, one cell of a fifth
+      family. It fails unless every verdict matches the ledger exactly and every
+      number matches it to within a tolerance set from the drift I measured across
+      machines and Python versions. The other re-runs the six families whose cells
+      could not be measured, two on every push and four nightly, and checks that
+      each cell still cannot be. Two of the six are among the first test's four, so
+      between them they re-run 41 of the 123 cells, in nine of the 33 families, one
+      of them at a single cell. Everywhere else, apart from the one other cell the
+      older tests run, a green test suite still means ``the screens that exist
+      passed'', not ``the cells are checked''.
 \end{itemize}
 
 \heading{Your questions, and where I answered them}
@@ -735,8 +849,8 @@ What are these scores? Is 0.994 an average of them? & \pageref{h:score} \\
 Would a real 0.994 mean a lot of hacking, or a little? & \pageref{h:score} \\
 What do you mean by a coding convention? Was it a bug? & \pageref{h:bug} \\
 A style rule that changed what the code does? & \pageref{h:bug} \\
-What is the significance of 0.508? Are you sure it is correct? & \pageref{h:sure} \\
-What does confidence from twenty replications mean? & \pageref{h:sure} \\
+What is the significance of 0.508 (now 0.514)? Are you sure it is correct? & \pageref{h:sure} \\
+What does confidence from twenty replications mean? & \pageref{h:repeats} \\
 Five of the thirty. Detectors or environments? & \pageref{h:five} \\
 What is an admission criterion? & \pageref{h:checks} \\
 Is your interest benchmarks, or experimental rigour? & \pageref{h:point3} \\
@@ -757,13 +871,25 @@ files that matter:
       measure, including the scripted-policy limit.
 \item \code{src/rhob/v3/sign\_randomization.py} for the fake 0.994, written up at
       the top of the file.
+\item \code{docs/figures/sign\_randomization\_impact.md}, and its \code{.json} for
+      the three trials, for the before-and-after measurement behind 0.993 (against
+      the published 0.994), 0.514 and the L2 averages, made again on 27 November
+      2026 on an AMD machine.
+\item \code{leaderboard/cross\_family\_transfer\_v5.json} for a re-run of the
+      transfer score alone on 27 November 2026, with the randomisation on and five
+      trials. It was run three times that day, at three versions of the code and on
+      Intel machines, and came out the same to every digit.
 \item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
 \item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
       four levels and the run format.
 \item \code{src/rhob/detectors/supervision.py} for the five fitted detectors.
 \item \code{leaderboard/v5\_replicated.json} for the 20 repeats and the intervals.
+      Its \code{replicates} block records where the repeats came from, including
+      whether their layouts reached the families.
 \item \code{admission/ADMISSION\_LEDGER.md} for every cell and every check, the
       failures alongside the passes.
+\item \code{tests/test\_v3/test\_ledger\_reproduces.py} for the test that re-runs
+      the entry checks on real families and compares them with the ledger.
 \end{itemize}
 
 \end{document}

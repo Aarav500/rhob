@@ -4,7 +4,9 @@
 
 RHOB's headline empirical result was a Relative Transfer Score of **0.994** — "L2
 behavioral detectors transfer excellently to unseen hacking mechanisms". It was not a
-measurement of generalization.
+measurement of generalization. Measured again on 2026-11-27, it reads 0.993 with the
+sign fixed as it was and 0.514 with the sign randomized as it now is
+([Measured on all 33 families](#measured-on-all-33-families)).
 
 Three facts composed into a tautology:
 
@@ -39,6 +41,17 @@ coordinate flip of the axis the pair is defined on, not a per-run perturbation:
   reproduce.
 
 Of the 33 registered families, 20 draw -1 at layout 0 and 13 draw +1.
+
+*(2026-11-27: until `827aec9`, `FamilyRegistry.generate_suite` dropped its `layout_seed`
+and stamped every pair it built with layout 0, so every one of the 20 replication draws
+made on 2026-08-04 was scored under these layout-0 signs, whatever layout seed it
+records. The flip itself always read the pair's own `layout_seed`; it was the suite that
+never passed a non-zero one. The re-draw that replaced those 20 draws (CI run 46011019246,
+`b93c351`; `draw_schema` 2 in all 20) scores each draw under its own layout's signs, so
+the committed 20-draw intervals now include the orientation. Behavioral Threshold, which
+orients itself from the population, went from 0.5445 [0.5153, 0.5736] on the 2026-08-04
+draws to 0.5123 [0.4735, 0.5515] on the re-draw, and its draw-to-draw standard deviation
+from 0.069 to 0.092.)*
 
 `rollout(..., randomize_sign=False)` and `Benchmark.evaluate(...,
 randomize_behav_sign=False)` reach the family's own coordinate. Two callers use it
@@ -100,6 +113,12 @@ below and does not contradict anything here.
 The "blind" row is below 0.5 only because 9 of these 13 families happen to draw -1; its
 expectation over families is 0.5. It is what the pre-audit detector actually knew.
 
+*(2026-11-27: `scripts/measure_sign_randomization.py` re-runs this table as a companion
+board, the same 13 families at 20 seeds per variant and layout seed 0. Its CI run
+(`0ff0d42`) reads 0.978, 0.257 and 0.604, and its 2026-08-03 run read 0.978, 0.258 and
+0.604, so the `after` row above, 0.615, has not been reproduced. The companion keeps no
+per-cell AUROCs, so the 38 of 60 below has not been recounted at 20 seeds.)*
+
 Orientation accuracy of the shipped rule: **63.3%** of cells (38/60). The errors are
 family-level, not cell-level — a family is almost always oriented correctly at every
 tier or at none — which is expected, since the orientation is a property of the family's
@@ -121,10 +140,19 @@ trace shape:
 | gridworld_camping | +1 | 1.000 | 0.000 | 0/1 |
 | orbit_chirality | -1 | 1.000 | 0.000 | 0/5 |
 
+*(2026-11-27: these 60 cells are the 13 tabular and continuous families, so 63.3% is not
+the benchmark's figure. On all 33 families, at 10 seeds per variant, the rule orients 58
+of 123 cells as authored (47.1%), at or below a coin flip, and 32 of these 60
+([below](#measured-on-all-33-families)). "Almost always" also overstates the table: 7 of
+its 12 multi-tier families are oriented the same way at every tier, and on the full board
+24 of 32.)*
+
 A partial pass over the expensive tier — 10 cells across `mujoco_camping`,
 `mujoco_goal_misgeneralization` and `mujoco_joint_limit_gaming` — measures **before
 1.000, after 0.500, 5/10 cells oriented**, i.e. the same shape as the main table. It is
-reported as partial and is not folded into the 60-cell numbers.
+reported as partial and is not folded into the 60-cell numbers. *(2026-11-27: the
+full-board measurement below scores all 20 families, these 10 cells included, at 10
+seeds per variant: before 1.000 on each of the 10, after 0.200, 2 of 10 oriented.)*
 
 ### Candidate rules that were not adopted
 
@@ -156,6 +184,98 @@ Two of these measurements are findings in their own right, and neither is acted 
 - No candidate is close to reliable, and the reason is structural: these families were
   built so that everything except the sign is matched across the pair. The sign is
   precisely what the benchmark now withholds.
+
+## Measured on all 33 families
+
+`scripts/measure_sign_randomization.py ci` measures the four configurations on every
+registered family — `before` (sign fixed, detector assuming it), `before_infer`,
+`blind` (sign randomized, detector still assuming +1) and `after` (the shipped
+configuration) — and writes
+[`docs/figures/sign_randomization_impact.md`](figures/sign_randomization_impact.md), with
+every per-cell AUROC in its JSON. The committed measurement is CI run 46011028034 at
+`54cd63c` (`0ff0d42`): 33 of 33 families, 10 seeds per variant per cell, layout seed 0,
+one draw, from a clean tree under the six numerics pins on an AMD EPYC 7763 runner. Both
+modes read one simulation per cell, the randomized configurations seeing it through the
+flip. Its sampling note puts the null SE of a cell AUROC at n=m=10 at 0.13 and says not
+to read the third decimal of any AUROC in the artifact as resolved. The transfer rows
+train on 6 families and are evaluated frozen on 8 held out, at 10 train and 20 test
+seeds, over 3 trials (trial `k` seeds the networks with `k`).
+
+| figure | `before` | `after` |
+| --- | --- | --- |
+| RTS, Ensemble (Top 5) | 0.993 | 0.514 |
+| RTS, Trajectory MLP | 0.921 | 0.709 |
+| L2 suite mean, 7 detectors | 0.7320 | 0.5739 |
+| L2 best | 0.9807 (Behavioral Threshold) | 0.9610 (Trajectory MLP) |
+| Behavioral Threshold | 0.981 | 0.479 |
+| Centroid Tracker | 0.968 | 0.358 |
+
+- **The pre-randomization figure does not reproduce to the digit.** With randomization
+  off the ensemble's RTS reads 0.993 (trials 0.993, 0.993, 0.994) against the published
+  0.994 (`leaderboard/cross_family_transfer.json`, 2026-07-09), 0.001 lower. Trajectory
+  MLP's reads 0.921 against 0.931 (-0.010) and Reward MLP's 0.477 against 0.478. State
+  Divergence's published 0.500 has no counterpart: its frozen model cannot consume the
+  `state_counts` of the six held-out families that emit them and raised on every run of
+  each, and the other two emit none, so no held-out family is scored and the row is not
+  applicable. Against the pre-audit board (`c54a8cc`), over the same families and cells,
+  `before` reads an L2 suite mean of 0.7320 against 0.7269 and Behavioral Threshold
+  0.9807 against 0.9753; that board records no sampling block, so its seed count is not
+  recoverable from it.
+- **The shipped RTS is 0.514** (trials 0.532, 0.499, 0.510), and Trajectory MLP's 0.709
+  (0.726, 0.699, 0.701). With the flip on and no orientation inferred (`blind`) the
+  ensemble reads 0.375.
+- **The sign convention carried the pre-audit L2 result, and the re-measured numbers
+  still say so.** The two L2 detectors that read the feature's sign, Behavioral Threshold
+  and Centroid Tracker, score 0.97–0.98 `before` and 0.36–0.48 `after`. The four that
+  read only a magnitude — Angular Momentum, Feature Magnitude, Feature Consistency and
+  Reward-Feature Correlation — score 0.53–0.59 `before` and are identical `after` on
+  every cell scored in both modes. The `after` best is Trajectory MLP, which is fitted
+  inside each cell under 5-fold cross-validation and learns the cell's direction from the
+  labels of its training folds: a supervised result, not evidence that the unsupervised
+  behavioral signal still separates.
+- **The difficulty knob does not come back.** `|AUROC - 0.5|` is invariant under the
+  flip, so randomization cannot revive a pinned knob. Of the 32 families with more than
+  one tier, 27 have a Behavioral Threshold separation span of exactly 0.000, identical
+  with the sign fixed and randomized. The five that move are `proxy_correlation_gaming`
+  (0.31), `continuous_camping` (0.29), `sequence_keyword_stuffing` (0.12),
+  `novelty_farming` (0.09) and `pettingzoo_free_rider_exploitation` (0.05). Sign
+  randomization does not make a dose-response sweep viable.
+- **The orientation rule is at or below a coin flip on the benchmark.** It orients 58 of
+  the 123 cells as authored (0.472). On the 60 tabular and continuous cells it orients 32
+  at 10 seeds, against 38 (63.3%) at 20 in the table above, and 24 of the 32 multi-tier
+  families are oriented the same way at every tier.
+
+  | family group | families | cells oriented | accuracy |
+  | --- | --- | --- | --- |
+  | tabular | 7 | 19/31 | 0.613 |
+  | continuous 2-D | 6 | 13/29 | 0.448 |
+  | sequence | 5 | 10/15 | 0.667 |
+  | MuJoCo | 4 | 5/13 | 0.385 |
+  | PettingZoo | 5 | 5/15 | 0.333 |
+  | RLHF reward model | 6 | 6/20 | 0.300 |
+
+- **Across CPU vendors.** The `after` transfer rows repeat trials 0–2 of
+  `leaderboard/cross_family_transfer_v5.json`, which ran on Intel runners (`02c0475`);
+  this run was on AMD. For Trajectory MLP and the ensemble, every train and transfer AUROC
+  of those three trials equals the v5 file's, to the three decimals both store.
+
+*(2026-11-27: the measurement above replaced the one committed on 2026-08-03
+(`b77d50d`), whose provenance records a dirty tree on Windows under Python 3.13.14, no
+numerics block, and a report merged from 13 per-suite boards. That one read, `before` to
+`after`, the ensemble's RTS 0.994 to 0.508, and said the 0.994 "reproduces exactly";
+Trajectory MLP's RTS 0.907 to 0.706; L2 suite mean 0.7229 to 0.5629; L2 best 0.9749
+(Behavioral Threshold) to 0.9585 (Trajectory MLP); 55 of 123 cells oriented; and the
+same 27 of 32 families with no separation span, with `sequence_keyword_stuffing` moving
+by 0.14. `git show 0ff0d42^:docs/figures/sign_randomization_impact.md` recovers it. The
+artifacts account for part of the difference. Behavioral Threshold's `before` differs
+only on `sequence_keyword_stuffing`, 0.65, 0.75 and 0.61 at its three tiers then and
+0.96, 0.92 and 0.84 now, which is all of its +0.006; `e7bb3f3` rewrote that family on
+2026-09-19. Its `after` also differs at `mujoco_joint_limit_gaming`'s 0.90 tier, now
+oriented the other way. Feature Magnitude and Reward-Feature Correlation are not
+applicable on 22 of the 123 cells and Feature Consistency on 59, below the run lengths
+they declare since `f83a152`, where the 2026-08-03 run scored all 123. Beyond that the
+two runs differ in code, platform, Python, packages and pins, and the artifacts do not
+say what moved the other figures.)*
 
 ## Scope: what this does not fix
 

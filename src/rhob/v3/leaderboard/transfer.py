@@ -11,7 +11,14 @@ error in the environment draw.
 Two shapes exist on disk and both are read here:
 
 ``{"results": {detector: row}}``
-    One configuration per file. ``leaderboard/cross_family_transfer.json`` is this shape.
+    One configuration per file, written by ``scripts/cross_family_transfer.py``. Its
+    current output, ``leaderboard/cross_family_transfer_v5.json``
+    (:data:`CURRENT_TRANSFER_ARTIFACT`), names that configuration in a one-entry
+    ``configs`` block (``"shipped"``: sign randomization on, detectors orienting
+    themselves), so it reads as the shipped configuration.
+    ``leaderboard/cross_family_transfer.json`` (:data:`HISTORICAL_TRANSFER_ARTIFACT`,
+    2026-07-09) has no ``configs`` block, and reads as one configuration of unknown
+    randomization, ``"published"``.
 
 ``{"configs": {name: {...}}, "results": {config: {detector: row}}}``
     Several configurations in one file, written by
@@ -20,16 +27,28 @@ Two shapes exist on disk and both are read here:
 
 Two properties of the data are load-bearing and are preserved rather than smoothed over.
 
-**Not applicable is not chance.** A family that does not emit the channel a detector reads
-is ``null`` in the artifact -- excluded from the transfer average and from the pooled fit.
-:attr:`TransferRow.per_family` keeps that as ``None``. Two of the eight test families ship
-no state channel, so the L1 row is scored over 6, not 8.
+**Not applicable is not chance.** A family a detector cannot be scored on is ``null`` in
+the artifact -- excluded from the transfer average and, for a train family, from the
+pooled fit. :attr:`TransferRow.per_family` keeps that as ``None``, and
+:attr:`TransferRow.not_applicable_reasons` says why where the artifact records it. Since
+2026-11-27 ``scripts/cross_family_transfer.py`` applies three rules: the family does not
+emit the channel, or its runs are shorter than the detector's ``min_episodes``
+(:func:`rhob.v3.benchmark.not_applicable_reason`), or the frozen model cannot consume the
+family's version of the channel (``classify`` raised; the count of such runs is
+:attr:`TransferRow.incompatible_runs`). Under the third, the L1 State Divergence row --
+whose frozen 49-bin gridworld centroids fit none of the held-out families' histograms --
+scores no family at all, so its RTS is ``None``: a row with no measurement, not a row at
+0.5. Before that date the third case was scored at 0.5, and two of the eight test
+families (no state channel) were the only ones the L1 row left out.
 
-**An artifact written before that fix cannot be trusted cell by cell.** Rows produced by
-the older script carry no ``test_families_not_applicable`` bookkeeping and reported the
-absent families at the detector's no-signal constant, 0.5, indistinguishable from a
+**An artifact written before those fixes cannot be trusted cell by cell.** Rows produced
+by the oldest script carry no ``test_families_not_applicable`` bookkeeping and reported
+the absent families at the detector's no-signal constant, 0.5, indistinguishable from a
 measurement. :attr:`TransferRow.records_not_applicable` is ``False`` for such a row and a
-renderer must not present its per-family cells as measurements.
+renderer must not present its per-family cells as measurements. Rows written between
+2026-08 and 2026-11-27 record absent channels but not the run-length or
+representational rules; :attr:`TransferRow.records_na_reasons` is ``False`` for them, and
+:attr:`TransferBoard.applies_na_rules` is ``False`` for a file containing one.
 
 **Sign randomization splits the artifacts in two.** Until 2026-08 the benchmark handed
 every L2 detector one fixed global orientation for ``behav_trace``, so an L2 transfer
@@ -46,13 +65,15 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
 from rhob.v3.leaderboard.access_summary import ACCESS_LEVELS
 
 __all__ = [
+    "CURRENT_TRANSFER_ARTIFACT",
+    "HISTORICAL_TRANSFER_ARTIFACT",
     "SIGN_INVARIANT_LEVELS",
     "TransferBoard",
     "TransferComparison",
@@ -63,12 +84,21 @@ __all__ = [
     "transfer_under_sign_randomization",
 ]
 
+#: The artifact ``scripts/cross_family_transfer.py`` writes by default, relative to the
+#: repository root: the RTS measured under the shipped configuration, with the
+#: not-applicable rules applied.
+CURRENT_TRANSFER_ARTIFACT = "leaderboard/cross_family_transfer_v5.json"
+#: The 2026-07-09 artifact, kept unchanged as the record of what was published before
+#: sign randomization. The script refuses to overwrite it.
+HISTORICAL_TRANSFER_ARTIFACT = "leaderboard/cross_family_transfer.json"
+
 #: Access levels whose transfer score cannot move when the behavioural sign is
 #: randomized. ``restrict(run, "L0"|"L1")`` nulls ``behav_trace`` outright, so there is no
 #: axis to flip and the cells are bit-identical in both configurations -- checked cell by
 #: cell for the L0 and L1 board detectors in ``docs/figures/sign_randomization_impact.md``
-#: ("Invariance check": 123/123 identical). Derived from the access ladder rather than
-#: written out, so adding a level below L2 cannot silently fall out of the rule.
+#: ("Invariance check", over every cell scored in both modes). Derived from the access
+#: ladder rather than written out, so adding a level below L2 cannot silently fall out of
+#: the rule.
 SIGN_INVARIANT_LEVELS: tuple[str, ...] = tuple(
     ACCESS_LEVELS[: ACCESS_LEVELS.index("L2")] if "L2" in ACCESS_LEVELS else ()
 )
@@ -96,6 +126,18 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
         return ()
     return tuple(str(v) for v in values)
+
+
+def _str_map(values: Any) -> dict[str, str]:
+    if not isinstance(values, Mapping):
+        return {}
+    return {str(k): str(v) for k, v in values.items() if v is not None}
+
+
+def _int_map(values: Any) -> dict[str, int]:
+    if not isinstance(values, Mapping):
+        return {}
+    return {str(k): n for k, v in values.items() if (n := _int(v)) is not None}
 
 
 @dataclass(frozen=True)
@@ -149,6 +191,16 @@ class TransferRow:
     #: ``False`` for rows written before that distinction existed; their per-family cells
     #: are part measurement and part imputation and must not be rendered as measurements.
     records_not_applicable: bool
+    #: ``{family: reason}`` for each not-applicable test family, when the row records it.
+    not_applicable_reasons: Mapping[str, str] = field(default_factory=dict)
+    #: ``{family: runs}`` on which the frozen model's ``classify`` raised (representational
+    #: mismatch). Such a family is not applicable since 2026-11-27; before, scored at 0.5.
+    incompatible_runs: Mapping[str, int] = field(default_factory=dict)
+    #: Whether the row was written under the 2026-11-27 rules (run length and
+    #: representational mismatch are not applicable too, each with a reason).
+    records_na_reasons: bool = False
+    #: Why the pooled fit produced no frozen model, if it did not.
+    pooled_fit_error: Optional[str] = None
 
     @property
     def n_families_scored(self) -> int:
@@ -193,6 +245,12 @@ def _row(name: str, payload: Mapping[str, Any], config: TransferConfig) -> Trans
         per_family=per_family,
         families_not_applicable=_str_tuple(payload.get("test_families_not_applicable")),
         records_not_applicable="test_families_not_applicable" in payload,
+        not_applicable_reasons=_str_map(payload.get("test_not_applicable_reasons")),
+        incompatible_runs=_int_map(payload.get("per_family_incompatible_runs")),
+        records_na_reasons="test_not_applicable_reasons" in payload,
+        pooled_fit_error=(
+            str(payload["pooled_fit_error"]) if payload.get("pooled_fit_error") else None
+        ),
     )
 
 
@@ -210,6 +268,12 @@ class TransferBoard:
     rows_by_config: Mapping[str, Mapping[str, TransferRow]]
     generated_utc: Optional[str] = None
     git_commit: Optional[str] = None
+    #: ``provenance.git.dirty``: ``False`` only for a run from a clean tree; ``None`` when
+    #: the file records no provenance.
+    git_dirty: Optional[bool] = None
+    #: The script's own ``published_design`` flag, when the file has one: ``False`` marks
+    #: a reduced smoke run.
+    published_design: Optional[bool] = None
 
     def config_names(self) -> list[str]:
         return list(self.rows_by_config)
@@ -246,6 +310,18 @@ class TransferBoard:
     def predates_sign_randomization(self) -> bool:
         """True when no configuration in this file was measured with the flip on."""
         return all(c.predates_sign_randomization for c in self.configs.values())
+
+    @property
+    def applies_na_rules(self) -> bool:
+        """Every row was written under the 2026-11-27 not-applicable rules.
+
+        ``False`` for a file measured before then -- including the 2026-08-03
+        sign-randomization measurement, whose L1 row scores frozen-model mismatches at
+        0.5 -- so a renderer can say its rows predate the rules instead of presenting
+        them as current.
+        """
+        rows = [r for bucket in self.rows_by_config.values() for r in bucket.values()]
+        return bool(rows) and all(r.records_na_reasons for r in rows)
 
 
 def load_transfer_results(path: str | Path) -> TransferBoard:
@@ -306,9 +382,11 @@ def load_transfer_results(path: str | Path) -> TransferBoard:
                 if isinstance(blob, Mapping)
             }
     else:
-        # A single unnamed configuration. It carries no randomization flag at all, which
-        # is exactly why TransferConfig defaults to None rather than False here: the file
-        # does not say, and a renderer must not read silence as "randomization was on".
+        # A single configuration. ``scripts/cross_family_transfer.py`` names it in a
+        # one-entry ``configs`` block (``"shipped"``); the 2026-07-09 file has none and
+        # carries no randomization flag at all, which is exactly why TransferConfig
+        # defaults to None rather than False here: the file does not say, and a renderer
+        # must not read silence as "randomization was on".
         sole = next(iter(configs.values()), TransferConfig(name="published"))
         rows_by_config[sole.name] = {
             str(det): _row(str(det), blob, sole)
@@ -333,6 +411,10 @@ def load_transfer_results(path: str | Path) -> TransferBoard:
             str(provenance.get("generated_utc")) if provenance.get("generated_utc") else None
         ),
         git_commit=(str(git.get("short_commit")) if git.get("short_commit") else None),
+        git_dirty=git.get("dirty") if isinstance(git.get("dirty"), bool) else None,
+        published_design=(
+            data["published_design"] if isinstance(data.get("published_design"), bool) else None
+        ),
     )
 
 
@@ -346,8 +428,8 @@ class TransferComparison:
     #: True when the row was measured with the flip off but is valid with it on anyway,
     #: because the detector's access level never sees a behavioural trace.
     carried_over_as_invariant: bool
-    #: The figure currently published in ``leaderboard/cross_family_transfer.json``, if
-    #: that file has a row for this detector. ``None`` when it does not.
+    #: The figure in the superseded artifact (``leaderboard/cross_family_transfer.json``,
+    #: 2026-07-09), if that file has a row for this detector. ``None`` when it does not.
     published: Optional[float] = None
     #: The published row itself, for callers that need its (untrustworthy) bookkeeping.
     published_row: Optional[TransferRow] = None
@@ -377,9 +459,13 @@ class TransferComparison:
         Compared against the row's spread across model-init trials rather than against a
         fixed epsilon: a published figure that moved by less than the trial-to-trial
         scatter of the same procedure has not been contradicted, it has been re-rolled.
-        On the committed data this separates the two L2 rows (0.931 -> 0.706 and
-        0.994 -> 0.508, both an order of magnitude beyond their spread) from the L0 row
-        (0.478 -> 0.477, well inside it).
+        On the 2026-08-03 sign-randomization measurement against the 2026-07-09 artifact
+        this separates the two L2 rows (0.931 -> 0.706 and 0.994 -> 0.508, both an order
+        of magnitude beyond their spread) from the L0 row (0.478 -> 0.477, well inside
+        it). Its 2026-11-27 re-measurement (``0ff0d42``) separates them the same way:
+        0.931 -> 0.709 and 0.994 -> 0.514 against spreads of 0.012 and 0.014, and
+        0.478 -> 0.477 against 0.004. A row with no current figure (``rts is None``)
+        supersedes nothing here.
         """
         delta = self.published_delta
         if delta is None:
@@ -418,9 +504,10 @@ def transfer_under_sign_randomization(
     pre-randomization figure and there is nothing here that makes it a current one.
 
     Args:
-        measured: The multi-configuration artifact from
-            ``scripts/measure_sign_randomization.py``.
-        published: ``leaderboard/cross_family_transfer.json``, used only to report which
+        measured: The artifact to read current figures from: ``CURRENT_TRANSFER_ARTIFACT``
+            (one configuration, the shipped one, so every row comes from it), or the
+            multi-configuration artifact from ``scripts/measure_sign_randomization.py``.
+        published: ``HISTORICAL_TRANSFER_ARTIFACT``, used only to report which
             published figure each row supersedes.
 
     Returns:
@@ -457,6 +544,8 @@ def transfer_under_sign_randomization(
                 )
             )
 
+    # A row with no current figure (every held-out family not applicable) sorts last in
+    # its level rather than being dropped: "nothing was measurable" is a result.
     out.sort(
         key=lambda c: (
             _level_index(c.access_level),

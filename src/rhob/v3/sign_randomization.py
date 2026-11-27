@@ -11,12 +11,17 @@ so **the sign of the observation was the label**. Under that convention an L2 de
 that "transfers to an unseen hacking mechanism" has discovered the repository's house
 style guide, not a property of reward hacking, and the headline RTS of 0.994 measured
 convention-following rather than generalization. It is the L2-side twin of the L0
-tautology the same audit removed.
+tautology the same audit removed. (Re-measured on 2026-11-27,
+``docs/figures/sign_randomization_impact.md``: 0.993 with the sign fixed, 0.514 with it
+randomized.)
 
 The convention also explains a separate measured finding that had no other explanation:
 L2-AUROC was pinned at exactly 1.000 across *every* difficulty tier in 12 of the 13
 families whose knob was swept (knob span 0.000). The knob moves how *far* the two
-variants separate; it cannot move a statistic whose sign already is the answer.
+variants separate; it cannot move a statistic whose sign already is the answer. The
+flip does not change that: it preserves ``|AUROC - 0.5|``, and on all 33 families the
+same measurement finds 27 of the 32 with more than one tier at a separation span of
+exactly 0.000, with the sign fixed or randomized.
 
 What this module does
 ---------------------

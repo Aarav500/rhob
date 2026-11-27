@@ -214,19 +214,25 @@ grid of outcomes.
 `None` — which means every L1 detector returns a constant 0.5 on them. That is
 not a measurement, and those cells are now recorded N/A rather than averaged in.
 A constant also comes back when your runs are shorter than a detector's windows, and
-there the harness can tell only if the detector declares `min_episodes`. Reward
-Skewness does, and is N/A below 100 episodes. No other shipped detector does, so on a
-short horizon a windowed detector falls back to a constant and the resulting 0.5 is
-published as a measured value. That happens to eight L0 and three L2 detectors on the
-families of 40 or 60 episodes, and to every L1 detector on `continuous_camping`'s 40.
-Until that is fixed
-([ROADMAP.md](../ROADMAP.md)), a horizon of at least 101 episodes is long enough for
-every scored detector's classification windows.
+there the harness can tell because the detector declares `min_episodes`: every detector
+on the board whose score is a constant below some run length declares that length
+(`tests/test_detectors/test_min_episodes.py` holds each declaration to the code; since
+2026-11-27 so do the five external baselines, which are on no board: Page-Hinkley Test
+3, Isolation Forest 2, AR(p) Residual 6, PCA Reconstruction 100 and Bayesian Online
+Changepoint Detection 5 at their defaults), and a family shorter than it is recorded
+N/A for that detector. On the board, on 40 episodes that is nine L0 detectors, every L1
+detector and three L2 detectors; on 60, five L0 detectors, five L1 detectors and
+Feature Consistency. (Until 2026-11-26 only Reward Skewness declared
+one, and the others' fallback 0.5 was published as a measured value.) A horizon of at
+least 101 episodes is long enough for every scored detector (the largest declaration
+is Transition Entropy's 101); shorter, and the detectors that need more are N/A on
+your family.
 
 If your family has a natural fixed-bin state histogram, emit it: L1 coverage is
-the benchmark's thinnest area, and on the 8 families that do emit the channel the
-best L1 detector reaches 0.927 AUROC over their 35 cells on the single-draw board (4 of
-them `continuous_camping`'s fallback 0.5). If it
+the benchmark's thinnest area, and of the 8 families that do emit the channel, the
+best L1 detector reaches 0.982 AUROC over the 31 cells of the 7 whose runs are long
+enough, on the single-draw board (`continuous_camping`'s 40 episodes are below every L1
+detector's `min_episodes`, so its 4 cells are N/A). If it
 genuinely does not (high-dimensional continuous state, a multi-agent joint space, a
 vocabulary), leave it `None` and
 **document why in the family's module docstring** — the shipped families that opt
@@ -265,7 +271,7 @@ as Step 3, at a smaller design — so it certifies a **much looser** claim:
 
 | | Smoke screen (your test) | Certification (the ledger) |
 |---|---|---|
-| Runs | in CI, minutes | on demand in CI (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell, not per push; hours of compute over the full grid |
+| Runs | in CI, minutes | on demand in CI (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell, not per push, under the numerics pins since 2026-11-27; hours of compute over the full grid |
 | Design | 12 layouts × 4 seeds/side = 96 rollouts/cell | 12 × 24 = 576 rollouts/cell |
 | Equivalence margin | **±0.256** | **±0.10** — the benchmark's published claim |
 | Tiers | every tier `default_difficulties()` returns | same |
@@ -305,12 +311,16 @@ is derived from the family rather than restated in the test file, and
 `assert_smoke_admissible_at` refuses a difficulty the family does not score.
 
 **Where the benchmark actually stands, so you know what "everyone does this" is
-worth:** 22 of the 33 registered families have a smoke test and 11 have none; 10 never
-reach `AdmissionGate` in any test at all; the ledger, a separate run rather than a test,
-covers all 33 since 2026-11-19 and admits 42 of their 123 cells. Neither check is
-enforced repository-wide, and nothing in `tests/` calls `certify_all_tiers` on a
-registered family — the two tests that exercise it use synthetic fixtures, so
-`scripts/admission_ledger.py` is the only caller that certifies a real family.
+worth:** 22 of the 33 registered families have a smoke test and 11 have none; 8 never
+reach `AdmissionGate` in any test at all (10 until 2026-11-27, when
+`tests/test_v3/test_ledger_reproduces.py` and `tests/test_cannotfail_parity.py` began
+re-certifying a few registered families, `proxy_correlation_gaming` and
+`orbit_chirality` among them, to hold the committed ledger to the code); the ledger, a
+separate run rather than a test, covers all 33 since 2026-11-19 and admits 42 of their
+123 cells. Neither check is enforced repository-wide, and nothing in `tests/` calls
+`certify_all_tiers` on a registered family — the two tests that exercise it use
+synthetic fixtures, and the re-certifying tests only compare with the ledger, so
+`scripts/admission_ledger.py` is the only caller whose certificates are published.
 Shipping your family with the smoke test is the contributor's half of closing that gap.
 
 ## 5. Submit

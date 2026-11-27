@@ -27,6 +27,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -147,6 +148,7 @@ jobs:
     # version, and skip-existing below would keep it there for good.
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/cannotfail-v')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: testpypi
       url: https://test.pypi.org/project/cannotfail/${{ needs.build.outputs.version }}/
@@ -169,6 +171,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/cannotfail-v')
     needs: [build, publish-testpypi]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: pypi
       url: https://pypi.org/project/cannotfail/${{ needs.build.outputs.version }}/

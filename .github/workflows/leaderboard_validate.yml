@@ -4,38 +4,58 @@ name: leaderboard-validate
 # submissions/, using the existing `python -m rhob validate` CLI command
 # (src/rhob/v3/cli/__main__.py::cmd_validate). Community contributors submit a result
 # by adding a file there; this catches malformed submissions before merge.
+#
+# Deleted files are not validated (--diff-filter=d): there is nothing left to read, and a
+# pull request that removes a submission would otherwise fail on a missing path. The
+# workflow file itself is in `paths`, so a change to this check is exercised by the pull
+# request that makes it.
 
 on:
   pull_request:
     branches: [main]
     paths:
       - "submissions/**.json"
+      - ".github/workflows/leaderboard_validate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leaderboard-validate-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev]"
+      # Refs come in through the environment, never spliced into the script, and the file
+      # list goes to the next step as a file, so a path name cannot become shell syntax.
       - name: Find changed submission files
         id: changed
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
-          files=$(git diff --name-only origin/${{ github.base_ref }} -- 'submissions/*.json')
-          echo "files<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$files" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          git fetch --no-tags --depth=1 origin "refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          git diff --name-only --diff-filter=d -z "origin/$BASE_REF" -- 'submissions/*.json' \
+            > "$RUNNER_TEMP/changed.z"
+          count=$(tr -cd '\0' < "$RUNNER_TEMP/changed.z" | wc -c)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "$count changed submission file(s)"
       - name: Validate each changed submission
-        if: steps.changed.outputs.files != ''
+        if: steps.changed.outputs.count != '0'
         run: |
           status=0
-          while IFS= read -r f; do
-            [ -z "$f" ] && continue
+          while IFS= read -r -d '' f; do
             echo "Validating $f"
             python -m rhob validate "$f" || status=1
-          done <<< "${{ steps.changed.outputs.files }}"
+          done < "$RUNNER_TEMP/changed.z"
           exit $status

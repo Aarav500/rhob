@@ -15,9 +15,9 @@ distributions it installed, read from its job log. Among them are numpy
 the `mujoco<4` bound. Releases since then, numpy 2.5.5 among them, wait for `drift.yml` and
 a reviewed regeneration. rhob itself is not in it. CI installs it
 afterwards with `pip install --no-deps -e .`. The one unpinned piece of that step is the
-build backend (setuptools, wheel). pip fetches it into an isolated build environment to
-build rhob's own editable wheel and then discards it, so it installs nothing into the
-environment the tests use.
+build backend (setuptools 77 or later, from `[build-system]` in `pyproject.toml`). pip fetches
+it into an isolated build environment to build rhob's own editable wheel and then discards
+it, so it installs nothing into the environment the tests use.
 
 **Why.** The physics screen should change only when the code does. Installing unpinned, the
 nightly met MuJoCo 4.0.0 the night it was published and went red on an unchanged commit
@@ -25,15 +25,23 @@ nightly met MuJoCo 4.0.0 the night it was published and went red on an unchanged
 same commit installs the same distributions every night. A new release reaches the nightly
 only through a regeneration of this file, which is a diff someone reviews. What still floats
 is the CPython 3.12 patch release, pip and the runner image. The calibration cache's physics
-token is stable too, because the "Fingerprint the physics stack" step reads installed
-versions and those no longer move. This file's versions give `029b0400d8d0fa6d`, the token
+token is stable too, because it reads installed versions (the "Fingerprint the physics
+stack" step of `.github/actions/calibration-cache`) and those no longer move. Since
+2026-11-27 it also folds in the numerics variables, so this file's versions give two tokens:
+`2050ff9f3ae2a8ba` with none of them set, as in `admission-slow`, and `76e0fe3e2ad13bb1`
+under `regenerate.yml`'s pins. Before that they gave `029b0400d8d0fa6d`, the token
 43679157068 computed.
 
 **Scope.** CPython 3.12 on Linux x86_64. It is resolved for `x86_64-manylinux_2_28`, and the
 script checks that `x86_64-manylinux_2_40`, the newest glibc tag uv can target, resolves
 identically. `ubuntu-latest` was `ubuntu-26.04` in the 2026-11-07 run logs. The lock is not
-for macOS, Windows, ARM or another Python, and it is not the environment of any committed
-artifact. Each artifact that records one says so in its own provenance block.
+for macOS, Windows, ARM or another Python. It is the environment of the artifacts
+`regenerate.yml` commits; each artifact that records its environment says which in its own
+provenance block. The jobs that install it (`admission-slow` and every job of
+`regenerate.yml`), and `drift.yml`, which installs today's releases and compares them
+against it, run on `ubuntu-24.04`, named rather than `ubuntu-latest`, so the image's glibc
+does not move under them; `regenerate.yml` also sets the numerics pins, which its artifacts
+record.
 
 **What was checked, 2026-11-16.** In CI, `workflow_dispatch` run 43836925199 of `tests.yml`
 on the branch at `6ae7d7f` was the first to install this file. Its Install step passed:

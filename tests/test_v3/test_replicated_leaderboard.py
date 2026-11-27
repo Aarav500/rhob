@@ -153,6 +153,45 @@ def test_statistic_disagreement_is_carried(tmp_path):
     assert board.zero_variance_detectors == ("Saturated One",)
 
 
+def test_each_partition_carries_its_own_statistic_disagreement(tmp_path):
+    payload = _minimal()
+    payload["supervision"]["statistic_disagreement_unsupervised_only"] = {
+        "rungs_where_max_and_mean_disagree_on_separation": ["L1_minus_L0"],
+        "rungs_where_max_and_mean_disagree_on_direction": ["L3_minus_L2"],
+        "note": "quote both",
+    }
+    board = load_replicated_leaderboard(_write(tmp_path, payload))
+    assert board.unsupervised_only.statistic_disagreement == ("L1_minus_L0", "L3_minus_L2")
+    assert board.all_detectors.statistic_disagreement == ("L2_minus_L1",)
+
+
+def test_an_artifact_without_the_newer_blocks_still_loads_and_says_so(tmp_path):
+    """Not recorded is ``None``, which a renderer must not read as "they agree"."""
+    board = load_replicated_leaderboard(_write(tmp_path, _minimal()))
+    assert board.unsupervised_only.statistic_disagreement is None
+    assert board.layouts_resampled is None
+    assert board.single_source is None
+    assert board.single_source_problems == ()
+    assert board.provenance == {} and board.replicates == {}
+
+
+def test_the_replicates_block_is_read(tmp_path):
+    payload = _minimal(
+        provenance={"generated_utc": "2026-11-27T00:00:00Z", "script": "agg"},
+        replicates={
+            "n_replicate_files": 2,
+            "layouts_resampled": False,
+            "single_source": False,
+            "single_source_problems": ["no replicate records the commit it was drawn from"],
+        },
+    )
+    board = load_replicated_leaderboard(_write(tmp_path, payload))
+    assert board.layouts_resampled is False
+    assert board.single_source is False
+    assert board.single_source_problems == ("no replicate records the commit it was drawn from",)
+    assert board.provenance["script"] == "agg"
+
+
 def test_method_block_is_exposed(tmp_path):
     board = load_replicated_leaderboard(_write(tmp_path, _minimal()))
     assert board.ci_percent == 95
@@ -183,10 +222,49 @@ def test_adapter_reads_the_committed_replicated_board():
 
     by_name = {e.detector_name: e for e in board.entries}
     l1 = by_name["State Divergence"]
-    # 8 families, not 33: the flattened entry must not have gained imputed cells.
-    assert len(l1.family_auroc) == 8
-    assert l1.n_cells == 35
+    # 7 families, not 33: the flattened entry must not have gained imputed cells.
+    # (25 families ship no state channel, and continuous_camping's 40 episodes are below
+    # every L1 detector's min_episodes.)
+    assert len(l1.family_auroc) == 7
+    assert l1.n_cells == 31
     assert board.standings()[0].detector_name == rich.standings()[0].name
+
+
+@pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
+def test_the_committed_board_says_what_its_draws_resampled():
+    """``layouts_resampled`` must be the committed replicate files' own answer.
+
+    True only if every file records ``draw_schema`` 2 or later; the set drawn before the
+    layout-seed fix records none and was built at layout 0.
+    """
+    board = load_replicated_leaderboard(_REPLICATED)
+    files = sorted((_REPO_ROOT / "results" / "replication").glob("replicate_*.json"))
+    if not files:
+        pytest.skip("committed replicates not present")
+    schemas = [json.loads(f.read_text(encoding="utf-8")).get("draw_schema") for f in files]
+    assert board.replicates["n_replicate_files"] == len(files) == board.n_replicates
+    assert board.layouts_resampled is all(isinstance(v, int) and v >= 2 for v in schemas)
+    assert [d.get("draw_schema") for d in board.draws] == schemas
+
+
+@pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
+def test_the_committed_unsupervised_disagreement_matches_its_separations():
+    """The recorded list is the max/mean rule applied to the partition's own rungs."""
+    board = load_replicated_leaderboard(_REPLICATED)
+    for partition in (board.all_detectors, board.unsupervised_only):
+        expected = []
+        for kind in ("separation", "direction"):
+            for lo, hi in (("L0", "L1"), ("L1", "L2"), ("L2", "L3")):
+                mx = partition.separation(lo, hi, "max")
+                mn = partition.separation(lo, hi, "mean")
+                if mx is None or mn is None:
+                    continue
+                separation = mx.separates != mn.separates
+                direction = (mx.separates and mn.separates
+                             and (mx.difference.mean > 0) != (mn.difference.mean > 0))
+                if (separation if kind == "separation" else direction):
+                    expected.append(mx.key)
+        assert partition.statistic_disagreement == tuple(expected), partition.name
 
 
 @pytest.mark.skipif(not _V5.exists(), reason="committed v5 board not present")
@@ -272,20 +350,32 @@ def test_the_level_mean_margin_is_reported_alongside_the_exclusion(tmp_path):
 
 
 @pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
-def test_the_committed_l0_control_holds_per_detector_but_its_max_does_not():
-    """Regression guard for the reading that put a selection-biased 0.548 on the page."""
+def test_the_committed_l0_control_has_one_below_chance_exception_and_its_max_does_not_hold():
+    """Regression guard for the reading that put a selection-biased 0.548 on the page.
+
+    On the 2026-08-04 draws (layout 0 only) every one of the 13 L0 detectors had an
+    interval containing 0.500. On the re-draw of 2026-11-27 (``b93c351``: real layouts,
+    the numerics pins, the frozen ``continuous_camping`` camper) 12 do; Reward CUSUM's,
+    0.486 [0.475, 0.497], lies wholly below chance. Below, not above: it separates the
+    variants weakly in the direction that would not flag hacking.
+    """
     control = load_replicated_leaderboard(_REPLICATED).control_check()
 
     assert control.level == "L0"
     assert control.n_detectors == 13
-    assert control.holds is True, [d.name for d in control.exceptions]
+    assert control.holds is False
+    assert [d.name for d in control.exceptions] == ["Reward CUSUM"]
+    (cusum,) = control.exceptions
+    assert cusum.overall.ci_hi < 0.5
     assert control.highest.overall.mean < 0.51
 
     # The level's "best detector" cell excludes 0.500 and beats every detector in it.
     assert control.max_excludes_reference is True
     assert control.max_exceeds_every_detector is True
 
-    # And the suite mean's exclusion is far smaller than the bootstrap's own scatter
-    # (~2.4e-4 over 300 seeds, docs/figures/l0_control_robustness.md), so no direction
-    # may be read from it.
+    # And the suite mean's interval, [0.4918, 0.5036], contains 0.500 with room on both
+    # sides. (On the 2026-08-04 draws it was [0.4899, 0.5000], reaching 0.500 only at its
+    # upper end and within the bootstrap's own scatter there;
+    # docs/figures/l0_control_robustness.md replays that.)
+    assert control.mean_excludes_reference is False
     assert control.mean_margin_from_reference < 1e-4

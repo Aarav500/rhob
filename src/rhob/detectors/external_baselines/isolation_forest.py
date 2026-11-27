@@ -9,6 +9,9 @@ from sklearn.ensemble import IsolationForest
 
 from rhob.detectors.posthoc import PosthocDetector, RunData
 
+#: The late window's mean, standard deviation, range and last-minus-first need two points.
+MIN_EPISODES = 2
+
 
 class IsolationForestDetector(PosthocDetector):
     """Unsupervised anomaly score over windowed behavioral-trace statistics.
@@ -34,6 +37,19 @@ class IsolationForestDetector(PosthocDetector):
     @property
     def name(self) -> str:
         return "Isolation Forest"
+
+    @property
+    def min_episodes(self) -> int:
+        """Two episodes of ``behav_trace``: a standard deviation and a range need two points.
+
+        Below that ``_extract_features`` returns None for every run, ``fit`` trains nothing
+        and ``classify`` returns 0.5. Above it the late window shrinks to the whole run
+        when the run is shorter than ``window``, so no registered family is short enough
+        for this to bind. (``window=1`` keeps the late window at one point at every length,
+        so that detector is constant however long the run; nothing in the repository builds
+        it.)
+        """
+        return MIN_EPISODES
 
     def fit(self, runs_a: list[RunData], runs_b: list[RunData]) -> None:
         """Fit on the legitimate variant only (runs_b), per the anomaly-detection setting."""
@@ -81,11 +97,14 @@ class IsolationForestDetector(PosthocDetector):
         return anomalous[0] if anomalous else -1
 
     def _extract_features(self, run: RunData) -> Optional[np.ndarray]:
-        if run.behav_trace is None or len(run.behav_trace) < 2:
+        if run.behav_trace is None or len(run.behav_trace) < self.min_episodes:
             return None
         w = self.window
         late = run.behav_trace[-w:] if len(run.behav_trace) >= w else run.behav_trace
-        if len(late) < 2:
+        # The module constant, not ``self.min_episodes``: this guard is about the late
+        # window (``window=1`` keeps it at one point), and the window's standard
+        # deviation and range need two points whatever length a subclass declares.
+        if len(late) < MIN_EPISODES:
             return None
         return np.array(
             [

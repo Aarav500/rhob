@@ -113,18 +113,25 @@ class BehavioralThresholdDetector(PosthocDetector):
         sign randomized, orientation inferred (this code)    0.615
         ===================================================  ===========
 
-        Errors are family-level rather than cell-level -- a family is oriented right at
-        every tier or at none -- because the asymmetry being read is a property of the
-        family's trace shape. Four alternative rules measured on the same cells (larger
-        excursion from the run's own baseline, earlier onset, later onset, lower steady
-        dispersion) are tabulated in ``docs/l2_sign_randomization.md``. One of them
-        scores higher overall; none is adopted, because picking the rule that wins
-        against the labels would launder the direction through the author's choice
-        instead of reading it off the sign, and because on a different subset of
-        families the ranking reverses. None is close to reliable either, which is the
-        substantive finding: **these families were built so that everything except the
-        sign is matched across the pair**, and the sign is exactly what the benchmark
-        now withholds.
+        Those 13 are the tabular and continuous families only, so 63.3% is not the
+        benchmark's figure. On all 33 families, at 10 seeds/variant, the rule orients
+        **58 of 123 cells (47.1%)**, at or below a coin flip, and 32 of the same 60
+        (``docs/figures/sign_randomization_impact.md``, CI run 46011028034, ``0ff0d42``).
+        That measurement's 20-seed companion over the 13 families reads 0.978, 0.257
+        and 0.604 for the three rows above, so the 0.615 has not been reproduced.
+
+        Errors are mostly family-level rather than cell-level -- on the full board 24 of
+        the 32 multi-tier families are oriented the same way at every tier -- because
+        the asymmetry being read is a property of the family's trace shape. Four
+        alternative rules measured on the same 60 cells (larger excursion from the run's
+        own baseline, earlier onset, later onset, lower steady dispersion) are tabulated
+        in ``docs/l2_sign_randomization.md``. One of them scores higher overall; none is
+        adopted, because picking the rule that wins against the labels would launder the
+        direction through the author's choice instead of reading it off the sign, and
+        because on a different subset of families the ranking reverses. None is close to
+        reliable either, which is the substantive finding: **these families were built
+        so that everything except the sign is matched across the pair**, and the sign is
+        exactly what the benchmark now withholds.
 
         So the honest summary of this detector under randomization is: it recovers the
         *separation* perfectly (its magnitude ranking is untouched) and the *direction*

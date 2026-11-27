@@ -26,10 +26,15 @@ class RewardAutocorrelationDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward Autocorrelation"
 
+    @property
+    def min_episodes(self) -> int:
+        """Both windows have to fit: a baseline and a test autocorrelation need one each."""
+        return self.baseline_window + self.test_window
+
     def classify(self, run: RunData) -> float:
         """Score: difference in autocorrelation between late and early windows."""
         rewards = run.proxy_rewards
-        if len(rewards) < self.baseline_window + self.test_window:
+        if len(rewards) < self.min_episodes:
             return 0.5
 
         def lag1_autocorr(x: np.ndarray) -> float:

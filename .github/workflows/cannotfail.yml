@@ -28,6 +28,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request supersedes the run in flight. Scheduled, manual and
+# main-branch runs each get a group of their own and are never cancelled, waiting or
+# running (each is the record for its commit or its week); see tests.yml.
+concurrency:
+  group: cannotfail-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     # Installed the way an outside maintainer would install it, not from this checkout's
@@ -42,6 +49,7 @@ jobs:
     # together.
     name: test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +89,7 @@ jobs:
     # and run the README's examples from it. Each example that shows its output must print
     # exactly that output, so the README cannot drift from the tool unnoticed.
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -193,3 +202,50 @@ jobs:
           cd tools/cannotfail/examples
           python "$RUNNER_TEMP/readme_examples.py" ../README.md "$RUNNER_TEMP/venv/bin/cannotfail" .
           cd /tmp && "$RUNNER_TEMP/venv/bin/python" -m pytest "$GITHUB_WORKSPACE/tools/cannotfail/tests" -q
+
+  report:
+    # The weekly run is the one nobody is watching: it exists to meet a new numpy, SciPy,
+    # setuptools or pip on an unchanged commit, and a red mark on a workflow page nobody
+    # opens says nothing. So, as in drift.yml: one tracking issue, found by its exact title,
+    # opened or commented on when a scheduled run does not pass and closed when one passes
+    # again. Scheduled runs only, so a pull request or a manual run never touches it. Its
+    # own job, so `issues: write` is the only permission it holds and it never shares a
+    # runner with the code the tests installed.
+    needs: [test, package]
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: Weekly cannotfail check is failing
+          TEST: ${{ needs.test.result }}
+          PACKAGE: ${{ needs.package.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number="$(gh issue list --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+          if [ "$TEST" = "success" ] && [ "$PACKAGE" = "success" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "Passing again: $RUN_URL"
+            fi
+            exit 0
+          fi
+          body="$(cat <<EOF
+          The weekly run of tools/cannotfail against the newest releases did not pass: $RUN_URL
+
+          - test (Python 3.10, 3.13, 3.14; numpy only, then each extra): $TEST
+          - package (sdist and wheel, twine, the README's examples from the wheel): $PACKAGE
+
+          Nothing in tools/cannotfail is pinned, because a stranger's install is not, so this is most likely a new release of a dependency, of the build backend or of pip. The job log shows which step failed.
+          EOF
+          )"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

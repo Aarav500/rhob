@@ -84,11 +84,24 @@ environments/continuous/   shared MDP, config, rollout, onset (numpy only)
   config.py                ContinuousConfig (d, sigma_a, ...) and DQN hyperparameters
   rollout.py               generate_run() -> ContinuousRunLog (per-episode signals)
   onset_label.py           camping-fraction onset label
+  frozen_camper.py         continuous_camping's frozen camper weights (generated; loading needs torch)
 agents/dqn.py              DQN camper + reflection symmetrisation (needs torch)
 agents/replay_buffer.py    experience replay
 environments/pair_0{2,3,4} thin config wrappers (d, sigma_a, L2 floor)
 evaluation/continuous_admission.py   the continuous admission gate
 ```
+
+The benchmark family that wraps this tier, `continuous_camping`
+(`rhob.v3.families.continuous_camping`), does not train its camper. Since 2026-11-27 it
+loads frozen weights from `environments/continuous/frozen_camper.py`, the weights
+`train_camper(seed=0)` produces under the six numerics pins (the workflow-level `env` of
+`.github/workflows/regenerate.yml`, listed in `scripts/freeze_camper.py`) on an Intel CPU,
+checked against their sha256 on load. Training the camper is reproducible on one CPU
+vendor and not across vendors: under the same pins AMD runners trained other weights, and
+the learning loop turns that last-bit difference into a different policy, so a family that
+trained in every process rolled out differently with the runner it landed on.
+`scripts/freeze_camper.py` regenerates the weights and records the evidence.
+`scripts/validate_all_continuous.py` below still trains its own camper.
 
 torch is an **optional dependency** (`pip install rhob[continuous]`); the gridworld
 tier and all core evaluation run without it.

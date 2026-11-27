@@ -30,10 +30,15 @@ class RewardKDEDetector(PosthocDetector):
     def name(self) -> str:
         return "Reward KDE"
 
+    @property
+    def min_episodes(self) -> int:
+        """The baseline window plus the two late episodes a density estimate needs."""
+        return self.baseline_episodes + 2
+
     def classify(self, run: RunData) -> float:
         """Score: mean negative log-density of late rewards under the early KDE."""
         proxy = run.proxy_rewards
-        if len(proxy) < self.baseline_episodes + 2:
+        if len(proxy) < self.min_episodes:
             return 0.0
         early = proxy[: self.baseline_episodes]
         late = proxy[-self.late_window :] if len(proxy) >= self.late_window else proxy

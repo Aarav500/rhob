@@ -155,7 +155,10 @@ lifted from. Its tolerance resolution is bit-identical to the gate's on adversar
 with one documented exception, a pair whose difference overflows float64. Fed the gate's
 measured resolution and informativeness, its verdict rule marks the same 30 of the 123
 ledger cells degenerate; that checks the rule's direction, and separate boundary tests pin
-its cut. <a href="https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml">The
+its cut. The same test re-certifies the six degenerate families and has the tool recompute
+every resolution and dispersion from the score vectors and proxy streams the gate measured,
+which must match the gate, re-run on the same machine, bit for bit, per layout; two of the
+families run on every push, the other four nightly. <a href="https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml">The
 package's recent runs</a>.</p>
 
 <h2 id="checks">What it checks</h2>
@@ -233,9 +236,15 @@ Reward Skewness returned a constant 0.5 below its 100-episode horizon, on the 19
 that run 40 or 60 episodes, which padded the L0 negative control. And
 <code>true_reward_diverges</code> reported FAIL on arms tied by arithmetic, with no tie
 guard; it now returns DEGENERATE. Reward Skewness now declares its horizon and is null
-there, but it is the only detector that does: eight other L0 detectors still fall back to
-a constant on the families too short for their windows, which reads 0.5, and the board
-regenerated on 2026-11-19 records it as a measured value. Re-scoring them is open.</p>
+there, and since 2026-11-26
+(<a href="https://github.com/Aarav500/rhob/commit/f83a152">f83a152</a>) so does every other
+detector on the board that returned a constant below some run length (the five external
+baselines, which are not on the board and are scored only on an external environment, have
+declared theirs since 2026-11-27). For eight more L0 detectors, three
+L2 detectors and every L1 detector that length is longer than some families' runs (for the
+L1 detectors, the 40-episode <code>continuous_camping</code>), and they are null there. Until
+then the board recorded that constant as a measured 0.5. Both boards have been re-scored
+with those cells not applicable.</p>
 
 <p>RHOB was published as the Reward Hacking <em>Onset</em> Benchmark. Its onset column was
 removed because it could not fail either: in 31 of the 33 families the onset label is
@@ -253,8 +262,9 @@ passes. The acronym is kept for URL stability only. Do not expand it as
   label.</li>
   <li><strong>Onset localization does not transfer.</strong> Against an external environment
   it did not build, the best correlation with true hack onset, among detectors that fire on
-  most runs, is r&nbsp;=&nbsp;0.43, and every detector that fires on a hack also fires on its
-  matched legitimate twin.</li>
+  most runs, is r&nbsp;=&nbsp;0.44 (Bayesian Online Changepoint Detection, on the primary
+  seed draw only; its other three draws are pre-fix), and every detector that fires on a
+  hack also fires on its matched legitimate twin.</li>
   <li><strong>It is not a leaderboard to rank detectors on.</strong> The reasons are in
   <a href="https://github.com/Aarav500/rhob/blob/main/ROADMAP.md">ROADMAP.md</a>.</li>
 </ul>
@@ -316,7 +326,7 @@ private reports are handled</a>).</p>
 </ul>
 
 <footer>
-  <p>Updated 2026-11-19. Every figure on this page is quoted from <code class="path">README.md</code>,
+  <p>Updated 2026-11-27. Every figure on this page is quoted from <code class="path">README.md</code>,
   <code class="path">ROADMAP.md</code>, <code class="path">tools/cannotfail/README.md</code> or
   <code class="path">admission/admission_ledger.json</code> in the repository, or from its git
   history; where they and this page disagree, they are authoritative.</p>

@@ -6,11 +6,15 @@ level), because the two answer different questions and only the max speaks to th
 claim RHOB actually cares about -- "is the information present at this access level?".
 A level's mean is dragged down by however many weak detectors happen to have been
 written for it, so a mean-only ladder measures the detector suite's composition as much
-as the benchmark's structure. On the committed v5 board (regenerated 2026-11-19) the two
-differ sharply at L2: mean 0.5716 over 7 detectors, but max 0.9430 (Trajectory MLP); and
-at L1: mean 0.5701 over 8, but max 0.9270 (State Divergence). The L1 figures are over the
-35 cells (8 families) that emit ``state_counts`` and L2's over all 123, so the L1 and L2
-maxima are not like for like.
+as the benchmark's structure. On the committed v5 board (re-drawn 2026-11-27 under the
+numerics pins, ``b93c351``) the two differ sharply at L2: mean 0.5771 over 7 detectors,
+but max 0.9440 (Trajectory MLP; 0.9430 on the board re-scored 2026-11-26); and at L1:
+mean 0.5789 over 8, but max 0.9820 (State Divergence). The L1 figures are over the 31
+cells (7 families) that emit ``state_counts`` and are long enough for every L1
+detector's ``min_episodes`` (``continuous_camping``, at 40 episodes, is not), and L2's
+best is over all 123, so the L1 and L2 maxima are not like for like. Nor is L1's best
+against L3's: State Divergence sits 0.0010 below the True Reward Oracle's 0.9830, but
+over 31 cells of 7 families against the oracle's 123 of 33.
 
 Detectors listed in :data:`~rhob.detectors.redundancy.DUPLICATE_DIAGNOSTICS` are
 excluded from every level's statistics and reported separately, so a relabelled copy of
@@ -68,41 +72,28 @@ One consequence has to be stated rather than hidden: excluding families means th
 is computed from the per-family AUROCs (a family-weighted mean over the families kept),
 while the other rungs use each detector's ``overall_auroc`` (a cell-weighted mean over
 the cells it has a value on, ``cells_measured``), because the artifact records AUROCs per
-family and not per cell. On the committed v5 board that re-weighting is worth 0.0005
-AUROC at L0 -- family-weighted over every family each detector has a value on is 0.4898
-against the cell-weighted 0.4903 -- so it is not what moves the number; the exclusion
-is. ``mean_auroc_including_degenerate`` is computed the same family-weighted way for
-exactly this reason, so the difference between it and ``mean_auroc`` is attributable to
-the held-out families alone.
+family and not per cell. On the committed v5 board that re-weighting is worth 0.0001
+AUROC at L0 -- family-weighted over every family each detector has a value on is 0.4871
+against the cell-weighted 0.4872 -- so it is not what moves the number; the exclusion
+(0.0036) is. (On the board re-scored 2026-11-26, before the re-draw: 0.0004, 0.4877
+against 0.4881, and 0.0043.) ``mean_auroc_including_degenerate`` is computed the same
+family-weighted way for exactly this reason, so the difference between it and
+``mean_auroc`` is attributable to the held-out families alone.
 
 A family that is ``null`` in a detector's ``per_family`` block is left out of that
 detector's mean, never read as 0.5. A detector is ``null`` on a family that does not emit
-the channel it reads (every L1 detector on 25 families), and on a family shorter than the
-``min_episodes`` it declares. Reward Skewness is the only L0 detector that declares one
-(100 episodes), so it is the only one computed over fewer families than the rest of the
-rung; :attr:`AccessLevelSummary.n_families_scored_by_detector` records how many, and the
-rendered table names it.
-
-Eight other L0 detectors also need more episodes than some families run, and declare
-none. Below the length their windows need, each returns a constant score (0.5, or 0.0
-for Reward CUSUM), so on a family that short it ties on every pair and the board records
-an AUROC of 0.5. That 0.5 is a fallback, not a measurement, and this module cannot tell
-it apart from one: it is a number in ``per_family`` and it is averaged in.
-:data:`UNDECLARED_HORIZON_FALLBACKS` lists the eight and the length each needs, and the
-rendered table says so. On the board
-regenerated 2026-11-19, Reward Peak, Reward Autocorrelation, Reward Trend and Variance
-Window carry their fallback on all 19 families with horizon 40 or 60 (59 cells), and
-Reward CUSUM, Max Plateau, Reward MLP and Gradient Reversal on all 7 with horizon 40
-(22 cells). That is 104 of the per-family entries behind the L0 figures quoted from that
-board (mean 0.4876, best 0.5351, Reward CUSUM). Recomputed with those entries left out,
-the L0 mean would read 0.4834 and the best detector would still be Reward CUSUM, at
-0.5474 over 20 families. Declaring each detector's horizon and re-scoring the boards is
-an open item in ``ROADMAP.md``; it changes the L0 ladder.
-
-The same kind of fallback is in the L1 and L2 figures: every L1 detector on
-``continuous_camping``, whose 40 episodes are below each L1 window, and three L2
-detectors (Feature Consistency, Feature Magnitude and Reward-Feature Correlation) on the
-short-horizon families. :func:`undeclared_horizon_note` names only the L0 ones.
+the channel it reads (every L1 detector on 25 families), and on a family that runs fewer
+episodes than the ``min_episodes`` it declares. Every shipped detector whose ``classify``
+returns a constant below some length declares that length, and
+``tests/test_detectors/test_min_episodes.py`` holds each declaration to the code, so a
+number in ``per_family`` is a measurement. Until 2026-11-26 only Reward Skewness
+declared one. Eight other L0 detectors, every L1 detector on ``continuous_camping`` and
+three L2 detectors returned their fallback constant on the families too short for them,
+and the boards recorded it as an AUROC of 0.5: 104 of the per-family entries behind the
+L0 mean of the board regenerated 2026-11-19 were that constant. At L0, nine detectors
+are now computed over fewer families than the rest of the rung;
+:attr:`AccessLevelSummary.n_families_scored_by_detector` records how many, and the
+rendered table names them.
 """
 
 from __future__ import annotations
@@ -119,28 +110,6 @@ ACCESS_LEVELS = ("L0", "L1", "L2", "L3")
 #: The only level whose statistic is a claim about the proxy reward, and therefore the
 #: only one a degenerate proxy invalidates. See the module docstring.
 PROXY_LEVEL = "L0"
-
-#: L0 detectors that declare no ``min_episodes`` and return a constant score from
-#: ``classify`` on a run shorter than this many episodes (the length guard in each
-#: ``rhob.detectors.l0_*`` module). On a family that short the constant ties on every
-#: pair, so the board records an AUROC of 0.5 that is a fallback, not a measurement, and
-#: :func:`summarize_access_levels` averages it in like any other number. Reward Skewness
-#: is not listed: it declares ``min_episodes`` (100) and is ``null`` below it. Nor are
-#: Reward Variance Ratio, Reward KDE and Spectral Reward, whose guards (21, 22 and 24
-#: episodes) are below the shortest horizon a registered family runs (40).
-#: ``tests/test_detectors/test_l0_window_fallbacks.py`` holds this table to the detector
-#: code. An entry leaves it when its detector declares its horizon (``ROADMAP.md``).
-UNDECLARED_HORIZON_FALLBACKS: dict[str, int] = {
-    "Reward Autocorrelation": 100,
-    "Reward Peak": 100,
-    "Reward Trend": 100,
-    "Variance Window": 100,
-    "Gradient Reversal": 60,
-    "Max Plateau": 50,
-    "Reward CUSUM": 50,
-    "Reward MLP": 50,
-}
-
 
 @dataclass
 class AccessLevelSummary:
@@ -162,8 +131,8 @@ class AccessLevelSummary:
     n_families_scored: int | None = None
     #: Per detector, the families its figure was averaged over, when an exclusion was
     #: applied. A detector that is not applicable on some families (``null`` in its
-    #: ``per_family`` block) has fewer than :attr:`n_families_scored`. A fallback 0.5 is
-    #: not ``null`` and is counted (see :data:`UNDECLARED_HORIZON_FALLBACKS`).
+    #: ``per_family`` block) has fewer than :attr:`n_families_scored`; at L0 that is a
+    #: family shorter than the ``min_episodes`` the detector declares.
     n_families_scored_by_detector: dict[str, int] = field(default_factory=dict)
     #: The same statistic with the degenerate families put back, so the cost of the
     #: exclusion is visible next to the exclusion. ``None`` when nothing was excluded.
@@ -323,63 +292,39 @@ def summarize_access_levels(
     return summaries
 
 
+def fewer_families_groups(summary: AccessLevelSummary) -> list[tuple[int, list[str]]]:
+    """``(n_families, detectors)`` for the detectors measured on fewer families than the level.
+
+    Largest ``n`` first, names sorted within a group. Empty when no exclusion was applied
+    (:attr:`AccessLevelSummary.n_families_scored` is ``None``) or every detector is
+    measured on every family. At L0 a detector is short of the level's families exactly
+    where a family runs fewer episodes than the ``min_episodes`` it declares.
+    """
+    total = summary.n_families_scored
+    if total is None:
+        return []
+    groups: dict[int, list[str]] = {}
+    for name, n in summary.n_families_scored_by_detector.items():
+        if n < total:
+            groups.setdefault(n, []).append(name)
+    return [(n, sorted(names)) for n, names in sorted(groups.items(), reverse=True)]
+
+
+def _join(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
 def _fewer_families_note(summary: AccessLevelSummary) -> str:
     """`` (Reward Skewness over 8 of them, ...)`` for detectors measured on fewer families."""
-    total = summary.n_families_scored
-    fewer = [
-        (name, n)
-        for name, n in sorted(summary.n_families_scored_by_detector.items())
-        if total is not None and n < total
-    ]
-    if not fewer:
+    groups = fewer_families_groups(summary)
+    if not groups:
         return ""
     return (
         " ("
-        + "; ".join(
-            f"{name} over {n} of them: it is not applicable on the other {total - n}"
-            for name, n in fewer
-        )
-        + ")"
+        + "; ".join(f"{_join(names)} over {n} of them" for n, names in groups)
+        + ": the other families run fewer episodes than the detector declares it needs, "
+        "and it is not applicable there)"
     )
-
-
-_NUMBER_WORDS = ("No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine")
-
-
-def undeclared_horizon_note(summary: AccessLevelSummary) -> str:
-    """Name the detectors at this level whose short-run values are a fallback 0.5.
-
-    Empty when no detector in :data:`UNDECLARED_HORIZON_FALLBACKS` is counted at this
-    level. The Markdown table and ``scripts/plot_v5_results.py``'s figure both print it,
-    so the two say the same thing.
-    """
-    counted = {name for name, _ in summary.scored}
-    by_length: dict[int, list[str]] = {}
-    for name, length in UNDECLARED_HORIZON_FALLBACKS.items():
-        if name in counted:
-            by_length.setdefault(length, []).append(name)
-    if not by_length:
-        return ""
-    n = sum(len(names) for names in by_length.values())
-    count = _NUMBER_WORDS[n] if n < len(_NUMBER_WORDS) else str(n)
-    groups = "; ".join(
-        f"{', '.join(sorted(names))} below {length} episodes"
-        for length, names in sorted(by_length.items(), reverse=True)
-    )
-    subject, verbs = (
-        (f"{count} {summary.level} detectors", ("declare", "return", "their"))
-        if n != 1
-        else (f"One {summary.level} detector", ("declares", "returns", "its"))
-    )
-    note = (
-        f"{subject} {verbs[0]} no minimum horizon and {verbs[1]} a constant score on a "
-        f"run shorter than {verbs[2]} windows ({groups}). On a family that short the "
-        "constant ties on every pair and is recorded as 0.5. That 0.5 is a fallback, not "
-        f"a measurement, and it is counted in the {summary.level} figures above."
-    )
-    if "Reward Skewness" in counted:
-        note += " Only Reward Skewness declares its horizon; it is null below it instead."
-    return note
 
 
 def render_access_summary_md(summaries: Mapping[str, AccessLevelSummary]) -> str:
@@ -429,10 +374,6 @@ def render_access_summary_md(summaries: Mapping[str, AccessLevelSummary]) -> str
             "held out and stay in the mean; whether they should is an open question "
             "(ROADMAP.md)."
         )
-    fallback = undeclared_horizon_note(proxy) if proxy is not None else ""
-    if fallback:
-        lines.append("")
-        lines.append(fallback)
     if excluded:
         lines.append("")
         for name, source, lv in excluded:

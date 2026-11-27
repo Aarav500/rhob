@@ -13,6 +13,8 @@ Also covers the provenance block that every result JSON now carries.
 from __future__ import annotations
 
 import json
+import sys
+import types
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 
@@ -32,6 +34,7 @@ from rhob.v3.provenance import (
     _TRACKED_PACKAGES,
     _git,
     git_provenance,
+    null_auroc_se,
     package_versions,
     provenance_block,
     sampling_block,
@@ -182,6 +185,9 @@ def test_provenance_block_carries_commit_versions_and_timestamp():
     # the discriminator has to be present.
     assert "source" in block["git"]
     assert block["git"]["source"] in {"git", "env:RHOB_SOURCE_COMMIT", None}
+    # Since 2026-11-27: what chose the floating-point kernels (see numerics_block).
+    assert set(block["numerics"]) >= {"env", "cpu", "torch_imported", "torch_cpu_capability",
+                                      "blas"}
 
 
 def test_provenance_records_the_simulators_that_step_the_rollouts():
@@ -213,6 +219,167 @@ def test_an_absent_package_is_recorded_as_null_not_dropped(monkeypatch):
     # it always has for torch. The two spellings must not leak into each other.
     assert "absent" not in packages.values()
     assert packages["numpy"] == real("numpy")
+
+
+#: The portable-numerics pins CI sets (the shared contract the workflows rely on).
+_CI_NUMERICS_PINS = {
+    "OPENBLAS_CORETYPE": "Haswell",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_CBWR": "COMPATIBLE",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "ATEN_CPU_CAPABILITY": "avx2",
+}
+
+
+def test_provenance_records_the_numerics_pins_set_and_unset(monkeypatch):
+    """A run without the pins must say so, as a null, never by omitting the key: an
+    artifact written before the block existed has no ``numerics`` at all, which is a
+    different fact from one that recorded the pins as unset."""
+    for name in _CI_NUMERICS_PINS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OPENBLAS_CORETYPE", "Haswell")
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    numerics = json.loads(json.dumps(provenance_block()))["numerics"]
+    env = numerics["env"]
+    assert set(env) == set(_CI_NUMERICS_PINS)
+    assert env["OPENBLAS_CORETYPE"] == "Haswell"
+    assert env["OMP_NUM_THREADS"] == "1"
+    assert [name for name, value in env.items() if value is None] == [
+        "OPENBLAS_NUM_THREADS", "MKL_CBWR", "MKL_NUM_THREADS", "ATEN_CPU_CAPABILITY"
+    ]
+    # The cache hashes the string "unset"; provenance writes JSON null, as for packages.
+    assert "unset" not in env.values()
+
+
+def test_provenance_and_the_calibration_key_read_the_same_numerics_variables():
+    """A variable that can move a calibration must also be readable from the artifact
+    that used it, and the other way round."""
+    from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
+    assert tuple(provenance_module.numerics_block()["env"]) == NUMERICS_ENV_VARS
+    assert set(NUMERICS_ENV_VARS) == set(_CI_NUMERICS_PINS)
+
+
+_CPUINFO = """\
+processor	: 0
+vendor_id	: AuthenticAMD
+cpu family	: 25
+model		: 1
+model name	: AMD EPYC 7763 64-Core Processor
+stepping	: 1
+flags		: fpu sse4_2 avx avx2 fma bmi2
+
+processor	: 1
+vendor_id	: SomeoneElse
+model name	: must not be read
+flags		: avx512f
+"""
+
+
+def test_cpu_info_reads_the_first_processor_from_proc_cpuinfo(monkeypatch, tmp_path):
+    path = tmp_path / "cpuinfo"
+    path.write_text(_CPUINFO, encoding="utf-8")
+    monkeypatch.setattr(provenance_module, "_CPUINFO_PATH", str(path))
+    cpu = provenance_module.cpu_info()
+    assert cpu["vendor"] == "AuthenticAMD"
+    assert cpu["model"] == "AMD EPYC 7763 64-Core Processor"
+    assert (cpu["family"], cpu["model_number"], cpu["stepping"]) == ("25", "1", "1")
+    assert cpu["isa"] == ["sse4_2", "avx", "avx2", "fma"], "only kernel-relevant flags, in order"
+    assert cpu["source"] == "/proc/cpuinfo"
+
+
+def test_cpu_info_without_proc_cpuinfo_falls_back_and_says_so(monkeypatch, tmp_path):
+    monkeypatch.setattr(provenance_module, "_CPUINFO_PATH", str(tmp_path / "absent"))
+    monkeypatch.setattr(provenance_module.platform, "processor", lambda: "arm")
+    cpu = provenance_module.cpu_info()
+    assert cpu["model"] == "arm" and cpu["source"] == "platform.processor"
+    assert cpu["vendor"] is None and cpu["isa"] is None
+    monkeypatch.setattr(provenance_module.platform, "processor", lambda: "")
+    assert provenance_module.cpu_info()["source"] is None
+
+
+@pytest.mark.parametrize("modules", [{}, {"torch": None}], ids=["absent", "import-blocked"])
+def test_the_torch_capability_is_read_only_when_torch_is_already_loaded(monkeypatch, modules):
+    """Stamping provenance must not import torch: that would load a library the run did
+    not use, and fix its kernel choice in the stamping process. The module reaches torch
+    only through ``provenance.importlib.import_module``, so recording that function's
+    calls checks that no torch import is attempted when the process has not loaded it.
+    A ``None`` entry in ``sys.modules`` blocks the import, so it does not count as loaded
+    either."""
+    attempted: list[str] = []
+
+    def recording_import(name, *args, **kwargs):
+        attempted.append(name)  # provenance swallows the error; the record is the check
+        raise ModuleNotFoundError(name)
+
+    monkeypatch.setattr(provenance_module, "sys", types.SimpleNamespace(modules=modules,
+                                                                        argv=["probe"]))
+    monkeypatch.setattr(provenance_module, "importlib",
+                        types.SimpleNamespace(import_module=recording_import))
+    numerics = provenance_module.numerics_block()
+    assert numerics["torch_imported"] is False
+    assert numerics["torch_cpu_capability"] is None
+    assert attempted == []
+
+
+def test_the_torch_capability_is_recorded_when_torch_is_loaded():
+    pytest.importorskip("torch")
+    numerics = provenance_module.numerics_block()
+    assert numerics["torch_imported"] is True
+    assert isinstance(numerics["torch_cpu_capability"], str) and numerics["torch_cpu_capability"]
+
+
+#: ``torch.__config__.show()`` as torch 2.x prints it, cut to the lines that matter here.
+_TORCH_BUILD_SUMMARY = (
+    "PyTorch built with:\n"
+    "  - GCC 9.3\n"
+    "  - CPU capability usage: AVX2\n"
+    "  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, PERF_WITH_AVX512=1, \n"
+)
+
+
+@pytest.mark.parametrize("backend", [None, types.ModuleType("torch.backends.cpu")],
+                         ids=["no-torch.backends.cpu", "no-get_cpu_capability"])
+def test_the_torch_capability_falls_back_to_the_build_summary_before_torch_2_1(
+    monkeypatch, backend
+):
+    """``torch.backends.cpu.get_cpu_capability`` first shipped in torch 2.1, and
+    ``pyproject.toml`` allows 2.0: there the level is read from the build summary, so an
+    AVX2 run and an AVX512 run stay distinguishable. Stubbed, so this runs without torch."""
+    if sys.modules.get("torch") is None:
+        monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    monkeypatch.setitem(sys.modules, "torch.backends.cpu", backend)
+    monkeypatch.setitem(sys.modules, "torch.__config__",
+                        types.SimpleNamespace(show=lambda: _TORCH_BUILD_SUMMARY))
+    assert provenance_module._torch_cpu_capability() == "AVX2"
+    # A summary without the line, or one that cannot be produced, is null, not a crash.
+    monkeypatch.setitem(sys.modules, "torch.__config__",
+                        types.SimpleNamespace(show=lambda: "PyTorch built with:\n"))
+    assert provenance_module._torch_cpu_capability() is None
+    monkeypatch.setitem(sys.modules, "torch.__config__", None)
+    assert provenance_module._torch_cpu_capability() is None
+
+
+def test_the_build_summary_fallback_agrees_with_get_cpu_capability(monkeypatch):
+    """On a torch that has both, the fallback reads the same string the API returns."""
+    pytest.importorskip("torch")
+    direct = provenance_module._torch_cpu_capability()
+    assert direct
+    monkeypatch.setitem(sys.modules, "torch.backends.cpu", None)
+    assert provenance_module._torch_cpu_capability() == direct
+
+
+def test_loaded_blas_records_the_kernel_and_no_machine_paths(monkeypatch):
+    rows = provenance_module._loaded_blas()
+    if rows is None:
+        pytest.skip("threadpoolctl unavailable")
+    json.dumps(rows)
+    for row in rows:
+        assert tuple(row) == provenance_module._BLAS_FIELDS, "filepath must never be recorded"
+    # threadpoolctl missing is recorded as null, not a crash.
+    monkeypatch.setitem(sys.modules, "threadpoolctl", None)
+    assert provenance_module._loaded_blas() is None
 
 
 def test_every_distribution_the_calibration_cache_keys_on_is_recorded():
@@ -249,10 +416,10 @@ def _committed_package_blocks() -> list[tuple[str, dict]]:
 
 def test_artifacts_written_under_the_old_list_still_read():
     """Artifacts committed before 2026-11-16 carry the five-name list (the admission
-    ledger of 2026-08-03 also the four simulators its script added); the v5 board and the
-    ledger regenerated on 2026-11-19 carry all ten. Nothing may require the new names,
-    and no recorded name may be renamed or dropped, or old and new artifacts stop
-    comparing key by key."""
+    ledger of 2026-08-03 also the four simulators its script added); the ledger
+    regenerated on 2026-11-19 and the v5 board re-scored on CI on 2026-11-26 carry all
+    ten. Nothing may require the new names, and no recorded name may be renamed or
+    dropped, or old and new artifacts stop comparing key by key."""
     blocks = _committed_package_blocks()
     assert len(blocks) >= 23, "the scan found fewer provenance blocks than are committed"
     for where, packages in blocks:
@@ -371,6 +538,39 @@ def test_sampling_block_marks_a_single_draw_as_such():
     assert block["n_seeds_per_variant"] == 5
     assert block["rollout_seeds_legit"] == [1000, 1001, 1002, 1003, 1004]
     assert "Single unreplicated draw" in block["note"]
+
+
+def _single(n, **extra):
+    return sampling_block(
+        n_seeds=n, n_layouts=1, layout_seeds=[0], rollout_seeds_hacking=list(range(n)),
+        rollout_seeds_legit=[1000 + s for s in range(n)], n_replicates=1, **extra,
+    )
+
+
+def test_the_sampling_note_at_five_seeds_is_the_committed_boards():
+    """The leaderboard's n_seeds=5 note must not move, or every board would."""
+    board = json.loads((_REPO_ROOT / "leaderboard" / "v5_leaderboard.json").read_text(encoding="utf-8"))
+    assert board["sampling"]["n_seeds_per_variant"] == 5
+    assert _single(5)["note"] == board["sampling"]["note"]
+    assert _single(5)["note"].endswith("the null SE at n=m=5 is 0.19.")
+
+
+@pytest.mark.parametrize("n, se", [(10, "0.13"), (20, "0.09"), (3, "0.25")])
+def test_the_sampling_note_states_the_null_se_at_its_own_seed_count(n, se):
+    note = _single(n)["note"]
+    assert note.endswith(f"the null SE at n=m={n} is {se}.")
+    assert "n=m=5" not in note
+
+
+def test_the_sampling_note_names_the_held_out_cells_seed_count_when_it_differs():
+    note = _single(10, n_seeds_test=20)["note"]
+    assert note.endswith("the null SE at n=m=10 is 0.13 (0.09 at the held-out cells' n=m=20).")
+    assert _single(10, n_seeds_test=10)["note"].endswith("the null SE at n=m=10 is 0.13.")
+
+
+def test_null_auroc_se_is_the_mann_whitney_formula():
+    assert null_auroc_se(5, 5) == pytest.approx((11 / 300) ** 0.5)
+    assert null_auroc_se(10, 20) == pytest.approx((31 / 2400) ** 0.5)
 
 
 def test_sampling_block_replicated_run_is_not_marked_single_draw():
