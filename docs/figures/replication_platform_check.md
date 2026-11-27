@@ -118,5 +118,7 @@ file as last written in `827ae57`, not for the re-drawn `replicate_000.json`.)*
 
 Regenerate: run `scripts/replicate_leaderboard.py --replicate-id 0` on both platforms
 and compare `results/replication/replicate_000.json`. *(2026-11-27: the replicate 0 this
-file compares is the 2026-08-04 one, `git show 827ae57:results/replication/replicate_000.json`;
-the committed file is now the re-draw's.)*
+file compares is the 2026-08-04 one as first drawn,
+`git show e0ba8df:results/replication/replicate_000.json` (last written, re-scored, in
+`827ae57`, where 20 of its rows differ as the 2026-11-26 note says); the committed file is
+now the re-draw's.)*

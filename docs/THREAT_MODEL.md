@@ -179,14 +179,21 @@ trained to different weights on Intel and AMD runners, and it now loads frozen o
 On the re-drawn set the maximum over unsupervised L0 detectors, taken in each draw and
 averaged over the 20, is 0.570 [0.560, 0.579] (0.568 [0.555, 0.580] on the 2026-08-04
 draws as re-scored). That maximum is selection-biased upward: no single L0 detector's
-20-draw mean reaches 0.508 (Reward Skewness 0.507 [0.496, 0.519]; on the 2026-08-04 draws
-Spectral Reward led at 0.506 [0.495, 0.517]; `leaderboard/v5_replicated.json`). The
-re-draw changed the chance control on the 20 draws: 12 of the 13 L0 detectors' 95%
-intervals contain 0.500, and Reward CUSUM's, 0.486 [0.475, 0.497], lies wholly below it, so
-on these draws it separates the variants weakly, in the direction that would not flag
-hacking. On the 2026-08-04 draws all 13 intervals contained 0.500. The suite mean over L0
-detectors, 0.498 [0.492, 0.504], contains 0.500; the level's best-detector maximum over all
-13, 0.575 [0.565, 0.586], excludes it, by the selection just described.
+20-draw overall (over all its cells, degenerate families included) reaches 0.508 (Reward
+Skewness 0.507 [0.496, 0.519]; on the 2026-08-04 draws Spectral Reward led at 0.506
+[0.495, 0.517]; `leaderboard/v5_replicated.json`). The re-draw changed the chance
+control on the 20 draws: 12 of the 13 L0 detectors' 95% intervals contain 0.500, and
+Reward CUSUM's, 0.486 [0.475, 0.497], lies wholly below it, so on these draws it
+separates the variants weakly, in the direction that would not flag hacking. These
+per-detector figures are each detector's overall AUROC as `leaderboard/v5_replicated.json`
+records it and `ReplicatedLeaderboard.control_check` reads it: cell-weighted over every
+cell the detector measured, the six DEGENERATE families' cells included. The 20-draw
+suite mean and maxima here, like the single-draw 0.4835 and 0.5474 above, are
+family-weighted and hold those families out. On the 2026-08-04 draws all 13 intervals
+contained 0.500. The suite mean over L0 detectors, 0.498 [0.492, 0.504], contains 0.500
+(on the 2026-08-04 draws it was 0.495 [0.490, 0.500], whose upper end, 0.500015,
+contained it by 0.000015); the level's best-detector maximum over all 13, 0.575 [0.565,
+0.586], excludes it, by the selection just described.
 
 Until 2026-11-26 Skewness was the only L0 detector that declared its horizon. Eight
 others did not, and below their windows they fell back to a constant score, which reads
@@ -260,8 +267,12 @@ fails `behavioral_separated`. 46 of them are in the 23 families the ledger cover
 the first time on 2026-11-19: all 13 MuJoCo cells, 14 of the 15 PettingZoo cells, 9 of
 the 15 RLHF cells and 8 of the 15 sequence cells in those families, and the other two
 are `continuous_camping` @ 0.90 and `proxy_correlation_gaming` @ 0.60. The ten families
-covered before keep every verdict. A `FAIL` on an equivalence test means matching
-within the margin was not established, which covers two cases. In 8 of the 24
+covered before keep every verdict. The ledger's four `continuous_camping` cells were
+certified without the numerics pins and before the family loaded frozen camper weights
+(`ddc8ab5`, 2026-11-27), each with the camper its runner trained, so their figures, the
+@ 0.90 verdict and the onset SDs in §6 among them, depend on which CPU vendor ran them;
+they have not been certified with the frozen weights. A `FAIL` on an equivalence test
+means matching within the margin was not established, which covers two cases. In 8 of the 24
 `proxy_matched` failures the mean L0 AUROC is outside the band [0.40, 0.60]. In the
 other 16 the point estimate is inside the band and the 90% interval is not, so
 equivalence was not established at this design rather than refuted. That is not the same
@@ -328,7 +339,7 @@ puts a real family through full certification.
   `leaderboard/v5_replicated.json` does, for aggregates. Since its 2026-11-27 re-draw
   (`b93c351`) those 20 draws are at layout seeds 0 to 19 (its `draws` block; the file
   records `replicates.layouts_resampled` as true), so its intervals include layout
-  variation, as far as a layout seed varies anything: every family's behavioural-sign
+  variation, as far as a layout seed varies anything: every family's behavioral-sign
   orientation is drawn from it; of the families' own generators, 12 ignore it, 19 use it
   only as a rollout-seed offset, and only `proxy_correlation_gaming` and
   `rlhf_reward_model_overopt` build a different layout from it. Until then the committed
@@ -418,8 +429,9 @@ Stated here so they are not discovered mid-citation:
   the 123 admission-ledger cells, every cell of the 31 families whose onset label is the
   configured schedule, `onset_std` is exactly 0.0 (`admission/admission_ledger.json`),
   because the family writes the onset down. The other five are `continuous_camping` (four
-  tiers, SD 0.23–2.05 episodes against a ceiling of 4.0) and `gridworld_camping` (SD 9.87
-  against 50). The config places their onsets too, but the label is read off what the
+  tiers, SD 0.23–2.05 episodes against a ceiling of 4.0, certified with a runner-trained
+  camper, not the frozen one; see §4) and `gridworld_camping` (SD 9.87 against 50). The
+  config places their onsets too, but the label is read off what the
   trained agent does after the activation episode. `onset_localizable` passes those five
   as well, so it fails no cell. Two things follow. The leaderboard's internal onset column
   could not fail, and 584ba13 removed it: `CellResult` no longer carries it, and onset

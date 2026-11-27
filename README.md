@@ -207,19 +207,19 @@ DOI is the paper named here; cite it by this title.
 > 0.500 / SD 0.000 averaged in as "at chance". Detectors now declare a minimum horizon and
 > shorter cells are N/A. *(2026-11-26: until `f83a152` only Reward Skewness declared one, and eight other L0 detectors, three L2 detectors and every L1 detector on `continuous_camping` returned a constant below their windows that both boards recorded as 0.5. Every one of them now declares `min_episodes`, and those cells are N/A; see [L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding).)* Re-scored on the same 20 draws: 0.504 [0.494, 0.514] over 64 cells
 > on the 14 families it can read; 5 of those remain at exactly 0.500 from a near-constant
-> proxy, disclosed rather than fixed. *(2026-11-27: on the 20 draws as re-drawn at layout seeds 0 to 19, 0.507 [0.496, 0.519] over the same 64 cells; 4 of the 14 families read exactly 0.500 on every draw, and `rlhf_reward_model_overopt` on 19 of the 20.)* The same tie accounted for 33 of the 36 cells the
+> proxy, disclosed rather than fixed. *(2026-11-27: on the 20 draws as re-drawn at layout seeds 0 to 19, 0.507 [0.496, 0.519] over the same 64 cells; 4 of the 14 families read exactly 0.500 on every draw, `rlhf_reward_model_overopt` on 19 of the 20, `physics_exploitation` on 15, as before, and `proxy_correlation_gaming` on 1.)* The same tie accounted for 33 of the 36 cells the
 > nightly admission screen had reported unmeasurable, all 33 of them short-horizon cells;
 > measured, 19 of those 33 admit and 14 fail on a real late-window density leak. The ladder
 > figures in the next paragraph and under [Results](#access-level-ladder) were regenerated after this re-score (`leaderboard/v5_replicated.json`), when each point estimate
 > moved by under 0.01 (the unsupervised L1−L0 interval's lower end by 0.011) and no conclusion changed, and again after the 2026-11-26 re-score (the 2026-11-26 note below).
-> That one moved the unsupervised L0 and L2 rungs up by 0.016 and 0.012 (L1 by 0.004) and changed a conclusion under the max: the unsupervised L1−L0 step now excludes zero there, while under the mean it still does not. *(2026-11-27: the re-draw at layout seeds 0 to 19, the last note in this banner, moved the unsupervised L0, L2 and L3 rungs up by 0.002, 0.009 and 0.004 and L1 not at all. The L1−L0 step's verdicts did not change, but the L2 rung is no longer within 0.10 of chance. The next paragraph keeps its 2026-11-26 figures, with the re-drawn ones beside them; the ladder under Results quotes the re-drawn ones.)*
+> That one moved the unsupervised L0 and L2 rungs up by 0.016 and 0.012 (L1 by 0.004) and changed a conclusion under the max: the unsupervised L1−L0 step now excludes zero there, while under the mean it still does not. *(2026-11-27: the re-draw at layout seeds 0 to 19, the last note in this banner, moved the unsupervised L0, L2 and L3 rungs up by 0.002, 0.009 and 0.004 and L1 not at all. The L1−L0 step's verdicts did not change. The L2 rung's point estimate now sits just past 0.10 from chance (0.608, from 0.599); its interval contains 0.60 on both sets of draws. The next paragraph keeps its 2026-11-26 figures, with the re-drawn ones beside them; the ladder under Results quotes the re-drawn ones.)*
 >
 > A subsequent 20-draw replication (600 detector-passes, bootstrapped over draws) corrected
 > the correction: **5 of the 30 scored detectors expose `fit()` and are cross-validated on
 > labels**, one of them the L1 champion. Removing them makes the L1−L0 gap on the max **reverse sign**,
 > from +0.427 [+0.417, +0.439] to **−0.029 [−0.054, −0.005]**, which now excludes zero (before the 2026-11-26 re-score it did not): on the max, without them L1 sits below L0. On the mean the same step is −0.002 [−0.022, +0.017], which includes zero. Among unsupervised post-hoc
 > detectors the rungs read **L0 0.568 · L1 0.538 · L2 0.599**, against **0.975** for the L3
-> oracle — all three sub-oracle rungs within 0.10 of chance. *(2026-11-27, re-drawn at layout seeds 0 to 19: **L0 0.570 · L1 0.538 · L2 0.608**, against **0.979** for the oracle, so only the L0 and L1 rungs are within 0.10 of chance; L2's interval, [0.595, 0.624], reaches past 0.60. Without the label-fitted detectors the L1−L0 step reads −0.032 [−0.055, −0.009] on the max, still excluding zero, and −0.005 [−0.024, +0.014] on the mean, still including it; with them, +0.423 [+0.413, +0.433].)*
+> oracle — all three sub-oracle rungs within 0.10 of chance. *(2026-11-27, re-drawn at layout seeds 0 to 19: **L0 0.570 · L1 0.538 · L2 0.608**, against **0.979** for the oracle, so only the L0 and L1 rungs' point estimates are within 0.10 of chance; L2's interval, [0.595, 0.624], still contains 0.60, as the 2026-08-04 draws' [0.589, 0.610] did. Without the label-fitted detectors the L1−L0 step reads −0.032 [−0.055, −0.009] on the max, still excluding zero, and −0.005 [−0.024, +0.014] on the mean, still including it; with them, +0.423 [+0.413, +0.433].)*
 >
 > **Except the ladder under Results and the counts the Update note below names,
 > everything below this banner predates that audit and has not yet been regenerated.**
@@ -257,7 +257,7 @@ DOI is the paper named here; cite it by this title.
 >
 > **Update (2026-11-26):** both boards were re-scored on CI from code at `f83a152`, where every detector whose score is a constant below some run length declares that length as `min_episodes`: the single-draw board by CI run 45747902322 (`03d978e`), the 20-draw board (`leaderboard/v5_replicated.json`, from `results/replication/`) by CI runs 45747922473 and 45776113470 (`827ae57`), which kept every value the 20 draws were scored with and applied only the new not-applicable cells (98.2% of the re-scored cells reproduced; of the 414 that did not, 319 are on `sequence_keyword_stuffing`, rewritten after the draws were made, 89 on three DEGENERATE families whose proxy is constant to about 1e-16, and 6 scattered across four other families; see the CHANGELOG). The exception in the note above no longer applies. Each of those cells is `null`: 104 per-family entries behind the L0 mean, 8 at L1 (`continuous_camping`) and 33 at L2, on the single draw and on every one of the 20. No measured per-family value moved on either board. The sections the note above names now quote the re-scored boards beside the same ledger (`d4b700d`), and so do the ladder figures in this banner and under [Results](#access-level-ladder).
 >
-> **Update (2026-11-27):** both boards were re-drawn on CI by run 46011019246, every step from one clean checkout at `54cd63c` under the six numerics pins and with `continuous_camping`'s frozen camper (`ddc8ab5`), and committed together as `b93c351`: the single-draw board on an AMD runner, the 20 draws on 12 Intel and 8 AMD runners, each draw at its own layout seed, 0 to 19 (`draw_schema` 2; the file records `layouts_resampled` and `single_source` as true). `scripts/check_redraw.py` gated the set, and replicate 0 equals the board cell for cell. A first attempt (run 45995235365, at `d85a60c`) was refused by that check: replicate 0 and the board differed on 16 `continuous_camping` cells, because the family's DQN camper trained to different weights on Intel and AMD runners under the pins (diagnostic runs 46007050078 and 46009249347); the family now loads frozen weights instead of training the camper (see the CHANGELOG). On the single draw six detectors' overall AUROC moved, none by more than 0.013 (Reward KDE, 0.495 → 0.482): L0's mean went from 0.4834 to 0.4835 and L2's best from 0.943 to 0.944. The 20-draw intervals now include layout variation, and the ladder moved with them: the L2 mean from 0.578 to 0.593, L3 from 0.975 to 0.979, the L0 best-detector maximum from 0.571 to 0.575; L1 did not move. In the L0 chance control, 12 of the 13 L0 detectors' 95% intervals contain 0.500, and Reward CUSUM's, 0.486 [0.475, 0.497], lies wholly below it; on the 2026-08-04 draws all 13 contained it ([L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding)). `leaderboard/cross_family_transfer_v5.json` was regenerated at the same commit by run 46011034429 (`02c0475`), numerically identical to its two earlier runs ([Cross-family transfer](#cross-family-transfer-rts)). The sections the note above names now quote the re-drawn boards beside the same ledger (`d4b700d`), and so do the ladder figures under [Results](#access-level-ladder); the two ladder paragraphs in this banner keep their 2026-11-26 figures, with the re-drawn ones beside them.
+> **Update (2026-11-27):** both boards were re-drawn on CI by run 46011019246, the board and each of the 20 draws from a clean checkout at `54cd63c`, under the six numerics pins and with `continuous_camping`'s frozen camper (`ddc8ab5`), and committed together as `b93c351` (the aggregation into `leaderboard/v5_replicated.json` ran at the branch tip, `02c0475`, over those files, which its provenance lists as its dirty files): the single-draw board on an AMD runner, the 20 draws on 12 Intel and 8 AMD runners, each draw at its own layout seed, 0 to 19 (`draw_schema` 2; the file records `layouts_resampled` and `single_source` as true). `scripts/check_redraw.py` gated the set, and replicate 0 equals the board cell for cell. A first attempt (run 45995235365, at `d85a60c`) was refused by that check: replicate 0 and the board differed on 16 `continuous_camping` cells, because the family's DQN camper trained to different weights on Intel and AMD runners under the pins (diagnostic runs 46007050078 and 46009249347); the family now loads frozen weights instead of training the camper (see the CHANGELOG). On the single draw six detectors' overall AUROC moved, none by more than 0.013 (Reward KDE, 0.495 → 0.482): L0's mean went from 0.4834 to 0.4835 and L2's best from 0.943 to 0.944. The 20-draw intervals now include layout variation. The re-draw also scores every family at its current code under the pins, so not all of the change is layout, and the ladder moved: the L2 mean from 0.578 to 0.593, L3 from 0.975 to 0.979, the L0 best-detector maximum from 0.571 to 0.575; L1 did not move. In the L0 chance control, 12 of the 13 L0 detectors' 95% intervals contain 0.500, and Reward CUSUM's, 0.486 [0.475, 0.497], lies wholly below it; on the 2026-08-04 draws all 13 contained it ([L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding)). `leaderboard/cross_family_transfer_v5.json` was regenerated at the same commit by run 46011034429 (`02c0475`), numerically identical to its two earlier runs ([Cross-family transfer](#cross-family-transfer-rts)). The sections the note above names now quote the re-drawn boards beside the same ledger (`d4b700d`), and so do the ladder figures under [Results](#access-level-ladder); the two ladder paragraphs in this banner keep their 2026-11-26 figures, with the re-drawn ones beside them.
 
 **The benchmark: matched pairs, certified by an admission gate.** Each cell mints pairs of
 a hacking run and a legitimate run whose proxy reward is meant to be indistinguishable
@@ -655,8 +655,9 @@ over draws, 10,000 resamples — the best **unsupervised** detector at each leve
 
 These are as re-drawn on 2026-11-27 (`b93c351`; see the last note in the correction
 above), with every detector declaring the run length its score needs (`f83a152`). The L0
-and L1 rungs sit within 0.10 of chance; the L2 rung, at 0.608, sits just outside, its
-interval reaching from 0.595 to 0.624. The L1−L0 step on the max is −0.032 [−0.055,
+and L1 rungs sit within 0.10 of chance; the L2 rung's point estimate, 0.608, sits just
+outside, but its interval, [0.595, 0.624], contains 0.60, as the 2026-08-04 draws'
+[0.589, 0.610] did. The L1−L0 step on the max is −0.032 [−0.055,
 −0.009], which excludes zero: on the max, without the label-fitted detectors L1 sits below
 L0, though over different families (7 at L1, 8 to 27 at L0). It is positive in 4 of the 20
 draws. On the mean the same step is −0.005 [−0.024, +0.014], which includes zero (positive
@@ -913,7 +914,7 @@ Intel runners. Mean ± SD over the 5 trials:
 | Row | Access | Train AUROC (5-fold CV) | Held-out transfer AUROC (RTS) |
 |---|---|---|---|
 | Reward MLP | L0 | 0.441 ± 0.018 | 0.474 ± 0.004 |
-| State Divergence | L1 | 1.000 (one fit, on 1 cell) | `null`: no held-out family scored |
+| State Divergence | L1 | 1.000 (1 cell; one run, no model-init trials) | `null`: no held-out family scored |
 | Trajectory MLP | L2 | 0.878 ± 0.004 | 0.700 ± 0.022 |
 | Ensemble (Top 5) | L2 | 0.682 ± 0.003 | 0.512 ± 0.011 |
 
@@ -926,9 +927,8 @@ and its own sampling note puts the null SE at 0.13 at the training cells' n = m 
 0.09 at the held-out cells' n = m = 20: do not read its third decimal. It, not
 `leaderboard/cross_family_transfer.json`, is the current measurement of transfer under the
 shipped configuration. The sign-randomization measurement quoted above is a separate run
-that exists to compare the sign randomized with the sign fixed: its transfer stage calls
-the same code, and its `after` rows, the two L2 rows, are this measurement over the first
-three of these five trials (its default).
+that exists to compare the sign randomized with the sign fixed; its transfer stage calls
+the same code.
 
 ### Outside this repository: HVTA
 
@@ -1126,7 +1126,9 @@ Temporal statistics on proxy reward only. At chance on matched-proxy families **
 construction** — this is the benchmark's negative control, not a result about them.
 Scored over the 27 families whose proxy is readable; the six the ledger marks
 DEGENERATE are held out of L0 and only L0, and the cells it marks NOT ADMITTED stay in.
-On the single draw: suite mean 0.4835, best 0.5474 (Reward CUSUM). Reward Skewness needs
+On the single draw: suite mean 0.4835, best 0.5474 (Reward CUSUM). Over the 20 draws,
+Reward CUSUM's interval, 0.486 [0.475, 0.497] over its 101 cells, is the one L0 interval
+wholly below 0.500 ([L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding)). Reward Skewness needs
 100 episodes and is N/A on the 19 families that run 40 or 60 episodes, so on both boards
 it is scored on 14 families, 64 cells (`584ba13`, `9da6b21`); six of those 14 are the
 DEGENERATE families held out of L0, so inside the L0 aggregate it is scored on 8. Since

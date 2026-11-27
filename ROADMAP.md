@@ -84,13 +84,12 @@ decision.
   ([leaderboard/README.md](leaderboard/README.md) gives the commands).
   `python -m rhob submit` now records self-reported submissions in `leaderboard/community/`.
 - Any claim that RHOB detects reward hacking. The replicated result is that the three
-  sub-oracle rungs sit within 0.11 of chance for unsupervised detectors: max AUROC L0 0.570
-  [0.560, 0.579], L1 0.538 [0.517, 0.561] and L2 0.608 [0.595, 0.624], against 0.979
-  [0.976, 0.981] for the L3 oracle, over 20 draws at their own layouts
-  ([leaderboard/v5_replicated.json](leaderboard/v5_replicated.json)). *(2026-11-27: on the
-  2026-08-04 draws, all built at layout 0, the four were 0.568, 0.538, 0.599 and 0.975, and
-  the three sub-oracle rungs were within 0.10 of chance; on the re-draw L2's is 0.108 above
-  it.)*
+  sub-oracle rungs sit near chance for unsupervised detectors, L2's the furthest at 0.108
+  above it: max AUROC L0 0.570 [0.560, 0.579], L1 0.538 [0.517, 0.561] and L2 0.608
+  [0.595, 0.624], against 0.979 [0.976, 0.981] for the L3 oracle, over 20 draws at their
+  own layouts ([leaderboard/v5_replicated.json](leaderboard/v5_replicated.json)).
+  *(2026-11-27: this item said "within 0.10 of chance" of the 2026-08-04 draws, all built
+  at layout 0, where the four were 0.568, 0.538, 0.599 and 0.975.)*
 - The old v1.5, v1.6 and v2.0 milestones — RTS for every detector, a multi-agent
   extension, 25 or more families. Each would enlarge a benchmark whose central construction
   is now the thing in question.
@@ -142,9 +141,10 @@ decision.
   0.4835, L1 0.5789, L2 0.5771, L3 0.9830, against 0.4866, 0.5200, 0.7213 and 0.9830 on the
   2026-07-17 board, and of maxima 0.5474, 0.9820, 0.9440 and 0.9830: L1's best, over 7
   families and 31 cells, is above L2's and within 0.001 of L3's
-  ([CHANGELOG.md](CHANGELOG.md)). *(The re-score's L0 mean was 0.4834 and its L2 maximum
-  0.9430. The re-draw moved six detectors' overall AUROC, by at most 0.013, Reward KDE's
-  from 0.495 to 0.482; the null counts did not change.)* The transfer is now measured under
+  ([CHANGELOG.md](CHANGELOG.md)). *(2026-11-27: the 2026-11-26 re-score's L0 mean was
+  0.4834 and its L2 maximum 0.9430. The re-draw moved six detectors' overall AUROC, by at
+  most 0.013, Reward KDE's from 0.495 to 0.482; the null counts did not change.)* The
+  transfer is now measured under
   the current rules in `leaderboard/cross_family_transfer_v5.json` (five trials; first CI
   run 45987934132 at `eaa75f8`, committed in `9c038f6`; the current file is run
   46011034429's at `54cd63c`, `02c0475`, with the same results).
@@ -238,8 +238,10 @@ decision.
   The first re-draw (run 45995235365, at `d85a60c`) was refused by `check_redraw.py`:
   replicate 0 and the board differed on 16 `continuous_camping` cells, because that
   family's DQN camper trained to different weights on Intel and AMD runners under the pins
-  (diagnostic runs 46007050078 and 46009249347). The family now loads frozen weights
-  (`ddc8ab5`; [CHANGELOG.md](CHANGELOG.md)). The second passed every check, with the board
+  (diagnostic run 46007050078). The family now loads frozen weights (`ddc8ab5`;
+  [CHANGELOG.md](CHANGELOG.md)), which a second diagnostic run, 46009249347, rolled out
+  identically on 16 Intel and AMD runners at all four scored difficulties. The second
+  re-draw passed every check, with the board
   drawn on an AMD runner and the 20 replicates on 12 Intel and 8 AMD runners, replicate 0
   equal to the board cell for cell. The re-drawn set's `replicates` block reads
   `draw_schema` 2 in all 20, `layouts_resampled: true` and `single_source: true`: one clean
@@ -279,8 +281,10 @@ decision.
   configuration, in `leaderboard/cross_family_transfer_v5.json` (CI run 45987934132 at
   `eaa75f8`, committed in `9c038f6`, and run again at `d85a60c`, run 45995248987,
   `7d34989`, and at `54cd63c`, run 46011034429, `02c0475`, each time on an Intel runner
-  and with identical results; since `d85a60c` its sampling note gives the null SE at the
-  artifact's own seed counts, 0.13 at n=m=10 and 0.09 at the held-out cells' n=m=20):
+  and with identical results, across `ddc8ab5` too, since the frozen camper
+  `continuous_camping` now loads holds the weights Intel runners train; since `d85a60c`
+  its sampling note gives the null SE at the artifact's own seed counts, 0.13 at n=m=10
+  and 0.09 at the held-out cells' n=m=20):
   over five model-init trials the Top-5 ensemble transfers at 0.512 (standard deviation
   0.011) and Trajectory MLP at 0.700 (0.022), against 0.508 and 0.706 over three trials in
   the `after` configuration of `sign_randomization_impact.json` (What changed). Whether those three-trial figures move

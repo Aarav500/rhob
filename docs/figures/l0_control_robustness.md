@@ -27,7 +27,10 @@ exactly 0.500 every time** (`distributional_shift`, `monitored_sandbagging`,
 constant only to numerical dust -- `orbit_chirality` has relative dispersion 1.36e-16
 (1.1e-16 in the ledger regenerated on 2026-11-19) and `physics_exploitation`
 strictly orders 0.35% of cross-variant pairs -- so a detector does
-occasionally order a pair on rounding error: 27 of 260 and 37 of 260 respectively. That is
+occasionally order a pair on rounding error: 27 of 260 and 37 of 260 respectively.
+*(2026-11-27: these are the counts of the 2026-08-04 draws. On the re-draw
+`rlhf_reward_model_overopt` departs in 6 of 260 and `orbit_chirality` in 21; see the end
+of this file.)* That is
 degeneracy of the second kind rather than a measurement, so the argument for holding all
 six out is unchanged. An earlier version of this file said all six were exactly 0.500 in
 every draw; that was wrong and is corrected here. The check below is unaffected -- it
@@ -153,10 +156,13 @@ it gone no verdict flips, the denominator effect is larger (at most 0.0032 then,
 now), and the intervals of the five 100-episode detectors are wider, because they rest on
 14 families (8 without the degenerate ones) rather than 33 (27). The L0 suite mean went
 from 0.4966 [0.4934, 0.4999] on 2026-08-06, through 0.4972 [0.4939, 0.5005] after the
-Skewness re-score, to 0.4951 [0.4899, 0.5000] now.
+Skewness re-score, to 0.4951 [0.4899, 0.5000] now. *(2026-11-27: "now" in this paragraph
+is 2026-11-26. On the re-draw the suite mean is 0.4977 [0.4918, 0.5036]; see the end of
+this file.)*
 
-**The draws varied rollout seeds only (2026-11-27).** Every interval in this file is over
-the 20 draws made on 2026-08-04, and all 20 were built at layout 0: until `827aec9`,
+**The draws varied rollout seeds only (2026-11-27).** Every interval in this file, except
+those it quotes from the re-draw, is over the 20 draws made on 2026-08-04, and all 20 were
+built at layout 0: until `827aec9`,
 `FamilyRegistry.generate_suite` dropped its `layout_seed`, so draws 1 to 19 resampled
 only their rollout seeds, whatever layout seed they record
 (`leaderboard/v5_replicated.json` read `layouts_resampled: false`). The intervals are
@@ -170,8 +176,9 @@ their rollout seeds.
 re-draw at one clean commit under the CI lock and the six numerics pins, each draw at its
 own layout (CI run 46011019246 at `54cd63c`, `b93c351`; the `replicates` block reads
 `draw_schema` 2 in all 20, `layouts_resampled: true` and `single_source: true`). This
-file remains the analysis of the 2026-08-04 draws: its table, its replay and its counts
-have not been redone on the re-draw. The control it examines did change. On the re-draw
+file remains the analysis of the 2026-08-04 draws: its table and its seed replay have not
+been redone on the re-draw, and only the departure counts at the end of this paragraph
+have. The control it examines did change. On the re-draw
 12 of the 13 L0 detectors' published intervals contain 0.500, and Reward CUSUM's,
 0.486 [0.475, 0.497] over its 101 cells, lies wholly below it: Reward CUSUM separates the
 variants weakly, in the direction that would not flag hacking. On the 2026-08-04 draws
@@ -194,3 +201,9 @@ null and left out), then a percentile bootstrap of those 20 values, 10,000 resam
 The seed replay re-runs `bootstrap_ci`'s body -- 10,000 resamples of the 20 per-replicate
 values -- under `default_rng(s)` for s in 0..299, on the L0 suite mean and on each of the 13
 L0 detectors.
+*(2026-11-27: the table, the suite-mean interval and the replay are of the 2026-08-04
+draws as last written, re-scored, in `827ae57`. To reproduce them, read the replicates at
+that commit (`git show 827ae57:results/replication/replicate_000.json`, and so on to
+`replicate_019.json`). Run on the committed files, the recipe gives the re-draw's figures
+instead; this file does not tabulate them, and quotes only the headline's, in the
+re-draw paragraph above.)*

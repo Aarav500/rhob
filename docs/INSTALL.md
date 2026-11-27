@@ -15,8 +15,10 @@ pip install -e ".[dev]"
 
 This installs RHOB plus its test/lint tooling. Core runtime dependencies
 (`numpy`, `scipy`, `scikit-learn`, `h5py`, `pydantic`, `click`) are enough to
-run every family and every detector except `TrajectoryMLPDetector`, which
-needs PyTorch (see below).
+run every detector except the Reward MLP and `TrajectoryMLPDetector`, which
+need PyTorch (see below), and every family except `continuous_camping`
+(PyTorch, the `continuous` extra), the four MuJoCo families (the `mujoco`
+extra) and the five PettingZoo families (the `pettingzoo` extra).
 
 ## Verify the Install
 
@@ -43,12 +45,14 @@ agent) from scratch rather than using the committed data:
 pip install -e ".[environments]"
 ```
 
-The legacy scripts that build those datasets (`scripts/generate_eval_data.py`,
-`scripts/validate_all_continuous.py`, `scripts/validate_pair_02.py` to
-`scripts/validate_pair_04.py`) train their own camper. The v3 benchmark's
-`continuous_camping` family does not: since 2026-11-27 it loads frozen weights,
+The legacy scripts for the v1 continuous pairs (`scripts/generate_eval_data.py`, which
+builds those datasets, and `scripts/validate_all_continuous.py` and
+`scripts/validate_pair_02.py` to `scripts/validate_pair_04.py`, which validate the
+pairs) train their own camper. The v3 benchmark's `continuous_camping` family does not:
+since 2026-11-27 it loads frozen weights,
 `src/rhob/environments/continuous/frozen_camper.py`, because training the camper under
-the numerics pins gave different weights on Intel and AMD runners.
+the numerics pins gave different weights on Intel and AMD runners. Loading them still
+needs PyTorch, so the family needs the `continuous` extra.
 `scripts/freeze_camper.py` rewrites them, under the pins on an Intel CPU.
 
 ## Docker

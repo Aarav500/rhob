@@ -277,7 +277,7 @@ and their results are identical. The legacy scripts that build the v1 pairs
 (`scripts/validate_pair_0*.py`, `scripts/generate_eval_data.py`) still train their own
 campers.
 
-### Changed (2026-11-27): both boards re-drawn at real layouts under the pins
+### Changed (2026-11-27): both boards re-drawn under the pins, the 20 draws at layout seeds 0 to 19
 
 CI run 46011019246 drew the single-draw board and all 20 replicates at `54cd63c`, with
 `continuous_camping` on its frozen camper, and committed them with
@@ -286,9 +286,13 @@ CI run 46011019246 drew the single-draw board and all 20 replicates at `54cd63c`
 clean commit, under the six pins with their kernels in effect, at draw schema 2, with no
 rows merged in, and `replicate_000` equals the board in all 3,690 cells. The board ran on
 an AMD EPYC 9V74 runner, the draws on 12 Intel runners (Xeon 6975P-C) and 8 AMD ones
-(EPYC 7763 on 4, 9V45 on 3, 9V74 on 1). Replicate `k` is built at layout seed `k`. These
-figures supersede the 2026-11-26 ones for both boards; the files they replace are in
-`git show 02c0475:<path>`.
+(EPYC 7763 on 4, 9V45 on 3, 9V74 on 1). Replicate `k` is built at layout seed `k`. The
+aggregation ran in the `merge-redraw` job, which checks out the branch tip, then `02c0475`,
+and refuses it unless its `src/`, `scripts/`, `requirements/` and `pyproject.toml` are
+`54cd63c`'s. So `v5_replicated.json`'s own `provenance` names `02c0475`, with
+`dirty: true`: its dirty files are exactly the board and the 20 replicates it aggregates,
+which the job had just written and then committed with it. These figures supersede the
+2026-11-26 ones for both boards; the files they replace are in `git show 02c0475:<path>`.
 
 **The 20-draw board.** Its `replicates` block reads `layouts_resampled: true` and
 `single_source: true`, and the "layout seed and rollout seeds resampled together" of
@@ -319,10 +323,13 @@ before, they carried rollout seeds only, at layout 0. All 20 draws also score
 
 L1 does not move: L1 max 0.9984 [0.9965, 0.9996], L1 mean 0.5665 [0.5530, 0.5792] and
 the unsupervised L1 max 0.5384 [0.5166, 0.5613] are as they were, and none of L1's 1,120
-per-family values on the 20 draws changes. The orientation reaches only the behavioural
-trace, which L1 does not read. The two L2 detectors that read the feature's sign move
-most, and their intervals widen: Centroid Tracker from 0.356 [0.353, 0.359] to 0.473
-[0.431, 0.518], Behavioral Threshold from 0.544 [0.515, 0.574] to 0.512 [0.473, 0.551].
+per-family values on the 20 draws changes. What the re-draw adds never reaches
+`state_counts`, the channel L1 reads: the orientation flips only the behavioural trace,
+six of L1's seven families never read the layout seed, and in the seventh,
+`rlhf_reward_model_overopt`, the layout is the fitted reward model, which sets only the
+proxy reward. The two L2 detectors that read the feature's sign move most, and their
+intervals widen: Centroid Tracker from 0.356 [0.353, 0.359] to 0.473 [0.431, 0.518],
+Behavioral Threshold from 0.544 [0.515, 0.574] to 0.512 [0.473, 0.551].
 Centroid Tracker's rise alone adds 0.017 to the 7-detector L2 mean, which rises by 0.015
 in all.
 
@@ -356,10 +363,10 @@ in all.
 **The single-draw board** is scored at layout 0, so the layout fix does not reach it; it
 was re-drawn for the replicate-0 check, under the pins and on the frozen camper. Against
 `03d978e` (the 2026-11-26 re-score at `f83a152`, unpinned, its CPU not recorded), 14 of
-its 990 per-family values moved, and six detectors' overall AUROC, by at most 0.013:
-Reward Threshold 0.452 to 0.450, Reward Variance Ratio 0.484 to 0.488, Reward MLP 0.480 to
-0.479, Reward KDE 0.495 to 0.482, Centroid Tracker 0.361 to 0.360 and Trajectory MLP 0.943
-to 0.944.
+its 626 measured per-family values (990 entries, 364 of them N/A) moved, and six
+detectors' overall AUROC, by at most 0.013: Reward Threshold 0.452 to 0.450, Reward
+Variance Ratio 0.484 to 0.488, Reward MLP 0.480 to 0.479, Reward KDE 0.495 to 0.482,
+Centroid Tracker 0.361 to 0.360 and Trajectory MLP 0.943 to 0.944.
 
 - 9 of the 14 are on `continuous_camping`, which now loads the frozen camper (`ddc8ab5`),
   the one change since `f83a152` to what a board cell is computed from: Reward Variance
@@ -375,7 +382,9 @@ to 0.944.
 
 Reward KDE's whole move is on those two DEGENERATE families, which L0's aggregate holds
 out, so the access summary barely moves: L0 0.4834 to 0.4835 (0.4833744 to 0.4834738),
-Reward CUSUM still L0's best at 0.5474, and 0.4871 with the six families back in (0.4877
+Reward CUSUM still L0's best at 0.5474 (on this draw: it is L0's best in 2 of the 20
+draws, and over the 20 its overall AUROC, 0.486 [0.475, 0.497], is the lowest of the 13 L0
+detectors'; see the L0 control above), and 0.4871 with the six families back in (0.4877
 before; the exclusion is worth 0.0036, 0.4870635 − 0.4834738); L2's best, Trajectory
 MLP, 0.943 to 0.944, with L2's mean still 0.5771; L1 and L3 unchanged. On maxima the
 single-draw ladder reads 0.5474, 0.9820, 0.9440, 0.9830, still not monotone.
@@ -916,7 +925,9 @@ under the pins reads L0 0.4835 / 0.5474 and L2 0.5771 / 0.9440, with L1 and L3 u
   of every aggregate. *(2026-11-26 re-score: L2's mean is 0.5771. The two still lower it
   by 0.153, and the other five now raise it by 0.008: with their short-horizon fallbacks
   N/A, Feature Magnitude goes from 0.564 to 0.577, Feature Consistency from 0.516 to 0.530
-  and Reward-Feature Correlation from 0.558 to 0.570.)*
+  and Reward-Feature Correlation from 0.558 to 0.570.)* *(2026-11-27 re-draw: Centroid
+  Tracker 0.360 and Trajectory MLP 0.944; L2's mean is still 0.5771, the two lower it by
+  0.153 and the other five raise it by 0.009.)*
 - State Divergence goes from 0.621 to 0.927 only because its 25 N/A families are no longer
   averaged in as 0.5. On the 8 families that emit `state_counts` every L1 row is unchanged,
   so the board now measures every per-detector L1 value the audit had recomputed (the
@@ -953,9 +964,10 @@ under the pins reads L0 0.4835 / 0.5474 and L2 0.5771 / 0.9440, with L1 and L3 u
   Reward CUSUM 0.5474, over 20 families; on 20 draws the L0 control mean is 0.4951
   [0.4899, 0.5000], against 0.4972 [0.4939, 0.5005]. See the 2026-11-26 entry above.)*
   *(2026-11-27: re-drawn under the pins, the 20 at layout seeds 0 to 19, the single-draw
-  L0 mean is 0.4835 and Reward CUSUM still 0.5474; on 20 draws the L0 control mean is
-  0.4977 [0.4918, 0.5036], and Reward CUSUM's own interval, 0.486 [0.475, 0.497], lies
-  below 0.500. See the 2026-11-27 re-draw entry above.)*
+  L0 mean is 0.4835 and Reward CUSUM still 0.5474 (L0's best on this draw, and on 2 of the
+  20); on 20 draws the L0 control mean is 0.4977 [0.4918, 0.5036], and Reward CUSUM's own
+  interval, 0.486 [0.475, 0.497], lies below 0.500. See the 2026-11-27 re-draw entry
+  above.)*
 
 **The ledger** (`admission/admission_ledger.json`, `admission/ADMISSION_LEDGER.md`) now
 covers every registered family, merged from 123 single-cell shards certified on 7 CPU models.
@@ -1246,7 +1258,15 @@ unsupervised L1−L0 step on maxima −0.029 [−0.054, −0.005] (positive in 5
 which now separates, with L0 above L1. On means that step is −0.002 [−0.022, +0.017]
 (positive in 11 of 20) and still does not separate, so its status now depends on the
 statistic. The step counting the label-fitted detectors is +0.427 [+0.417, +0.439]
-(positive in 20 of 20). See the 2026-11-26 entry above.)*
+(positive in 20 of 20). See the 2026-11-26 entry above.)* *(2026-11-27: on the 20 draws
+re-drawn at layout seeds 0 to 19 (`b93c351`), Reward Skewness reads 0.507 [0.496, 0.519]
+over the same 64 cells on 14 families, four of them at exactly 0.500 on every draw;
+`rlhf_reward_model_overopt`, whose reward model is now fitted at each draw's layout, ranges
+from 0.500 to 0.564. The unsupervised L0 rung is 0.570 [0.560, 0.579]. The unsupervised
+L1−L0 step is −0.032 [−0.055, −0.009] on maxima (positive in 4 of 20 draws) and −0.005
+[−0.024, +0.014] on means (positive in 10 of 20), so its status still depends on the
+statistic. The step counting the label-fitted detectors is +0.423 [+0.413, +0.433]
+(positive in 20 of 20). See the 2026-11-27 re-draw entry above.)*
 
 The nightly smoke screen had seen the same tie: 33 of its 36 DEGENERATE cells were this
 (`tests/test_v3/test_gate_honest_verdicts.py`). Re-measured with the horizon declared, 19

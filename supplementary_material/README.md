@@ -21,7 +21,9 @@
 > applicable rather than 0.5 (`827aec9`). CI first wrote it on 2026-11-27, at the
 > published design: 10 training and 20 held-out seeds per variant, five trials (run
 > 45987934132, committed in `9c038f6`), and again at `d85a60c` (run 45995248987,
-> `7d34989`) and at `54cd63c` (run 46011034429, `02c0475`), with the same results. Run
+> `7d34989`) and at `54cd63c` (run 46011034429, `02c0475`), with the same results, each
+> time on an Intel runner: the frozen weights the training family `continuous_camping`
+> loads since `ddc8ab5` are the ones Intel runners train, so that fix moved nothing. Run
 > with torch on one thread (`OMP_NUM_THREADS=1`), its published design took about five
 > minutes on a 4-core machine, not the 1.5–2 hours given below; the current file's
 > `wall_clock_s` sums to about 200 seconds over its four detectors on the CI runner.)*

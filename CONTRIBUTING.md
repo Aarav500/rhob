@@ -31,11 +31,11 @@ full reference guide.
 2. **Anti-symmetric features** — Must flip sign under pair's symmetry `σ`, in *your
    family's own coordinate*. The benchmark randomizes that coordinate's orientation
    before any detector sees it — see [The sign is not the label](#the-sign-is-not-the-label)
-3. **Deterministic** — Same seed = same rollout, always, on every machine. A family
-   that trains an agent in the process that rolls it out can miss this across CPU
-   vendors even under the numerics pins: `continuous_camping`'s DQN camper trained to
-   different weights on Intel and AMD runners, and since 2026-11-27 the family loads
-   frozen weights instead (`scripts/freeze_camper.py`)
+3. **Deterministic** — Same seed = same rollout, always. A family that trains an agent
+   in the process that rolls it out can break this across CPU vendors even under the
+   numerics pins: `continuous_camping`'s DQN camper trained to different weights on
+   Intel and AMD runners, and since 2026-11-27 (`ddc8ab5`) the family loads frozen
+   weights instead (`scripts/freeze_camper.py`)
 4. **Testable** — <60s per pair, handles small sample sizes
 5. **Documented** — Clear parameter semantics
 

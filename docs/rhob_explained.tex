@@ -394,13 +394,14 @@ number moves when the layout and the random runs are drawn again.
 Until 27 November 2026 it did not say that. The 20 repeats then in the repo had been
 drawn while a bug dropped the layout seed before it reached the families, so every
 one of them was built at layout 0, and scored under layout 0's sign for each family,
-whatever layout it records. Only the rollout seeds changed. All 20 have since been
-drawn again, at one version of the code, with the layouts reaching the families, and
-the first of them, at layout 0, gives back the public table cell for cell. The first
-try at that was refused, because the two did not match on 16 cells of
-\code{continuous\_camping}: the network in that family, trained afresh every time the
-family was used, came out with different weights on Intel and AMD machines. It now
-loads stored weights instead.
+whatever layout it recorded. Only the rollout seeds changed. All 20, and the public
+table with them, have since been drawn again, at one version of the code, with the
+layouts reaching the families, and the first of the 20, at layout 0, gives back the
+public table cell for cell. Six detectors' overall scores in the public table moved
+in that re-draw, none by more than 0.013. The first try at it was refused, because
+the two did not match on 16 cells of \code{continuous\_camping}: the network in that
+family, trained afresh every time the family was used, came out with different
+weights on Intel and AMD machines. It now loads stored weights instead.
 
 The layout seed also does less than its name suggests: two families build a different
 setup from it (an item grid in one, the fitted reward model in the other), twelve
@@ -854,8 +855,8 @@ files that matter:
       and the L2 averages.
 \item \code{leaderboard/cross\_family\_transfer\_v5.json} for a re-run of the
       transfer score alone on 27 November 2026, with the randomisation on and five
-      trials. It was run three times that day, on Intel machines, and came out the
-      same to every digit.
+      trials. It was run three times that day, at three versions of the code and on
+      Intel machines, and came out the same to every digit.
 \item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
 \item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
       four levels and the run format.

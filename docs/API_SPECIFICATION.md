@@ -385,7 +385,11 @@ model on the same lock: `eval_probe_sandbagging` moved a Reward KDE AUROC by 3.6
 `rlhf_reward_model_overopt`, whose proxy is constant to within rounding, moved its mean
 L0 AUROC at 0.98 from 0.5000 to 0.4931, still DEGENERATE on informativeness.
 `tests/test_v3/test_ledger_reproduces.py` records both, and leaves both families out
-for that reason.
+for that reason. *(2026-11-27: the ledger's four `continuous_camping` cells (0.98, 0.9,
+0.8, 0.7) were certified unpinned with the DQN camper their runner trained, and that
+training gives different weights on Intel and AMD CPUs, so their figures depend on which
+CPU vendor certified them, and, unpinned, on the kernel level; by how much has not been
+measured. The family has loaded a frozen camper since `ddc8ab5`; see `CHANGELOG.md`.)*
 
 Since 2026-11-27 the test suite holds the committed `results` to the code.
 `tests/test_v3/test_ledger_reproduces.py` re-certifies four registered families at every
@@ -530,10 +534,13 @@ scripts write. It records what chose the floating-point kernels:
 
 Two runs with equal `env` and equal `blas` architectures picked the same kernels; equal
 `cpu` is neither needed for that nor implied by it, and a claim that results agree across
-CPU vendors needs two artifacts whose `cpu.vendor` differ. In one place equal kernels did
-not give equal results across vendors: under the pins, `continuous_camping`'s DQN camper
-trained to different weights on Intel and AMD runners, so since 2026-11-27 (`ddc8ab5`)
-the family loads frozen weights (`src/rhob/environments/continuous/frozen_camper.py`,
+CPU vendors needs two artifacts whose `cpu.vendor` differ. In one place equal recorded
+kernels did not give equal results across vendors: under the pins, with ATen at `AVX2`
+and OpenBLAS at `Haswell` on both, `continuous_camping`'s DQN camper trained to
+different weights on Intel and AMD runners, and what made them differ is not among what
+this block records (numpy without AVX-512, and oneDNN or MKL capped at AVX2, each tried
+on AMD runners, changed nothing), so since 2026-11-27 (`ddc8ab5`) the family loads
+frozen weights (`src/rhob/environments/continuous/frozen_camper.py`,
 written by `scripts/freeze_camper.py`) instead of training them.
 `scripts/check_redraw.py` refuses a re-draw unless every file records the pins and the
 kernels show they took effect: ATen at `AVX2` wherever torch loaded, every OpenBLAS at
@@ -628,9 +635,9 @@ under the run-length and representational rules), and `TransferBoard` carries
 > `scripts/cross_family_transfer.py` writes all three into
 > `leaderboard/cross_family_transfer_v5.json`, which carries them since its first CI run
 > (`9c038f6`, 2026-11-27) and is the current transfer artifact. The committed file is
-> `02c0475` (CI run 46011034429 at `54cd63c`, `published_design` true), numerically
-> identical to `9c038f6` and to `7d34989` (CI run 45995248987 at `d85a60c`); all three
-> ran on Intel runners under the pins. `admission/admission_ledger.json`
+> `02c0475` (CI run 46011034429 at `54cd63c`, `published_design` true), its `results`
+> identical to those of `9c038f6` and of `7d34989` (CI run 45995248987 at `d85a60c`);
+> all three ran on Intel runners under the pins. `admission/admission_ledger.json`
 > carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors
