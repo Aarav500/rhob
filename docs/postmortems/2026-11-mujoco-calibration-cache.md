@@ -95,10 +95,10 @@ cache miss instead of a silent mixture, pinned or not.
 *(2026-11-27: the entry key changed in two more ways in `827aec9`. It now hashes each reachable
 module's code, its syntax tree with docstrings removed, rather than its text, so a
 comment, layout or docstring edit no longer invalidates an entry and any other edit
-still does. Of the eleven commits that touched `src/` after `9cc96e2`, five had changed
-every calibrated family's key by docstring or comment edits alone, each costing a cold
-recalibration of about 43 minutes on CI; under the new fingerprint all eleven keep every
-key. And the version token now also hashes the six numerics variables `regenerate.yml`
+still does. Of the eleven commits that touched `src/` between `9cc96e2` and `4728596`,
+five had changed every calibrated family's key by docstring or comment edits alone, each
+costing a cold recalibration of about 43 minutes on CI; under the new fingerprint all
+eleven keep every key. And the version token now also hashes the six numerics variables `regenerate.yml`
 pins for every job (`OPENBLAS_CORETYPE`, `OPENBLAS_NUM_THREADS`, `MKL_CBWR`,
 `MKL_NUM_THREADS`, `OMP_NUM_THREADS`, `ATEN_CPU_CAPABILITY`; `unset` when absent), since
 the BLAS and ATen kernels they select can move the last bits of a calibration: pinned and
@@ -147,7 +147,11 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
   *(2026-11-19: the single-draw board and the admission ledger have since been
   regenerated on CI, `52656cb` and `d4b700d`. Both restored the cache under the complete
   entry key, on the hashed lock, and both record their simulator versions: mujoco
-  3.17.0.)*
+  3.17.0.)* *(2026-11-27: `leaderboard/v5_replicated.json` now carries its own
+  `provenance` block (`827aec9`, re-stamped in `eaa75f8`). It records the aggregation
+  run's environment, mujoco 3.17.0 and the six numerics pins included, not the draws'.
+  The draws' own sources are tallied in its `replicates` block, which records no
+  simulator and no numerics.)*
 
 ## What is still open
 

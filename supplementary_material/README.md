@@ -14,7 +14,9 @@
 > `cross_family_transfer.json`. It refuses to overwrite that file, which is kept as the
 > 2026-07-09 record, and writes `leaderboard/cross_family_transfer_v5.json` under the
 > current rules: sign randomization on, and a cell the detector cannot score not
-> applicable rather than 0.5 (`827aec9`). Run with torch on one thread
+> applicable rather than 0.5 (`827aec9`). CI first wrote it on 2026-11-27, at the
+> published design: 10 training and 20 held-out seeds per variant, five trials (run
+> 45987934132, committed in `9c038f6`). Run with torch on one thread
 > (`OMP_NUM_THREADS=1`), its published design took about five minutes on a 4-core
 > machine, not the 1.5–2 hours given below.)*
 

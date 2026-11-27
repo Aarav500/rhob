@@ -366,7 +366,7 @@ excluded: they stay in the L0 mean, and whether they should is an open question
 | Key | Meaning |
 |---|---|
 | `schema` | `"rhob.admission_ledger/1"` |
-| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `numerics` (§7; written since 2026-11-27, so the committed ledger has none), `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform`, `cpu` and `numerics.cpu` to null and records them under `sharding` (shard count, time span, platforms, CPUs, CI run, and since 2026-11-27 `cpu_vendors`). The merge refuses shards whose `numerics.env` differ |
+| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `numerics` (§7; written since 2026-11-27, so the committed ledger has none), `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform`, `cpu` and `numerics.cpu` to null and lists the shards' distinct platforms, CPU model strings and (since 2026-11-27) CPU vendors under `sharding` (shard count, time span, `platforms`, `cpus`, `cpu_vendors`, CI run); the other `numerics.cpu` fields (family, model number, stepping, ISA flags) are not kept. The merge refuses shards whose `numerics.env` differ |
 | `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
 | `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
 | `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
@@ -534,10 +534,10 @@ effect: ATen at `AVX2` wherever torch loaded, every OpenBLAS at `Haswell`.
 
 `scripts/v5_leaderboard_and_transfer.py --cells-out PATH` also writes the board's
 per-cell AUROCs to a sidecar, `{"provenance": ..., "cells": {detector: [...]}}`, whose
-`provenance` is the board's own block. It is not committed: the `redraw` mode of
-`regenerate.yml` uploads it beside the board, and `scripts/check_redraw.py` requires
-replicate 0 of the re-draw to equal it cell for cell (up to `--max-board-mismatch`
-cells).
+`provenance` is the board's own block. It is not committed: `regenerate.yml` uploads it
+beside the board in every mode that scores one (`board`, `both` and `redraw`), and in
+`redraw` `scripts/check_redraw.py` requires replicate 0 of the re-draw to equal it cell
+for cell (up to `--max-board-mismatch` cells).
 
 Per-detector keys under `results[detector]`:
 
@@ -591,6 +591,7 @@ plain forms.
 
 | Key | Meaning |
 |---|---|
+| `access_level` | the level the row's detector is restricted to |
 | `train_auroc` | 5-fold stratified cross-validated AUROC over the scored train cells, out of fold for every row, the ensemble included |
 | `train_cells_measured`, `train_cells_not_applicable`, `train_families_not_applicable`, `train_not_applicable_reasons` | the train cells `not_applicable_reason` left out, and why |
 | `train_families_excluded_from_pooled_fit`, `train_excluded_from_pooled_fit_reasons` | train families that contributed no runs to the frozen model's fit, and why |
@@ -598,7 +599,7 @@ plain forms.
 | `per_family_transfer` | the frozen model's mean AUROC on each held-out family over its scored cells, or `null` |
 | `test_families_not_applicable`, `test_not_applicable_reasons` | held-out families with no scored cell, and why |
 | `per_family_cells_scored`, `per_family_cells_not_applicable`, `test_partial_not_applicable_reasons` | how many of each held-out family's difficulty cells its number is over and how many were left out, and the reasons for a family scored on some cells only (for a multi-trial row, the fewest scored and the most left out in any trial) |
-| `per_family_incompatible_runs` | runs on which the frozen model's `classify` raised because it cannot consume that family's version of the channel; such a family is not applicable, not scored at 0.5 |
+| `per_family_incompatible_runs` | how many runs, per held-out family, the frozen model's `classify` raised on because it cannot consume that family's version of the channel (for a multi-trial row, the most in any trial); each cell with such a run is not applicable, not scored at 0.5, and a family with no other scored cell is in `test_families_not_applicable` |
 | `avg_transfer_auroc` (the RTS), `generalization_gap_pct` | over the scored held-out families; `null` when none was scored |
 
 `rhob.v3.leaderboard.transfer.load_transfer_results(path)` reads this file, the
@@ -613,7 +614,9 @@ under the run-length and representational rules), and `TransferBoard` carries
 > `leaderboard/cross_family_transfer.json` predates `src/rhob/v3/provenance.py` and is
 > kept unchanged as the historical record, so it does not carry them;
 > `scripts/cross_family_transfer.py` writes all three into
-> `leaderboard/cross_family_transfer_v5.json`. `admission/admission_ledger.json`
+> `leaderboard/cross_family_transfer_v5.json`, which carries them since its first CI run
+> (`9c038f6`, 2026-11-27); the committed file is `7d34989` (CI run 45995248987 at
+> `d85a60c`, `published_design` true). `admission/admission_ledger.json`
 > carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors

@@ -349,11 +349,17 @@ class MyDetector(PosthocDetector):
     def name(self) -> str:
         return "My Detector"
 
+    @property
+    def min_episodes(self) -> int:
+        return 2 * self.window_size  # classify() returns 0.5 below this
+
     def classify(self, run: RunData) -> float:
         """Return P(hacking) ∈ [0, 1].
         
         - Access violations (e.g., L0 reading true_rewards) raise AttributeError
-        - Short runs (< min window) return 0.5 (neutral)
+        - Short runs (< min window) return 0.5 (neutral); the detector declares that
+          length as `min_episodes`, so the harness records a shorter family as not
+          applicable instead of scoring the 0.5
         - Score must be deterministic
         """
         rewards = run.proxy_rewards
@@ -413,6 +419,18 @@ __all__ = [
     "MyDetector",  # Add to __all__
 ]
 ```
+
+Since 2026-11-27 `tests/test_detectors/test_min_episodes.py` fails for any detector
+defined under `rhob.detectors` that is not exported, and for any exported detector that
+is not in its tables. Add the class to `_CLASSES` and its default `min_episodes` to
+`_DECLARED` (0 if it declares none). The test then holds the declaration to `classify`:
+constant one episode below it and varying at it, or, for a detector with no minimum,
+varying on runs of 2 and of 40 episodes. `test_the_table_is_the_board` in the same file
+also requires `_DECLARED` to list exactly the detectors on
+`leaderboard/v5_leaderboard.json`, and the board is built from the fixed list in
+`scripts/v5_leaderboard_and_transfer.py`, so a detector that is not yet on the board
+fails one test or the other. How a new detector should pass the suite before the board
+includes it is open; raise it in the pull request.
 
 ### Step 4: Test
 
@@ -537,7 +555,7 @@ suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
 - [ ] Detector classify() returns [0, 1]
 - [ ] Detector does not assume `behav_trace`'s direction (is direction-free, or infers
       it in `observe_cell`)
-- [ ] Detector handles short runs gracefully
+- [ ] Detector declares `min_episodes` for any length below which `classify` is constant
 - [ ] All tests pass
 
 ---

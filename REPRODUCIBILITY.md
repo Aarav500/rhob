@@ -708,8 +708,8 @@ of `board`, `redraw`, `transfer` and `signrand` each time out at 330 minutes, in
 their job's 350, so a step that runs out of time only fails and the upload after it
 still keeps what it computed; the ledger's and `replicated`'s steps have no step timeout
 and upload only on success, since a partial cell or re-score is never usable. The same
-workflow certifies
-the admission ledger one cell per runner (see [The Admission Ledger](#the-admission-ledger)).
+workflow certifies the admission ledger one cell per runner (see
+[The Admission Ledger](#the-admission-ledger)).
 
 ### The sampling caveat that governs every cell
 

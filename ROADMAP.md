@@ -13,9 +13,13 @@ those reasons became the paper this repository is now the case study for.
   families fell to 0.508, chance, once each family's behavioural feature stopped carrying
   the label in its sign. That is one run of three trials, and in it the label-fitted
   Trajectory MLP kept 0.706 ([docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)),
-  so what survives is a label-fitted detector's transfer, not the headline. Even before
-  that, the held-out families were written by one author under one construction recipe, so
-  the most RTS could show was transfer within a single authored convention.
+  so what survives is a label-fitted detector's transfer, not the headline. Measured again
+  on 2026-11-27 under the not-applicable rule, over five trials in the shipped
+  configuration, the ensemble transfers at 0.512 and Trajectory MLP at 0.700
+  ([leaderboard/cross_family_transfer_v5.json](leaderboard/cross_family_transfer_v5.json)).
+  Even before that, the held-out families were written by one author under one
+  construction recipe, so the most RTS could show was transfer within a single authored
+  convention.
 - **RHOB cannot be the default measure of detection.** In 27 of its 33 families the hack
   itself is authored, and in all 33 so is the flaw it exploits. A benchmark built that way
   can say what a signal contains. It cannot say how well a detector catches hacking an
@@ -60,7 +64,10 @@ score too: Bayesian Online Changepoint Detection scored `max_t P(r_t = 0)`, whic
 constant hazard pins to the hazard, so every HVTA run scored 0.004 and its onset rule
 could never fire. It now scores `1 - P(no changepoint over the run)`, and HVTA's primary
 draw was re-scored with it (`827aec9`, `f192797`). Whether either is a further instance
-in the paper's count is the author's decision.
+in the paper's count is the author's decision. Whether BOCPD should score the log-odds of
+a changepoint instead, which keeps runs ordered where the probability rounds to 1.0 in
+float64 (no committed HVTA run comes within 10 nats of that), is open, also the author's
+decision.
 
 ## Retired
 
@@ -107,11 +114,11 @@ in the paper's count is the author's decision.
 - **One convention for every published number — done on both boards for the missing
   channel on the L1 rows, for the Reward Skewness row (the 20-draw Skewness re-score
   2026-09-03, the single-draw board 2026-11-19) and for every other detector's short horizon
-  (2026-11-26); for the cross-family transfer and
-  `docs/figures/sign_randomization_impact.json`, code done (`827aec9`, `f0caa3d`), CI runs
-  pending (below); the v3 tables in `leaderboard/` were retired instead (`827aec9`).** A
-  cell a detector could not have scored is N/A, never a 0.5. The L1 row was fixed in the
-  2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
+  (2026-11-26); for the cross-family transfer, done (2026-11-27, CI run 45987934132,
+  `9c038f6`); for `docs/figures/sign_randomization_impact.json`, code done (`827aec9`,
+  `f0caa3d`), CI run pending (below); the v3 tables in `leaderboard/` were retired instead
+  (`827aec9`).** A cell a detector could not have scored is N/A, never a 0.5. The L1 row
+  was fixed in the 2026-08 correction. The L0 Reward Skewness row had the same defect from a different cause
   (its windows need 100 episodes; 19 families run 40 or 60) and was re-scored on all 20
   draws in `9da6b21`: those 19 families are now N/A, leaving 0.504 [0.494, 0.514] over 64
   cells on 14 families. Five of the 14 are still at exactly 0.500, from a near-constant
@@ -126,10 +133,12 @@ in the paper's count is the author's decision.
   0.4834, L1 0.5789, L2 0.5771, L3 0.9830, against 0.4866, 0.5200, 0.7213 and 0.9830 on the
   2026-07-17 board, and of maxima 0.5474, 0.9820, 0.9430 and 0.9830: L1's best, over 7
   families and 31 cells, is above L2's and within 0.001 of L3's
-  ([CHANGELOG.md](CHANGELOG.md)). Still open: the transfer measurement, whose only
-  committed artifact, `leaderboard/cross_family_transfer.json`, is the 2026-07-09 record
-  and predates the provenance block, the N/A schema and the horizon declarations; and
-  `docs/figures/sign_randomization_impact.json`, scored before the declarations (below).
+  ([CHANGELOG.md](CHANGELOG.md)). The transfer is now measured under the current rules in
+  `leaderboard/cross_family_transfer_v5.json` (five trials; CI run 45987934132 at
+  `eaa75f8`, committed in `9c038f6`). `leaderboard/cross_family_transfer.json` stays as
+  the 2026-07-09 record, which predates the provenance block, the N/A schema and the
+  horizon declarations. Still open: `docs/figures/sign_randomization_impact.json`, scored
+  before the declarations (below).
   The v3 tables in `leaderboard/`, which predated the N/A schema, were retired
   (`827aec9`; see Retired).
 - **Every detector declares the run length its score needs — done (2026-11-26); it changed
@@ -149,8 +158,9 @@ in the paper's count is the author's decision.
   window. Each detector now declares its minimum horizon, derived from its own attributes,
   and a cell below it is N/A (`f83a152`); `EnsembleDetector` needs the largest of its
   members' minimums, and Perfect Feature Oracle declares the `behav_trace` channel it reads.
-  The five external baselines, scored on HVTA and not on the board, declare theirs since
-  `827aec9`: Page-Hinkley 3, Isolation Forest 2, AR(p) Residual `order + 1` (6 by
+  The five external baselines, which are not on the board and which the HVTA bridge
+  evaluates (PCA Reconstruction, an L1 detector, is N/A on every HVTA cell), declare theirs
+  since `827aec9`: Page-Hinkley 3, Isolation Forest 2, AR(p) Residual `order + 1` (6 by
   default), PCA Reconstruction its 100-episode `steady_window`, and Bayesian Online
   Changepoint Detection 5. `tests/test_detectors/test_min_episodes.py` holds every shipped
   detector to its declaration: constant one episode below it, varying at it.
@@ -198,7 +208,8 @@ in the paper's count is the author's decision.
   layout in two: 12 of the 33 families never read the layout seed, 19 use it only as an
   offset to rollout seeds the draws already resample, and `proxy_correlation_gaming` and
   `rlhf_reward_model_overopt` build a real layout from it. The tooling is in place.
-  Replicates record `draw_schema` 2, and a draw without it is refused by
+  Replicates drawn since `827aec9` record `draw_schema` 2 (the 20 committed ones record
+  none), and a draw without it is refused by
   `scripts/merge_rescored_detector.py` and, for `artifacts=replicated`, by
   `regenerate.yml`'s plan job (`320b7b7`). `regenerate.yml`'s `redraw` mode draws the
   board and all 20 replicates, every detector, at one commit under the CI lock and the six
@@ -211,17 +222,24 @@ in the paper's count is the author's decision.
   committed draws with it changed no number, and their `replicates` block reads
   `layouts_resampled: false` and `single_source: false`. The re-draw moves every 20-draw
   figure, so the docs that quote them move with it.
-- **Re-run the artifacts scored before the horizon declarations — code done (`827aec9`,
-  `f0caa3d`); CI runs pending.**
+- **Re-run the artifacts scored before the horizon declarations — the transfer done
+  (2026-11-27, CI run 45987934132, `9c038f6`); the sign-randomization measurement's code
+  done (`827aec9`, `f0caa3d`), CI run pending.**
   `leaderboard/cross_family_transfer.json` and
   [docs/figures/sign_randomization_impact.json](docs/figures/sign_randomization_impact.json)
-  were not re-run with `f83a152`. The held-out families of both transfer runs all run at
+  were scored before `f83a152`. The held-out families of both transfer runs all run at
   least 100 episodes, and `continuous_camping` (40) is among their six training families,
   though the Reward MLP and State Divergence fits, it turned out, already dropped its runs.
-  Whether the ensemble's 0.994 to 0.508 or Trajectory MLP's 0.706 (What changed) moves
-  has not been measured. The sign-randomization run scores all 33 families, so its L2
-  ladder (mean 0.7229 before, 0.5629 after) still averages in the short-horizon fallbacks
-  of Feature Consistency, Feature Magnitude and Reward-Feature Correlation, and its
+  The transfer has since been measured again under the declarations, in the shipped
+  configuration, in `leaderboard/cross_family_transfer_v5.json` (CI run 45987934132 at
+  `eaa75f8`, committed in `9c038f6`): over five model-init trials the Top-5 ensemble
+  transfers at 0.512 (standard deviation 0.011) and Trajectory MLP at 0.700 (0.022),
+  against 0.508 and 0.706 over three trials in the `after` configuration of
+  `sign_randomization_impact.json` (What changed). Whether those three-trial figures move
+  when that measurement is re-run has not been measured. The sign-randomization run
+  scores all 33 families, so its L2 ladder (mean 0.7229 before, 0.5629 after) still
+  averages in the short-horizon fallbacks of Feature Consistency, Feature Magnitude and
+  Reward-Feature Correlation, and its
   invariance check (123 of 123 cells identical before and after) counts the cells below
   the declared horizons of those three and of Reward CUSUM (L0) and State Coverage Rate
   (L1) too; its before-and-after differences for Behavioral Threshold, Centroid Tracker and
@@ -377,9 +395,14 @@ construction, not a new benchmark member.
   degeneracy, run on every push and the other four nightly (`2130ab2`). Beside it,
   `tests/test_v3/test_ledger_reproduces.py` re-certifies four families at every tier the
   ledger scores, on every push, and requires their statuses and outcomes exactly and
-  every number within measured tolerances, so for those families a change to a detector,
-  a family or the gate cannot leave the ledger certifying code that no longer exists
-  without a test failing (`827aec9`, `2130ab2`).
+  every number within measured tolerances (5e-3 absolute on rank-derived numbers, 1e-9
+  relative on the rest), so a change to a detector the gate uses, to one of those
+  families or to the gate that moves a status, an outcome or any number beyond those
+  tolerances fails a test. The four reach every status and every outcome value the ledger
+  records; the one (criterion, outcome) pair they do not, `proxy_matched`'s FAIL, is
+  re-certified nightly at `rlhf_feature_blindspot_gaming` @0.80. The binding detector's
+  name is pinned only where the ledger's choice is clear by more than 0.01
+  (2 × `RANK_ATOL`) (`827aec9`, `2130ab2`).
 - **A worked example of a check built so it can fail.** The matched-pair construction and
   the admission gate. Its nightly smoke screen first failed twelve families (2026-08-17,
   recorded in `ba26a4a`). 33 of its 36 DEGENERATE cells turned out to be Reward Skewness
