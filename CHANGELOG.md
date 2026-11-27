@@ -20,7 +20,9 @@ re-drawn at one commit, `54cd63c`, under the numerics pins, the 20 draws at layo
 to 19 (`b93c351`), and those figures supersede the 2026-11-26 ones for both boards.
 Bayesian Online Changepoint Detection's HVTA figures were those of a constant score and
 are re-scored on HVTA's primary draw and its three other channels, though not on its three
-replicate seed draws. See the 2026-11-27 entries.)*
+replicate seed draws. The sign-randomization measurement of 2026-08-03 was re-run at
+`54cd63c` under the pins (`0ff0d42`): with randomization off its RTS reads 0.993, not the
+published 0.994, and with it on 0.514, not 0.508. See the 2026-11-27 entries.)*
 
 ### Fixed (2026-11-27): the layout seed never reached the families, so the 20 draws all ran at layout 0
 
@@ -193,12 +195,17 @@ computed without the pins and record no `numerics` block (the re-stamp of
 `v5_replicated.json`'s provenance in `eaa75f8` records them, but its 2026-08-04 draws
 record none). Every artifact CI writes from now on is computed under them. The first
 pinned artifacts are `leaderboard/cross_family_transfer_v5.json` (`9c038f6`, at
-`eaa75f8`, measured again in `7d34989` and `02c0475`, every time on a GenuineIntel runner)
-and both boards with the 20 draws (`b93c351`, at `54cd63c`): the board on an AuthenticAMD
-runner and the draws on 12 GenuineIntel and 8 AuthenticAMD ones. One draw was scored on
-both vendors, replicate 0 on an Intel Xeon 6975P-C and the board on an AMD EPYC 9V74, and
-the two agree in every cell, which needed `continuous_camping`'s frozen camper (the next
-entry). A figure from a pinned run need not match an unpinned run of the same code bit for
+`eaa75f8`, measured again in `7d34989` and `02c0475`, every time on a GenuineIntel
+runner); both boards with the 20 draws (`b93c351`, at `54cd63c`), the board on an
+AuthenticAMD runner and the draws on 12 GenuineIntel and 8 AuthenticAMD ones; and
+`docs/figures/sign_randomization_impact.json` (`0ff0d42`, at `54cd63c`, on an
+AuthenticAMD runner). One draw was scored on both vendors, replicate 0 on an Intel Xeon
+6975P-C and the board on an AMD EPYC 9V74, and the two agree in every cell, which needed
+`continuous_camping`'s frozen camper (the next entry). Fitted transfer rows agree across
+vendors too: the sign-randomization measurement, on an AMD EPYC 7763, repeats trials 0 to
+2 of the v5 transfer file's two L2 rows, and their train and transfer AUROCs, as both
+files store them to three decimals, are the Intel runs' (the sign-randomization entry
+below). A figure from a pinned run need not match an unpinned run of the same code bit for
 bit, so quote each figure with the environment it came from. `tests.yml` sets none of the
 pins.
 
@@ -441,16 +448,22 @@ single-draw artifact's note said 0.19 at n=m=5 whatever its `n_seeds`, which is 
 only for the board's 5 seeds; the board's note does not change.
 `cross_family_transfer_v5.json` as first committed, in `9c038f6`, was written before
 `d85a60c` and read 0.19; the two runs since (`7d34989`, `02c0475`) read "0.13 (0.09 at
-the held-out cells' n=m=20)". Under the CI pins, with torch on one thread, the
-published design took 5m23s on a 4-core machine. The documented 1–2 h came
-mostly from torch's default thread count on a busy machine, where one trial's Trajectory
-MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows from
-re-simulating runs. Set `OMP_NUM_THREADS=1` when running it by hand.
+the held-out cells' n=m=20)". The sign-randomization report of 2026-08-03 had no sampling
+note; its re-run (`0ff0d42`) gives 0.13 at its own n=m=10. Under the CI pins, with torch
+on one thread, the published design took 5m23s on a 4-core machine. The documented 1–2 h
+came mostly from torch's default thread count on a busy machine, where one trial's
+Trajectory MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows
+from re-simulating runs. Set `OMP_NUM_THREADS=1` when running it by hand.
 `scripts/plot_v5_results.py` plots the v5 file, never the 2026-07-09 one, and labels a
 null transfer AUROC "n/a" instead of drawing a bar. The Space renders the v5 file when it
 is present, and otherwise the `after` configuration of `sign_randomization_impact.json`,
 labelled pre-declaration, with a note that representation mismatches there were scored at
-chance and that the run-length rule reached only its train AUROC.
+chance and that the run-length rule reached only its train AUROC. *(The label and the note
+are read off the file's rows (`_transfer_is_pre_declaration` in `space/app.py`), not off
+which file was found. The re-measured `sign_randomization_impact.json` (`0ff0d42`) records
+the not-applicable rules on every row, so as the fallback it would now render without
+either: `load_transfer_results` reads `applies_na_rules` as true for it, and false for the
+2026-08-03 file. See the sign-randomization entry below.)*
 
 **The measurement.** CI run 46011034429 measured the published design at `54cd63c` and
 committed it in `02c0475`: `published_design: true`, 5 trials, 10 train and 20 test
@@ -496,6 +509,98 @@ design, and an unknown `--rows` or `--transfer-rows` name is refused instead of 
 `transfer --n-trials` defaults to 3, the published design's value and the 2026-08-03
 measurement's (it was 5 until 2026-11-27), while `cross_family_transfer.py` keeps 5.
 Whether the default stays at 3 is open, the author's decision.
+
+**The measurement.** CI run 46011028034 ran `ci` at `54cd63c` and committed the report in
+`0ff0d42`: `published_design: true`, all 33 families at 10 seeds per variant on layout 0,
+one draw, with `rollouts_shared_across_modes: true`, and the transfer rows at 10 train and
+20 test seeds over 3 trials. It ran from a clean tree under the pins on an AMD EPYC 7763
+and took 3332.9 s by `ci_stage_wall_clock_s`, 2474.0 s of it on the board. Computed from
+the data, its headline now says that the pre-randomization RTS does not reproduce exactly.
+Its figures, against the 2026-08-03 measurement's, are in the next entry.
+
+### Changed (2026-11-27): the sign-randomization measurement re-run under the pins
+
+CI run 46011028034 re-measured `docs/figures/sign_randomization_impact.json` and `.md` at
+`54cd63c`, on an AMD EPYC 7763 runner, from a clean tree under the six pins with their
+kernels in effect (ATen at AVX2, OpenBLAS at Haswell), and committed them in `0ff0d42`;
+the entry above gives the design. They replace the measurement committed on 2026-08-03
+(`b77d50d`), whose provenance records a dirty tree on Windows under Python 3.13.14, no
+numerics block, and a report merged from 13 per-suite boards.
+`git show 0ff0d42^:docs/figures/sign_randomization_impact.md` recovers it, and nothing
+below changes what it records. The two side by side:
+
+| Figure | 2026-08-03 (`b77d50d`) | Re-run (`0ff0d42`) |
+|---|---|---|
+| RTS, Ensemble (Top 5), `before` (randomization off) | 0.994 | 0.993 |
+| RTS, Ensemble (Top 5), `after` (the shipped configuration) | 0.508 | 0.514 |
+| RTS, Trajectory MLP, `before` / `after` | 0.907 / 0.706 | 0.921 / 0.709 |
+| L2 suite mean, `before` / `after` | 0.7229 / 0.5629 | 0.7320 / 0.5739 |
+| L2 best, `before` (Behavioral Threshold) | 0.9749 | 0.9807 |
+| L2 best, `after` (Trajectory MLP) | 0.9585 | 0.9610 |
+| Behavioral Threshold, `before` / `after` | 0.975 / 0.459 | 0.981 / 0.479 |
+| Centroid Tracker, `before` / `after` | 0.964 / 0.353 | 0.968 / 0.358 |
+| Cells the shipped orientation rule orients as authored | 55/123 (0.447) | 58/123 (0.471) |
+
+- **The pre-randomization RTS no longer reproduces to the digit.** Against the published
+  0.994 (`leaderboard/cross_family_transfer.json`, 2026-07-09), `before` reads 0.993,
+  0.001 lower as both are stored, over trials of 0.993, 0.993 and 0.994. The 2026-08-03
+  run read 0.994, and its report said the figure "reproduces exactly"; the re-run's says
+  it does not. Trajectory MLP's `before` reads 0.921 against the published 0.931
+  (−0.010), and did not reproduce on 2026-08-03 either (0.907, −0.024); Reward MLP reads
+  0.477 against 0.478, as it did. State Divergence's published 0.500 has no counterpart:
+  its frozen model raised on every held-out run, so the row is N/A (the entry above),
+  where the 2026-08-03 run recorded the imputed 0.500.
+- **The shipped RTS is 0.514, 0.006 above 0.508 as stored** (the means of the stored
+  trials differ by 0.005), over trials of 0.532, 0.499 and 0.510; Trajectory MLP's is
+  0.709 against 0.706 (0.726, 0.699, 0.701). With the flip on and no orientation inferred
+  (`blind`) the ensemble reads 0.375, against 0.369. Its train AUROCs are now
+  cross-validated and leave out `continuous_camping`'s four cells (the entry above): 0.949
+  `before` and 0.684 `after`, where the 2026-08-03 run's, in-sample for its Trajectory MLP
+  member, read 0.967 and 0.722.
+- **The finding about the sign convention stands.** The two L2 detectors that read the
+  feature's sign, Behavioral Threshold and Centroid Tracker, score 0.981 and 0.968
+  `before` and 0.479 and 0.358 `after`. The four that read only a magnitude (Angular
+  Momentum, Feature Magnitude, Feature Consistency, Reward-Feature Correlation) score
+  0.526 to 0.589 `before`, 0.513 to 0.573 on 2026-08-03, and are identical `after` on
+  every cell scored in both modes. The suite mean falls by 0.158 (0.160 on 2026-08-03),
+  and the `after` best is still Trajectory MLP, which is fitted on labels inside each
+  cell. The conclusion the 2026-08-03 report drew from these, that the sign convention and
+  not the behavioural channel carried the pre-audit L2 result, stands on the re-measured
+  numbers.
+- **What moved, as far as the artifacts show.** Behavioral Threshold's `before` differs
+  from the 2026-08-03 run only on `sequence_keyword_stuffing`, 0.65, 0.75 and 0.61 at its
+  three tiers then and 0.96, 0.92 and 0.84 now, which is all of its +0.006; `e7bb3f3`
+  rewrote that family on 2026-09-19, after `b77d50d`. Its `after` also differs at
+  `mujoco_joint_limit_gaming` @0.9, now oriented the other way (1.0, where it read 0.0).
+  Feature Magnitude and Reward-Feature Correlation are N/A on 22 of the 123 cells and
+  Feature Consistency on 59, below their declared run lengths (`f83a152`); the 2026-08-03
+  run scored all 123 for each. The 2026-08-03 file keeps no per-cell AUROCs, and the two
+  runs differ in code, platform, Python, package set and pins, so the artifacts do not say
+  what moved the other figures.
+- **The difficulty knob is unchanged.** 27 of the 32 multi-tier families still have a
+  separation span of exactly 0.000, and the same five move, `sequence_keyword_stuffing` by
+  0.12 rather than 0.14.
+- **The orientation rule orients 58 of 123 cells (0.471) as authored,** where it oriented
+  55: `sequence_keyword_stuffing` 3 of 3 rather than 1, and `mujoco_joint_limit_gaming` 1
+  of 3 rather than 0. By family group: tabular 19 of 31 (0.613), continuous 2-D 13 of 29,
+  MuJoCo 5 of 13, PettingZoo 5 of 15, RLHF 6 of 20 and sequence 10 of 15. The 63.3% (38 of
+  60) in `docs/l2_sign_randomization.md` and in Behavioral Threshold's docstring was
+  measured over the 13 tabular and continuous families, those same 60 cells, at 20 seeds
+  per variant, not over the benchmark; at 10 seeds this run orients 32 of the 60.
+- **Across CPU vendors.** The `after` transfer rows repeat trials 0 to 2 of
+  `leaderboard/cross_family_transfer_v5.json`, trial `k` seeding its networks with `k`.
+  For Trajectory MLP and the ensemble every train and transfer AUROC of those trials, as
+  both files store them to three decimals, is the v5 file's: Trajectory MLP 0.883, 0.880
+  and 0.872 train and 0.726, 0.699 and 0.701 transfer, the ensemble 0.686, 0.685 and 0.681
+  and 0.532, 0.499 and 0.510. The v5 file was measured three times, each on an Intel
+  runner (the transfer entry above), and this run on AMD. With replicate 0 against the
+  board (the re-draw entry above), that is a second cross-vendor agreement under the pins,
+  this one for fitted transfer rows. Reward MLP, measured here in `before` only, matches
+  the v5 file's trials 0 and 1 and trial 2's train AUROC; trial 2's transfer AUROC reads
+  0.483 against 0.473. `before` is not the v5 file's configuration, though the flip never
+  reaches an L0 detector, and neither artifact says which difference moved it.
+- **The Space** renders the v5 file, which is committed. As the fallback, the re-measured
+  file would render without the pre-declaration label or its note (the entry above).
 
 ### Removed (2026-11-27): the v3.2 tables, their two scripts, and `rhob submit` writing the tracked board
 
@@ -849,7 +954,8 @@ the 2026-07-09 record and is not re-run; its successor,
 `regenerate.yml`'s new `transfer` and `signrand` modes write; see the 2026-11-27 transfer
 entry above. `cross_family_transfer_v5.json` has been measured under the declarations and
 the pins three times, in `9c038f6`, `7d34989` and `02c0475` (at `54cd63c`), with identical
-results.)*
+results. `sign_randomization_impact.json` was re-measured under both in `0ff0d42` (run
+46011028034, at `54cd63c`); see the 2026-11-27 sign-randomization entry above.)*
 
 ### Fixed (2026-11-25): the site deploys from two jobs
 
@@ -927,7 +1033,11 @@ under the pins reads L0 0.4835 / 0.5474 and L2 0.5771 / 0.9440, with L1 and L3 u
   N/A, Feature Magnitude goes from 0.564 to 0.577, Feature Consistency from 0.516 to 0.530
   and Reward-Feature Correlation from 0.558 to 0.570.)* *(2026-11-27 re-draw: Centroid
   Tracker 0.360 and Trajectory MLP 0.944; L2's mean is still 0.5771, the two lower it by
-  0.153 and the other five raise it by 0.009.)*
+  0.153 and the other five raise it by 0.009.)* *(2026-11-27 sign-randomization re-run,
+  `0ff0d42`: the 0.975 and 0.966 are the pre-audit board's (`c54a8cc`, the board of
+  2026-07-17), which the regenerated report compares like for like as 0.9753 and 0.9660
+  over 123 cells. Its own `before`, at 10 seeds per variant, reads 0.981 and 0.968, and
+  its `after` 0.479 and 0.358; see the 2026-11-27 sign-randomization entry above.)*
 - State Divergence goes from 0.621 to 0.927 only because its 25 N/A families are no longer
   averaged in as 0.5. On the 8 families that emit `state_counts` every L1 row is unchanged,
   so the board now measures every per-detector L1 value the audit had recomputed (the

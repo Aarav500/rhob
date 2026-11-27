@@ -194,7 +194,7 @@ DOI is the paper named here; cite it by this title.
 > observation was the label.** Randomizing that sign per family collapses the headline
 > cross-family transfer score from **0.994 to 0.508** — chance. The pre-randomization
 > 0.994 reproduces exactly with randomization off, so the comparison is like-for-like.
-> The L2 suite mean falls **0.7229 → 0.5629** on the same basis.
+> The L2 suite mean falls **0.7229 → 0.5629** on the same basis. *(2026-11-27: re-measured on CI by run 46011028034 from a clean checkout at `54cd63c`, under the six numerics pins (`0ff0d42`), the score falls from **0.993 to 0.514** and the L2 suite mean **0.7320 → 0.5739**. The pre-randomization figure no longer reproduces exactly: it reads 0.993 against the published 0.994, and Trajectory MLP's figure reads 0.921 against its published 0.931 (0.907 on 2026-08-03). The two L2 detectors that read the feature's sign fall from 0.97–0.98 to 0.36–0.48, and the four that read only its magnitude are identical in both modes on every cell they score, so the finding stands; see [Cross-family transfer](#cross-family-transfer-rts).)*
 >
 > Two further defects found in the same audit: the published L1 row **imputed a constant
 > 0.5 over the 25 of 33 families that emit no state-visitation channel** (88 of 123 cells),
@@ -882,10 +882,16 @@ The table that stood here reported a held-out transfer AUROC of **0.994** for th
 ensemble. That is the headline the correction at the top retracts. Each family's
 behavioural feature was required to be anti-symmetric with positive meaning hacking, so
 the sign of the observation was the label. Randomizing that sign per family takes the
-score to **0.508**, chance, and the 0.994 reproduces exactly with the randomization
-switched off. That is one run of three trials, not a replication, and in the same run the
-label-fitted Trajectory MLP keeps a held-out transfer AUROC of 0.706
+score to **0.514**, chance; with the randomization switched off the same run reads 0.993,
+0.001 below the published 0.994. That is one run of three trials, not a replication, and
+in the same run the label-fitted Trajectory MLP keeps a held-out transfer AUROC of 0.709
+(0.921 with the randomization off, against a published 0.931)
 ([`docs/figures/sign_randomization_impact.json`](docs/figures/sign_randomization_impact.json)).
+*(2026-11-27: these figures are the re-measurement committed as `0ff0d42`, CI run
+46011028034 from a clean checkout at `54cd63c` under the six numerics pins, on an AMD
+runner. The 2026-08-03 measurement it replaced read 0.508 and 0.706 with the sign
+randomized and 0.994 and 0.907 with it off: its ensemble figure matched the published one
+to the third decimal, and this one does not.)*
 The table is removed. `leaderboard/cross_family_transfer.json` is kept as the record of what
 was measured, and is not a transfer result.
 
@@ -928,7 +934,10 @@ and its own sampling note puts the null SE at 0.13 at the training cells' n = m 
 `leaderboard/cross_family_transfer.json`, is the current measurement of transfer under the
 shipped configuration. The sign-randomization measurement quoted above is a separate run
 that exists to compare the sign randomized with the sign fixed; its transfer stage calls
-the same code.
+the same code, and its `after` rows, the two L2 rows, are this measurement over the first
+three of these five trials (its default): trial for trial, their train and held-out
+AUROCs equal this file's first three to the three decimals both files record, although
+that run was on an AMD runner and this file's on Intel ones.
 
 ### Outside this repository: HVTA
 
@@ -1161,8 +1170,11 @@ episodes) is scored on 14 families, 64 cells, and Feature Magnitude and Reward-F
 Correlation (50) on 26 families, 101 cells. Before sign
 randomization the board read 0.975 (Behavioral Threshold) and 0.721. Transfer across
 held-out families built under the same construction recipe reads high (ensemble RTS 0.994), but **that number is an artifact of the
-feature-sign convention**: randomizing the sign per family collapses it to **0.508**,
-and in the same run the L2 suite mean falls **0.7229 → 0.5629**. See
+feature-sign convention**: randomizing the sign per family collapses it to **0.514**
+(0.993 with it off, against the published 0.994), and in the same run the L2 suite mean
+falls **0.7320 → 0.5739** and the best L2 detector goes from Behavioral Threshold's 0.981
+(the board's 0.975) to the label-fitted Trajectory MLP's 0.961. *(2026-11-27: re-measured
+on CI at `54cd63c` (`0ff0d42`); the 2026-08-03 run read 0.508 and 0.7229 → 0.5629.)* See
 the correction banner at the top. Do not cite 0.994 without its randomized partner.
 
 ### L3: Oracle (2 rows, 1 independent)
