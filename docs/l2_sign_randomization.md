@@ -44,7 +44,12 @@ Of the 33 registered families, 20 draw -1 at layout 0 and 13 draw +1.
 and stamped every pair it built with layout 0, so every one of the 20 replication draws
 made on 2026-08-04 was scored under these layout-0 signs, whatever layout seed it
 records. The flip itself always read the pair's own `layout_seed`; it was the suite that
-never passed a non-zero one.)*
+never passed a non-zero one. The re-draw that replaced those 20 draws (CI run 46011019246,
+`b93c351`; `draw_schema` 2 in all 20) scores each draw under its own layout's signs, so
+the committed 20-draw intervals now include the orientation. Behavioral Threshold, which
+orients itself from the population, went from 0.5445 [0.5153, 0.5736] on the 2026-08-04
+draws to 0.5123 [0.4735, 0.5515] on the re-draw, and its draw-to-draw standard deviation
+from 0.069 to 0.092.)*
 
 `rollout(..., randomize_sign=False)` and `Benchmark.evaluate(...,
 randomize_behav_sign=False)` reach the family's own coordinate. Two callers use it

@@ -30,7 +30,11 @@ should not be swapped to reach a rounder multiplier.
 Until `827aec9`, `FamilyRegistry.generate_suite` dropped its `layout_seed`, so all 20
 draws, made on 2026-08-04, were built and oriented at layout 0, whatever layout seed they
 record. Replicate 0 is the layout-0 draw by design, so the comparison below is
-unaffected.)*
+unaffected.)* *(2026-11-27, later: those 20 draws have been replaced by a re-draw in
+which each draw runs at its own layout and behavioural orientation (CI run 46011019246,
+`b93c351`). The 0.0686, 4.9x, 0.407-0.646 and ~17x above are the 2026-08-04 draws'
+figures. Over the re-draw Behavioral Threshold's draw-to-draw standard deviation is 0.0923
+and its range 0.354-0.670; the two-stack comparison below was not repeated against it.)*
 
 ## What this means
 
@@ -65,6 +69,19 @@ Reward Skewness (`253c7ec`): for those 19 detectors, State Divergence's 0.927 am
 and for Reward Skewness (0.508 here, 0.516 since), it is not what `replicate_000.json`
 holds now; the other 10 rows are. Both stacks returned the same constant on the cells that changed, so
 none of the differences below comes from them.)*
+*(2026-11-27: all 20 committed replicates are now the CI re-draw (run 46011019246 at
+`54cd63c`, `b93c351`), drawn under the hashed Linux lock and the six numerics pins on 12
+Intel and 8 AMD runners, with the board drawn in the same run on an AMD runner, so the
+board and the replicates now share one basis; the ledger is on the same lock without the
+pins. `scripts/check_redraw.py` requires replicate 0 to equal the board cell for cell, so
+a re-draw is itself a platform check of one draw on two runners. This one passed it: an
+Intel runner's replicate 0 and an AMD runner's board agree on every cell, all 30
+detectors on all 33 families. The first re-draw (run 45995235365, at
+`d85a60c`) did not: 16 `continuous_camping` cells differed, because that family's DQN
+camper trained to different weights on Intel and AMD runners under the pins. It loads
+frozen weights since `ddc8ab5` (CHANGELOG.md). The table below compares the 2026-08-04
+replicate 0 on two stacks. The 10 rows the note above calls current are current for that
+file as last written in `827ae57`, not for the re-drawn `replicate_000.json`.)*
 
 | Detector | Windows (locked) | Linux (ranges) | abs diff |
 |---|---|---|---|
@@ -100,4 +117,6 @@ none of the differences below comes from them.)*
 | Bimodal Occupancy | 0.542 | 0.542 | 0.0000 |
 
 Regenerate: run `scripts/replicate_leaderboard.py --replicate-id 0` on both platforms
-and compare `results/replication/replicate_000.json`.
+and compare `results/replication/replicate_000.json`. *(2026-11-27: the replicate 0 this
+file compares is the 2026-08-04 one, `git show 827ae57:results/replication/replicate_000.json`;
+the committed file is now the re-draw's.)*

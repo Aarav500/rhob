@@ -151,7 +151,13 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
   `provenance` block (`827aec9`, re-stamped in `eaa75f8`). It records the aggregation
   run's environment, mujoco 3.17.0 and the six numerics pins included, not the draws'.
   The draws' own sources are tallied in its `replicates` block, which records no
-  simulator and no numerics.)*
+  simulator and no numerics.)* *(2026-11-27, later: the 20 draws have been re-drawn on CI
+  at one commit under the hashed lock and the six pins (run 46011019246 at `54cd63c`,
+  committed in `b93c351`), replacing the 2026-08-04 draws and their 2026-09-03 re-score.
+  Each re-drawn replicate records its own simulator and numerics, and the `replicates`
+  block now tallies one package set for all 20, mujoco 3.17.0 in it, and one numerics
+  signature. Whether a stale entry reached the replaced draws stays open, and cannot be
+  answered from them; `results/family_diagnostics/` is unchanged.)*
 
 ## What is still open
 
@@ -165,6 +171,10 @@ differs from the lock, and runs the fast suite and the MuJoCo screens on them. T
 - **The replication does not say which simulator it ran.** The 20 committed replicates were
   written under the old list (numpy, scipy, scikit-learn, torch, rhob), so the MuJoCo they ran
   under cannot be recovered from them. Artifacts written from 2026-11-16 on record it.
+  *(2026-11-27: resolved for the current set. The re-drawn replicates (run 46011019246,
+  `b93c351`) each record mujoco 3.17.0 and a `numerics` block with the six pins. The
+  2026-08-04 draws they replace recorded neither, and their simulator remains
+  unrecoverable; they are in the history, last at `827ae57`.)*
 - **The lock has been installed by CI on the branch only.** `workflow_dispatch` run
   [43836925199](https://github.com/Aarav500/rhob/actions/runs/43836925199) installed it on
   2026-11-16, hash-checking every file, and its slow tier passed as 43679157068's did (73

@@ -3,6 +3,9 @@
 RHOB's L0 rung is a negative control: reward-only detectors should sit at chance on a
 proxy calibrated to be indistinguishable between variants. The replication states that
 control as **all 13 L0 detectors have a 95% interval containing 0.500**.
+*(2026-11-27: that is true of the 20 draws made on 2026-08-04, which this file analyses.
+On the re-draw that replaced them it is not: 12 of the 13 do, and Reward CUSUM's,
+0.486 [0.475, 0.497], lies wholly below 0.500. See the end of this file.)*
 
 ## The objection
 
@@ -70,6 +73,9 @@ degenerate ones are close to half the denominator, and so are the three widest
 degenerate-free intervals (Reward Autocorrelation, Reward Trend, Reward Peak), which rest
 on 8 families. Family count does not order the rest: Reward Peak (0.0022) and Variance
 Window (0.0015) move less than Reward Variance Ratio (0.0032), which is scored on 33.
+*(2026-11-27: the table and these verdicts are of the 2026-08-04 draws and have not been
+recomputed on the re-draw, where Reward CUSUM's published interval excludes 0.500; see
+the end of this file.)*
 
 ## What this does and does not license
 
@@ -80,8 +86,11 @@ It does not license: any statement about which side of chance the **suite mean**
 The published interval is `access_levels.L0.mean_auroc` = 0.49507437321937314,
 [0.4898966901, 0.5000149501]. It contains 0.500 only at its upper end (0.50001 at five
 decimals; it prints as 0.5000 at four), and that endpoint is not resolvable from 0.500 by
-the bootstrap that produced it. Replaying the published procedure (10,000 resamples of the
-same 20 draws) at generator seeds 0..299 instead of the script's fixed
+the bootstrap that produced it. *(2026-11-27: that is the interval of the 2026-08-04
+draws. On the re-draw it is 0.4976617058404559, [0.4917808965, 0.5035671936], which
+contains 0.500 with room; the replay below is of the 2026-08-04 draws.)* Replaying the
+published procedure (10,000 resamples of the same 20 draws) at generator seeds 0..299
+instead of the script's fixed
 `BOOTSTRAP_SEED = 20260804` moves that endpoint over **[0.499879, 0.500216]**: it lands at or
 above 0.500 in **225 of the 300** and below it in the other **75**. The endpoint's own
 Monte-Carlo scatter straddles 0.500, so the interval places the suite mean on neither side
@@ -107,6 +116,9 @@ The per-detector verdicts are not seed-sensitive in that way. Over the same 300 
 13 L0 intervals contain 0.500 at every seed; the narrowest margin from 0.500 at any seed is
 0.0011 (Reward Variance Ratio), about three times the scatter that decides the suite mean's
 endpoint. The control is carried detector by detector, which is where it is robust.
+*(2026-11-27: this is the replay of the 2026-08-04 draws. On the re-draw one of the 13,
+Reward CUSUM, excludes 0.500 at the published seed; the replay has not been run on the
+re-draw.)*
 
 **What the 27 families are (2026-11-19).** Nor does the check license a claim that the
 proxy is matched on those 27 families. Since its 2026-11-19 regeneration (`d4b700d`) the
@@ -143,16 +155,36 @@ now), and the intervals of the five 100-episode detectors are wider, because the
 from 0.4966 [0.4934, 0.4999] on 2026-08-06, through 0.4972 [0.4939, 0.5005] after the
 Skewness re-score, to 0.4951 [0.4899, 0.5000] now.
 
-**The draws vary rollout seeds only (2026-11-27).** Every interval in this file is over
+**The draws varied rollout seeds only (2026-11-27).** Every interval in this file is over
 the 20 draws made on 2026-08-04, and all 20 were built at layout 0: until `827aec9`,
 `FamilyRegistry.generate_suite` dropped its `layout_seed`, so draws 1 to 19 resampled
 only their rollout seeds, whatever layout seed they record
-(`leaderboard/v5_replicated.json` reads `layouts_resampled: false`). The intervals are
+(`leaderboard/v5_replicated.json` read `layouts_resampled: false`). The intervals are
 over rollout seeds at one layout. For these L0 rows the behavioural sign a layout also
 sets does not matter, since `restrict()` hides `behav_trace` below L2, and the layout
 seed builds a different environment in two families only, `proxy_correlation_gaming` and
 `rlhf_reward_model_overopt`: 12 families never read it, and 19 use it only to offset
 their rollout seeds.
+
+**Re-drawn on 2026-11-27; not recomputed here.** Those 20 draws have been replaced by a
+re-draw at one clean commit under the CI lock and the six numerics pins, each draw at its
+own layout (CI run 46011019246 at `54cd63c`, `b93c351`; the `replicates` block reads
+`draw_schema` 2 in all 20, `layouts_resampled: true` and `single_source: true`). This
+file remains the analysis of the 2026-08-04 draws: its table, its replay and its counts
+have not been redone on the re-draw. The control it examines did change. On the re-draw
+12 of the 13 L0 detectors' published intervals contain 0.500, and Reward CUSUM's,
+0.486 [0.475, 0.497] over its 101 cells, lies wholly below it: Reward CUSUM separates the
+variants weakly, in the direction that would not flag hacking. On the 2026-08-04 draws
+its interval was 0.498 [0.490, 0.507], and all 13 contained 0.500. Whether that interval
+matters for the control is the author's decision. The level's best-detector maximum still
+excludes 0.500, as the maximum of 13 detectors does by selection, at 0.575
+[0.565, 0.586]; the suite mean, 0.4977 [0.4918, 0.5036] against 0.4951 [0.4899, 0.5000]
+on the 2026-08-04 draws as re-scored, now contains 0.500 with room rather than at its
+endpoint. Among the six DEGENERATE families, `rlhf_reward_model_overopt`
+no longer returns exactly 0.500 in every draw: 6 of its 260 L0 values depart, against 0
+on the 2026-08-04 draws. `distributional_shift`, `monitored_sandbagging` and
+`shortcut_exploitation` still depart in none, `orbit_chirality` in 21 (27 before) and
+`physics_exploitation` in 37 (37).
 
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set:
