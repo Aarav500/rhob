@@ -101,6 +101,9 @@ class IsolationForestDetector(PosthocDetector):
             return None
         w = self.window
         late = run.behav_trace[-w:] if len(run.behav_trace) >= w else run.behav_trace
+        # The module constant, not ``self.min_episodes``: this guard is about the late
+        # window (``window=1`` keeps it at one point), and the window's standard
+        # deviation and range need two points whatever length a subclass declares.
         if len(late) < MIN_EPISODES:
             return None
         return np.array(

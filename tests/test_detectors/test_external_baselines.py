@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import copy
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +25,21 @@ from rhob.v3.benchmark import _onset_mae
 
 _HVTA = Path(__file__).resolve().parents[2] / "external" / "hvta"
 _BOCPD = "Bayesian Online Changepoint Detection"
+
+
+def _hvta_script(name: str):
+    """Import ``external/hvta/<name>.py`` under a private module name.
+
+    Not on ``sys.path``: the directory is scripts, not a package, and ``score_detectors``
+    is also imported by its sibling scripts under its plain name.
+    """
+    module = f"_hvta_{name}"
+    if module not in sys.modules:
+        spec = importlib.util.spec_from_file_location(module, _HVTA / f"{name}.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module] = mod
+        spec.loader.exec_module(mod)
+    return sys.modules[module]
 
 
 def _behav_run(late_mean: float, n_episodes: int = 150, noise: float = 0.05, seed: int = 0) -> RunData:
@@ -269,7 +287,13 @@ class TestBOCPDOnHVTA:
         meta = json.loads((_HVTA / "hvta_pairs.meta.json").read_text(encoding="utf-8"))
         arrays = np.load(_HVTA / "hvta_pairs.npz")
         artifact = json.loads((_HVTA / "hvta_results.json").read_text(encoding="utf-8"))
-        assert any(_BOCPD in rec["detectors"] for rec in artifact.get("rescored", []))
+        fixes = artifact.get("rescored", []) + artifact.get("detector_fixes", [])
+        assert any(_BOCPD in (rec.get("detectors") or []) for rec in fixes), (
+            "hvta_results.json no longer records the BOCPD fix (no `rescored` or "
+            "`detector_fixes` entry names it). A full score_detectors.py run carries it "
+            "forward from the file it overwrites; one written to a fresh path does not, "
+            "and make_results.py then cannot tell the replicates' pre-fix BOCPD rows apart."
+        )
         for cell in meta["cells"]:
             i = cell["index"]
 
@@ -307,3 +331,136 @@ class TestBOCPDOnHVTA:
             assert round(mae, 4) == row["onset_mae_normalized"], (cell["channel"], cell["params"])
             scored += 1
         assert scored == 12
+
+
+class TestHVTASourceAttestation:
+    """The committed HVTA artifacts attest the ``bocpd.py`` this checkout holds.
+
+    ``make_results.py`` decides which draws hold pre-fix BOCPD rows by comparing these
+    attestations, so one that no longer matches the source would mark a correctly
+    re-scored draw pre-fix. The hash is of the code alone, so only a change that can move
+    a score fails here; that change must re-score the rows (``rescore_detector.py`` and
+    ``score_channels.py``), which ``TestBOCPDOnHVTA`` also demands when the scores move.
+    """
+
+    def test_the_committed_artifacts_attest_the_current_source(self):
+        sd = _hvta_script("score_detectors")
+        now = sd.source_sha256(BOCPDDetector)
+        pairs = json.loads((_HVTA / "hvta_results.json").read_text(encoding="utf-8"))
+        channels = json.loads((_HVTA / "channels_results.json").read_text(encoding="utf-8"))
+        for label, recorded in (
+            ("hvta_results.json", sd.current_source(pairs, _BOCPD)),
+            ("channels_results.json", (channels.get("detector_sources") or {}).get(_BOCPD)),
+        ):
+            assert sd.same_source(recorded, now), (
+                f"{label} attests {recorded} for BOCPD but bocpd.py's code hashes to "
+                f"{now['sha256']}: re-score it (see external/hvta/rescore_detector.py)"
+            )
+
+    def test_the_code_hash_ignores_docstrings_comments_and_line_endings(self):
+        sd = _hvta_script("score_detectors")
+        source = Path(bocpd_module.__file__).read_text(encoding="utf-8")
+        base = sd.code_text(source)
+        edits = [
+            source.replace("\n", "\r\n"),
+            source.replace('"""Classical Bayesian', '"""A classical Bayesian'),
+            source.replace("# Normal-Inverse-Gamma prior", "# NIG prior"),
+            source.replace("        return MIN_EPISODES\n", "        return MIN_EPISODES  # 5\n\n"),
+        ]
+        for edited in edits:
+            assert edited != source
+            assert sd.code_text(edited) == base
+        changed = source.replace("MIN_EPISODES = 5", "MIN_EPISODES = 6")
+        assert changed != source and sd.code_text(changed) != base
+        # A bare string that is not a docstring is code: it stays hashed.
+        assert sd.code_text("x = 1\n'kept'\n") != sd.code_text("x = 1\n")
+        assert sd.code_text('"""doc"""\nx = 1  # c\n') == "x = 1\n"
+
+    def test_a_full_run_carries_the_fix_history_forward(self, tmp_path, monkeypatch):
+        """``score_detectors.py``'s own main, with the 30 minutes of scoring stubbed out."""
+        sd = _hvta_script("score_detectors")
+        out = tmp_path / "hvta_results.json"
+        previous = json.loads((_HVTA / "hvta_results.json").read_text(encoding="utf-8"))
+        out.write_text(json.dumps(previous), encoding="utf-8")
+        meta = {"config": {"n_pairs": 20}, "cells": []}
+        monkeypatch.setattr(sd, "load_cells", lambda stem: (meta, []))
+        monkeypatch.setattr(sd, "aggregate", lambda results, cells: [])
+        monkeypatch.setattr(sd, "access_level_summary", lambda agg: {})
+        monkeypatch.setattr(sys, "argv", ["score_detectors.py", "--out", str(out)])
+        assert sd.main() == 0
+        fresh = json.loads(out.read_text(encoding="utf-8"))
+        assert "rescored" not in fresh  # every row is fresh; no merge to describe
+        assert [fix["detectors"] for fix in fresh["detector_fixes"]] == [
+            rec["detectors"] for rec in previous["rescored"]
+        ]
+        assert sd.same_source(fresh["detector_sources"][_BOCPD], sd.source_sha256(BOCPDDetector))
+        assert fresh["rhob_git_head"] is None or len(fresh["rhob_git_head"]) == 40
+
+
+class TestMakeResultsStaleDraws:
+    """Which draws ``make_results.py`` marks stale comes from the files it loads."""
+
+    @staticmethod
+    def _render(tmp_path, primary, replicates):
+        mr = _hvta_script("make_results")
+        primary_path = tmp_path / "hvta_results.json"
+        primary_path.write_text(json.dumps(primary), encoding="utf-8")
+        rep_paths = []
+        for rep in replicates:
+            path = tmp_path / f"seedbase_{rep['generation']['config']['seed_base']}.json"
+            path.write_text(json.dumps(rep), encoding="utf-8")
+            rep_paths.append(str(path))
+        out = tmp_path / "RESULTS.md"
+        mr.main(["--results", str(primary_path), "--replicate", *rep_paths, "--out", str(out)])
+        return out.read_text(encoding="utf-8")
+
+    @staticmethod
+    def _committed():
+        primary = json.loads((_HVTA / "hvta_results.json").read_text(encoding="utf-8"))
+        reps = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted((_HVTA / "replicates").glob("*.json"))
+        ]
+        assert reps, "external/hvta/replicates/*.json missing"
+        return primary, reps
+
+    def test_the_committed_replicates_are_marked_pre_fix(self, tmp_path):
+        primary, reps = self._committed()
+        text = self._render(tmp_path, primary, reps)
+        assert text.count("*(pre-fix)*") >= 2 * len(reps)  # AUROC and onset tables
+        assert "do not attest the source this draw's Bayesian" in text
+        assert "primary draw only; its other 3 draws are pre-fix" in text
+
+    def test_re_scored_replicates_drop_every_marker(self, tmp_path):
+        """The reviewer's case: the replicates re-scored, the primary's record unchanged."""
+        sd = _hvta_script("score_detectors")
+        primary, reps = self._committed()
+        src = sd.current_source(primary, _BOCPD)
+        for rep in reps:
+            rep["detector_sources"] = {_BOCPD: copy.deepcopy(src)}
+        text = self._render(tmp_path, primary, reps)
+        assert "pre-fix" not in text
+        assert "do not attest" not in text
+        assert "primary draw only" not in text
+
+    def test_a_full_primary_run_keeps_the_replicates_marked(self, tmp_path):
+        """A full run replaces ``rescored`` with ``detector_fixes`` and keeps the markers."""
+        sd = _hvta_script("score_detectors")
+        primary, reps = self._committed()
+        full = {k: v for k, v in primary.items() if k != "rescored"}
+        full["detector_fixes"] = sd.fix_history(primary)
+        full["detector_sources"] = {_BOCPD: sd.current_source(primary, _BOCPD)}
+        text = self._render(tmp_path, full, reps)
+        assert text.count("*(pre-fix)*") >= 2 * len(reps)
+        assert "**Fix recorded" in text and "**Re-scored" not in text
+
+    def test_draws_attesting_different_code_are_not_averaged(self, tmp_path):
+        """Both draws attest a source, nobody recorded a fix, and the sources differ."""
+        primary, reps = self._committed()
+        name = "Page-Hinkley Test"
+        primary = copy.deepcopy(primary)
+        primary["detector_sources"] = {name: {"path": "x.py", "sha256": "a", "hashed": "h"}}
+        reps[0]["detector_sources"] = {name: {"path": "x.py", "sha256": "b", "hashed": "h"}}
+        text = self._render(tmp_path, primary, reps)
+        assert "*(other source)*" in text
+        assert f"attest the source this draw's {name} rows were scored with but a" in text

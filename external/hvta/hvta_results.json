@@ -18577,7 +18577,7 @@
         "Bayesian Online Changepoint Detection"
       ],
       "reason": "classify returned max_t P(r_t = 0), which a constant hazard pins to the hazard (0.004) on every run; it now returns 1 - P(no changepoint over the run), the score the class docstring specifies, and detect_onset the first step at which that exceeds 0.5",
-      "date_utc": "2026-11-27T06:38:32Z",
+      "date_utc": "2026-11-27T10:00:17Z",
       "script": "external/hvta/rescore_detector.py",
       "rhob_git_head": "47285961471c1293cb3121bd2037f5fcde0f5778",
       "rhob_src_uncommitted": [
@@ -18588,14 +18588,23 @@
         "src/rhob/detectors/external_baselines/pca_reconstruction.py",
         "src/rhob/detectors/l2_ensemble.py",
         "src/rhob/v3/base_family.py",
+        "src/rhob/v3/benchmark.py",
         "src/rhob/v3/calibration_cache.py",
+        "src/rhob/v3/cli/__main__.py",
+        "src/rhob/v3/leaderboard/adapters.py",
+        "src/rhob/v3/leaderboard/board.py",
+        "src/rhob/v3/leaderboard/replicated.py",
+        "src/rhob/v3/leaderboard/transfer.py",
         "src/rhob/v3/provenance.py",
         "src/rhob/v3/registry.py"
       ],
       "detector_sources": {
         "Bayesian Online Changepoint Detection": {
           "path": "src/rhob/detectors/external_baselines/bocpd.py",
-          "sha256": "d1e7559c9b205cadfb01714ea682fd13559ebafafef6002ff02f16617c7cc6e1"
+          "sha256": "5f862a0770b814e0d54b730d304926fb537ccec7cd4bdaf39071bbe116d9f7ac",
+          "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+          "git_blob": "a29721eb7e9ffa4b08e19d660a57a38850fcdff7",
+          "matches_head": false
         }
       },
       "scoring_env": {

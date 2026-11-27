@@ -8,7 +8,10 @@ these channels.
 Runs in a torch-capable interpreter, not the HVTA venv, so the two label-fitted detectors
 are constructible. Writes ``channels_results.json`` and renders ``CHANNELS.md`` from it;
 the markdown is generated, never hand-edited, so every figure in it is traceable to the
-JSON and the JSON to the frozen arrays.
+JSON and the JSON to the frozen arrays. Both record when the scoring ran, the RHOB
+revision and uncommitted ``src/`` files at the time, and each detector's source
+(``score_detectors.source_sha256``), so a later change to a detector can be told apart
+from the run that produced the committed rows.
 
 Run::
 
@@ -18,6 +21,7 @@ Run::
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
 import math
 import os
@@ -35,7 +39,12 @@ import numpy as np  # noqa: E402
 from rhob.detectors.posthoc import RunData  # noqa: E402
 from rhob.v3.benchmark import _evaluate_cell  # noqa: E402
 
-from score_detectors import DETECTOR_FACTORIES, is_label_fitted  # noqa: E402
+from score_detectors import (  # noqa: E402
+    DETECTOR_FACTORIES,
+    is_label_fitted,
+    rhob_revision,
+    source_sha256,
+)
 
 HERE = Path(__file__).resolve().parent
 
@@ -206,6 +215,18 @@ def render(artifact) -> str:
           f"{len(na) - short} N/A for a missing channel, {short} N/A because the "
           f"{cell['n_episodes']} steps are fewer than the detector's min_episodes.")
         w("")
+    sc, ge = artifact["scoring_env"], artifact["generation"].get("generation_env") or {}
+    w("## Provenance")
+    w("")
+    head = f"`{(artifact.get('rhob_git_head') or '?')[:12]}`"
+    dirty = artifact.get("rhob_src_uncommitted") or []
+    if dirty:
+        head += f" ({len(dirty)} `src/` file{'s' if len(dirty) != 1 else ''} uncommitted)"
+    w(f"Generated with Python {ge.get('python', '?')} ({ge.get('platform', '?')}), numpy "
+      f"{ge.get('numpy', '?')}. Scored {(artifact.get('date_utc') or '?')[:10]} with "
+      f"Python {sc['python']} ({sc['platform']}), numpy {sc['numpy']}, RHOB {head}. "
+      f"`channels_results.json` records each detector's source under `detector_sources`: "
+      f"a sha256 of its code without docstrings or comments, and its git blob.")
     return "\n".join(L) + "\n"
 
 
@@ -228,6 +249,9 @@ def main(argv: list[str] | None = None) -> int:
             "numpy": np.__version__,
         },
         "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
+        "date_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        **rhob_revision(),
+        "detector_sources": {f().name: source_sha256(f) for f in DETECTOR_FACTORIES},
         "cells": cells,
     }
     Path(args.out_json).write_text(json.dumps(artifact, indent=2), encoding="utf-8")

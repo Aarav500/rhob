@@ -18,15 +18,24 @@ the same counterfactual-orientation pass as a full run. It then:
 2. replaces the named detectors' rows in ``per_cell`` in place, recomputes both aggregates
    from the merged rows and refuses if any other detector's aggregate moved;
 3. appends a record to the artifact's ``rescored`` list: which detectors, why, when, the
-   RHOB revision and the uncommitted ``src/`` files at the time, a sha256 of each
-   detector's source module (line endings normalised), the interpreter, the figures
-   being replaced, and which replicate draws still carry the old rows.
+   RHOB revision and the uncommitted ``src/`` files at the time, each detector's source
+   (``score_detectors.source_sha256``: a hash of its code without docstrings or comments,
+   and its git blob, with whether that blob is the one committed at the recorded head),
+   the interpreter, the figures being replaced, and which replicate draws did not attest
+   that source when the record was written (``replicates_not_rescored``, a snapshot);
+4. if the artifact comes from a full ``score_detectors.py`` run and so carries a
+   top-level ``detector_sources`` map, updates the re-scored detectors' entries in it,
+   so the map keeps naming the source every row was scored with.
 
 ``make_results.py`` reads that record: it names the re-score in the report's provenance
 line, and it marks a replicate's figures for a re-scored detector as pre-fix (excluded
 from across-draw means and ranges) unless the replicate attests the same detector source,
-in its own ``rescored`` record or the ``detector_sources`` map ``score_detectors.py`` now
-writes.
+in its own ``rescored`` record or the ``detector_sources`` map ``score_detectors.py``
+writes. It works out which replicates are stale from the files it loads, not from the
+snapshot, so re-scoring a replicate clears its markers and the provenance sentence alike.
+
+An unknown ``--detector`` is refused through argparse (exit status 2) before anything is
+read or written. Every other refusal exits with status 1 and writes nothing.
 
 Run (from the repository root)::
 
@@ -47,28 +56,15 @@ import datetime as _dt
 import io
 import json
 import platform
-import subprocess
 import sys
 from pathlib import Path
 
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-_REPO_ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 
 import score_detectors as sd  # noqa: E402  (puts the repository's src/ on sys.path)
-
-
-def _git(*args: str) -> str | None:
-    try:
-        out = subprocess.run(
-            ["git", "-C", str(_REPO_ROOT), *args],
-            capture_output=True, text=True, timeout=20, check=False,
-        )
-    except Exception:  # noqa: BLE001 -- provenance is best-effort, never fatal
-        return None
-    return out.stdout if out.returncode == 0 else None
 
 
 def _aggregates(per_cell: dict, cells_meta: list) -> tuple[list, dict]:
@@ -122,6 +118,9 @@ def rescore(artifact: dict, meta: dict, cells: list, factories: list) -> dict:
         raise SystemExit(f"refusing: the merge moved other detectors' aggregates: {moved}")
     merged["per_detector"] = agg1
     merged["access_level_summary"] = summary1
+    if "detector_sources" in merged:
+        for f in factories:
+            merged["detector_sources"][f().name] = sd.source_sha256(f)
     return merged
 
 
@@ -132,13 +131,15 @@ def _previous(artifact: dict, name: str) -> dict:
     return {k: row[k] for k in keys}
 
 
-def _attests(replicate: dict, name: str, sha: str) -> bool:
-    if (replicate.get("detector_sources") or {}).get(name, {}).get("sha256") == sha:
-        return True
-    return any(
-        (rec.get("detector_sources") or {}).get(name, {}).get("sha256") == sha
-        for rec in replicate.get("rescored", [])
-    )
+def _with_head(src: dict, head: str | None) -> dict:
+    """``src`` plus whether its git blob is the file committed at ``head``.
+
+    True means ``rhob_git_head`` alone reproduces the rows; False means the rows came from
+    an uncommitted edit, which ``git_blob`` still names once it is committed.
+    """
+    at_head = sd._git("rev-parse", f"{head}:{src['path']}") if head else None
+    blob = src.get("git_blob")
+    return {**src, "matches_head": None if not (at_head and blob) else at_head.strip() == blob}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,25 +163,26 @@ def main(argv: list[str] | None = None) -> int:
     meta, cells = sd.load_cells(Path(args.pairs_stem))
     merged = rescore(artifact, meta, cells, factories)
 
-    sources = {f().name: sd.source_sha256(f) for f in factories}
-    dirty = _git("status", "--porcelain", "--", "src")
+    revision = sd.rhob_revision()
+    sources = {
+        f().name: _with_head(sd.source_sha256(f), revision["rhob_git_head"]) for f in factories
+    }
     replicates = sorted((HERE / "replicates").glob("*.json"))
     stale = {}
     for name, src in sources.items():
         stale[name] = [
             p.relative_to(HERE).as_posix() for p in replicates
             if p.resolve() != results_path.resolve()
-            and not _attests(json.loads(p.read_text(encoding="utf-8")), name, src["sha256"])
+            and not sd.same_source(
+                sd.current_source(json.loads(p.read_text(encoding="utf-8")), name), src
+            )
         ]
     record = {
         "detectors": list(sources),
         "reason": args.reason,
         "date_utc": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "script": "external/hvta/rescore_detector.py",
-        "rhob_git_head": (_git("rev-parse", "HEAD") or "").strip() or None,
-        "rhob_src_uncommitted": (
-            None if dirty is None else sorted(line[3:] for line in dirty.splitlines())
-        ),
+        **revision,
         "detector_sources": sources,
         "scoring_env": {
             "python": sys.version.split()[0],

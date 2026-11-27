@@ -448,6 +448,238 @@
     "numpy": "2.5.4"
   },
   "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
+  "date_utc": "2026-11-27T10:04:22Z",
+  "rhob_git_head": "47285961471c1293cb3121bd2037f5fcde0f5778",
+  "rhob_src_uncommitted": [
+    "src/rhob/detectors/external_baselines/ar_residual.py",
+    "src/rhob/detectors/external_baselines/bocpd.py",
+    "src/rhob/detectors/external_baselines/isolation_forest.py",
+    "src/rhob/detectors/external_baselines/page_hinkley.py",
+    "src/rhob/detectors/external_baselines/pca_reconstruction.py",
+    "src/rhob/detectors/l2_ensemble.py",
+    "src/rhob/v3/base_family.py",
+    "src/rhob/v3/benchmark.py",
+    "src/rhob/v3/calibration_cache.py",
+    "src/rhob/v3/cli/__main__.py",
+    "src/rhob/v3/leaderboard/adapters.py",
+    "src/rhob/v3/leaderboard/board.py",
+    "src/rhob/v3/leaderboard/replicated.py",
+    "src/rhob/v3/leaderboard/transfer.py",
+    "src/rhob/v3/provenance.py",
+    "src/rhob/v3/registry.py"
+  ],
+  "detector_sources": {
+    "Reward Threshold": {
+      "path": "src/rhob/detectors/l0_reward_threshold.py",
+      "sha256": "3507c43a20fc4a0deed4673283f82775d64dd8055cca21c96332d6a42e07b4e4",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "df3b316aba24a058b36e221447cb3e916845318e"
+    },
+    "Reward CUSUM": {
+      "path": "src/rhob/detectors/l0_reward_cusum.py",
+      "sha256": "3ea6ab67b825d900c37fe9eefab7f5e39eb10cc957c29cffc5b6b583e5d23623",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "4145fd2472cb3c855365728e4f8506c3c0a2cf12"
+    },
+    "Reward Variance Ratio": {
+      "path": "src/rhob/detectors/l0_reward_variance_ratio.py",
+      "sha256": "883cea32355a5b87d44fb39cbb6a82ebb3f05933b980432d94db7f0b1b85ad9d",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "75a8ff86ac2690344b8e85904c9d0d22459deeb1"
+    },
+    "Spectral Reward": {
+      "path": "src/rhob/detectors/l0_spectral.py",
+      "sha256": "209bcd08dbe7af5cc15030c98af0e13e4743bbb716ec9351d0678442b1329293",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "deeba2ee25518d6e3b5b9e4590cf7e40e5f64428"
+    },
+    "Reward Peak": {
+      "path": "src/rhob/detectors/l0_reward_peak.py",
+      "sha256": "9fbd32bb10177f29f6cb63f353b54576d32858cb2d48061ac94c147b64ab03bb",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "2f2a606ea92a05277f94b9575f88d0a8bae506c7"
+    },
+    "Reward Autocorrelation": {
+      "path": "src/rhob/detectors/l0_reward_autocorr.py",
+      "sha256": "f0d9ff8eacb1fd511b3a553db8a6fccc6a1dde0fab87992e79b34074f66ec0ea",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "92b540b5eb479d251102e66aa22668275e094312"
+    },
+    "Reward Skewness": {
+      "path": "src/rhob/detectors/l0_reward_skewness.py",
+      "sha256": "a8b373972424c7a89d3bc6f0def76d9f1b712d50e151fb98a2a3cd2a4e436679",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "3dcb42ff56ecc8a9f145ef00155439d29f813a8d"
+    },
+    "Reward Trend": {
+      "path": "src/rhob/detectors/l0_reward_trend.py",
+      "sha256": "e60fada48dbe666bf6e9572294ca4985d569189979799ca1e87d23f66c580178",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "dc1e78e04c49090467d025e144e10636b460ecff"
+    },
+    "Variance Window": {
+      "path": "src/rhob/detectors/l0_variance_window.py",
+      "sha256": "01360a863e2fccad67535f0cc4d89fd25e4063f7eb632945d718b0ace2bdb1bc",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "90f76c85774823fffceb20c4524d5be8e574a537"
+    },
+    "Max Plateau": {
+      "path": "src/rhob/detectors/l0_max_plateau.py",
+      "sha256": "f2d26cfc1d267658738b6aaf708d6ecca9890d7ed0886d3f71ed66e3adcf1b5a",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "4e16cf35f62e67d3694f7d367b4298e26f67b66a"
+    },
+    "Gradient Reversal": {
+      "path": "src/rhob/detectors/l0_gradient_reversal.py",
+      "sha256": "b410b9ca62734802ee0c92ff43c8b06efffc44e9f0b12fa7b6489efdb2a986d9",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "35817f66ee1b5a25ee383ed2fb11d75f83b3e943"
+    },
+    "Reward MLP": {
+      "path": "src/rhob/detectors/l0_reward_mlp.py",
+      "sha256": "cefc54221e57d626065f6b55e7b57caa2672cc93ede6852cdc53271b80b6fd79",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "bca5eb7b12eb33b9cb24c6472ccbc48caedae44b"
+    },
+    "Reward KDE": {
+      "path": "src/rhob/detectors/l0_reward_kde.py",
+      "sha256": "6ca67bf56d45aa73d8d796e6d9f96c1b239dee8177ba6c7db069eb547ce21e30",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "87121a5c85e0c594aa25e2c017868214b5dc4449"
+    },
+    "State Frequency Anomaly": {
+      "path": "src/rhob/detectors/l1_state_frequency.py",
+      "sha256": "ff089c9212fa830f7c2142880126ceac59d500f16daea7fc1da1410e3030244c",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "edaea2a5e020563f68f1756a5dd7ad259304ad96"
+    },
+    "Centroid Drift": {
+      "path": "src/rhob/detectors/l1_centroid_drift.py",
+      "sha256": "cecd8af42c09d8500a1847936d505d0fc59ff81aa16801da548dc62094235a2d",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "26d1b67ea0e6d159658c76f08d6185159b8e9a36"
+    },
+    "Occupancy Polarization": {
+      "path": "src/rhob/detectors/l1_occupancy_polarization.py",
+      "sha256": "bdbb9683b5c10cf8701f690ec49cca345849177716c8655efe49e947d36eed69",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "38a65d1fd3782e76584068be3fffb47f6e4ab06e"
+    },
+    "Bimodal Occupancy": {
+      "path": "src/rhob/detectors/l1_bimodal_occupancy.py",
+      "sha256": "cf9fae8c0517131deed77796af5f9c7e404f30602924a685c927cdb502cef729",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "847655a8c514366c09037a7b381c602c0696dac2"
+    },
+    "Transition Entropy": {
+      "path": "src/rhob/detectors/l1_transition_entropy.py",
+      "sha256": "11b2224c9f90b882a991077f096044eef58a0e0ec4cc4fe45f933e2c38bc4470",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "508a88050cc333335599d190205c5d004e56ef66"
+    },
+    "State Coverage Rate": {
+      "path": "src/rhob/detectors/l1_coverage_rate.py",
+      "sha256": "581ef52c965c348fba00b989a942914bf10c4eb1fa4943e889bd8d217e27166e",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "591ded165c2d9565ead66d3a8ea2e11c8474dede"
+    },
+    "Visitation Entropy Trend": {
+      "path": "src/rhob/detectors/l1_entropy_trend.py",
+      "sha256": "4b41450c09435a1a3c7f3c2a4fca3a0a5ea60bde1cc52c009f62d1dfdcbcc928",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "68d1106d473b15dedc39c435090a420c400f6fe7"
+    },
+    "State Divergence": {
+      "path": "src/rhob/detectors/l1_state_divergence.py",
+      "sha256": "682393139a027744a89c03be0b68960f0789e88ed17363da0082221fe00a8c96",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "8ed2c9d57aa5e716fd871244d9cb540d8f4e80e5"
+    },
+    "Behavioral Threshold": {
+      "path": "src/rhob/detectors/l2_behavioral_threshold.py",
+      "sha256": "3f72b00d1b046f8ee34201055a53a5c93bfafbc991d61ffaf47b961f3c06206d",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "668f18d32ba7c8f5daf5d9770e138e18bb308ba0"
+    },
+    "Angular Momentum": {
+      "path": "src/rhob/detectors/l2_angular_momentum.py",
+      "sha256": "811fb1e6ded0b8235336d8be23d3232fb17cb8d6e5867995370003f6eb1c1398",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "585c1b1d548a26c75f6073d0e2276b177a78bb7d"
+    },
+    "Centroid Tracker": {
+      "path": "src/rhob/detectors/l2_centroid_tracker.py",
+      "sha256": "52f41558312f336dbbd9dfb0e40effc85287c51db1f661ed9184bb9b51d1f854",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "b138edfdd456b4b7ff0a7486a03021e021038eb9"
+    },
+    "Feature Magnitude": {
+      "path": "src/rhob/detectors/l2_feature_magnitude.py",
+      "sha256": "4e52214e3158823e602e830e17cadf2b85f6fefa21e757207056d21fff4ce192",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "1fb6ab0547389a3671a9d67457cbae3e427c2bdc"
+    },
+    "Feature Consistency": {
+      "path": "src/rhob/detectors/l2_feature_consistency.py",
+      "sha256": "c82035dd9018d20802fc4d3271dbb7b786085597e2dd487d4eea84e423f4562e",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "ccc1f344fa882460443e6c7e480451f27f25fbb2"
+    },
+    "Reward-Feature Correlation": {
+      "path": "src/rhob/detectors/l2_reward_feature_correlation.py",
+      "sha256": "6f0ed3b7a6f267aedb53751a37083a01807d4fb0488cf8246f5d24342d4b5930",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "147f7226959a566e433052286b44d4eb84bfe59b"
+    },
+    "Trajectory MLP": {
+      "path": "src/rhob/detectors/l2_trajectory_mlp.py",
+      "sha256": "3975fe727ff3ea3d3d38237d32d581cc21a9f5f8c33811205372dea4ac96070b",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "478dd311c04cfd9d860911317913eca39667a00f"
+    },
+    "True Reward Oracle": {
+      "path": "src/rhob/detectors/l3_true_reward_oracle.py",
+      "sha256": "50cdbf99d81a44c539b5241781ddc4898b70155a26e777da959017e48417314d",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "73e6d8640cbce14f35b04770b3b75e34cb133a1c"
+    },
+    "Perfect Feature Oracle": {
+      "path": "src/rhob/detectors/l3_perfect_feature.py",
+      "sha256": "2d6f6b777b0d14a884a37b2d1b7d8438f4c72602ab60261234e7162657b95740",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "eb5e1356d28c7805bec36ef1de7f15238916b43f"
+    },
+    "Page-Hinkley Test": {
+      "path": "src/rhob/detectors/external_baselines/page_hinkley.py",
+      "sha256": "45a6a1bc17fbe81bd3eb6ea1e6361e368b1f0eb397be6d84dec10883618b6bc9",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "2c08bded132f5a4be3a0c9b95422878ef2692cc8"
+    },
+    "Bayesian Online Changepoint Detection": {
+      "path": "src/rhob/detectors/external_baselines/bocpd.py",
+      "sha256": "5f862a0770b814e0d54b730d304926fb537ccec7cd4bdaf39071bbe116d9f7ac",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "a29721eb7e9ffa4b08e19d660a57a38850fcdff7"
+    },
+    "PCA Reconstruction": {
+      "path": "src/rhob/detectors/external_baselines/pca_reconstruction.py",
+      "sha256": "0814a8e6b8dc470b125857ec9cdd4c52e00f38b37764781fe1d7664e7f469a0d",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "6f50d54ef027905e6c5b7caa7f6d490b31c20736"
+    },
+    "AR(p) Residual": {
+      "path": "src/rhob/detectors/external_baselines/ar_residual.py",
+      "sha256": "11ff245b5c50586c6874216716042ebdf8b3098638a5576479c5d6a25d801878",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "f7622675eb7a1148c5d06b0fcddbe433e4723582"
+    },
+    "Isolation Forest": {
+      "path": "src/rhob/detectors/external_baselines/isolation_forest.py",
+      "sha256": "1deb8bcc50b9fc3ff1f20a90ae9f2595d242846019a5bca0dab3aa19356a482f",
+      "hashed": "code: docstrings, comments, trailing whitespace and blank lines removed",
+      "git_blob": "315bb426729d431b7e5e0a2458f0fdf8bd15060c"
+    }
+  },
   "cells": [
     {
       "channel": "logical_bug_wordle",

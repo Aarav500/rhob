@@ -31,6 +31,18 @@ class BOCPDDetector(PosthocDetector):
     the first step at which that probability exceeds 0.5, i.e. the first step after
     which "no changepoint yet" is the less likely account of the rewards seen so far.
 
+    The score saturates. float64 cannot hold a probability between ``1 - 2**-53`` and 1,
+    so once ``P(no change)`` falls to ``2**-54`` (about 5.6e-17, a log of -37.43) the
+    score is exactly 1.0. Every run that changed at least that clearly then ties at 1.0,
+    however much more clearly one changed than another, and AUROC counts each such tie
+    between a hacking and a legitimate run as half a correct ordering. The log
+    probability, :meth:`_log_no_change_probabilities`, still orders those runs. The
+    probability is kept as the score because it is the quantity specified here and the
+    one the onset rule thresholds. On the committed HVTA draws (480 runs of the pairs
+    draw, 372 of the channels) no run comes within 10 nats of saturating: the lowest log
+    is -26.8. On sharper or longer reward streams, check for ties at 1.0 before reading
+    an AUROC.
+
     Until 2026-11-27 the code scored ``max_t P(r_t = 0 | x_0..x_t)`` instead, the
     probability that a changepoint happened *at* step ``t``. With a constant hazard that
     quantity is the hazard itself at every step (the changepoint and growth terms share
@@ -77,7 +89,9 @@ class BOCPDDetector(PosthocDetector):
         """``P(a changepoint occurred in x_0..x_t | x_0..x_t)`` for every step ``t``.
 
         One minus :meth:`_log_no_change_probabilities`, taken through ``expm1`` so a
-        posterior close to "no change" keeps its precision.
+        posterior close to "no change" keeps its precision. The other end cannot keep it:
+        at a log of ``-37.43`` (``2**-54``) or below the result is exactly 1.0 (see the
+        class docstring).
         """
         log_no_change = self._log_no_change_probabilities(rewards)
         if log_no_change is None:
