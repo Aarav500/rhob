@@ -54,10 +54,12 @@ not disclosed through the detector interface
 [`docs/l2_sign_randomization.md`](docs/l2_sign_randomization.md)).
 
 Why: under the old fixed convention the sign of `behav_trace` *was* the label. An L2
-detector that thresholded it at zero scored AUROC 1.000 on any family, at any
-difficulty, including families it had never seen — which reads as excellent
-generalization and is actually a restatement of this guide. Randomizing the sign
-removes that; the pair's separation is preserved exactly, only the direction moves.
+detector that thresholded it at zero scored AUROC 1.000 on 106 of the benchmark's 123
+(family, difficulty) cells and 0.981 over all of them, including families it had never
+seen ([`docs/figures/sign_randomization_impact.md`](docs/figures/sign_randomization_impact.md))
+— which reads as excellent generalization and is actually a restatement of this guide.
+Randomizing the sign removes that; the pair's separation is preserved exactly, only the
+direction moves.
 
 What this means for you:
 

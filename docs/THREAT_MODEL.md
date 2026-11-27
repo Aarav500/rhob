@@ -114,6 +114,8 @@ constructed *vulnerability*, and an assigned *label*.
   best L2 detector is Trajectory MLP at 0.944, and it is fitted to each cell's labels.
   Earlier versions of this bullet quoted Behavioral Threshold at 0.975; that figure
   depended on the fixed sign convention, and with the sign randomized it reads 0.512.
+  Measured on one set of rollouts with the sign fixed and then randomized (10 seeds per
+  variant, `docs/figures/sign_randomization_impact.md`), it reads 0.981 and 0.479.
 - **That a detector is not merely a change detector.** The matched-proxy
   construction plus the `true_reward_diverges` criterion means a detector cannot
   win by noticing that *something changed* — both variants change.

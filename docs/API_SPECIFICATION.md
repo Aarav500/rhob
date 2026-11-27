@@ -627,6 +627,9 @@ Since 2026-11-27 `TransferRow` also carries `not_applicable_reasons`,
 `incompatible_runs`, `pooled_fit_error` and `records_na_reasons` (the row was written
 under the run-length and representational rules), and `TransferBoard` carries
 `git_dirty`, `published_design` and `applies_na_rules` (every row was).
+`applies_na_rules` is true for the `transfer` block of the re-measured
+`sign_randomization_impact.json` (`0ff0d42`, CI run 46011028034 at `54cd63c`) and was
+false for the 2026-08-03 one it replaced.
 
 > `leaderboard/v5_leaderboard.json` carries `provenance`, `sampling` and
 > `cell_semantics` since its 2026-11-19 regeneration (`52656cb`).
