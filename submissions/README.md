@@ -39,8 +39,24 @@ Once validated, a maintainer records the submission on the community board with
 directory instead. The community board holds self-reported, single-draw results and is
 kept apart from the benchmark's own boards in `leaderboard/` (see
 [leaderboard/README.md](../leaderboard/README.md)), which `submit` never writes. It
-refuses, and writes nothing, when the `board.json` it finds is not a community board or a
-Markdown file there was not written by `submit`.
+refuses, and writes nothing, when the submission does not validate, when the `board.json`
+it finds is not a valid community board, or when `README.md`, `by_mechanism.md` or
+`by_difficulty.md` in that directory does not start with the community header
+(`# RHOB community submissions (self-reported, single draw)`). Other files in the
+directory are left alone.
+
+`validate` checks the values as well as the keys:
+
+- `detector_name` must be a non-empty string.
+- `access_level` must be one of `L0`, `L1`, `L2` or `L3`.
+- `overall_auroc` must be a number in [0, 1], or `null` for a run with no measured cell.
+- `n_cells` must be a non-negative integer.
+- `author` and `timestamp`, when given, must be strings.
+- `family_auroc`, `mechanism_auroc` and `tier_auroc`, when given, must map names to
+  numbers in [0, 1]. The `tier_auroc` names must be difficulty tiers (`TRIVIAL`, `EASY`,
+  `MEDIUM`, `HARD`, `EXTREME`).
+
+`NaN` and `Infinity` are refused: they are not JSON.
 
 `n_cells` is the number of cells the overall AUROC averages. `rhob evaluate` writes the
 measured cells only: a cell where your detector is not applicable (the family does not

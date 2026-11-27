@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from rhob.v3.benchmark import BenchmarkResults, CellResult
-from rhob.v3.cli.__main__ import build_parser
-from rhob.v3.leaderboard.board import Leaderboard, LeaderboardEntry
+from rhob.v3.cli.__main__ import build_parser, main
+from rhob.v3.leaderboard.board import Leaderboard, LeaderboardEntry, submission_problems
 
 _REPO = Path(__file__).resolve().parents[2]
 _LEADERBOARD = _REPO / "leaderboard"
@@ -37,6 +37,15 @@ _RESULTS_SCHEMA_BOARD = {
     "total_detectors": 1,
     "results": {"Reward CUSUM": {"access_level": "L0", "overall_auroc": 0.6, "cells": 25}},
 }
+
+
+def _entry(**overrides) -> dict:
+    """A complete, valid board entry as JSON would hold it, with ``overrides`` applied."""
+    entry = asdict(
+        LeaderboardEntry("E", "L2", "a", "2026-11-27T00:00:00+00:00", 0.8, 3, {"f": 0.8})
+    )
+    entry.update(overrides)
+    return entry
 
 
 def _fake_results() -> BenchmarkResults:
@@ -137,6 +146,11 @@ def test_load_refuses_the_benchmarks_own_boards(name: str):
         ("[]", "not an entries-schema board"),
         ('{"entries": {}}', "'entries' is not a list"),
         ('{"entries": [{"detector_name": "x"}]}', "does not match LeaderboardEntry"),
+        ('{"entries": [1]}', "entry 0 is not an object"),
+        (json.dumps({"entries": [_entry(overall_auroc="0.9")]}), "entry 0 is invalid"),
+        (json.dumps({"entries": [_entry(n_cells="3")]}), "n_cells"),
+        (json.dumps({"entries": [_entry(family_auroc={"f": None})]}), "family_auroc"),
+        ('{"entries": [], "x": NaN}', "not valid JSON"),
     ],
 )
 def test_load_refuses_a_malformed_board(tmp_path: Path, text: str, match: str):
@@ -144,6 +158,26 @@ def test_load_refuses_a_malformed_board(tmp_path: Path, text: str, match: str):
     path.write_text(text)
     with pytest.raises(ValueError, match=match):
         Leaderboard.load(path)
+
+
+def test_save_refuses_nan_and_writes_nothing(tmp_path: Path):
+    """JSON has no NaN; ``save`` raises rather than write a file strict readers reject."""
+    board = Leaderboard([LeaderboardEntry(**_entry(overall_auroc=float("nan")))])
+    path = tmp_path / "sub" / "board.json"
+    with pytest.raises(ValueError):
+        board.save(path)
+    assert not path.parent.exists()
+
+
+def test_an_evaluated_entry_is_a_valid_submission():
+    """What ``rhob evaluate`` writes passes ``rhob validate``, with or without a measured
+    cell."""
+    assert submission_problems(asdict(LeaderboardEntry.from_results(_fake_results()))) == []
+    none_measured = BenchmarkResults(
+        "na_det", "L1",
+        [CellResult("continuous_camping", "camping", 0.9, float("nan"), 10, na_reason="n/a")],
+    )
+    assert submission_problems(asdict(LeaderboardEntry.from_results(none_measured))) == []
 
 
 def test_n_cells_counts_measured_cells_only():
@@ -197,7 +231,17 @@ def test_render_by_mechanism_and_difficulty():
     assert "TRIVIAL" in board.render_by_difficulty_md()
 
 
-# --------------------------------------------------------------------- CLI (subprocess)
+def test_render_keeps_a_name_with_a_pipe_in_one_cell():
+    board = Leaderboard([LeaderboardEntry(**_entry(detector_name="A|B\nC", author="x|y"))])
+    row = board.render_standings_md().splitlines()[2]
+    assert "A\\|B C" in row and "x\\|y" in row
+    assert row.replace("\\|", "").count("|") == 7
+
+
+# ------------------------------------------------------------------------------- CLI
+# In-process through ``main(argv)``, which is what ``python -m rhob`` calls: each
+# subprocess pays the whole ``rhob`` import. ``families``, ``evaluate`` and one ``submit``
+# test still go through ``python -m rhob`` to cover that wiring.
 
 
 def _run_cli(*args: str, cwd: Path = _REPO) -> subprocess.CompletedProcess:
@@ -209,8 +253,25 @@ def _run_cli(*args: str, cwd: Path = _REPO) -> subprocess.CompletedProcess:
     )
 
 
+def _cli(capsys: pytest.CaptureFixture, *args: object) -> tuple[int, str]:
+    """``python -m rhob *args`` in-process: ``(exit code, stdout)``."""
+    code = main([str(a) for a in args])
+    return code, capsys.readouterr().out
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _snapshot(directory: Path) -> dict[str, str]:
+    """Every file in ``directory`` by name, with its sha256."""
+    return {p.name: _sha256(p) for p in sorted(directory.iterdir())}
+
+
+def _write_submission(tmp_path: Path, text: str | None = None, **overrides) -> Path:
+    path = tmp_path / "submission.json"
+    path.write_text(text if text is not None else json.dumps({**_MINIMAL_SUBMISSION, **overrides}))
+    return path
 
 
 def test_cli_families_lists_builtin_families():
@@ -220,22 +281,61 @@ def test_cli_families_lists_builtin_families():
     assert "continuous_camping" in result.stdout
 
 
-def test_cli_validate_rejects_missing_keys(tmp_path: Path):
-    bad = tmp_path / "bad.json"
-    bad.write_text(json.dumps({"detector_name": "x"}))
-    result = _run_cli("validate", str(bad))
-    assert result.returncode == 1
-    assert "INVALID" in result.stdout
+def test_cli_validate_rejects_missing_keys(tmp_path: Path, capsys):
+    bad = _write_submission(tmp_path, json.dumps({"detector_name": "x"}))
+    code, out = _cli(capsys, "validate", bad)
+    assert code == 1
+    assert "INVALID: missing keys" in out
 
 
-def test_cli_validate_accepts_well_formed_submission(tmp_path: Path):
-    good = tmp_path / "good.json"
-    good.write_text(
-        json.dumps({"detector_name": "x", "access_level": "L2", "overall_auroc": 0.9, "n_cells": 4})
-    )
-    result = _run_cli("validate", str(good))
-    assert result.returncode == 0
-    assert "VALID" in result.stdout
+def test_cli_validate_accepts_well_formed_submission(tmp_path: Path, capsys):
+    good = _write_submission(tmp_path, detector_name="x", overall_auroc=0.9, n_cells=4)
+    code, out = _cli(capsys, "validate", good)
+    assert code == 0
+    assert out.startswith("VALID")
+
+
+def test_cli_validate_accepts_no_measured_cell(tmp_path: Path, capsys):
+    """``null`` is how ``rhob evaluate`` writes the AUROC of a run with no measured cell."""
+    good = _write_submission(tmp_path, overall_auroc=None, n_cells=0)
+    assert _cli(capsys, "validate", good)[0] == 0
+
+
+@pytest.mark.parametrize(
+    "text, match",
+    [
+        ("[]", "a submission is a JSON object"),
+        ('{"detector_name": "x", "access_level": "L2", "overall_auroc": NaN, "n_cells": 1}', "NaN"),
+        (
+            '{"detector_name": "x", "access_level": "L2", "overall_auroc": Infinity, "n_cells": 1}',
+            "Infinity",
+        ),
+        (json.dumps({**_MINIMAL_SUBMISSION, "overall_auroc": "0.9"}), "overall_auroc"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "overall_auroc": True}), "overall_auroc"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "overall_auroc": 1.5}), "overall_auroc"),
+        # Valid JSON that parses to inf: refused by the range check, not the parser.
+        ('{"detector_name": "x", "access_level": "L2", "overall_auroc": 1e999, "n_cells": 1}',
+         "overall_auroc must be a number"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "n_cells": -1}), "n_cells"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "n_cells": 3.0}), "n_cells"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "n_cells": True}), "n_cells"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "detector_name": ""}), "detector_name"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "access_level": ["L2"]}), "access_level"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "author": 5}), "author"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "family_auroc": [0.9]}), "family_auroc"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "family_auroc": {"f": "0.9"}}), "family_auroc"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "mechanism_auroc": {"m": None}}), "mechanism_auroc"),
+        (json.dumps({**_MINIMAL_SUBMISSION, "tier_auroc": {"Easy": 0.9}}), "difficulty tiers"),
+    ],
+)
+def test_cli_validate_rejects_a_value_submit_could_not_store(
+    tmp_path: Path, capsys, text: str, match: str
+):
+    """These passed ``validate`` (and so leaderboard_validate.yml) when only the keys
+    were checked; ``submit`` then saved them and crashed rendering, or wrote ``NaN``."""
+    code, out = _cli(capsys, "validate", _write_submission(tmp_path, text))
+    assert code == 1
+    assert out.startswith("INVALID") and match in out, out
 
 
 def test_cli_evaluate_end_to_end_on_gridworld(tmp_path: Path):
@@ -260,6 +360,7 @@ def test_cli_evaluate_end_to_end_on_gridworld(tmp_path: Path):
     data = json.loads(out.read_text())
     assert data["detector_name"] == "toy"
     assert data["overall_auroc"] > 0.9
+    assert submission_problems(data) == []
 
 
 def test_submit_defaults_to_the_community_board_dir():
@@ -269,12 +370,12 @@ def test_submit_defaults_to_the_community_board_dir():
 
 
 def test_cli_submit_minimal_submission_into_board_dir(tmp_path: Path):
-    """The documented four-key minimum used to crash ``submit`` (LeaderboardEntry needs
-    an author and a timestamp); it now records the entry with defaults for both."""
+    """Through ``python -m rhob``. The documented four-key minimum used to crash
+    ``submit`` (LeaderboardEntry needs an author and a timestamp); it now records the entry
+    with defaults for both."""
     community = _LEADERBOARD / "community"
     existed_before = community.exists()
-    sub = tmp_path / "min.json"
-    sub.write_text(json.dumps(_MINIMAL_SUBMISSION))
+    sub = _write_submission(tmp_path)
     board_dir = tmp_path / "b"
 
     result = _run_cli("submit", str(sub), "--board-dir", str(board_dir))
@@ -292,17 +393,16 @@ def test_cli_submit_minimal_submission_into_board_dir(tmp_path: Path):
     assert community.exists() == existed_before
 
 
-def test_cli_submit_appends_to_its_own_board(tmp_path: Path):
+def test_cli_submit_appends_to_its_own_board(tmp_path: Path, capsys):
     """A second submission adds to the board and re-renders the tables ``submit`` wrote
     the first time; the refusal of foreign Markdown does not block its own files."""
     board_dir = tmp_path / "b"
-    sub = tmp_path / "min.json"
-    sub.write_text(json.dumps(_MINIMAL_SUBMISSION))
-    assert _run_cli("submit", str(sub), "--board-dir", str(board_dir)).returncode == 0
-    result = _run_cli(
-        "submit", str(sub), "--board-dir", str(board_dir), "--name", "Second", "--author", "me"
+    sub = _write_submission(tmp_path)
+    assert _cli(capsys, "submit", sub, "--board-dir", board_dir)[0] == 0
+    code, out = _cli(
+        capsys, "submit", sub, "--board-dir", board_dir, "--name", "Second", "--author", "me"
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert code == 0, out
     entries = json.loads((board_dir / "board.json").read_text())["entries"]
     assert [(e["detector_name"], e["author"]) for e in entries] == [
         ("My Detector", "anonymous"),
@@ -311,37 +411,72 @@ def test_cli_submit_appends_to_its_own_board(tmp_path: Path):
     assert "Second" in (board_dir / "README.md").read_text()
 
 
-def test_cli_submit_writes_leaderboard_community_by_default(tmp_path: Path):
+def test_cli_submit_writes_leaderboard_community_by_default(
+    tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+):
     """Without --board-dir, ``submit`` writes ``leaderboard/community/`` under the working
     directory, never ``leaderboard/`` itself. Run from a scratch directory so the
     repository's tree is not touched."""
-    sub = tmp_path / "min.json"
-    sub.write_text(json.dumps(_MINIMAL_SUBMISSION))
-    result = _run_cli("submit", str(sub), cwd=tmp_path)
-    assert result.returncode == 0, result.stdout + result.stderr
+    sub = _write_submission(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    code, out = _cli(capsys, "submit", sub)
+    assert code == 0, out
     assert (tmp_path / "leaderboard" / "community" / "board.json").exists()
     assert sorted(p.name for p in (tmp_path / "leaderboard").iterdir()) == ["community"]
 
 
-def test_cli_submit_refuses_another_schema(tmp_path: Path):
+def test_cli_submit_refuses_another_schema(tmp_path: Path, capsys):
     """A ``results``-schema board.json is refused, byte for byte untouched, and nothing
     else is written next to it."""
     board_dir = tmp_path / "b"
     board_dir.mkdir()
-    board = board_dir / "board.json"
-    board.write_text(json.dumps(_RESULTS_SCHEMA_BOARD, indent=2))
-    before = _sha256(board)
-    sub = tmp_path / "min.json"
-    sub.write_text(json.dumps(_MINIMAL_SUBMISSION))
+    (board_dir / "board.json").write_text(json.dumps(_RESULTS_SCHEMA_BOARD, indent=2))
+    before = _snapshot(board_dir)
 
-    result = _run_cli("submit", str(sub), "--board-dir", str(board_dir))
-    assert result.returncode == 1
-    assert "load_any_leaderboard_json" in result.stdout
-    assert _sha256(board) == before
-    assert sorted(p.name for p in board_dir.iterdir()) == ["board.json"]
+    code, out = _cli(capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir)
+    assert code == 1
+    assert "REFUSED" in out and "load_any_leaderboard_json" in out
+    assert _snapshot(board_dir) == before
 
 
-def test_cli_submit_refuses_to_overwrite_markdown_it_did_not_write(tmp_path: Path):
+def test_cli_submit_refuses_a_value_of_the_wrong_type(tmp_path: Path, capsys):
+    """A string AUROC used to be saved to board.json and then crash rendering, leaving
+    the tables stale and every later ``submit`` crashing on the mixed types."""
+    board_dir = tmp_path / "b"
+    assert _cli(capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir)[0] == 0
+    before = _snapshot(board_dir)
+
+    bad = _write_submission(tmp_path, overall_auroc="0.9")
+    code, out = _cli(capsys, "submit", bad, "--board-dir", board_dir)
+    assert code == 1
+    assert out.startswith("INVALID") and "overall_auroc" in out
+    assert _snapshot(board_dir) == before
+
+
+def test_cli_submit_refuses_an_invalid_name_override(tmp_path: Path, capsys):
+    board_dir = tmp_path / "b"
+    code, out = _cli(
+        capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir, "--name", " "
+    )
+    assert code == 1
+    assert "detector_name" in out
+    assert not board_dir.exists()
+
+
+def test_cli_submit_refuses_a_board_holding_an_invalid_entry(tmp_path: Path, capsys):
+    """A board an older ``submit`` corrupted is refused, not crashed on and half-rewritten."""
+    board_dir = tmp_path / "b"
+    board_dir.mkdir()
+    (board_dir / "board.json").write_text(json.dumps({"entries": [_entry(overall_auroc="0.9")]}))
+    before = _snapshot(board_dir)
+
+    code, out = _cli(capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir)
+    assert code == 1
+    assert "REFUSED" in out and "entry 0 is invalid" in out
+    assert _snapshot(board_dir) == before
+
+
+def test_cli_submit_refuses_to_overwrite_markdown_it_did_not_write(tmp_path: Path, capsys):
     """``--board-dir leaderboard`` would otherwise replace the hand-written index README
     with a standings table: a README that does not start with the community header is
     refused, and nothing is written, board.json included."""
@@ -349,15 +484,29 @@ def test_cli_submit_refuses_to_overwrite_markdown_it_did_not_write(tmp_path: Pat
     board_dir.mkdir()
     readme = board_dir / "README.md"
     readme.write_text((_LEADERBOARD / "README.md").read_text(encoding="utf-8"), encoding="utf-8")
-    before = _sha256(readme)
-    sub = tmp_path / "min.json"
-    sub.write_text(json.dumps(_MINIMAL_SUBMISSION))
+    before = _snapshot(board_dir)
 
-    result = _run_cli("submit", str(sub), "--board-dir", str(board_dir))
-    assert result.returncode == 1
-    assert "REFUSED" in result.stdout
-    assert _sha256(readme) == before
-    assert sorted(p.name for p in board_dir.iterdir()) == ["README.md"]
+    code, out = _cli(capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir)
+    assert code == 1
+    assert "REFUSED" in out
+    assert _snapshot(board_dir) == before
+
+
+def test_cli_submit_leaves_other_markdown_alone(tmp_path: Path, capsys):
+    """Only the three files ``submit`` renders are checked for the header; another
+    Markdown file in the directory neither blocks it nor is written."""
+    board_dir = tmp_path / "b"
+    board_dir.mkdir()
+    notes = board_dir / "NOTES.md"
+    notes.write_text("# Maintainer notes\n")
+    before = _sha256(notes)
+
+    code, out = _cli(capsys, "submit", _write_submission(tmp_path), "--board-dir", board_dir)
+    assert code == 0, out
+    assert _sha256(notes) == before
+    assert sorted(p.name for p in board_dir.iterdir()) == [
+        "NOTES.md", "README.md", "board.json", "by_difficulty.md", "by_mechanism.md",
+    ]
 
 
 # ------------------------------------------------------------- leaderboard/ index

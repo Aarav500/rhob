@@ -19,9 +19,12 @@ from pathlib import Path
 
 from rhob.detectors.posthoc import PosthocDetector
 from rhob.v3.benchmark import Benchmark
-from rhob.v3.leaderboard.board import Leaderboard, LeaderboardEntry
-
-_REQUIRED_SUBMISSION_KEYS = {"detector_name", "access_level", "overall_auroc", "n_cells"}
+from rhob.v3.leaderboard.board import (
+    Leaderboard,
+    LeaderboardEntry,
+    strict_json_loads,
+    submission_problems,
+)
 
 #: Where ``submit`` records community submissions, relative to the working directory. Not
 #: ``leaderboard/`` itself: that directory holds the benchmark's own boards
@@ -97,27 +100,35 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     }
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, indent=2))
+    out_path.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     print(f"\nSubmission written to {out_path}")
     return 0
 
 
-def cmd_validate(args: argparse.Namespace) -> int:
-    path = Path(args.submission)
+def _read_submission(path: Path) -> tuple[dict | None, str]:
+    """``(data, "VALID: ...")`` for a valid submission, else ``(None, "INVALID: ...")``.
+
+    The checks are :func:`rhob.v3.leaderboard.board.submission_problems`: the keys, and the
+    type and range of every value ``submit`` would store or render. ``NaN`` and
+    ``Infinity`` are refused at parse time, since they are not JSON.
+    """
     try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"INVALID: could not parse {path}: {exc}")
-        return 1
-    missing = _REQUIRED_SUBMISSION_KEYS - set(data)
-    if missing:
-        print(f"INVALID: missing keys {sorted(missing)}")
-        return 1
-    if data["access_level"] not in ("L0", "L1", "L2", "L3"):
-        print(f"INVALID: access_level must be one of L0/L1/L2/L3, got {data['access_level']!r}")
-        return 1
-    print(f"VALID: {data['detector_name']} ({data['access_level']}), overall AUROC={data['overall_auroc']}")
-    return 0
+        data = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, f"INVALID: could not parse {path}: {exc}"
+    problems = submission_problems(data)
+    if problems:
+        return None, "INVALID: " + "; ".join(problems)
+    return data, (
+        f"VALID: {data['detector_name']} ({data['access_level']}), "
+        f"overall AUROC={data['overall_auroc']}"
+    )
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    data, message = _read_submission(Path(args.submission))
+    print(message)
+    return 0 if data is not None else 1
 
 
 def _render_community_md(board: Leaderboard) -> dict[str, str]:
@@ -157,14 +168,18 @@ def _foreign_markdown(board_dir: Path) -> list[Path]:
 def cmd_submit(args: argparse.Namespace) -> int:
     """Validate a submission and add it to the entries board in ``--board-dir``.
 
-    Every check runs before anything is written, so a refusal (exit 1) leaves the board
-    directory exactly as it was. Refused: an invalid submission; a ``board.json`` that is
-    not an entries-schema board (one of the benchmark's own boards, say); and a
-    Markdown file in the directory that ``submit`` did not render.
+    Every check runs, and the new ``board.json`` and all three tables are rendered, before
+    anything is written, so a refusal (exit 1) leaves the board directory exactly as it
+    was. Refused: a submission that fails ``validate`` (a value of the wrong type
+    included), before or after ``--name``/``--author`` are applied; a ``board.json`` that
+    is not a valid entries-schema board (one of the benchmark's own boards, say); and a
+    ``README.md``, ``by_mechanism.md`` or ``by_difficulty.md`` in the directory whose
+    first line is not :data:`_COMMUNITY_HEADER`. Other files there are left alone.
     """
-    if cmd_validate(args) != 0:
+    data, message = _read_submission(Path(args.submission))
+    print(message)
+    if data is None:
         return 1
-    data = json.loads(Path(args.submission).read_text(encoding="utf-8"))
     if args.name:
         data["detector_name"] = args.name
     if args.author:
@@ -173,6 +188,10 @@ def cmd_submit(args: argparse.Namespace) -> int:
     # needs these two, so supply them rather than fail on a valid submission.
     data["author"] = data.get("author") or "anonymous"
     data["timestamp"] = data.get("timestamp") or datetime.now(timezone.utc).isoformat()
+    problems = submission_problems(data)
+    if problems:
+        print("INVALID: " + "; ".join(problems))
+        return 1
 
     board_dir = Path(args.board_dir)
     board_path = board_dir / "board.json"
@@ -193,8 +212,13 @@ def cmd_submit(args: argparse.Namespace) -> int:
 
     fields = LeaderboardEntry.__dataclass_fields__
     board.add(LeaderboardEntry(**{k: data[k] for k in fields if k in data}))
-    board.save(board_path)
-    for name, text in _render_community_md(board).items():
+    # Serialize and render first: an error in either must not leave a board.json that
+    # its tables do not show.
+    board_text = board.dumps()
+    rendered = _render_community_md(board)
+    board_dir.mkdir(parents=True, exist_ok=True)
+    board_path.write_text(board_text, encoding="utf-8")
+    for name, text in rendered.items():
         (board_dir / name).write_text(text, encoding="utf-8")
     print(f"Added {data['detector_name']} to the community board at {board_path}")
     return 0
