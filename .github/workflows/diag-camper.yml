@@ -1,10 +1,12 @@
-name: diagnose continuous_camping determinism (temporary)
+name: diagnose continuous_camping determinism (temporary, round 2)
 # Temporary. The 2026-11-27 redraw (run 45995235365) refused: replicate_000 and the board,
 # the same draw on two hosted runners under the six numerics pins, disagree on 16
-# continuous_camping cells and on no other family. This trains the family's DQN camper and
-# rolls it out on whatever runner each job lands on, and prints the CPU model with hashes
-# of the trained weights and the rollouts, under the pins alone and under candidate extra
-# pins, so the log shows which dispatch the pins leave CPU-dependent. Delete after use.
+# continuous_camping cells and on no other family. Round 1 (run 46007050078) showed the
+# family's DQN camper trains to one set of weights on every Intel runner and another on
+# every AMD runner, whatever extra numpy, oneDNN or MKL pin was set. The family now loads
+# frozen weights; round 2 rolls them out at every scored difficulty on 16 runners and
+# prints the CPU model beside the rollout hashes, to show they agree across vendors.
+# Delete after use.
 on:
   push:
     branches: [claude/project-explanation-latex-5gxonr]
@@ -25,8 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [pins, npy, onednn, mkl, all]
-        replica: [1, 2, 3, 4]
+        replica: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,44 +39,29 @@ jobs:
         run: |
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
+      # Round 2: the family now loads frozen weights. Do its rollouts, at every scored
+      # difficulty, now agree across CPU vendors?
       - name: Probe
-        env:
-          VARIANT: ${{ matrix.variant }}
         run: |
-          case "$VARIANT" in
-            npy|all) export NPY_DISABLE_CPU_FEATURES="AVX512F AVX512CD AVX512_SKX AVX512_CLX AVX512_CNL AVX512_ICL AVX512_SPR" ;;
-          esac
-          case "$VARIANT" in onednn|all) export ONEDNN_MAX_CPU_ISA=AVX2 ;; esac
-          case "$VARIANT" in mkl|all) export MKL_ENABLE_INSTRUCTIONS=AVX2 ;; esac
           python - <<'EOF'
-          import hashlib, json, os, time
+          import hashlib, json, time
           import numpy as np
-          import torch
-          from rhob.agents.dqn import train_camper
-          from rhob.environments.continuous.config import ContinuousConfig
-          from rhob.evaluation.eval_rollout import generate_continuous_rundata
-          from rhob.v3.families.continuous_camping import _SIGMA_A, difficulty_to_separation
+          from rhob.v3.families import continuous_camping as cc
+          from rhob.v3.registry import FamilyRegistry
 
           cpu = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "?")
           t0 = time.time()
-          camper = train_camper(seed=0)
-          h = hashlib.sha256()
-          for k, v in sorted(camper._net.state_dict().items()):
-              h.update(k.encode()); h.update(v.detach().cpu().numpy().tobytes())
-          rh = hashlib.sha256()
-          config = ContinuousConfig(separation=difficulty_to_separation(0.9), sigma_a=_SIGMA_A)
-          for variant in ("A", "B"):
-              for s in range(5):
-                  rd, _ = generate_continuous_rundata(camper, variant, config, seed=s)
-                  for arr in (rd.proxy_rewards, rd.true_rewards, rd.behav_trace):
-                      if arr is not None:
-                          rh.update(np.ascontiguousarray(arr).tobytes())
-          x = np.linspace(0.1, 20, 100001)
-          print("DIAG " + json.dumps({
-              "variant": os.environ["VARIANT"], "cpu": cpu,
-              "camper": h.hexdigest()[:16], "rollouts": rh.hexdigest()[:16],
-              "np_exp": hashlib.sha256(np.exp(x).tobytes()).hexdigest()[:12],
-              "torch_cap": torch.backends.cpu.get_cpu_capability(),
-              "seconds": round(time.time() - t0, 1),
-          }))
+          fam = FamilyRegistry.get("continuous_camping")
+          out = {}
+          for d in fam.default_difficulties():
+              pair = fam.generate_pair_at(d, seed=0)
+              rh = hashlib.sha256()
+              for roll in (pair.rollout_hacking, pair.rollout_legit):
+                  for s in range(5):
+                      rd, _ = roll(s)
+                      for arr in (rd.proxy_rewards, rd.true_rewards, rd.behav_trace):
+                          if arr is not None:
+                              rh.update(np.ascontiguousarray(arr).tobytes())
+              out[str(round(float(d), 4))] = rh.hexdigest()[:16]
+          print("DIAG " + json.dumps({"cpu": cpu, "rollouts": out, "seconds": round(time.time() - t0, 1)}))
           EOF
