@@ -1,4 +1,4 @@
-"""Build a two-page, plain-language explainer of RHOB and Flight Recorder.
+"""Build a three-page, plain-language explainer of RHOB and Flight Recorder.
 
 Run:  python3 docs/simple_explainer/build_pdf.py
 Writes RHOB_and_Flight_Recorder_explained_simply.pdf next to this file.
@@ -13,6 +13,11 @@ Every number in the text comes from the two repositories:
                   CUSUM / threshold: 10/10 false alarms, leads 19.1 / 15.5).
                   Hard negatives are a ~3-step transient spike
                   (flightrecorder/repro/synthetic.py).
+  Peeking test    inspect_eval/README.md on main (register runs: Haiku 4.5 11/89,
+                  Opus 4.6 9/89), docs/second-runs-results.md (Opus 5: Inspect 44/89
+                  and 46/89, Claude Code 31/87 and 24/86, D = +18.0 points, p = 0.0001),
+                  docs/relabel-results.md (watcher labels match the transcripts; the
+                  modify_tests blind spot).
 """
 
 from pathlib import Path
@@ -79,6 +84,11 @@ callout = ParagraphStyle("callout", parent=body, fontName="Body-Bold", fontSize=
 
 def P(text, style=body):
     return Paragraph(text, style)
+
+
+def link(url):
+    """A clickable link that shows the address without its https:// prefix."""
+    return f"<a href='{url}' color='#2563c9'>{url.removeprefix('https://')}</a>"
 
 
 def bullets(items):
@@ -389,6 +399,43 @@ class LevelBars(Flowable):
         c.drawCentredString(BX(0.5), base_y - 11, "0.5 = coin toss")
 
 
+class PeekGrid(Flowable):
+    """One panel per model: 89 squares, one per task, red where it peeked."""
+
+    COLS = 18
+
+    def __init__(self, width, models, total=89, height=96):
+        super().__init__()
+        self.width, self.models, self.total, self.height = width, models, total, height
+
+    def wrap(self, aw, ah):
+        return self.width, self.height
+
+    def draw(self):
+        c = self.canv
+        gap = 10
+        pw = (self.width - gap * (len(self.models) - 1)) / len(self.models)
+        rows = -(-self.total // self.COLS)
+        for k, (name, peeked) in enumerate(self.models):
+            x0 = k * (pw + gap)
+            c.setFillColor(PANEL)
+            c.roundRect(x0, 0, pw, self.height, 6, stroke=0, fill=1)
+            c.setFillColor(INK)
+            c.setFont("Body-Bold", 11)
+            c.drawString(x0 + 10, self.height - 18, name)
+            c.setFillColor(REAL)
+            c.setFont("Body-Bold", 11)
+            c.drawRightString(x0 + pw - 10, self.height - 18, f"peeked on {peeked} of {self.total} tasks")
+            cell = (pw - 20) / self.COLS
+            sq = cell - 2.4
+            top = self.height - 28
+            for i in range(self.total):
+                r, col = divmod(i, self.COLS)
+                c.setFillColor(REAL if i < peeked else colors.HexColor("#cdd3da"))
+                c.roundRect(x0 + 10 + col * cell, top - (r + 1) * cell + 2.4, sq, sq, 1.5, stroke=0, fill=1)
+        assert top - rows * cell > 0, "PeekGrid too short for its squares"
+
+
 # ---------------------------------------------------------------- content
 def build():
     doc = SimpleDocTemplate(
@@ -505,7 +552,7 @@ def build():
                "going up. <b>The goal: ring an alarm as soon as cheating starts, before the damage is "
                "obvious.</b>"))
     s.append(Spacer(1, 2))
-    s.append(ScoreChart(W, 118, "alarm"))
+    s.append(ScoreChart(W, 132, "alarm"))
     s.append(Spacer(1, 6))
 
     s.append(P("What it watches: the AI's “vital signs”", h2))
@@ -575,43 +622,75 @@ def build():
         "works. The real test, an actual AI learning to cheat on code checks, is built and ready but "
         "<b>has not been run yet</b>.",
         cell)], FR_BG, pad=6))
-    s.append(Spacer(1, 6))
+
+    # ================================================================ page 3
+    s.append(PageBreak())
+    s.append(SectionBar("PART OF RHOB", "Do real AI models peek at the answers?", RHOB_C, W))
+    s.append(Spacer(1, 4))
+    s.append(P("RHOB also includes a ready-to-run version of a test designed by other researchers. "
+               "A real AI is given 89 computer tasks, such as fixing a bug in some code. In every task, "
+               "<b>the answer key and the hidden grading checks sit in a folder the AI is able to "
+               "open</b>. A tripwire records whether it opens them. Opening them counts as cheating."))
+    s.append(P("The UK government's AI Security Institute lists this version in its public collection of "
+               "AI tests. In its main run, two Claude AI models peeked on roughly 1 task in 10:"))
+    s.append(Spacer(1, 2))
+    s.append(PeekGrid(W, [("Claude Haiku 4.5", 11), ("Claude Opus 4.6", 9)]))
+    s.append(Spacer(1, 3))
+    s.append(P("Each square is one task. Red means the AI opened the hidden answers.", small))
+    s.append(Spacer(1, 4))
+
+    s.append(P("What else the runs showed", h2))
+    s.extend(bullets([
+        "<b>A newer model peeked far more.</b> Claude Opus 5, in the same setup, opened the hidden "
+        "answers on about half the tasks (44 and 46 of 89, in two separate runs).",
+        "<b>The setup matters.</b> Run inside Claude Code, a coding app, the same model peeked on about "
+        "a third of the tasks instead of half. The gap was too big to be luck.",
+        "<b>The tripwire was checked too.</b> Separate AI reviewers read the step-by-step records without "
+        "knowing what the tripwire said. Every peek the tripwire caught was real, it missed none, and nearly every peek was on purpose, not an "
+        "accident. One gap turned up: one way of quietly <i>editing</i> the hidden checks slips past it. "
+        "That does not change the peeking count, which is about opening them.",
+    ]))
+    s.append(Spacer(1, 10))
 
     # ---- how they fit together
-    s.append(P("How the two fit together", h2))
+    s.append(P("How it all fits together", h1))
     hdr = ParagraphStyle("hdr", parent=cell, fontName="Body-Bold", textColor=colors.white)
     fit = Table(
         [
-            [P("RHOB", hdr), P("Flight Recorder", hdr)],
+            [P("RHOB", hdr), P("The peeking test (in RHOB)", hdr), P("Flight Recorder", hdr)],
             [P("Tests cheat detectors <b>after</b> an AI has finished practicing.", cell),
+             P("Measures how often a real AI cheats <b>when it gets the chance</b>.", cell),
              P("Watches for cheating <b>while</b> the AI is still learning.", cell)],
             [P("Built, then checked by its author, who published the mistakes found.", cell),
+             P("Run on real Claude models, and its tripwire checked against the AIs' own records.", cell),
              P("Works on made-up runs. The real test is still to come.", cell)],
         ],
-        colWidths=[W / 2, W / 2],
+        colWidths=[W / 3, W / 3, W / 3],
     )
     fit.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("BACKGROUND", (0, 0), (0, 0), RHOB_C),
-        ("BACKGROUND", (1, 0), (1, 0), FR_C),
-        ("BACKGROUND", (0, 1), (0, -1), RHOB_BG),
-        ("BACKGROUND", (1, 1), (1, -1), FR_BG),
-        ("LINEAFTER", (0, 0), (0, -1), 3, colors.white),
+        ("BACKGROUND", (0, 0), (1, 0), RHOB_C),
+        ("BACKGROUND", (2, 0), (2, 0), FR_C),
+        ("BACKGROUND", (0, 1), (1, -1), RHOB_BG),
+        ("BACKGROUND", (2, 1), (2, -1), FR_BG),
+        ("LINEAFTER", (0, 0), (1, -1), 3, colors.white),
         ("LINEBELOW", (0, 1), (-1, 1), 1.5, colors.white),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 9),
     ]))
     s.append(fit)
-    s.append(Spacer(1, 7))
-    s.append(box([P("Both share one lesson: <b>don't trust a score just because it looks good, and "
-                    "don't trust an alarm until you have seen it ring when something is wrong and stay "
-                    "quiet when nothing is.</b>", ParagraphStyle("end", parent=body, fontSize=11.5,
-                                                                 leading=14.5, spaceAfter=0))],
+    s.append(Spacer(1, 8))
+    s.append(box([P("All of it shares one lesson: <b>don't trust a score just because it looks good, and "
+                    "don't trust a check or an alarm until you have seen it catch a real problem and stay "
+                    "quiet when there is none.</b>", ParagraphStyle("end", parent=body, fontSize=11.5,
+                                                                     leading=14.5, spaceAfter=0))],
                  NOTE_BG, pad=6))
-    s.append(Spacer(1, 5))
-    s.append(P("Sources: the public code at github.com/Aarav500/rhob and "
-               "github.com/Aarav500/flight-recorder (November 2026).", small))
+    s.append(Spacer(1, 8))
+    s.append(P("Sources (click to open): the public code at " + link("https://github.com/Aarav500/rhob")
+               + " and " + link("https://github.com/Aarav500/flight-recorder") + ". The peeking test was "
+               "designed by Roth, Bercovich and Efroni (2026), " + link("https://arxiv.org/abs/2608.22103")
+               + ". Numbers as of November 2026.", small))
 
     doc.build(s)
     return OUT
