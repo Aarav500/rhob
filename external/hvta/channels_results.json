@@ -448,26 +448,9 @@
     "numpy": "2.5.4"
   },
   "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
-  "date_utc": "2026-11-27T10:04:22Z",
-  "rhob_git_head": "47285961471c1293cb3121bd2037f5fcde0f5778",
-  "rhob_src_uncommitted": [
-    "src/rhob/detectors/external_baselines/ar_residual.py",
-    "src/rhob/detectors/external_baselines/bocpd.py",
-    "src/rhob/detectors/external_baselines/isolation_forest.py",
-    "src/rhob/detectors/external_baselines/page_hinkley.py",
-    "src/rhob/detectors/external_baselines/pca_reconstruction.py",
-    "src/rhob/detectors/l2_ensemble.py",
-    "src/rhob/v3/base_family.py",
-    "src/rhob/v3/benchmark.py",
-    "src/rhob/v3/calibration_cache.py",
-    "src/rhob/v3/cli/__main__.py",
-    "src/rhob/v3/leaderboard/adapters.py",
-    "src/rhob/v3/leaderboard/board.py",
-    "src/rhob/v3/leaderboard/replicated.py",
-    "src/rhob/v3/leaderboard/transfer.py",
-    "src/rhob/v3/provenance.py",
-    "src/rhob/v3/registry.py"
-  ],
+  "date_utc": "2026-11-27T11:06:46Z",
+  "rhob_git_head": "320b7b761b6df9d43f901e7eaa9ef1516bfa4902",
+  "rhob_src_uncommitted": [],
   "detector_sources": {
     "Reward Threshold": {
       "path": "src/rhob/detectors/l0_reward_threshold.py",

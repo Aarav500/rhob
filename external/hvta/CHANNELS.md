@@ -260,4 +260,4 @@ Proxy: hacking 0.3843 vs legit 0.3516. True: 0.3516 vs 0.3516.
 
 ## Provenance
 
-Generated with Python 3.12.13 (Windows-11-10.0.26200-SP0), numpy 2.5.2. Scored 2026-11-27 with Python 3.12.3 (Linux-6.18.44-fc-v880-x86_64-with-glibc2.39), numpy 2.5.4, RHOB `47285961471c` (16 `src/` files uncommitted). `channels_results.json` records each detector's source under `detector_sources`: a sha256 of its code without docstrings or comments, and its git blob.
+Generated with Python 3.12.13 (Windows-11-10.0.26200-SP0), numpy 2.5.2. Scored 2026-11-27 with Python 3.12.3 (Linux-6.18.44-fc-v880-x86_64-with-glibc2.39), numpy 2.5.4, RHOB `320b7b761b6d`. `channels_results.json` records each detector's source under `detector_sources`: a sha256 of its code without docstrings or comments, and its git blob.
