@@ -28,10 +28,10 @@
     }
   },
   "provenance": {
-    "generated_utc": "2026-11-27T11:16:36.030866Z",
+    "generated_utc": "2026-11-27T12:10:11.383488Z",
     "git": {
-      "commit": "eaa75f8220bdecd516e65280eb5d3678056504bf",
-      "short_commit": "eaa75f8220bd",
+      "commit": "d85a60c4dc667642cd66bf009cd4cfba972565e0",
+      "short_commit": "d85a60c4dc66",
       "branch": "claude/project-explanation-latex-5gxonr",
       "dirty": false,
       "dirty_files": [],
@@ -137,10 +137,10 @@
     ],
     "script": "scripts/cross_family_transfer.py",
     "wall_clock_s": {
-      "Reward MLP": 107.1,
+      "Reward MLP": 104.6,
       "State Divergence": 0.1,
-      "Trajectory MLP": 43.0,
-      "Ensemble (Top 5)": 38.8
+      "Trajectory MLP": 42.2,
+      "Ensemble (Top 5)": 38.1
     }
   },
   "sampling": {
@@ -177,7 +177,7 @@
     "single_draw": true,
     "shared_draw_across_detectors": true,
     "confidence_intervals": null,
-    "note": "Single unreplicated draw: all detectors are scored on the identical rolled-out runs, so their cell values are correlated and their differences are not independent measurements. No confidence intervals are computed for this artifact; see leaderboard/v5_replicated.json for the 20-draw replication that does. Do not read the third decimal of any AUROC here as resolved: the null SE at n=m=5 is 0.19.",
+    "note": "Single unreplicated draw: all detectors are scored on the identical rolled-out runs, so their cell values are correlated and their differences are not independent measurements. No confidence intervals are computed for this artifact; see leaderboard/v5_replicated.json for the 20-draw replication that does. Do not read the third decimal of any AUROC here as resolved: the null SE at n=m=10 is 0.13 (0.09 at the held-out cells' n=m=20).",
     "model_init_trials": 5,
     "test_seed_base": 50000,
     "n_seeds_test": 20,
