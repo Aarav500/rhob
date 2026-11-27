@@ -4,7 +4,9 @@
 
 RHOB's headline empirical result was a Relative Transfer Score of **0.994** — "L2
 behavioral detectors transfer excellently to unseen hacking mechanisms". It was not a
-measurement of generalization.
+measurement of generalization. Measured again on one set of rollouts, it reads 0.993
+with the sign fixed as it was and 0.514 with the sign randomized as it now is
+([Measured on all 33 families](#measured-on-all-33-families)).
 
 Three facts composed into a tautology:
 
@@ -111,10 +113,19 @@ below and does not contradict anything here.
 The "blind" row is below 0.5 only because 9 of these 13 families happen to draw -1; its
 expectation over families is 0.5. It is what the pre-audit detector actually knew.
 
-Orientation accuracy of the shipped rule: **63.3%** of cells (38/60). The errors are
-family-level, not cell-level — a family is almost always oriented correctly at every
-tier or at none — which is expected, since the orientation is a property of the family's
-trace shape:
+*(2026-11-27: `scripts/measure_sign_randomization.py` re-runs this table as a companion
+board, the same 13 families at 20 seeds per variant and layout seed 0. Its CI run
+(`0ff0d42`) reads 0.978, 0.257 and 0.604, and its 2026-08-03 run read 0.978, 0.258 and
+0.604, so the `after` row above, 0.615, has not been reproduced. The companion keeps no
+per-cell AUROCs, so the 38 of 60 below has not been recounted at 20 seeds.)*
+
+Orientation accuracy of the shipped rule on these 60 cells: **63.3%** (38/60). That is
+a figure for the 13 tabular and continuous families, not for the benchmark: on all 33
+families, at 10 seeds per variant, the rule orients 58 of 123 cells as authored (47.1%),
+at or below a coin flip, and these 60 cells 32 times
+([below](#measured-on-all-33-families)). The errors are family-level, not cell-level — a
+family is almost always oriented correctly at every tier or at none — which is expected,
+since the orientation is a property of the family's trace shape:
 
 | family | drawn sign | before | after | cells oriented |
 | --- | --- | --- | --- | --- |
@@ -135,7 +146,9 @@ trace shape:
 A partial pass over the expensive tier — 10 cells across `mujoco_camping`,
 `mujoco_goal_misgeneralization` and `mujoco_joint_limit_gaming` — measures **before
 1.000, after 0.500, 5/10 cells oriented**, i.e. the same shape as the main table. It is
-reported as partial and is not folded into the 60-cell numbers.
+reported as partial and is not folded into the 60-cell numbers. *(2026-11-27: the
+full-board measurement below scores all 20 families, these 10 cells included, at 10
+seeds per variant: before 1.000 on each of the 10, after 0.200, 2 of 10 oriented.)*
 
 ### Candidate rules that were not adopted
 

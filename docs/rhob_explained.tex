@@ -4,7 +4,8 @@
 %
 % Every number here comes from the repository: README.md, docs/THREAT_MODEL.md,
 % leaderboard/v5_replicated.json, leaderboard/v5_leaderboard.json,
-% docs/figures/sign_randomization_impact.json, admission/admission_ledger.json,
+% docs/figures/sign_randomization_impact.json,
+% leaderboard/cross_family_transfer_v5.json, admission/admission_ledger.json,
 % audit/survey_s1_frame.json, results/emergent_pilot/README.md, the module
 % docstrings under src/rhob/, and the docstrings of the two tests that re-run the
 % entry checks (tests/test_v3/test_ledger_reproduces.py,
@@ -83,7 +84,7 @@ and I score how often they get it right.
 I published a headline number of 0.994 out of 1. Then I went back and checked my
 own setup, and the number was fake. It came from a formatting rule I had written in
 my own contributor guide, not from anything about reward hacking. Take that rule
-away and the number drops to 0.508, which is a coin flip.
+away and the number drops to 0.514, which is a coin flip.
 
 The rest of this explains each piece, and then what is left standing.
 
@@ -335,30 +336,47 @@ because the opposite signs are what makes it a pair in the first place. Every si
 is kept exactly, so the entry checks and the difficulty knob are untouched. The
 only thing removed is the constant that let a detector read the label off a sign.
 
-The transfer score falls from 0.994 to 0.508. The L2 average falls from 0.7229 to
-0.5629.
+With the randomisation off the transfer score is 0.993, just under the 0.994 I
+published. With it on, the score is 0.514. The L2 average falls from 0.7320 to
+0.5739.
 
-\heading{Am I sure about the 0.508?}
+\heading{Am I sure about the 0.514?}
 \label{h:sure}
 
 You asked this straight, so here is what I have and what I do not.
 
 \subhead{What backs it up}
 The comparison is like for like. The randomisation is a single flag. Turn it off
-and 0.994 comes back exactly. And 0.508 does not rest on one trained model. It and
-the 0.994 are the transfer score of one detector, which combines five L2 detectors.
-Four of them are fixed formulas; the fifth, Trajectory MLP, is a network trained on
-labels. 0.508 is the mean of three trials. Each trains that network from a different random seed, which
-sets its starting weights and the order it sees the training runs in. The runs are
-the same in all three, and the three land between 0.499 and 0.514.
+and the transfer score reads 0.993, against the 0.994 I published. That is close,
+but it is not the same number, so the published figure does not come back exactly.
 
-Until 27 November 2026 this paragraph said I had repeated the whole transfer
+And 0.514 does not rest on one trained model. It and the 0.994 are the transfer
+score of one detector, which combines five L2 detectors. Four of them are fixed
+formulas; the fifth, Trajectory MLP, is a network trained on labels. (Its own
+transfer score, with the randomisation off, is further from what I published than
+the combined one: 0.921 against 0.931.) 0.514 is the mean of three trials. Each
+trains that network from a different random seed, which sets its starting weights
+and the order it sees the training runs in. The runs are the same in all three, and
+the three land between 0.499 and 0.532. They are also the first three of the five
+trials in the re-run of the transfer score alone (page \pageref{h:sources}), and
+match them to every digit, though that re-run was on Intel machines and this
+measurement on an AMD machine. The five average 0.512.
+
+Until 27 November 2026 the paragraph above said I had repeated the whole transfer
 measurement 20 times, with 95\% intervals. That was wrong. The 20 repeats are of the
 main table, not of the transfer score. They are explained at the end of this
 section, since you asked about them.
 
+The before-and-after figures in this section are from a second run of that
+measurement, on 27 November 2026. Until then this letter gave the figures of the
+first, made on 3 August 2026: 0.508 where it now says 0.514, 0.994 coming back
+exactly with the randomisation off, and the L2 average falling from 0.7229 to
+0.5629. The score with the randomisation on moved up by 0.006 and the one with it
+off down by 0.001, and the conclusion did not move: with the sign hidden, the
+transfer score is at chance.
+
 \subhead{What chance means here}
-0.508 against 0.5 is not something I can tell apart from a coin flip with this
+0.514 against 0.5 is not something I can tell apart from a coin flip with this
 sample. I am not claiming the detectors are slightly better than chance.
 
 \subhead{What would overturn it}
@@ -703,7 +721,7 @@ demonstration that it can fail. A control is decoration unless the failures get
 published next to the passes.
 
 Second, does a result that holds on the data you have survive a change you named in
-advance? The 0.994 to 0.508 collapse is one case of that. I named the change first,
+advance? The 0.994 to 0.514 collapse is one case of that. I named the change first,
 and the result did not survive it.
 
 You are right that people already check their own tests, more or less carefully. My
@@ -828,7 +846,7 @@ What are these scores? Is 0.994 an average of them? & \pageref{h:score} \\
 Would a real 0.994 mean a lot of hacking, or a little? & \pageref{h:score} \\
 What do you mean by a coding convention? Was it a bug? & \pageref{h:bug} \\
 A style rule that changed what the code does? & \pageref{h:bug} \\
-What is the significance of 0.508? Are you sure it is correct? & \pageref{h:sure} \\
+What is the significance of 0.508 (now 0.514)? Are you sure it is correct? & \pageref{h:sure} \\
 What does confidence from twenty replications mean? & \pageref{h:repeats} \\
 Five of the thirty. Detectors or environments? & \pageref{h:five} \\
 What is an admission criterion? & \pageref{h:checks} \\
@@ -851,8 +869,9 @@ files that matter:
 \item \code{src/rhob/v3/sign\_randomization.py} for the fake 0.994, written up at
       the top of the file.
 \item \code{docs/figures/sign\_randomization\_impact.md}, and its \code{.json} for
-      the three trials, for the before-and-after measurement behind 0.994, 0.508
-      and the L2 averages.
+      the three trials, for the before-and-after measurement behind 0.993 (against
+      the published 0.994), 0.514 and the L2 averages, made again on 27 November
+      2026 on an AMD machine.
 \item \code{leaderboard/cross\_family\_transfer\_v5.json} for a re-run of the
       transfer score alone on 27 November 2026, with the randomisation on and five
       trials. It was run three times that day, at three versions of the code and on
