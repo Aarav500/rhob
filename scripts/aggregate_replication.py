@@ -537,19 +537,22 @@ def main(argv: list[str] | None = None) -> None:
     # confounded by between-draw variation shared by both rungs.
     # BOTH statistics, always. Reporting only one is how a one-sided conclusion gets
     # published: on this board both statistics separate L1->L2, in opposite directions.
-    # The suite mean puts L2 above L1 (+0.012, CI excludes zero); the best-detector max
-    # puts L1 above L2 (-0.055, CI excludes zero, 0/20 draws favouring L2). Either alone
-    # reads as a settled answer; together they are the actual finding, which is that the
-    # rung's direction depends on the statistic. A verdict is therefore the pair (does it
-    # separate, which way): statistic_disagreement(), applied below to both partitions,
-    # lists under ``rungs_where_max_and_mean_disagree_on_separation`` the rungs that
-    # separate under one statistic and not the other, and under
+    # The suite mean puts L2 above L1 (+0.026, CI excludes zero); the best-detector max
+    # puts L1 above L2 (-0.052, CI excludes zero, 0/20 draws favouring L2); on the
+    # 2026-08-04 draws, +0.012 and -0.055. Either alone reads as a settled answer;
+    # together they are the actual finding, which is that the rung's direction depends
+    # on the statistic. A verdict is therefore the pair (does it separate, which way):
+    # statistic_disagreement(), applied below to both partitions, lists under
+    # ``rungs_where_max_and_mean_disagree_on_separation`` the rungs that separate under
+    # one statistic and not the other, and under
     # ``rungs_where_max_and_mean_disagree_on_direction`` those that separate under both
     # with opposite signs -- which is where this one is listed. Comparing only whether
     # each statistic separates printed "Max and mean agree on every rung" on this board.
     # The max is additionally a selection statistic -- the maximum over a level's
     # detectors exceeds the truth by construction -- and at L0, where every detector is
-    # at chance, the argmax is a coin flip (see best_detector_frequency).
+    # at or near chance (on the 2026-11-27 re-draw 12 of the 13 intervals contain 0.500
+    # and Reward CUSUM's lies wholly below it), the argmax is a coin flip (see
+    # best_detector_frequency).
     def compute_separations(by_rep, tag: str):
         seps = {}
         for stat in ("max", "mean"):
@@ -586,9 +589,9 @@ def main(argv: list[str] | None = None) -> None:
     separations_unsup = compute_separations(unsup_by_rep, "unsup")
     # The same verdict-pair rule for both partitions. The unsupervised partition is where
     # the L0->L1 step is read against the label-fitted climb, so it needs the rule most:
-    # on the 2026-11-26 board its step separates below zero under the max and does not
-    # separate under the mean, and a summary reading only the max said it "separates the
-    # other way".
+    # on the 2026-11-26 board, and on the 2026-11-27 re-draw, its step separates below
+    # zero under the max and does not separate under the mean, and a summary reading only
+    # the max said it "separates the other way".
     disagreement = statistic_disagreement(separations)
     disagreement_unsup = statistic_disagreement(separations_unsup)
 

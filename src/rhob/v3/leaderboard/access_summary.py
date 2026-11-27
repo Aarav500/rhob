@@ -6,10 +6,11 @@ level), because the two answer different questions and only the max speaks to th
 claim RHOB actually cares about -- "is the information present at this access level?".
 A level's mean is dragged down by however many weak detectors happen to have been
 written for it, so a mean-only ladder measures the detector suite's composition as much
-as the benchmark's structure. On the committed v5 board (re-scored 2026-11-26) the two
-differ sharply at L2: mean 0.5771 over 7 detectors, but max 0.9430 (Trajectory MLP); and
-at L1: mean 0.5789 over 8, but max 0.9820 (State Divergence). The L1 figures are over the
-31 cells (7 families) that emit ``state_counts`` and are long enough for every L1
+as the benchmark's structure. On the committed v5 board (re-drawn 2026-11-27 under the
+numerics pins, ``b93c351``) the two differ sharply at L2: mean 0.5771 over 7 detectors,
+but max 0.9440 (Trajectory MLP; 0.9430 on the board re-scored 2026-11-26); and at L1:
+mean 0.5789 over 8, but max 0.9820 (State Divergence). The L1 figures are over the 31
+cells (7 families) that emit ``state_counts`` and are long enough for every L1
 detector's ``min_episodes`` (``continuous_camping``, at 40 episodes, is not), and L2's
 best is over all 123, so the L1 and L2 maxima are not like for like. Nor is L1's best
 against L3's: State Divergence sits 0.0010 below the True Reward Oracle's 0.9830, but
@@ -71,12 +72,13 @@ One consequence has to be stated rather than hidden: excluding families means th
 is computed from the per-family AUROCs (a family-weighted mean over the families kept),
 while the other rungs use each detector's ``overall_auroc`` (a cell-weighted mean over
 the cells it has a value on, ``cells_measured``), because the artifact records AUROCs per
-family and not per cell. On the committed v5 board that re-weighting is worth 0.0004
-AUROC at L0 -- family-weighted over every family each detector has a value on is 0.4877
-against the cell-weighted 0.4881 -- so it is not what moves the number; the exclusion
-(0.0043) is. ``mean_auroc_including_degenerate`` is computed the same family-weighted
-way for exactly this reason, so the difference between it and ``mean_auroc`` is
-attributable to the held-out families alone.
+family and not per cell. On the committed v5 board that re-weighting is worth 0.0001
+AUROC at L0 -- family-weighted over every family each detector has a value on is 0.4871
+against the cell-weighted 0.4872 -- so it is not what moves the number; the exclusion
+(0.0036) is. (On the board re-scored 2026-11-26, before the re-draw: 0.0004, 0.4877
+against 0.4881, and 0.0043.) ``mean_auroc_including_degenerate`` is computed the same
+family-weighted way for exactly this reason, so the difference between it and
+``mean_auroc`` is attributable to the held-out families alone.
 
 A family that is ``null`` in a detector's ``per_family`` block is left out of that
 detector's mean, never read as 0.5. A detector is ``null`` on a family that does not emit

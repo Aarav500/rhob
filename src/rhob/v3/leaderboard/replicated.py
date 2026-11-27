@@ -50,13 +50,15 @@ unusually precise estimate.
 
 **A level's maximum is not a detector's score.** ``access_levels.<L>.max_auroc`` is the
 mean over draws of the *best* detector at that level, and taking a maximum over N noisy
-estimates biases it upward: at L0 it lands at 0.571 while no individual L0 detector's
-point estimate reaches 0.507 (both after the 2026-11-26 re-score of the 19 detectors
-whose declared ``min_episodes`` rules out a family). Reading it as "the best reward-only
-detector scores 0.571" inverts the rung's meaning, which is a negative control --
-reward-only detectors are *supposed* to sit at chance on a proxy matched between the
-variants (see :data:`CONTROL_LEVEL` for where the admission ledger certifies that match
-and where it does not), and the control is carried detector by detector, not by the max.
+estimates biases it upward: on the re-draw of 2026-11-27 (``b93c351``) it lands at 0.575
+at L0 while no individual L0 detector's point estimate reaches 0.508 (Reward Skewness's,
+the highest, is 0.507). On the 2026-08-04 draws as re-scored 2026-11-26 for the 19
+detectors whose declared ``min_episodes`` rules out a family, it was 0.571, with none
+reaching 0.507. Reading it as "the best reward-only detector scores 0.575" inverts the
+rung's meaning, which is a negative control -- reward-only detectors are *supposed* to
+sit at chance on a proxy matched between the variants (see :data:`CONTROL_LEVEL` for
+where the admission ledger certifies that match and where it does not), and the control
+is carried detector by detector, not by the max.
 :meth:`ReplicatedLeaderboard.control_check` computes that per-detector statement from the
 artifact so a renderer can state it instead of inferring it from the level aggregate.
 """
@@ -364,9 +366,11 @@ class ChanceControl:
         """Bare interval arithmetic on the level mean: does it exclude ``reference``?
 
         **This is not a verdict about which side of chance the suite mean sits on**, and a
-        renderer must not present it as one. On the committed board (re-scored
-        2026-11-26) it is ``False`` by a hair: the L0 suite-mean interval
-        [0.4899, 0.5000] contains 0.500 only because its upper endpoint, 0.50001, sits
+        renderer must not present it as one. On the committed board (re-drawn
+        2026-11-27, ``b93c351``) it is ``False`` with room: the L0 suite-mean interval
+        [0.4918, 0.5036] contains 0.500 with its upper endpoint ~3.6e-3 above it. On the
+        2026-08-04 draws as re-scored 2026-11-26 it was ``False`` by a hair: the interval
+        [0.4899, 0.5000] contained 0.500 only because its upper endpoint, 0.50001, sat
         ~1.5e-5 above it -- see :attr:`mean_margin_from_reference`, and read that
         property's docstring before quoting this one.
         """
@@ -381,18 +385,22 @@ class ChanceControl:
         against the estimator's own noise* rather than reading
         :attr:`mean_excludes_reference` as a finding.
 
-        On the committed L0 board (re-scored 2026-11-26) the interval [0.4899, 0.5000]
-        contains 0.500 and the margin is 0.0, but only because the upper endpoint sits
-        ~1.5e-5 above 0.500. Replaying that bootstrap under 300 different generator seeds
-        moves the endpoint over [0.499879, 0.500216] and puts it at or above 0.500 in 225
-        of the 300 (``docs/figures/l0_control_robustness.md``, recomputed 2026-11-26). On
-        the 2026-08-06 board the interval instead cleared 0.500, by ~7.9e-5, and the same
-        replay moved its endpoint over a range of ~2.4e-4 and put it at or above 0.500 in
-        18 of the 300. A ~1.5e-5 inclusion is far inside the current scatter, just as the
-        ~7.9e-5 exclusion was inside its own: either way the interval places the suite mean
-        on **neither** side of chance. Subtracting
+        On the L0 board of the 2026-08-04 draws as re-scored 2026-11-26 the interval
+        [0.4899, 0.5000] contained 0.500 and the margin was 0.0, but only because the
+        upper endpoint sat ~1.5e-5 above 0.500. Replaying that bootstrap under 300
+        different generator seeds moved the endpoint over [0.499879, 0.500216] and put it
+        at or above 0.500 in 225 of the 300 (``docs/figures/l0_control_robustness.md``,
+        recomputed 2026-11-26). On the 2026-08-06 board the interval instead cleared
+        0.500, by ~7.9e-5, and the same replay moved its endpoint over a range of ~2.4e-4
+        and put it at or above 0.500 in 18 of the 300. A ~1.5e-5 inclusion was far inside
+        that board's scatter, just as the ~7.9e-5 exclusion was inside its own: either way
+        the interval placed the suite mean on **neither** side of chance. Subtracting
         the endpoint from 0.500 and reporting the remainder is the false-precision error
         itself, not a smaller version of it.
+
+        On the committed board (re-drawn 2026-11-27, ``b93c351``) the interval is
+        [0.4918, 0.5036] and the margin is again 0.0, with the upper endpoint ~3.6e-3
+        above 0.500; the seed replay has not been redone on it.
         """
         if self.level_mean is None or not self.level_mean.has_bounds:
             return None
@@ -424,10 +432,11 @@ class ReplicatedLeaderboard:
     #: separate under both with opposite signs
     #: (``rungs_where_max_and_mean_disagree_on_direction``). Reporting one statistic
     #: alone there presents a statistic-dependent result as settled, so a renderer
-    #: showing a rung on this list must show both. On the board re-scored 2026-11-26 it
-    #: holds L2_minus_L1 through the second list: the max puts L1 above L2, the mean L2
-    #: above L1. An artifact written before the second list existed carries only the
-    #: first, which compared separation and not direction.
+    #: showing a rung on this list must show both. On the board re-scored 2026-11-26, and
+    #: on the re-draw of 2026-11-27 (``b93c351``), it holds L2_minus_L1 through the second
+    #: list: the max puts L1 above L2, the mean L2 above L1. An artifact written before
+    #: the second list existed carries only the first, which compared separation and
+    #: not direction.
     statistic_disagreement: tuple[str, ...] = ()
     statistic_disagreement_note: str = ""
     #: The aggregation's own provenance block; empty for an artifact written before it.

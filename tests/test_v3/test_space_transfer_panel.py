@@ -1,9 +1,10 @@
 """Which transfer measurement the Space's RTS panel serves, and how it labels it.
 
 ``space/app.py`` prefers ``leaderboard/cross_family_transfer_v5.json`` and falls back to
-the 2026-08-03 sign-randomization measurement, labelled *pre-declaration* while its rows
-predate the 2026-11-27 not-applicable rules; it never serves the 2026-07-09 artifact as
-current. The page is a deployed dashboard with no other test, so these pin the choice
+the ``after`` configuration of the sign-randomization measurement, labelled
+*pre-declaration* only while its rows predate the 2026-11-27 not-applicable rules (the
+2026-08-03 measurement did; the one that replaced it, ``0ff0d42``, does not); it never
+serves the 2026-07-09 artifact as current. The page is a deployed dashboard with no other test, so these pin the choice
 and the labels. ``gradio`` and ``pandas`` are not in the CI lock, so when absent they are
 replaced by stand-ins: the module builds its UI at import time but these tests only call
 the HTML builders.

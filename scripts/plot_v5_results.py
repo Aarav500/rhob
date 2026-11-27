@@ -4,7 +4,8 @@ Unlike ``scripts/plot_results.py`` (which plots the original 6-detector x
 4-variant-set Family 1-2 case study from ``results/detector_evaluation/``),
 this script plots the full v5 scope: 30 detectors x all registered families, from
 ``leaderboard/v5_leaderboard.json``, plus the cross-family transfer results
-from ``leaderboard/cross_family_transfer_v5.json`` once that experiment has run.
+from ``leaderboard/cross_family_transfer_v5.json`` when that file is present (committed
+since 2026-11-27, most recently in ``02c0475``).
 ``leaderboard/cross_family_transfer.json`` (the run of 2026-07-09, made before the
 behavioural sign was randomized) is a historical record and is never plotted.
 
@@ -225,7 +226,8 @@ def plot_access_summary(board: dict, out_path: Path) -> str:
        measures how many weak detectors happen to have been written for it as much as it
        measures the benchmark; the max is what speaks to "is the signal present at this
        access level?". On the board re-scored 2026-11-26 they diverge sharply at L1
-       (mean 0.5789, max 0.9820) and L2 (mean 0.5771, max 0.9430).
+       (mean 0.5789, max 0.9820) and L2 (mean 0.5771, max 0.9430); on the re-draw of
+       2026-11-27 (``b93c351``) only the L2 max moved, to 0.9440.
     2. Perfect Feature Oracle is excluded from L3, because it is a relabelled copy of
        the L2 Behavioral Threshold baseline and agrees with it on 33/33 families. See
        :mod:`rhob.detectors.redundancy`. Including it made L3 look like a two-detector

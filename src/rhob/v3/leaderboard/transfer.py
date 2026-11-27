@@ -462,7 +462,10 @@ class TransferComparison:
         On the 2026-08-03 sign-randomization measurement against the 2026-07-09 artifact
         this separates the two L2 rows (0.931 -> 0.706 and 0.994 -> 0.508, both an order
         of magnitude beyond their spread) from the L0 row (0.478 -> 0.477, well inside
-        it). A row with no current figure (``rts is None``) supersedes nothing here.
+        it). Its 2026-11-27 re-measurement (``0ff0d42``) separates them the same way:
+        0.931 -> 0.709 and 0.994 -> 0.514 against spreads of 0.012 and 0.014, and
+        0.478 -> 0.477 against 0.004. A row with no current figure (``rts is None``)
+        supersedes nothing here.
         """
         delta = self.published_delta
         if delta is None:

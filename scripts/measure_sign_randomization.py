@@ -22,7 +22,10 @@ config           randomize   infer     what it is
                                        by a detector that assumes it. This is the row that
                                        has to reproduce RTS 0.994 / L2 best 0.975 (the
                                        pre-audit board, ``c54a8cc``) before the other three
-                                       mean anything.
+                                       mean anything. The committed run (``0ff0d42``) reads
+                                       RTS 0.993 (-0.001) and L2 best 0.9807 against the
+                                       board's 0.9753 (+0.0054): it does not reproduce them
+                                       to the digit.
 ``before_infer`` off         on        the shipped detector against the old convention --
                                        what the orientation hook costs when it is not needed.
 ``blind``        on          off       sign randomized, detector still assumes ``+1``: what
@@ -1387,6 +1390,21 @@ def _fmt(value: float | None, digits: int = 3) -> str:
     return "n/a" if value is None else f"{value:.{digits}f}"
 
 
+def _fmt_ratio(counts: str | None, stored: float | None, digits: int = 3) -> str:
+    """``k/n`` to ``digits`` places, from the counts rather than the stored ratio.
+
+    The JSON stores each ratio rounded to four places, and rounding that again to three
+    can land on the wrong side: 58/123 is 0.47154, stored 0.4715, printed 0.471. The
+    counts are exact, so the printed figure comes from them; ``stored`` is the fallback
+    when the counts are missing or unreadable.
+    """
+    try:
+        num, den = (int(x) for x in str(counts).split("/"))
+        return _fmt(num / den, digits)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return _fmt(stored, digits)
+
+
 def _span(values: list[float]) -> str:
     """``lo-hi`` over ``values`` (one value printed once), or ``n/a``."""
     values = _present(values)
@@ -1600,9 +1618,11 @@ def render_markdown(payload: dict) -> str:
             f"`n_seeds_train={transfer['n_seeds_train']}`, "
             f"`n_seeds_test={transfer['n_seeds_test']}`, "
             f"`n_trials={transfer['n_trials']}`: trial `k` seeds the networks with `k`, "
-            "as `scripts/cross_family_transfer.py` does, so these trials are the first "
-            f"{transfer['n_trials']} of the ones in `leaderboard/cross_family_transfer_v5.json` "
-            "(the +/- across model inits is reported in the JSON, not here).",
+            "as `scripts/cross_family_transfer.py` does, so these trials share their seeds "
+            f"with the first {transfer['n_trials']} in "
+            "`leaderboard/cross_family_transfer_v5.json`. Sharing a seed is the design, not a "
+            "measurement: whether a trial reproduces there is checked against that file, "
+            "not assumed here (the +/- across model inits is reported in the JSON, not here).",
             "",
             "The L0 and L1 rows are measured in `before` only, and marked `—` elsewhere "
             "rather than re-run: `restrict()` nulls `behav_trace` below L2, so their cells "
@@ -1719,7 +1739,8 @@ def render_markdown(payload: dict) -> str:
             "",
             f"Cells oriented as the family's authored coordinate: "
             f"**{knob['cells_oriented_as_the_authored_coordinate']}** "
-            f"({_fmt(accuracy)}) — the shipped orientation rule is {verdict} on the "
+            f"({_fmt_ratio(knob['cells_oriented_as_the_authored_coordinate'], accuracy)}) "
+            f"— the shipped orientation rule is {verdict} on the "
             "families measured here. Split by family group, because the 63.3% in "
             "`docs/l2_sign_randomization.md` (38 of 60) was measured on the tabular and "
             "continuous families alone:",
@@ -1727,7 +1748,8 @@ def render_markdown(payload: dict) -> str:
             "| family group | cells oriented | accuracy | mean AUROC `after` |",
             "| --- | --- | --- | --- |",
         ] + [
-            f"| {suite} | {block['cells_oriented']} | {block['orientation_accuracy']:.3f} | "
+            f"| {suite} | {block['cells_oriented']} | "
+            f"{_fmt_ratio(block['cells_oriented'], block['orientation_accuracy'])} | "
             f"{block['mean_auroc_after']:.3f} |"
             for suite, block in knob.get("by_family_group", {}).items()
         ] + [""]

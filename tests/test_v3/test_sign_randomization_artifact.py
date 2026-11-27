@@ -94,3 +94,41 @@ def test_the_overall_aurocs_are_the_means_of_the_committed_cells(payload):
             assert len(scored) == row["n_cells_scored"][config], (name, config)
             if scored:
                 assert row[config] == pytest.approx(float(np.mean(scored)), abs=1e-6)
+
+
+def _generator():
+    import importlib.util
+
+    path = _FIG.parents[1] / "scripts" / "measure_sign_randomization.py"
+    spec = importlib.util.spec_from_file_location("_msr_render", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_committed_markdown_is_what_the_generator_renders_from_the_json(payload, md):
+    """The report is a rendering of its JSON, byte for byte, by the committed generator.
+
+    The checks above tie individual tables to the JSON; this ties the whole file, so a
+    hand edit of the prose, or a generator change committed without re-rendering, fails
+    here. (On 2026-11-27 the report was re-rendered from the unchanged ``0ff0d42`` JSON
+    after its transfer sentence and its orientation ratio were corrected in the generator.)
+    """
+    assert _generator().render_markdown(payload) == md, (
+        f"{_MD.name} is not what scripts/measure_sign_randomization.py renders from "
+        f"{_JSON.name}; re-render it with render_markdown rather than editing it by hand"
+    )
+
+
+@pytest.mark.parametrize(
+    "counts, stored, expected",
+    [
+        ("58/123", 0.4715, "0.472"),  # stored rounded to 4, then to 3, would print 0.471
+        ("13/29", 0.4483, "0.448"),
+        (None, 0.25, "0.250"),  # no counts: the stored ratio, as stored
+        ("not a ratio", 0.5, "0.500"),
+        ("1/0", None, "n/a"),
+    ],
+)
+def test_a_ratio_is_printed_from_its_counts_not_its_rounded_value(counts, stored, expected):
+    assert _generator()._fmt_ratio(counts, stored) == expected

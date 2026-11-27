@@ -18,18 +18,20 @@ overrides only ``access_level`` and ``name`` (and declares
 ``true_rewards``, the one channel L3 adds. Nothing about its behaviour is L3.
 
 Measured consequence, from the committed ``leaderboard/v5_leaderboard.json``
-(regenerated 2026-11-19 with sign randomization on and re-scored 2026-11-26; the re-score
-leaves every figure in this paragraph unchanged): this detector and Behavioral
-Threshold agree on 33 of 33 families (zero families differ) and on the overall figure,
-both 0.512 across 123 cells. Counting it would make the L3 aggregate n=2, mean 0.7475 --
-an "oracle ceiling" one of whose two members is an L2 result wearing a hat. With it
-excluded, L3 is the one genuine oracle
+(regenerated 2026-11-19 with sign randomization on, re-scored 2026-11-26, and re-drawn
+under the numerics pins on 2026-11-27, ``b93c351``; the re-score moved no figure in this
+paragraph, and the re-draw only Trajectory MLP's, 0.9430 to 0.9440, and with it the
+oracle's margin over L2): this detector and Behavioral Threshold agree on 33 of 33
+families (zero families differ) and on the overall figure, both 0.512 across 123 cells.
+Counting it would make the L3 aggregate n=2, mean 0.7475 -- an "oracle ceiling" one of
+whose two members is an L2 result wearing a hat. With it excluded, L3 is the one
+genuine oracle
 (:class:`~rhob.detectors.l3_true_reward_oracle.TrueRewardOracleDetector`, 0.9830), which
-sits 0.0400 above the best L2 detector (Trajectory MLP, 0.9430) on that single draw. On
-the board committed before the regeneration (scored with sign randomization off;
-``git show c54a8cc:leaderboard/v5_leaderboard.json``) the two read 0.9750, the n=2 L3
-mean was 0.9790, and the oracle sat 0.0080 above the best L2 detector, which was
-Behavioral Threshold itself.
+sits 0.0390 above the best L2 detector (Trajectory MLP, 0.9440) on that single draw
+(0.0400 on the 2026-11-26 board). On the board committed before the regeneration (scored
+with sign randomization off; ``git show c54a8cc:leaderboard/v5_leaderboard.json``) the
+two read 0.9750, the n=2 L3 mean was 0.9790, and the oracle sat 0.0080 above the best L2
+detector, which was Behavioral Threshold itself.
 
 ``name`` and ``access_level`` are deliberately left as they are. The committed
 leaderboard artifacts, the paper tables and the public Space all key off
@@ -37,9 +39,10 @@ leaderboard artifacts, the paper tables and the public Space all key off
 would desynchronize the code from data on disk without fixing anything, since the
 double-count is removed at the aggregation step and re-filing the duplicate under L2
 would merely move the double-count there (L2 mean 0.5771 -> 0.5690 on the board
-re-scored 2026-11-26, 0.7213 -> 0.7530 on the pre-regeneration one, for no new
-information). The label is inert to measurement in any case: L2 and L3 both expose
-``behav_trace``, so this detector scores identically either way.
+re-scored 2026-11-26, unchanged on the 2026-11-27 re-draw, and 0.7213 -> 0.7530 on the
+pre-regeneration one, for no new information). The label is inert to measurement in any
+case: L2 and L3 both expose ``behav_trace``, so this detector scores identically either
+way.
 """
 
 from __future__ import annotations
