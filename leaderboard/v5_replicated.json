@@ -143,27 +143,53 @@
     }
   ],
   "provenance": {
-    "generated_utc": "2026-11-27T07:15:31.345626Z",
+    "generated_utc": "2026-11-27T10:13:36.247534Z",
     "git": {
       "commit": "47285961471c1293cb3121bd2037f5fcde0f5778",
       "short_commit": "47285961471c",
       "branch": "claude/project-explanation-latex-5gxonr",
       "dirty": true,
       "dirty_files": [
+        ".github/actions/",
+        ".github/dependabot.yml",
+        ".github/workflows/cannotfail-release.yml",
+        ".github/workflows/cannotfail.yml",
+        ".github/workflows/deploy_space.yml",
+        ".github/workflows/drift.yml",
+        ".github/workflows/leaderboard_validate.yml",
+        ".github/workflows/pages.yml",
+        ".github/workflows/regenerate-commit.sh",
+        ".github/workflows/regenerate.yml",
+        ".github/workflows/register_guard.yml",
+        ".github/workflows/tests.yml",
+        "docs/figures/replication_summary.md",
         "external/hvta/CHANNELS.md",
         "external/hvta/RESULTS.md",
         "external/hvta/channels_results.json",
         "external/hvta/hvta_results.json",
         "external/hvta/make_results.py",
         "external/hvta/rescore_detector.py",
+        "external/hvta/score_channels.py",
         "external/hvta/score_detectors.py",
+        "leaderboard/README.md",
+        "leaderboard/by_difficulty.md",
+        "leaderboard/by_mechanism.md",
+        "leaderboard/leaderboard.json",
+        "leaderboard/v5_replicated.json",
+        "pyproject.toml",
+        "requirements/README.md",
+        "scripts/admission_ledger.py",
         "scripts/aggregate_replication.py",
         "scripts/check_redraw.py",
         "scripts/cross_family_transfer.py",
         "scripts/measure_sign_randomization.py",
         "scripts/merge_rescored_detector.py",
+        "scripts/plot_v5_results.py",
+        "scripts/populate_leaderboard_v32.py",
+        "scripts/populate_v3_leaderboard.py",
         "scripts/replicate_leaderboard.py",
         "scripts/v5_leaderboard_and_transfer.py",
+        "space/app.py",
         "src/rhob/detectors/external_baselines/ar_residual.py",
         "src/rhob/detectors/external_baselines/bocpd.py",
         "src/rhob/detectors/external_baselines/isolation_forest.py",
@@ -173,19 +199,33 @@
         "src/rhob/v3/base_family.py",
         "src/rhob/v3/benchmark.py",
         "src/rhob/v3/calibration_cache.py",
+        "src/rhob/v3/cli/__main__.py",
+        "src/rhob/v3/leaderboard/adapters.py",
+        "src/rhob/v3/leaderboard/board.py",
         "src/rhob/v3/leaderboard/replicated.py",
         "src/rhob/v3/leaderboard/transfer.py",
         "src/rhob/v3/provenance.py",
         "src/rhob/v3/registry.py",
+        "submissions/README.md",
+        "tests/test_cannotfail_parity.py",
         "tests/test_detectors/test_external_baselines.py",
         "tests/test_detectors/test_min_episodes.py",
+        "tests/test_numerics_pins.py",
         "tests/test_v3/test_calibration_cache.py",
         "tests/test_v3/test_cross_family_transfer_script.py",
+        "tests/test_v3/test_leaderboard_and_cli.py",
+        "tests/test_v3/test_ledger_reproduces.py",
         "tests/test_v3/test_merge_rescored_detector.py",
         "tests/test_v3/test_na_channels_and_provenance.py",
         "tests/test_v3/test_redraw_check.py",
+        "tests/test_v3/test_regen_merge.py",
+        "tests/test_v3/test_replicated_leaderboard.py",
         "tests/test_v3/test_replication_aggregate_provenance.py",
         "tests/test_v3/test_replication_draws_differ.py",
+        "tests/test_v3/test_sign_randomization_artifact.py",
+        "tests/test_v3/test_sign_randomization_script.py",
+        "tests/test_v3/test_space_transfer_panel.py",
+        "tests/test_v3/test_transfer_loader.py",
         "tests/test_v3/transfer_stubs.py"
       ],
       "source": "git"
@@ -207,12 +247,12 @@
     },
     "numerics": {
       "env": {
-        "OPENBLAS_CORETYPE": null,
-        "OPENBLAS_NUM_THREADS": null,
-        "MKL_CBWR": null,
-        "MKL_NUM_THREADS": null,
-        "OMP_NUM_THREADS": null,
-        "ATEN_CPU_CAPABILITY": null
+        "OPENBLAS_CORETYPE": "Haswell",
+        "OPENBLAS_NUM_THREADS": "1",
+        "MKL_CBWR": "COMPATIBLE",
+        "MKL_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "ATEN_CPU_CAPABILITY": "avx2"
       },
       "cpu": {
         "vendor": "GenuineIntel",
@@ -237,25 +277,25 @@
         "source": "/proc/cpuinfo"
       },
       "torch_imported": true,
-      "torch_cpu_capability": "AVX512",
+      "torch_cpu_capability": "AVX2",
       "blas": [
         {
           "user_api": "blas",
           "internal_api": "openblas",
           "prefix": "libscipy_openblas",
           "version": "0.3.31.dev",
-          "architecture": "SkylakeX",
+          "architecture": "Haswell",
           "threading_layer": "pthreads",
-          "num_threads": 4
+          "num_threads": 1
         },
         {
           "user_api": "blas",
           "internal_api": "openblas",
           "prefix": "libscipy_openblas",
           "version": "0.3.34.106.0",
-          "architecture": "SkylakeX",
+          "architecture": "Haswell",
           "threading_layer": "pthreads",
-          "num_threads": 4
+          "num_threads": 1
         },
         {
           "user_api": "openmp",
@@ -264,7 +304,7 @@
           "version": null,
           "architecture": null,
           "threading_layer": null,
-          "num_threads": 4
+          "num_threads": 1
         },
         {
           "user_api": "openmp",
@@ -273,7 +313,7 @@
           "version": null,
           "architecture": null,
           "threading_layer": null,
-          "num_threads": 4
+          "num_threads": 1
         }
       ]
     },

@@ -24,6 +24,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -302,6 +303,56 @@ _COMMITTED_JSON = _REPO / "leaderboard" / "v5_replicated.json"
 _COMMITTED_MD = _REPO / "docs" / "figures" / "replication_summary.md"
 
 
+def _differences(fresh, committed, path: str = "") -> list[str]:
+    """Where two JSON trees differ, floats compared to within a few ulps.
+
+    Not ``==``: the committed file is written on CI's Python and numpy, and the pytest
+    matrix runs others. CPython 3.10's ``statistics.stdev`` is ``sqrt(variance)``, rounded
+    twice, where 3.11 and later round once, correctly; numpy releases differ in the last
+    bit of some means and minimums. Those are not a stale artifact. Everything else --
+    keys, list order and length, strings, ints, None, bools -- must match exactly.
+    """
+    if isinstance(fresh, bool) or isinstance(committed, bool):
+        return [] if fresh is committed else [f"{path}: {fresh!r} vs {committed!r}"]
+    if isinstance(fresh, float) and isinstance(committed, float):
+        if math.isclose(fresh, committed, rel_tol=1e-9, abs_tol=1e-12):
+            return []
+        return [f"{path}: {fresh!r} vs {committed!r}"]
+    if isinstance(fresh, dict) and isinstance(committed, dict):
+        out = [f"{path}.{k}: only in the fresh aggregate" for k in fresh if k not in committed]
+        out += [f"{path}.{k}: only in the committed file" for k in committed if k not in fresh]
+        for k in fresh:
+            if k in committed:
+                out += _differences(fresh[k], committed[k], f"{path}.{k}")
+        return out
+    if isinstance(fresh, list) and isinstance(committed, list):
+        if len(fresh) != len(committed):
+            return [f"{path}: {len(fresh)} items vs {len(committed)}"]
+        out = []
+        for i, (a, b) in enumerate(zip(fresh, committed)):
+            out += _differences(a, b, f"{path}[{i}]")
+        return out
+    return [] if fresh == committed else [f"{path}: {fresh!r} vs {committed!r}"]
+
+
+def test_the_json_comparison_forgives_ulps_and_nothing_else():
+    assert _differences({"sd": 0.02882149452140641}, {"sd": 0.028821494521406414}) == []
+    assert _differences({"m": 0.49216000000000004, "n": 20}, {"m": 0.49216, "n": 20}) == []
+    assert _differences({"m": 0.4950}, {"m": 0.4943}) == [".m: 0.495 vs 0.4943"]
+    assert _differences({"x": None}, {"x": 0.0}) == [".x: None vs 0.0"]
+    assert _differences({"ok": True}, {"ok": 1}) == [".ok: True vs 1"]
+    assert _differences({"r": ["a", "b"]}, {"r": ["b", "a"]}) == [".r[0]: 'a' vs 'b'",
+                                                                  ".r[1]: 'b' vs 'a'"]
+    assert _differences({"a": 1}, {"b": 1}) == [".a: only in the fresh aggregate",
+                                                ".b: only in the committed file"]
+
+
+def _partition_is_the_pinned_one() -> bool:
+    from rhob.detectors.supervision import KNOWN_LABEL_FITTED, label_fitted_detector_names
+
+    return label_fitted_detector_names() == KNOWN_LABEL_FITTED
+
+
 @pytest.mark.skipif(
     not any(_COMMITTED_REPLICATES.glob("replicate_*.json")),
     reason="committed replicates not present",
@@ -312,15 +363,23 @@ def test_the_committed_aggregate_is_what_the_aggregator_writes(tmp_path):
     So a change to the aggregator and its committed output land together, and a reader
     can trust that the summary describes the replicate files beside it.
     """
+    if not _partition_is_the_pinned_one():
+        # Without torch, Reward MLP and Trajectory MLP cannot be imported, so the
+        # supervision partition finds 3 label-fitted detectors instead of 5 and the whole
+        # supervision block moves by real amounts. That is this environment, not a stale
+        # artifact; tests/test_v3/test_supervision_partition.py reports the partition.
+        pytest.skip("the label-fitted partition is not the pinned one here (torch absent?)")
     agg.main(["--in-dir", str(_COMMITTED_REPLICATES), "--out", str(tmp_path / "agg.json"),
               "--out-md", str(tmp_path / "agg.md")])
     fresh = json.loads((tmp_path / "agg.json").read_text())
     committed = json.loads(_COMMITTED_JSON.read_text())
     fresh.pop("provenance")
     committed.pop("provenance", None)
-    assert fresh == committed, (
+    differences = _differences(fresh, committed)
+    assert differences == [], (
         "leaderboard/v5_replicated.json is not what scripts/aggregate_replication.py writes "
-        "from results/replication; re-run it"
+        f"from results/replication; re-run it. {len(differences)} differences, first: "
+        + "; ".join(differences[:5])
     )
     assert (tmp_path / "agg.md").read_text() == _COMMITTED_MD.read_text(), (
         "docs/figures/replication_summary.md is stale; re-run scripts/aggregate_replication.py"

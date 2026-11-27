@@ -14,8 +14,9 @@ report of every failed check, unless all of these hold:
 * **draws** -- every ``(layout_seed, seed_base)`` is ``draw_for(replicate_id)``;
 * **seeds per variant** -- one ``n_seeds`` across the files, equal to the board's;
 * **detectors** -- every file, the board and the board's cells sidecar score exactly the
-  30 detectors of ``v5_leaderboard_and_transfer.DETECTORS``, in that order where an
-  order is recorded;
+  30 detectors of ``v5_leaderboard_and_transfer.DETECTORS``, in that order: each file's
+  ``detectors_evaluated`` and ``results``, the board's ``results`` and the sidecar's
+  ``cells`` (all four are written in ``DETECTORS`` order);
 * **families** -- every file and the board evaluate exactly the registered families;
 * **no errors** -- no detector record is an ``{"error": ...}``, and every replicate
   record carries ``cells_detail``;
@@ -28,6 +29,12 @@ report of every failed check, unless all of these hold:
   and the kernels picked) across the files and the board. Platform and CPU are reported,
   not required to agree: hosted runners differ in both, and under the numerics pins the
   kernels they pick do not;
+* **numerics pins** -- every file and the board ran under the pins themselves
+  (:data:`PINNED_NUMERICS_ENV`, the values ``regenerate.yml`` sets for every name in
+  ``rhob.v3.calibration_cache.NUMERICS_ENV_VARS``), and the kernels show they took
+  effect: ATen at ``AVX2`` wherever torch was loaded, every loaded OpenBLAS at
+  ``Haswell``. Agreement alone is not enough -- 21 runners that all lost the pins agree
+  with each other, and their kernels still follow whichever CPU each one drew;
 * **sidecar** -- the cells sidecar's provenance is the board's own, so the two files are
   one run's;
 * **cell grid** -- for every detector, every file has the sidecar's cells, no more, no
@@ -63,9 +70,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from replicate_leaderboard import DRAW_SCHEMA, draw_for  # noqa: E402
 from v5_leaderboard_and_transfer import DETECTORS  # noqa: E402
 
+from rhob.v3.calibration_cache import NUMERICS_ENV_VARS  # noqa: E402
 from rhob.v3.registry import FamilyRegistry  # noqa: E402
 
 N_REPLICATES = 20
+
+#: The portable-numerics pins, as ``regenerate.yml`` sets them workflow-wide. The names
+#: are ``NUMERICS_ENV_VARS``'s (the calibration cache and provenance read the same list);
+#: a name added there with no value here fails the "numerics pins" check rather than
+#: passing unchecked. ``tests/test_v3/test_redraw_check.py`` holds these values to
+#: ``regenerate.yml``'s.
+PINNED_NUMERICS_ENV: dict[str, str] = {
+    "OPENBLAS_CORETYPE": "Haswell",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_CBWR": "COMPATIBLE",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "ATEN_CPU_CAPABILITY": "avx2",
+}
+#: What the pins make the kernels report (``provenance.numerics``): ATen's dispatch level
+#: under ``ATEN_CPU_CAPABILITY=avx2``, and OpenBLAS's core under ``OPENBLAS_CORETYPE``.
+PINNED_TORCH_CPU_CAPABILITY = "AVX2"
+PINNED_OPENBLAS_ARCHITECTURE = "Haswell"
 
 #: How many individual differences a failed check lists before summarising the rest.
 _SHOW = 20
@@ -112,6 +138,40 @@ def _numerics_signature(doc: dict) -> Any:
         "torch_cpu_capability": numerics.get("torch_cpu_capability"),
         "blas": numerics.get("blas"),
     }
+
+
+def _pin_problems(doc: dict) -> list[str]:
+    """How one file's ``numerics`` block falls short of the pins (empty when it does not)."""
+    numerics = _prov(doc).get("numerics")
+    if not isinstance(numerics, dict):
+        return ["no numerics block"]
+    problems = []
+    env = numerics.get("env") if isinstance(numerics.get("env"), dict) else {}
+    unpinned = [
+        f"{name}={env.get(name)!r} (pin {PINNED_NUMERICS_ENV[name]!r})"
+        for name in NUMERICS_ENV_VARS
+        if name in PINNED_NUMERICS_ENV and env.get(name) != PINNED_NUMERICS_ENV[name]
+    ]
+    if unpinned:
+        problems.append("not pinned: " + ", ".join(unpinned))
+    if numerics.get("torch_imported") is not False:
+        capability = numerics.get("torch_cpu_capability")
+        if capability != PINNED_TORCH_CPU_CAPABILITY:
+            problems.append(
+                f"ATen dispatched at {capability!r}, not {PINNED_TORCH_CPU_CAPABILITY!r}"
+            )
+    blas = numerics.get("blas")
+    if isinstance(blas, list):
+        cores = sorted({
+            str(row.get("architecture")) for row in blas
+            if isinstance(row, dict) and row.get("internal_api") == "openblas"
+            and row.get("architecture") != PINNED_OPENBLAS_ARCHITECTURE
+        })
+        if cores:
+            problems.append(
+                f"OpenBLAS selected {', '.join(cores)}, not {PINNED_OPENBLAS_ARCHITECTURE}"
+            )
+    return problems
 
 
 def _cpu(doc: dict) -> Any:
@@ -229,25 +289,27 @@ def run_checks(
     checks.append(c)
 
     # ---- detectors ---------------------------------------------------------------
-    c = Check("detectors", f"all {len(expected_detectors)} detectors, everywhere")
+    c = Check("detectors", f"all {len(expected_detectors)} detectors, in order, everywhere")
     want = set(expected_detectors)
+
+    def _same_detectors(label: str, got: Any) -> None:
+        got = list(got) if isinstance(got, (list, dict)) else []
+        if got == expected_detectors:
+            return
+        c.fail(
+            f"{label} differs (missing {sorted(want - set(got))}, extra "
+            f"{sorted(set(got) - want)}"
+            + (", order differs" if set(got) == want and len(got) == len(want) else "")
+            + (", duplicates" if len(got) != len(set(got)) else "") + ")"
+        )
+
     for name, doc in sorted(parsed.items()):
-        if doc.get("detectors_evaluated") != expected_detectors:
-            got = doc.get("detectors_evaluated") or []
-            c.fail(
-                f"{name}: detectors_evaluated differs (missing "
-                f"{sorted(want - set(got))}, extra {sorted(set(got) - want)}"
-                + (", order differs" if set(got) == want else "") + ")"
-            )
-        results = doc.get("results") if isinstance(doc.get("results"), dict) else {}
-        if set(results) != want:
-            c.fail(f"{name}: results for {sorted(set(results) ^ want)} wrong (missing or extra)")
+        _same_detectors(f"{name}: detectors_evaluated", doc.get("detectors_evaluated"))
+        _same_detectors(f"{name}: results", doc.get("results"))
     board_results = board.get("results") if isinstance(board.get("results"), dict) else {}
-    if set(board_results) != want:
-        c.fail(f"board: results for {sorted(set(board_results) ^ want)} wrong (missing or extra)")
+    _same_detectors("board: results", board_results)
     sidecar = board_cells.get("cells") if isinstance(board_cells.get("cells"), dict) else {}
-    if set(sidecar) != want:
-        c.fail(f"board cells: cells for {sorted(set(sidecar) ^ want)} wrong (missing or extra)")
+    _same_detectors("board cells: cells", sidecar)
     checks.append(c)
 
     # ---- families ----------------------------------------------------------------
@@ -335,6 +397,30 @@ def run_checks(
     cpus = sorted({str(_cpu(d)) for _, d in with_board})
     c.notes.append(f"platforms ({len(platforms)}): {'; '.join(platforms)}")
     c.notes.append(f"CPUs ({len(cpus)}): {'; '.join(cpus)}")
+    checks.append(c)
+
+    # ---- numerics pins -----------------------------------------------------------
+    c = Check(
+        "numerics pins",
+        "every file and the board ran under the CI pins, and the kernels show it",
+    )
+    unknown = [n for n in NUMERICS_ENV_VARS if n not in PINNED_NUMERICS_ENV]
+    if unknown or set(PINNED_NUMERICS_ENV) - set(NUMERICS_ENV_VARS):
+        c.fail(
+            "check_redraw.PINNED_NUMERICS_ENV names "
+            f"{sorted(PINNED_NUMERICS_ENV)}, rhob.v3.calibration_cache.NUMERICS_ENV_VARS "
+            f"{sorted(NUMERICS_ENV_VARS)}: give every pin its value here"
+        )
+    # Grouped by fault, so 21 runners that all lost the same pin are one line, not 21.
+    by_problem: dict[str, list[str]] = {}
+    for label, doc in with_board:
+        for problem in _pin_problems(doc):
+            by_problem.setdefault(problem, []).append(label)
+    for problem, labels in by_problem.items():
+        c.fail(
+            f"{', '.join(labels[:4])}" + (f" (+{len(labels) - 4})" if len(labels) > 4 else "")
+            + f": {problem}"
+        )
     checks.append(c)
 
     # ---- sidecar -----------------------------------------------------------------

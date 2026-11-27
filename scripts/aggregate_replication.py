@@ -541,8 +541,10 @@ def main(argv: list[str] | None = None) -> None:
     # puts L1 above L2 (-0.055, CI excludes zero, 0/20 draws favouring L2). Either alone
     # reads as a settled answer; together they are the actual finding, which is that the
     # rung's direction depends on the statistic. A verdict is therefore the pair (does it
-    # separate, which way): ``disagree`` below lists rungs that separate under one
-    # statistic and not the other, ``disagree_direction`` rungs that separate under both
+    # separate, which way): statistic_disagreement(), applied below to both partitions,
+    # lists under ``rungs_where_max_and_mean_disagree_on_separation`` the rungs that
+    # separate under one statistic and not the other, and under
+    # ``rungs_where_max_and_mean_disagree_on_direction`` those that separate under both
     # with opposite signs -- which is where this one is listed. Comparing only whether
     # each statistic separates printed "Max and mean agree on every rung" on this board.
     # The max is additionally a selection statistic -- the maximum over a level's

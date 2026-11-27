@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -29,6 +30,7 @@ from rhob.detectors.posthoc import RunData
 from rhob.v3.base_family import BaseFamily
 from rhob.v3.base_pair import MatchedPair
 from rhob.v3.benchmark import Benchmark
+from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
 from rhob.v3.registry import FamilyRegistry
 from rhob.v3.taxonomy import EnvironmentComplexity, HackingMechanism
 
@@ -70,6 +72,23 @@ _DIFFICULTIES = (0.7, 0.8)
 _N = 20
 
 
+#: The CI pins, spelled out rather than read from the gate, so a change to either the gate or
+#: regenerate.yml shows up here (see test_the_gate_requires_the_pins_regenerate_sets).
+_PINS = {"OPENBLAS_CORETYPE": "Haswell", "OPENBLAS_NUM_THREADS": "1", "MKL_CBWR": "COMPATIBLE",
+         "MKL_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "ATEN_CPU_CAPABILITY": "avx2"}
+
+
+def _pinned_numerics() -> dict:
+    return {
+        "env": dict(_PINS),
+        "cpu": {"vendor": "AuthenticAMD", "model": "AMD EPYC 7763"},
+        "torch_imported": True,
+        "torch_cpu_capability": "AVX2",
+        "blas": [{"internal_api": "openblas", "architecture": "Haswell", "num_threads": 1},
+                 {"internal_api": "openmp", "architecture": None, "num_threads": 1}],
+    }
+
+
 def _provenance(generated: str, commit: str = _COMMIT) -> dict:
     return {
         "generated_utc": generated,
@@ -79,13 +98,7 @@ def _provenance(generated: str, commit: str = _COMMIT) -> dict:
         "python_implementation": "CPython",
         "platform": "Linux-6.8.0-x86_64-with-glibc2.39",
         "packages": {"numpy": "2.3.5", "torch": "2.9.1", "rhob": "1.8.0"},
-        "numerics": {
-            "env": {"OPENBLAS_CORETYPE": "Haswell", "MKL_CBWR": "COMPATIBLE"},
-            "cpu": {"vendor": "AuthenticAMD", "model": "AMD EPYC 7763"},
-            "torch_imported": True,
-            "torch_cpu_capability": "AVX2",
-            "blas": [{"internal_api": "openblas", "architecture": "Haswell"}],
-        },
+        "numerics": _pinned_numerics(),
         "argv": [],
     }
 
@@ -276,6 +289,53 @@ def _kernel_differs(r, b, c):
     _rep(r, 11)["provenance"]["numerics"]["torch_cpu_capability"] = "AVX512"
 
 
+def _everywhere(r, b, c):
+    """Every provenance block of the set: the board's, the sidecar's, each replicate's."""
+    return [b["provenance"], c["provenance"]] + [doc["provenance"] for doc in r.values()]
+
+
+def _unpinned_everywhere(r, b, c):
+    """Uniform, so "one environment" passes -- but no runner had the pins."""
+    for prov in _everywhere(r, b, c):
+        numerics = prov["numerics"]
+        numerics["env"] = dict.fromkeys(_PINS)
+        numerics["torch_cpu_capability"] = "AVX512"
+        numerics["blas"][0]["architecture"] = "SkylakeX"
+
+
+def _one_pin_missing_everywhere(r, b, c):
+    for prov in _everywhere(r, b, c):
+        prov["numerics"]["env"]["OMP_NUM_THREADS"] = None
+
+
+def _pin_set_but_openblas_ignored_it(r, b, c):
+    for prov in _everywhere(r, b, c):
+        prov["numerics"]["blas"][0]["architecture"] = "Zen"
+
+
+def _aten_ignored_the_pin(r, b, c):
+    for prov in _everywhere(r, b, c):
+        prov["numerics"]["torch_cpu_capability"] = "DEFAULT"
+
+
+def _no_numerics_block(r, b, c):
+    for prov in _everywhere(r, b, c):
+        prov.pop("numerics")
+
+
+def _board_detectors_reordered(r, b, c):
+    b["results"] = dict(reversed(list(b["results"].items())))
+
+
+def _sidecar_detectors_reordered(r, b, c):
+    c["cells"] = dict(reversed(list(c["cells"].items())))
+
+
+def _replicate_results_reordered(r, b, c):
+    rep = _rep(r, 9)
+    rep["results"] = dict(reversed(list(rep["results"].items())))
+
+
 def _sidecar_from_another_run(r, b, c):
     c["provenance"]["generated_utc"] = "2026-11-26T00:00:00Z"
 
@@ -317,8 +377,16 @@ def _cell_added(r, b, c):
         (_rescored, "not re-scored"),
         (_packages_differ, "one environment"),
         (_python_differs, "one environment"),
-        (_numerics_differ, "one environment"),
-        (_kernel_differs, "one environment"),
+        (_numerics_differ, ("one environment", "numerics pins")),
+        (_kernel_differs, ("one environment", "numerics pins")),
+        (_unpinned_everywhere, "numerics pins"),
+        (_one_pin_missing_everywhere, "numerics pins"),
+        (_pin_set_but_openblas_ignored_it, "numerics pins"),
+        (_aten_ignored_the_pin, "numerics pins"),
+        (_no_numerics_block, ("one environment", "numerics pins")),
+        (_board_detectors_reordered, "detectors"),
+        (_sidecar_detectors_reordered, "detectors"),
+        (_replicate_results_reordered, "detectors"),
         (_sidecar_from_another_run, "sidecar"),
         (_cell_missing, "cell grid"),
         (_cell_added, "cell grid"),
@@ -346,6 +414,60 @@ def test_platform_and_cpu_may_differ(check, good_set):
     rep["platform"] = "Linux-6.11.0-x86_64-with-glibc2.39"
     rep["numerics"]["cpu"] = {"vendor": "GenuineIntel", "model": "Intel Xeon Platinum 8370C"}
     assert _failed(check, replicates, board, board_cells) == {}
+
+
+def _top_level_env(text: str) -> dict[str, str]:
+    """A workflow's unindented ``env:`` mapping (PyYAML is not in the locked environment)."""
+    lines = text.splitlines()
+    env: dict[str, str] = {}
+    for line in lines[lines.index("env:") + 1:]:
+        if line and not line.startswith(" "):
+            break
+        m = re.match(r"^  ([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$", line)
+        if m:
+            env[m.group(1)] = m.group(2).strip('"').strip("'")
+    return env
+
+
+def test_the_gate_requires_the_pins_regenerate_sets(check):
+    """The gate's pins, the cache's names and the workflow's values are one contract."""
+    assert list(check.PINNED_NUMERICS_ENV) == list(NUMERICS_ENV_VARS)
+    assert check.PINNED_NUMERICS_ENV == _PINS
+    workflow = _top_level_env(
+        (_REPO / ".github" / "workflows" / "regenerate.yml").read_text(encoding="utf-8")
+    )
+    assert {name: workflow.get(name) for name in NUMERICS_ENV_VARS} == _PINS
+
+
+def test_a_set_that_lost_the_pins_is_one_line_per_fault(check, good_set):
+    """21 runners with the same fault are reported once, with the files that have it."""
+    replicates, board, board_cells = good_set
+    _unpinned_everywhere(replicates, board, board_cells)
+    problems = _failed(check, replicates, board, board_cells)["numerics pins"]
+    assert len(problems) == 3, problems
+    # The sidecar's provenance is held to the board's by "sidecar", so it is not re-listed.
+    assert all(p.startswith("board, replicate_000.json, replicate_001.json, "
+                            "replicate_002.json (+17): ") for p in problems)
+    assert "OPENBLAS_CORETYPE=None (pin 'Haswell')" in problems[0]
+    assert "ATen dispatched at 'AVX512'" in problems[1]
+    assert "OpenBLAS selected SkylakeX" in problems[2]
+
+
+def test_a_run_without_torch_needs_no_aten_level(check, good_set):
+    """No ATen kernel ran, so there is no dispatch level to hold to the pin."""
+    replicates, board, board_cells = good_set
+    for prov in _everywhere(replicates, board, board_cells):
+        prov["numerics"].update(torch_imported=False, torch_cpu_capability=None)
+    assert _failed(check, replicates, board, board_cells) == {}
+
+
+def test_a_pin_name_with_no_value_in_the_gate_is_refused(check, good_set, monkeypatch):
+    """A variable added to NUMERICS_ENV_VARS must not pass the gate unchecked."""
+    pins = {k: v for k, v in check.PINNED_NUMERICS_ENV.items() if k != "MKL_CBWR"}
+    monkeypatch.setattr(check, "PINNED_NUMERICS_ENV", pins)
+    failed = _failed(check, *good_set)
+    assert set(failed) == {"numerics pins"}
+    assert "give every pin its value" in failed["numerics pins"][0]
 
 
 def test_one_changed_cell_of_replicate_0_is_refused_and_named(check, good_set):
@@ -500,6 +622,9 @@ def stub_world(monkeypatch):
         "commit": _E2E_COMMIT, "short_commit": _E2E_COMMIT[:12], "branch": "test",
         "dirty": False, "dirty_files": [], "source": "git",
     })
+    # And a pinned process. The pins act when BLAS and ATen load, so a test process cannot
+    # take them on after the fact; the gate's pin check has its own cases above.
+    monkeypatch.setattr(provenance_module, "numerics_block", _pinned_numerics)
     return families
 
 
