@@ -15,9 +15,13 @@ rule's direction, not where it cuts. The boundary tests below pin the cut. The s
 does not take the gate's word for the numbers. The ledger stores aggregates, not score
 vectors, so it re-certifies each DEGENERATE family at the ledger's design and captures
 every score vector and proxy stream the gate measures. The tool recomputes each
-resolution and dispersion from those vectors and must reproduce the ledger's figures and
-call the cell degenerate on its own. One of the six families runs in the fast suite and
-the other five under ``-m slow``.
+resolution and dispersion from those vectors and must reproduce the gate's figures bit
+for bit, per layout, and call the cell degenerate on its own. The per-cell means are
+held to the committed ledger within 1e-12 (resolution) and 1e-6 relative
+(informativeness), or 1e-15 absolute for a dust-level proxy. Two of the six families, one
+of each kind of degeneracy, run in the fast suite, and the other four under ``-m slow``.
+``tests/test_v3/test_ledger_reproduces.py`` covers the ADMITTED and NOT ADMITTED cells,
+and every number in a certificate.
 
 There is a third copy of the tie rule: ``inspect_eval/hvtb_hack_detection/metrics.py``
 (``score_resolution``). It imports ``inspect_ai``, which this suite does not install, so
@@ -263,17 +267,32 @@ _LEDGER_JSON: dict[str, Any] = json.loads(LEDGER.read_text(encoding="utf-8"))
 #: The six families the ledger holds out of the L0 control.
 _DEGENERATE_FAMILIES: list[str] = _LEDGER_JSON["summary"]["degenerate_families"]
 
-#: The one the fast suite re-certifies; the other five run under ``-m slow`` (about 43 s
-#: on a 4-core Xeon, 15 of it ``physics_exploitation``). This one takes about 4 s for its
-#: 5 tiers. Its proxy is constant to within one ULP (dispersion 1.6e-16 to 2.4e-16,
-#: depending on the CPU), so its cells are degenerate by informativeness. On some CPUs its
-#: scores also carry rounding dust. On a Xeon here, one or two of each tier's 48 vectors
-#: order most of their pairs (at most, all of them) by exact comparison and none by the
-#: tie tolerance, and the tool calls those layouts dust or pinned rather than fixed. On
-#: the CPU that certified the 0.98 tier they were exact ties (AUROC 0.5000, bootstrap SE
-#: 0.0). That CPU dependence is why ``tests/test_v3/test_ledger_reproduces.py`` leaves
-#: this family out. Nothing here reads an AUROC.
-_FAST_DEGENERATE_FAMILY = "rlhf_reward_model_overopt"
+#: The two the fast suite re-certifies, one of each kind, so both branches of the check
+#: run on every push; the other four run under ``-m slow``.
+#:
+#: ``rlhf_reward_model_overopt`` (about 4 s for its 5 tiers on the CI runners) is
+#: degenerate by informativeness. Its proxy is constant to within one ULP (dispersion
+#: 1.6e-16 to 2.4e-16, depending on the CPU). On some CPUs its scores also carry rounding
+#: dust. On a Xeon here, one or two of each tier's 48 vectors order most of their pairs
+#: (at most, all of them) by exact comparison and none by the tie tolerance, and the tool
+#: calls those layouts dust or pinned rather than fixed. On the CPU that certified the
+#: 0.98 tier they were exact ties (AUROC 0.5000, bootstrap SE 0.0). That CPU dependence is
+#: why ``tests/test_v3/test_ledger_reproduces.py`` leaves this family out. Nothing here
+#: reads an AUROC.
+#:
+#: ``shortcut_exploitation`` (about 3 s) is degenerate by resolution: a richly
+#: informative proxy (dispersion 3.0 to 4.4) that is the same in every run, so every
+#: cross-variant pair ties and the tool has to call it degenerate from the scores alone,
+#: with no dispersion floor. ``test_ledger_reproduces.py`` re-certifies it too, for the
+#: rest of its certificate. Under ``-n auto`` the two files' tests can land on different
+#: workers, so a shared cache would not reliably save the second certification.
+#:
+#: The value is whether the family is degenerate by informativeness (True) rather than
+#: by resolution (False).
+_FAST_DEGENERATE_FAMILIES: dict[str, bool] = {
+    "rlhf_reward_model_overopt": True,
+    "shortcut_exploitation": False,
+}
 
 _DEGENERATE_VERDICTS = frozenset({"fixed", "dust", "pinned"})
 
@@ -363,7 +382,10 @@ def _check_degenerate_cell_from_its_vectors(cell: dict, row: dict, events: list[
     # The tool's figures, reduced over layouts as the gate reduces them, are the ledger's.
     informativeness = _mean_over_layouts(dispersions)
     assert _same(informativeness, row["metrics"]["proxy_matched"]["proxy_informativeness"])
-    assert informativeness == pytest.approx(pm["proxy_informativeness"], rel=1e-6, abs=1e-12)
+    # The absolute floor is for the dust-level proxies (committed 0.0 to 2.4e-16, and
+    # 1.6e-16 to 2.4e-16 across the CPUs measured): wide enough for that spread, and tight
+    # enough that a value of 1e-15 or more where the ledger has dust is a mismatch.
+    assert informativeness == pytest.approx(pm["proxy_informativeness"], rel=1e-6, abs=1e-15)
     uninformative = gate.is_uninformative(pm["proxy_informativeness"], floor)
     assert gate.is_uninformative(informativeness, floor) == uninformative, where
 
@@ -403,9 +425,9 @@ def test_the_degenerate_families_are_the_ledgers_six():
     cells = [c for c in _ledger_cells() if c["status"] == "DEGENERATE"]
     assert sorted({c["family"] for c in cells}) == _DEGENERATE_FAMILIES
     assert len(_DEGENERATE_FAMILIES) == 6 and len(cells) == 30
-    assert _FAST_DEGENERATE_FAMILY in _DEGENERATE_FAMILIES
+    assert set(_FAST_DEGENERATE_FAMILIES) <= set(_DEGENERATE_FAMILIES)
     # Both reasons a cell can be degenerate occur among the six, each family is one kind
-    # at every tier, and the fast family is the informativeness kind.
+    # at every tier, and the fast families are one of each kind, as labelled.
     kinds = {
         family: {
             gate.is_uninformative(
@@ -419,13 +441,15 @@ def test_the_degenerate_families_are_the_ledgers_six():
     }
     assert all(len(k) == 1 for k in kinds.values()), kinds
     assert set().union(*kinds.values()) == {True, False}
-    assert kinds[_FAST_DEGENERATE_FAMILY] == {True}
+    for family, uninformative in _FAST_DEGENERATE_FAMILIES.items():
+        assert kinds[family] == {uninformative}, family
+    assert set(_FAST_DEGENERATE_FAMILIES.values()) == {True, False}
 
 
 @pytest.mark.parametrize(
     "family",
     [
-        pytest.param(f, id=f, marks=() if f == _FAST_DEGENERATE_FAMILY else pytest.mark.slow)
+        pytest.param(f, id=f, marks=() if f in _FAST_DEGENERATE_FAMILIES else pytest.mark.slow)
         for f in _DEGENERATE_FAMILIES
     ],
 )
