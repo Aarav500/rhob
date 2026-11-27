@@ -15,10 +15,12 @@ its figures supersede the recomputed ones below; see the 2026-11-19 regeneration
 below.)* *(2026-11-26: both boards have since been re-scored with every detector's run
 length declared, and those figures supersede the 2026-11-19 ones too; see the 2026-11-26
 entry below.)* *(2026-11-27: the 20 draws behind the replicated board were all built at
-layout 0, so its intervals carry no layout variation, and Bayesian Online Changepoint
-Detection's HVTA figures were those of a constant score and are re-scored on HVTA's
-primary draw and its three other channels, though not on its three replicate seed draws;
-see the 2026-11-27 entries.)*
+layout 0, so its intervals carried no layout variation. Both boards have since been
+re-drawn at one commit, `54cd63c`, under the numerics pins, the 20 draws at layout seeds 0
+to 19 (`b93c351`), and those figures supersede the 2026-11-26 ones for both boards.
+Bayesian Online Changepoint Detection's HVTA figures were those of a constant score and
+are re-scored on HVTA's primary draw and its three other channels, though not on its three
+replicate seed draws. See the 2026-11-27 entries.)*
 
 ### Fixed (2026-11-27): the layout seed never reached the families, so the 20 draws all ran at layout 0
 
@@ -31,15 +33,17 @@ non-zero layout seed got neither.
 
 What this changes for a reader of the published numbers:
 
-- **The 20-draw board.** Its 20 replicates (`results/replication/replicate_*.json`),
-  drawn on 2026-08-04, record layout seeds 0 to 19, but each was built and oriented at
-  layout 0: only their rollout seeds (`seed_base`) differ. The intervals published from
-  them in `leaderboard/v5_replicated.json` and `docs/figures/replication_summary.md`, the
-  20-draw table in the 2026-11-26 entry below included, therefore measure how the board
-  varies over rollout seeds at one layout, with every family under one behavioural
-  orientation. As that they are correct; they say nothing about variation over layouts or
-  orientations, which is what the summary's "layout seed and rollout seeds resampled
-  together" claimed.
+- **The 20-draw board.** Its 20 replicates drawn on 2026-08-04
+  (`results/replication/replicate_*.json` as committed until `b93c351`) record layout
+  seeds 0 to 19, but each was built and oriented at layout 0: only their rollout seeds
+  (`seed_base`) differ. The intervals published from them in
+  `leaderboard/v5_replicated.json` and `docs/figures/replication_summary.md` as committed
+  until `b93c351`, the 20-draw table in the 2026-11-26 entry below included, therefore
+  measure how the board varies over rollout seeds at one layout, with every family under
+  one behavioural orientation. As that they are correct; they say nothing about variation
+  over layouts or orientations, which is what the summary's "layout seed and rollout seeds
+  resampled together" claimed. `b93c351` replaced all of these files with the re-draw (the
+  re-draw entry below), and `git show 02c0475:<path>` recovers the 2026-08-04 versions.
 - **Not affected:** the single-draw board (`leaderboard/v5_leaderboard.json`), which is
   scored at layout 0 by design; the admission ledger and
   `scripts/measure_difficulty_calibration.py`, which call `generate_pair_at` with their own
