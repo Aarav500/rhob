@@ -13,8 +13,10 @@ others exposing a ``.fit(runs_a, runs_b)`` method) are automatically evaluated w
 the CR1 evaluation pipeline (``scripts/evaluate_detectors.py``) -- so a detector is
 never scored on runs it was fit on.
 
-A cell whose family does not emit the channel the detector reads is scored **N/A**
-(NaN), not 0.5 -- see :data:`_ACCESS_LEVEL_CHANNEL` and :func:`missing_channels`.
+A cell whose family does not emit the channel the detector reads, or whose runs are
+shorter than the ``min_episodes`` the detector declares, is scored **N/A** (NaN), not
+0.5 -- see :data:`_ACCESS_LEVEL_CHANNEL` and :func:`not_applicable_reason`, the one rule
+every scoring path applies.
 
 Every cell's L2 behavioral feature arrives in a per-family orientation the benchmark
 draws and withholds (:mod:`rhob.v3.sign_randomization`), so a detector cannot read the
@@ -99,6 +101,47 @@ def missing_channels(runs: list[RunData], required: tuple[str, ...]) -> list[str
                 missing.append(channel)
                 break
     return missing
+
+
+def not_applicable_reason(
+    detector: PosthocDetector, runs: list[RunData], level: Optional[str] = None
+) -> Optional[str]:
+    """Why ``detector`` cannot be scored on ``runs``, or ``None`` if it can.
+
+    The one not-applicable rule, shared by :func:`_evaluate_cell` and by every path that
+    scores or fits a detector outside it (``scripts/cross_family_transfer.py`` pools
+    whole families for a fit and scores frozen models on held-out ones). Two checks, in
+    this order, and the first that fails names the reason:
+
+    1. a channel in :func:`required_channels` is absent from some run
+       (:func:`missing_channels`);
+    2. the shortest run is shorter than the detector's declared ``min_episodes``.
+
+    Either way the detector would return its no-signal constant, which is a property of
+    its fallback branch and not of the runs, so the runs are not scored -- and, for a
+    fit, not counted as training data either.
+
+    Args:
+        detector: The detector (or anything exposing ``access_level`` and, optionally,
+            ``required_channels`` and ``min_episodes``).
+        runs: The runs, already restricted to the level (:func:`~rhob.v3.access.restrict`).
+        level: The access level named in the reason; defaults to ``detector.access_level``.
+    """
+    level = level if level is not None else detector.access_level
+    missing = missing_channels(runs, required_channels(detector))
+    if missing:
+        return (
+            f"family does not provide {'/'.join(missing)}, which this {level} "
+            f"detector requires; not scored"
+        )
+    needed = int(getattr(detector, "min_episodes", 0) or 0)
+    horizon = min((int(np.size(r.proxy_rewards)) for r in runs), default=0)
+    if needed and horizon < needed:
+        return (
+            f"horizon {horizon} is below the {needed} episodes this detector's windows "
+            f"need; not scored"
+        )
+    return None
 
 
 @dataclass
@@ -278,7 +321,8 @@ def _evaluate_cell(
     would produce its no-signal constant (0.5 for every L1 detector here), which is
     a property of the fallback branch, not of the family. The same rule applies one
     level down: a family whose horizon is shorter than the detector's declared
-    ``min_episodes`` is not scored either, for the same reason.
+    ``min_episodes`` is not scored either, for the same reason. Both checks are
+    :func:`not_applicable_reason`, which paths outside the harness call too.
     """
     restricted_a = [restrict(r, level) for r in runs_a]
     restricted_b = [restrict(r, level) for r in runs_b]
@@ -286,22 +330,8 @@ def _evaluate_cell(
     labels = np.array([1] * n_a + [0] * n_b)
     all_runs = restricted_a + restricted_b
 
-    required = required_channels(detector)
-    missing = missing_channels(all_runs, required)
-    if missing:
-        reason = (
-            f"family does not provide {'/'.join(missing)}, which this {level} "
-            f"detector requires; not scored"
-        )
-        return float("nan"), float("nan"), reason
-
-    needed = int(getattr(detector, "min_episodes", 0) or 0)
-    horizon = min((int(np.size(r.proxy_rewards)) for r in all_runs), default=0)
-    if needed and horizon < needed:
-        reason = (
-            f"horizon {horizon} is below the {needed} episodes this detector's windows "
-            f"need; not scored"
-        )
+    reason = not_applicable_reason(detector, all_runs, level)
+    if reason is not None:
         return float("nan"), float("nan"), reason
 
     # Unlabeled population, before any scoring. This is what makes a detector able to
@@ -420,9 +450,12 @@ class Benchmark:
                 only to reproduce the pre-audit convention for a before/after
                 comparison -- an L2 result obtained with it off is a measurement of
                 ``CONTRIBUTING.md``, not of the detector. (``leaderboard/v5_leaderboard.json``
-                was regenerated with it on, 2026-11-19. ``leaderboard/leaderboard.json``
-                and ``leaderboard/cross_family_transfer.json`` were committed before the
-                2026-08 audit, predate this flag, and have not been regenerated.)
+                was regenerated with it on, 2026-11-19.
+                ``leaderboard/cross_family_transfer.json`` was generated on 2026-07-09,
+                before the 2026-08 audit, predates this flag, and is kept unchanged as
+                the historical record; ``scripts/cross_family_transfer.py`` writes its
+                successor, ``leaderboard/cross_family_transfer_v5.json``, with the flag
+                on and says so in that file's ``configs`` block.)
             layout_seed: Environment layout every cell is generated at. Also selects
                 each family's behavioral orientation under sign randomization.
             seed_base: Offset of the per-run seed sequence drawn from each pair.

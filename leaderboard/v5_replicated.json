@@ -3,125 +3,657 @@
   "draws": [
     {
       "replicate_id": 0,
+      "draw_schema": null,
       "layout_seed": 0,
       "seed_base": 0,
       "n_seeds": 5
     },
     {
       "replicate_id": 1,
+      "draw_schema": null,
       "layout_seed": 1,
       "seed_base": 1000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 2,
+      "draw_schema": null,
       "layout_seed": 2,
       "seed_base": 2000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 3,
+      "draw_schema": null,
       "layout_seed": 3,
       "seed_base": 3000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 4,
+      "draw_schema": null,
       "layout_seed": 4,
       "seed_base": 4000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 5,
+      "draw_schema": null,
       "layout_seed": 5,
       "seed_base": 5000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 6,
+      "draw_schema": null,
       "layout_seed": 6,
       "seed_base": 6000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 7,
+      "draw_schema": null,
       "layout_seed": 7,
       "seed_base": 7000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 8,
+      "draw_schema": null,
       "layout_seed": 8,
       "seed_base": 8000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 9,
+      "draw_schema": null,
       "layout_seed": 9,
       "seed_base": 9000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 10,
+      "draw_schema": null,
       "layout_seed": 10,
       "seed_base": 10000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 11,
+      "draw_schema": null,
       "layout_seed": 11,
       "seed_base": 11000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 12,
+      "draw_schema": null,
       "layout_seed": 12,
       "seed_base": 12000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 13,
+      "draw_schema": null,
       "layout_seed": 13,
       "seed_base": 13000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 14,
+      "draw_schema": null,
       "layout_seed": 14,
       "seed_base": 14000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 15,
+      "draw_schema": null,
       "layout_seed": 15,
       "seed_base": 15000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 16,
+      "draw_schema": null,
       "layout_seed": 16,
       "seed_base": 16000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 17,
+      "draw_schema": null,
       "layout_seed": 17,
       "seed_base": 17000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 18,
+      "draw_schema": null,
       "layout_seed": 18,
       "seed_base": 18000000,
       "n_seeds": 5
     },
     {
       "replicate_id": 19,
+      "draw_schema": null,
       "layout_seed": 19,
       "seed_base": 19000000,
       "n_seeds": 5
     }
   ],
+  "provenance": {
+    "generated_utc": "2026-11-27T07:15:31.345626Z",
+    "git": {
+      "commit": "47285961471c1293cb3121bd2037f5fcde0f5778",
+      "short_commit": "47285961471c",
+      "branch": "claude/project-explanation-latex-5gxonr",
+      "dirty": true,
+      "dirty_files": [
+        "external/hvta/CHANNELS.md",
+        "external/hvta/RESULTS.md",
+        "external/hvta/channels_results.json",
+        "external/hvta/hvta_results.json",
+        "external/hvta/make_results.py",
+        "external/hvta/rescore_detector.py",
+        "external/hvta/score_detectors.py",
+        "scripts/aggregate_replication.py",
+        "scripts/check_redraw.py",
+        "scripts/cross_family_transfer.py",
+        "scripts/measure_sign_randomization.py",
+        "scripts/merge_rescored_detector.py",
+        "scripts/replicate_leaderboard.py",
+        "scripts/v5_leaderboard_and_transfer.py",
+        "src/rhob/detectors/external_baselines/ar_residual.py",
+        "src/rhob/detectors/external_baselines/bocpd.py",
+        "src/rhob/detectors/external_baselines/isolation_forest.py",
+        "src/rhob/detectors/external_baselines/page_hinkley.py",
+        "src/rhob/detectors/external_baselines/pca_reconstruction.py",
+        "src/rhob/detectors/l2_ensemble.py",
+        "src/rhob/v3/base_family.py",
+        "src/rhob/v3/benchmark.py",
+        "src/rhob/v3/calibration_cache.py",
+        "src/rhob/v3/leaderboard/replicated.py",
+        "src/rhob/v3/leaderboard/transfer.py",
+        "src/rhob/v3/provenance.py",
+        "src/rhob/v3/registry.py",
+        "tests/test_detectors/test_external_baselines.py",
+        "tests/test_detectors/test_min_episodes.py",
+        "tests/test_v3/test_calibration_cache.py",
+        "tests/test_v3/test_cross_family_transfer_script.py",
+        "tests/test_v3/test_merge_rescored_detector.py",
+        "tests/test_v3/test_na_channels_and_provenance.py",
+        "tests/test_v3/test_redraw_check.py",
+        "tests/test_v3/test_replication_aggregate_provenance.py",
+        "tests/test_v3/test_replication_draws_differ.py",
+        "tests/test_v3/transfer_stubs.py"
+      ],
+      "source": "git"
+    },
+    "python": "3.12.3",
+    "python_implementation": "CPython",
+    "platform": "Linux-6.18.44-fc-v880-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "2.5.4",
+      "scipy": "1.18.1",
+      "scikit-learn": "1.9.1",
+      "torch": "2.15.0",
+      "rhob": "1.8.0",
+      "mujoco": "3.17.0",
+      "mujoco-core": null,
+      "gymnasium": "1.4.0",
+      "pettingzoo": "1.27.0",
+      "mpe2": "1.1.1"
+    },
+    "numerics": {
+      "env": {
+        "OPENBLAS_CORETYPE": null,
+        "OPENBLAS_NUM_THREADS": null,
+        "MKL_CBWR": null,
+        "MKL_NUM_THREADS": null,
+        "OMP_NUM_THREADS": null,
+        "ATEN_CPU_CAPABILITY": null
+      },
+      "cpu": {
+        "vendor": "GenuineIntel",
+        "model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+        "family": "6",
+        "model_number": "207",
+        "stepping": "2",
+        "isa": [
+          "sse4_2",
+          "avx",
+          "avx2",
+          "fma",
+          "avx512f",
+          "avx512dq",
+          "avx512bw",
+          "avx512vl",
+          "avx512_vnni",
+          "avx512_bf16",
+          "amx_tile"
+        ],
+        "logical_cpus": 4,
+        "source": "/proc/cpuinfo"
+      },
+      "torch_imported": true,
+      "torch_cpu_capability": "AVX512",
+      "blas": [
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "prefix": "libscipy_openblas",
+          "version": "0.3.31.dev",
+          "architecture": "SkylakeX",
+          "threading_layer": "pthreads",
+          "num_threads": 4
+        },
+        {
+          "user_api": "blas",
+          "internal_api": "openblas",
+          "prefix": "libscipy_openblas",
+          "version": "0.3.34.106.0",
+          "architecture": "SkylakeX",
+          "threading_layer": "pthreads",
+          "num_threads": 4
+        },
+        {
+          "user_api": "openmp",
+          "internal_api": "openmp",
+          "prefix": "libgomp",
+          "version": null,
+          "architecture": null,
+          "threading_layer": null,
+          "num_threads": 4
+        },
+        {
+          "user_api": "openmp",
+          "internal_api": "openmp",
+          "prefix": "libgomp",
+          "version": null,
+          "architecture": null,
+          "threading_layer": null,
+          "num_threads": 4
+        }
+      ]
+    },
+    "argv": [
+      "scripts/aggregate_replication.py"
+    ],
+    "script": "scripts/aggregate_replication.py",
+    "in_dir": "results/replication"
+  },
+  "replicates": {
+    "n_replicate_files": 20,
+    "commits": [
+      {
+        "value": null,
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "dirty": [
+      {
+        "value": null,
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "pythons": [
+      {
+        "value": "CPython 3.11.15",
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "package_sets": [
+      {
+        "value": {
+          "numpy": "2.4.6",
+          "scipy": "1.17.1",
+          "scikit-learn": "1.9.0",
+          "torch": "2.13.0",
+          "rhob": "1.8.0"
+        },
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "platforms": [
+      {
+        "value": "Linux-6.12.94-123.192.amzn2023.x86_64-x86_64-with-glibc2.34",
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "numerics": [
+      {
+        "value": null,
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "cpus": [
+      {
+        "value": null,
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "draw_schemas": [
+      {
+        "value": null,
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "rescored_rows": [
+      {
+        "value": [
+          {
+            "detector": "Reward Skewness",
+            "commit": "c6bb6f6",
+            "source": null
+          },
+          {
+            "detector": "Reward CUSUM",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Reward Peak",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Reward Autocorrelation",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Reward Trend",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Variance Window",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Max Plateau",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Gradient Reversal",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Reward MLP",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "State Frequency Anomaly",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Centroid Drift",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Occupancy Polarization",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Bimodal Occupancy",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Transition Entropy",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "State Coverage Rate",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Visitation Entropy Trend",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "State Divergence",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Feature Magnitude",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Feature Consistency",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          },
+          {
+            "detector": "Reward-Feature Correlation",
+            "commit": "6e8521a",
+            "source": "https://github.com/Aarav500/rhob/actions/runs/45747922473"
+          }
+        ],
+        "n": 20,
+        "replicate_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ]
+      }
+    ],
+    "layouts_resampled": false,
+    "single_source": false,
+    "single_source_problems": [
+      "no replicate records the commit it was drawn from",
+      "20 replicate(s) not recorded as drawn from a clean tree (dirty true or unrecorded): replicates 0-19",
+      "no replicate records its numerics signature",
+      "20 replicate(s) carry rows re-scored after the draw (provenance.rescored): replicates 0-19"
+    ],
+    "note": "Each list groups the replicate files by one provenance field; one entry means every replicate agrees, and a null value means the field is not recorded. draw_schema null means the file predates the key: it was drawn while FamilyRegistry.generate_suite dropped layout_seed (before 2026-11-27), so it was built and oriented at layout 0 and resampled only its rollout seeds, whatever its layout_seed says; layouts_resampled is false if any replicate is such a draw. single_source requires one recorded commit, clean trees, one Python, one package set, one numerics signature, one draw schema and no re-scored rows; platforms and CPUs are reported, not required to agree."
+  },
   "method": {
     "resampling_unit": "replicate",
     "bootstrap_resamples": 10000,
@@ -338,6 +870,13 @@
         "n_paired": 20,
         "denominators_equal": false
       }
+    },
+    "statistic_disagreement_unsupervised_only": {
+      "rungs_where_max_and_mean_disagree_on_separation": [
+        "L1_minus_L0"
+      ],
+      "rungs_where_max_and_mean_disagree_on_direction": [],
+      "note": "The max and the mean give these rungs different verdicts: a rung listed under separation separates under one statistic and not the other, and a rung listed under direction separates under both with opposite signs. Reporting either alone would present a statistic-dependent result as a settled one. Quote both."
     }
   },
   "access_levels": {

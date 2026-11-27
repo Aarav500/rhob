@@ -3,6 +3,11 @@ from here, so none of them can be typed by hand.
 
 Reads ``hvta_results.json`` (the primary draw, ``seed_base=0``) and any replicate
 artifacts passed with ``--replicate``, and writes ``RESULTS.md`` beside them.
+
+A detector re-scored on the primary draw after a fix (``rescore_detector.py``, recorded
+under the artifact's ``rescored``) is reported from its re-scored rows. A replicate draw
+that does not attest the same detector source still holds that detector's pre-fix rows:
+they are shown marked *(pre-fix)* and left out of every across-draw statistic.
 """
 
 from __future__ import annotations
@@ -19,6 +24,29 @@ HERE = Path(__file__).resolve().parent
 #: that would otherwise be a property of one draw are computed over all of them, so a
 #: headline can never quote whichever draw happened to be most flattering.
 ALL_ARTIFACTS: list = []
+
+#: Detector name -> sha256 of the source its primary-draw rows were re-scored with, from
+#: the primary artifact's ``rescored`` records. Set in ``main``.
+RESCORED: dict = {}
+
+
+def attests(art, name, sha):
+    """Whether ``art`` was scored by the detector source ``sha`` for ``name``.
+
+    Either a full ``score_detectors.py`` run that recorded ``detector_sources``, or a
+    ``rescore_detector.py`` record for that detector.
+    """
+    if (art.get("detector_sources") or {}).get(name, {}).get("sha256") == sha:
+        return True
+    return any(
+        (rec.get("detector_sources") or {}).get(name, {}).get("sha256") == sha
+        for rec in art.get("rescored", [])
+    )
+
+
+def pre_fix(art, name):
+    """Whether ``art``'s figures for ``name`` predate the fix the primary draw records."""
+    return name in RESCORED and not attests(art, name, RESCORED[name])
 
 
 def f(x, n=3, dash="n/a"):
@@ -38,6 +66,15 @@ def cell_rows(art, idx, name):
         if r["detector"] == name:
             return r
     return None
+
+
+def firing_gap(om):
+    """Firing rate on hacking runs minus firing rate on legitimate runs.
+
+    One definition for every place the report quotes it, so two sentences cannot round
+    the same quantity differently.
+    """
+    return (1 - om["miss_rate_hacking"]) - om["false_onset_rate_legit"]
 
 
 def onset_means(art, name):
@@ -71,6 +108,10 @@ def main() -> int:
 
     global ALL_ARTIFACTS
     art = json.loads(Path(args.results).read_text(encoding="utf-8"))
+    RESCORED.clear()
+    for rec in art.get("rescored", []):
+        for name, src in rec.get("detector_sources", {}).items():
+            RESCORED[name] = src["sha256"]
     rep_paths = (
         sorted((HERE / "replicates").glob("*.json"))
         if args.replicate is None
@@ -130,6 +171,7 @@ def main() -> int:
         for a in (ALL_ARTIFACTS or [art])
         for m in a["per_detector"]
         if m["detector"] == best_unsup["detector"] and m["mean_auroc"] is not None
+        and not pre_fix(a, m["detector"])
     ]
     w(
         f"1. **Discrimination transfers, partially.** The best unsupervised detector, "
@@ -146,7 +188,7 @@ def main() -> int:
     tracked = []
     for a in ALL_ARTIFACTS or [art]:
         for r in a["per_detector"]:
-            if r["detector"] == "True Reward Oracle":
+            if r["detector"] == "True Reward Oracle" or pre_fix(a, r["detector"]):
                 continue
             o = onset_means(a, r["detector"])
             if o and o["pearson_r_pred_vs_true"] is not None:
@@ -209,7 +251,7 @@ def main() -> int:
         f"(`hack_triggered=False`, `hack_onset_step=None`), each of these is a **real** false "
         f"positive. The largest gap between a detector's firing rate on hacking runs and on "
         f"legitimate runs is "
-        f"{f(max((om['n_fired_hacking'] / om['n_hacking'] - om['false_onset_rate_legit']) for _, om in fires), 2)}. "
+        f"{f(max(firing_gap(om) for _, om in fires), 2)}. "
         f"The detectors with low false-onset rates achieve them by staying silent on hacking "
         f"runs as well, not by discriminating."
     )
@@ -633,8 +675,7 @@ def main() -> int:
         if om is None or om["false_onset_rate_legit"] is None:
             continue
         fire = 1 - om["miss_rate_hacking"]
-        gaps.append((fire - om["false_onset_rate_legit"], r["detector"], fire,
-                     om["false_onset_rate_legit"]))
+        gaps.append((firing_gap(om), r["detector"], fire, om["false_onset_rate_legit"]))
     firing = [g for g in gaps if g[2] > 0]
     w(
         f"The {len(gaps) - len(firing)} detectors that never fire are 0% / 0% by definition "
@@ -741,29 +782,53 @@ def main() -> int:
         ) + " | mean | range |")
         w("|---|---|" + "---:|" * (len(reps) + 3))
         allart = [art] + reps
-        fragile = []
+        fragile, unassessed = [], []
         for r in sorted(scored, key=lambda r: -r["mean_auroc"]):
-            vals = []
+            vals, shown = [], []
             for a in allart:
                 m = next((x for x in a["per_detector"] if x["detector"] == r["detector"]), None)
-                vals.append(m["mean_auroc"] if m else None)
+                v = m["mean_auroc"] if m else None
+                if m is not None and pre_fix(a, r["detector"]):
+                    shown.append(f"{f(v)} *(pre-fix)*")
+                    v = None
+                else:
+                    shown.append(f(v))
+                vals.append(v)
             good = [v for v in vals if v is not None]
-            mean, rng = float(np.mean(good)), max(good) - min(good)
-            if rng >= abs(mean - 0.5):
-                fragile.append(r["detector"])
+            if len(good) < len(allart):
+                unassessed.append(r["detector"])
+                mean_s, rng_s = "--", "--"
+            else:
+                mean, rng = float(np.mean(good)), max(good) - min(good)
+                if rng >= abs(mean - 0.5):
+                    fragile.append(r["detector"])
+                mean_s, rng_s = f(mean), f(rng)
             w(
                 f"| {r['detector']}{' *(fit)*' if r['label_fitted'] else ''} "
                 f"| {r['access_level']} | "
-                + " | ".join(f(v) for v in vals)
-                + f" | **{f(mean)}** | {f(rng)} |"
+                + " | ".join(shown)
+                + f" | **{mean_s}** | {rng_s} |"
             )
         w("")
+        if any(pre_fix(a, n) for a in allart for n in RESCORED):
+            w(
+                "*(pre-fix)*: that draw was scored before the fix the primary draw was "
+                "re-scored for (see *Reproduce*), so its figure is not this detector's and is "
+                "left out of the mean and range."
+            )
+            w("")
         w(
             f"A detector whose across-draw range is as large as its distance from 0.500 has "
             f"not been shown to detect anything on this environment. That is "
-            f"{len(fragile)} of the {len(scored)} scoreable detectors: "
+            f"{len(fragile)} of the {len(scored) - len(unassessed)} scoreable detectors "
+            f"measured on every draw: "
             + ", ".join(f"`{n}`" for n in sorted(fragile))
             + "."
+            + (
+                " Not assessed, for want of a current figure on every draw: "
+                + ", ".join(f"`{n}`" for n in sorted(unassessed)) + "."
+                if unassessed else ""
+            )
         )
         w("")
         low_fire = sorted(
@@ -783,12 +848,38 @@ def main() -> int:
             cols = []
             for a in allart:
                 o = onset_means(a, name)
-                cols.append(f((o or {}).get("pearson_r_pred_vs_true"), 2, "--"))
+                shown = f((o or {}).get("pearson_r_pred_vs_true"), 2, "--")
+                cols.append(f"{shown} *(pre-fix)*" if pre_fix(a, name) else shown)
             w(f"| {name} | " + " | ".join(cols) + " |")
         w("")
+        tro_rs = [
+            onset_means(a, "True Reward Oracle")["pearson_r_pred_vs_true"] for a in allart
+        ]
+        complete, flipping, stale_r = [], [], []
+        for name, _om in fires:
+            if name == "True Reward Oracle":
+                continue
+            if any(pre_fix(a, name) for a in allart):
+                stale_r.append(name)
+                continue
+            rs = [(onset_means(a, name) or {}).get("pearson_r_pred_vs_true") for a in allart]
+            if all(v is not None for v in rs):
+                complete.append((name, rs))
+                if min(rs) < 0 < max(rs):
+                    flipping.append(name)
+        steady = [(n, rs) for n, rs in complete if n not in flipping]
         w(
-            f"The oracle holds r = 0.90-0.93 across all {len(allart)} draws. Every "
-            f"observable-channel detector sits near zero and changes sign between draws. "
+            f"The oracle holds r = {f(min(tro_rs), 2)}-{f(max(tro_rs), 2)} across all "
+            f"{len(allart)} draws. No observable-channel detector comes close in any draw: the "
+            f"highest correlation any of them reaches is r = {f(best_r, 2)} ({best_r_name}). "
+            f"Of the {len(complete)} with a correlation in every draw, {len(flipping)} change "
+            f"sign between draws"
+            + (
+                "; " + ", ".join(f"`{n}`" for n, _ in steady)
+                + f" keep {'its' if len(steady) == 1 else 'their'} sign, at "
+                f"|r| <= {f(max(abs(v) for _, rs in steady for v in rs), 2)}. "
+                if steady else ". "
+            )
             + (
                 ("`" + "`, `".join(low_fire) + "` swings widest"
                  if len(low_fire) == 1 else
@@ -796,6 +887,12 @@ def main() -> int:
                 + ", but fires on under 20% of runs, so that correlation rests on a handful "
                   "of points and is noise rather than a signal that reverses."
                 if low_fire else ""
+            )
+            + (
+                " " + ", ".join(f"`{n}`" for n in stale_r)
+                + f" {'is' if len(stale_r) == 1 else 'are'} measured on the primary draw only "
+                "(the replicate draws are pre-fix), so stability across draws is unmeasured."
+                if stale_r else ""
             )
         )
         w("")
@@ -867,6 +964,9 @@ def main() -> int:
     w("# 2. score every detector (needs torch for the two MLP detectors)")
     w("PYTHONPATH=<rhob>/src python external/hvta/score_detectors.py")
     w("")
+    w("# 2b. after a fix to one detector, re-score it alone and merge its rows")
+    w("python -I external/hvta/rescore_detector.py --detector <Class> --reason \"...\"")
+    w("")
     w("# 3. render this report")
     w("python external/hvta/make_results.py")
     w("```")
@@ -877,6 +977,7 @@ def main() -> int:
     w("| `hvta_adapter.py` | HVTA episode -> `rhob.detectors.posthoc.RunData` |")
     w("| `export_pairs.py` | rolls out the grid, freezes it as `hvta_pairs.npz` + `.meta.json` |")
     w("| `score_detectors.py` | runs the detectors via `_evaluate_cell`, writes `hvta_results.json` |")
+    w("| `rescore_detector.py` | re-scores named detectors on a committed draw, merges their rows, records it under `rescored` |")
     w("| `make_results.py` | renders this file |")
     w("| `generate_pairs.py` | standalone pair-construction check (prints the matching table) |")
     w("| `test_matched_pairs.py` | 19 invariants on the pair construction |")
@@ -905,6 +1006,33 @@ def main() -> int:
         f"Scoring: Python {sc['python']}, numpy {sc['numpy']}."
     )
     w("")
+    for rec in art.get("rescored", []):
+        env = rec["scoring_env"]
+        srcs = rec.get("detector_sources", {})
+        stale = sorted({p for ps in rec.get("replicates_not_rescored", {}).values() for p in ps})
+        w(
+            f"**Re-scored {rec['date_utc'][:10]}** by `{rec['script']}`: "
+            + ", ".join(
+                f"{n} (`{s['path']}`, sha256 `{s['sha256'][:12]}`)" for n, s in srcs.items()
+            )
+            + f", on all {rec['n_cells']} cells of this draw, Python {env['python']} "
+            f"({env['platform']}), numpy {env['numpy']}, RHOB "
+            f"`{(rec.get('rhob_git_head') or '?')[:12]}` plus that source. Every other "
+            f"detector's rows are as first scored. Why: {rec['reason']}. Replaced figures: "
+            + "; ".join(
+                f"{n} mean AUROC {f(p['mean_auroc'])}, onset MAE "
+                f"{f(p['mean_onset_mae_normalized'])}"
+                for n, p in rec.get("previous", {}).items()
+            )
+            + "."
+            + (
+                " The replicate draws " + ", ".join(f"`{p}`" for p in stale)
+                + " were not re-scored (their frozen pairs are not in the repository), so"
+                " their rows for this detector are pre-fix and marked so above."
+                if stale else ""
+            )
+        )
+        w("")
 
     # Joined once and named: the backslash escape cannot live inside the f-string's
     # expression part, which is a SyntaxError before Python 3.12 and this package

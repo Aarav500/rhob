@@ -38,8 +38,16 @@ Two properties of the emitted JSON are load-bearing and easy to miss:
    ``scripts/replicate_leaderboard.py`` over several draws and aggregate with
    ``scripts/aggregate_replication.py``.
 
+The board keeps per-family means. ``--cells-out PATH`` also writes every detector's
+per-cell AUROCs to a sidecar, ``{"provenance": ..., "cells": {detector: cells_detail}}``,
+where ``provenance`` is the board's own block and each ``cells_detail`` comes from
+:func:`_cells_detail` -- the function ``scripts/replicate_leaderboard.py`` writes its
+``cells_detail`` with, so the two round identically. The board is the draw
+``(layout_seed, seed_base) = (0, 0)``, which is replicate 0 of a re-draw, and
+``scripts/check_redraw.py`` requires that replicate to equal this sidecar cell for cell.
+
 Run: python scripts/v5_leaderboard_and_transfer.py [--families ...] [--detectors ...]
-     [--n-seeds N] [--out PATH]
+     [--n-seeds N] [--out PATH] [--cells-out PATH]
 """
 
 import argparse
@@ -143,10 +151,13 @@ DETECTORS = [
 ROLLOUT_SEED_BASE = 0
 LEGIT_SEED_OFFSET = 1000
 
-# FamilyRegistry.generate_suite() calls ``fam.generate_pair(d)`` without a seed, i.e.
-# with BaseFamily.generate_pair's default ``seed=0``. The leaderboard therefore samples
-# exactly one environment layout per (family, difficulty) -- one draw, not a
-# distribution -- which is the fact the ``sampling`` block below makes explicit.
+# The board is the draw ``(layout_seed, seed_base) = (0, 0)``, passed to Benchmark.evaluate
+# explicitly below so that the ``sampling`` block is true by construction:
+# FamilyRegistry.generate_suite builds every cell as ``generate_pair_at(d, seed=0)`` and
+# MatchedPair.rollout draws from seed_base 0. That is exactly one environment layout per
+# (family, difficulty) -- one draw, not a distribution -- which is the fact the
+# ``sampling`` block makes explicit. It is also replicate 0 of
+# ``scripts/replicate_leaderboard.py`` (``draw_for(0) == (0, 0)``).
 LAYOUT_SEEDS = [0]
 
 
@@ -159,6 +170,33 @@ def _jsonable(value: float | None) -> float | None:
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     return round(float(value), 3)
+
+
+def _cells_detail(results) -> list[dict]:
+    """Every cell of one detector's :class:`BenchmarkResults`, in suite order.
+
+    One ``{"family", "difficulty", "auroc"}`` record per cell. ``auroc`` is ``null`` where
+    the cell is not applicable or its AUROC is undefined (NaN), and is otherwise rounded
+    to 6 places; ``difficulty`` is rounded to 4.
+
+    This is the one definition of a cell record. The board's ``--cells-out`` sidecar and
+    every replicate's ``cells_detail`` (``scripts/replicate_leaderboard.py``) are both
+    written by it, so ``scripts/check_redraw.py`` can require replicate 0 of a re-draw to
+    equal the board cell for cell with no rounding difference to explain away, and
+    ``scripts/merge_rescored_detector.py`` keys cells by the same rounded difficulty.
+    """
+    return [
+        {
+            "family": c.family,
+            "difficulty": round(float(c.difficulty), 4),
+            "auroc": (
+                None
+                if not c.applicable or math.isnan(float(c.discrimination_auroc))
+                else round(float(c.discrimination_auroc), 6)
+            ),
+        }
+        for c in results.cells
+    ]
 
 
 def _summarize(results, level: str) -> dict:
@@ -198,7 +236,7 @@ def _summarize(results, level: str) -> dict:
     }
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
     """Run v5 leaderboard and transfer analysis."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -215,7 +253,13 @@ def main():
         help="Output JSON path. Point this elsewhere for smoke runs so the published "
              "artifact is not overwritten by a subset evaluation.",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--cells-out", type=Path, default=None,
+        help="Also write every detector's per-cell AUROCs here, as "
+             '{"provenance": <the board\'s block>, "cells": {detector: cells_detail}}, '
+             "for scripts/check_redraw.py to compare replicate 0 of a re-draw against.",
+    )
+    args = parser.parse_args(argv)
 
     families = args.families if args.families else "all"
     family_names = FamilyRegistry.list_families() if families == "all" else list(families)
@@ -234,6 +278,7 @@ def main():
     print()
 
     results_by_detector = {}
+    cells_by_detector: dict[str, list[dict]] = {}
     for i, detector in enumerate(detectors, 1):
         name = detector.name
         level = detector.access_level
@@ -246,9 +291,12 @@ def main():
                 difficulties="all",
                 n_seeds=args.n_seeds,  # Reduced for speed
                 verbose=False,
+                layout_seed=LAYOUT_SEEDS[0],
+                seed_base=ROLLOUT_SEED_BASE,
             )
             record = _summarize(results, level)
             results_by_detector[name] = record
+            cells_by_detector[name] = _cells_detail(results)
 
             overall = record["overall_auroc"]
             n_na = record["cells_not_applicable"]
@@ -310,9 +358,19 @@ def main():
             indent=2,
         )
 
+    if args.cells_out is not None:
+        # The same provenance object as the board's, so a reader (and check_redraw.py)
+        # can tell that the sidecar and the board came from one run.
+        cells_path = Path(args.cells_out)
+        cells_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cells_path, "w") as f:
+            json.dump({"provenance": prov, "cells": cells_by_detector}, f, indent=2)
+
     print()
     print("=" * 70)
     print(f"[OK] Leaderboard saved to {board_path}")
+    if args.cells_out is not None:
+        print(f"[OK] Per-cell AUROCs saved to {args.cells_out}")
 
     # Summary stats
     scored = [

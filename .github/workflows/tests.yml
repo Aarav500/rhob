@@ -12,10 +12,30 @@ on:
     - cron: "17 4 * * *"
   workflow_dispatch:
 
+# Read-only. The one job that writes anything, `report`, asks for `issues: write` itself.
+permissions:
+  contents: read
+
+# Keyed on event and ref. A newer push to a pull request supersedes the run in flight,
+# which is all a pull request run is for. Every other run (a push to main, the nightly, a
+# manual run) gets a group of its own, by run id, and is never cancelled: each is the
+# record for its commit, and admission-slow is hours of calibration a cancel would throw
+# away. A shared group would not be enough even with cancel-in-progress false, because
+# GitHub still cancels a run that is *waiting* in a group when a newer one arrives, so the
+# middle one of three quick merges would be left with a cancelled run.
+concurrency:
+  group: tests-${{ github.event_name }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    # The whole pull request run took about 7 minutes on 2026-11-27 (45950301742).
+    timeout-minutes: 45
     strategy:
+      # Every leg reports. With the default fail-fast, the first leg to fail cancels the
+      # others, so a red run cannot say whether the break is specific to one Python.
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
@@ -74,8 +94,14 @@ jobs:
     # own tarball holds entries under the old key, which all miss. Later merges restore
     # main's previous tarball and recompute only what they invalidate, but a lock bump or an
     # edit to calibration_cache.py is cold again, so 180 left too little margin.
+    #
+    # ubuntu-24.04, not ubuntu-latest, as in drift.yml and regenerate.yml. The lock fixes
+    # the wheels; the image still supplies glibc's libm, which the simulators call, and the
+    # calibration cache's per-entry keys do not see the image. ubuntu-latest became 26.04
+    # without a commit here. The tarball key below names the image, so a move between
+    # images starts a new tarball instead of restoring calibrations derived on another one.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v7
@@ -89,15 +115,16 @@ jobs:
       # the same commit gets the same distributions every night. A new release reaches
       # this job only when someone regenerates requirements/ci-admission-linux-py312.txt
       # with scripts/update_ci_lock.sh, which is a diff a person reviews. What still
-      # floats is the CPython 3.12 patch release, pip and the runner image. New releases
-      # are tried weekly by .github/workflows/drift.yml, before anyone adopts them.
+      # floats is the CPython 3.12 patch release, pip and the weekly updates of the
+      # ubuntu-24.04 image. New releases are tried weekly by .github/workflows/drift.yml,
+      # before anyone adopts them.
       #
       # Two pip commands, because hash-checking mode cannot install an editable checkout
       # (there is no single file to hash). rhob goes in second with --no-deps, so nothing
       # outside the lock is installed. The one unpinned piece is the build backend
-      # (setuptools, wheel), which pip fetches into an isolated build environment to build
-      # rhob's own editable wheel and then discards. `pip check` confirms the installed set
-      # is consistent. It reads only base requirements, not extras, so
+      # (setuptools>=77, pyproject.toml's [build-system]), which pip fetches into an
+      # isolated build environment to build rhob's own editable wheel and then discards.
+      # `pip check` confirms the installed set is consistent. It reads only base requirements, not extras, so
       # scripts/check_ci_lock.py --installed then checks every requirement pyproject.toml
       # declares for these four extras, and the extras those ask for in turn
       # (gymnasium[mujoco]). Without it, a bound tightened in pyproject.toml and not carried
@@ -128,10 +155,18 @@ jobs:
       # (2026-11-06) was served calibrations derived under 3.17, and the nightly went red
       # on an unchanged commit. A key that cannot see a change cannot fail on it.
       #
-      # Now: an exact key over the physics-stack token and all of src/rhob, and a prefix
-      # fallback so a source edit restores the previous tarball instead of starting
-      # cold. A fallback is safe only because the per-entry keys are complete. Entries
-      # the edit or upgrade made stale simply miss, and are recomputed and re-saved.
+      # Now: one key definition, .github/actions/calibration-cache, shared with every
+      # scoring job of regenerate.yml. It names what the per-entry keys hash (the physics
+      # token, which since 2026-11-27 includes the numerics variables) plus two things they
+      # do not, the runner image and, readably, the numerics pins, then src/rhob's hash and
+      # this run's id, and restores the newest tarball at the same sources, then at any. A
+      # fallback is safe only because the per-entry keys are complete: entries an edit or
+      # upgrade made stale simply miss, and are recomputed and re-saved. The action's header
+      # has the rest, including why every save key carries the run id.
+      #
+      # This job sets no numerics pins (regenerate.yml does), so its tarballs and
+      # regenerate.yml's never restore each other: the pins move a calibration's last bits,
+      # and the slow screen is held to the environment its strict xfails were set in.
       #
       # Split restore/save, deliberately, rather than the combined `actions/cache`.
       # The combined form saves in a post-job step that is SKIPPED when the job fails,
@@ -144,20 +179,9 @@ jobs:
       # "Cache not found for input keys: calib-Linux-py3.12-...". The calibrations are
       # correct work whether or not the assertions downstream pass, so they are saved
       # either way.
-      - name: Fingerprint the physics stack
-        id: physics
-        run: |
-          python -c "from rhob.v3.calibration_cache import physics_versions; print(physics_versions())"
-          echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
-      - name: Restore calibration cache
-        id: calib_cache
-        uses: actions/cache/restore@v6
-        with:
-          path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
-          restore-keys: |
-            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
-            calib-${{ runner.os }}-py3.12-
+      - name: Restore the calibration cache
+        id: calib
+        uses: ./.github/actions/calibration-cache
       # Serial, and NOT cheap on a cold cache -- generate_pair derives the calibration and
       # returns closures without rolling anything out, so this costs the calibrations
       # exactly, and some are minutes each: sequence_length_padding._legit_empty_rate is
@@ -191,14 +215,15 @@ jobs:
         run: pytest tests/ -q -m slow -n auto --durations=15
       # After the tests, so calibrations the tests derived for themselves (anything the
       # warm step left cold) are captured too, and `if: always()` so a failing assertion
-      # never costs the next run its cache. Skipped on an exact hit, since there would be
-      # nothing new to write.
+      # never costs the next run its cache. Always saved, under this run's own key: an
+      # exact restore can no longer happen, and a run that restored everything and derived
+      # nothing costs one more tarball of about 21 KB.
       - name: Save calibration cache
-        if: always() && steps.calib_cache.outputs.cache-hit != 'true'
+        if: ${{ always() && steps.calib.outputs.key != '' }}
         uses: actions/cache/save@v6
         with:
           path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
+          key: ${{ steps.calib.outputs.key }}
 
   no-torch-import-check:
     # Core dependencies (numpy, scipy, scikit-learn, pydantic, click) must be
@@ -209,6 +234,7 @@ jobs:
     # continuous-tier family chain made the entire rhob.v3 package
     # unimportable without PyTorch.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -228,3 +254,52 @@ jobs:
           assert 'gridworld_camping' in fams, fams
           print('OK:', fams)
           "
+
+  report:
+    # The nightly is the run nobody is watching, and the one that meets each new release
+    # (the unpinned `pytest` matrix) and the physics screen (`admission-slow`). Its red mark
+    # used to sit on the Actions page until someone happened to look. As in drift.yml: one
+    # tracking issue, found by its exact title, opened or commented on when a scheduled run
+    # does not pass, and closed when one passes again. Scheduled runs only, so pull
+    # requests and manual runs never touch it. Its own job, so `issues: write` is the only
+    # permission it holds and it never shares a runner with the code the tests installed.
+    needs: [pytest, admission-slow, no-torch-import-check]
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TITLE: Nightly tests are failing
+          PYTEST: ${{ needs.pytest.result }}
+          SLOW: ${{ needs.admission-slow.result }}
+          NO_TORCH: ${{ needs.no-torch-import-check.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          number="$(gh issue list --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+          if [ "$PYTEST" = "success" ] && [ "$SLOW" = "success" ] && [ "$NO_TORCH" = "success" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "Passing again: $RUN_URL"
+            fi
+            exit 0
+          fi
+          body="$(cat <<EOF
+          The nightly run of tests.yml on $GITHUB_REF_NAME did not pass: $RUN_URL
+
+          - pytest (Python 3.10, 3.11, 3.12; unpinned, the newest releases pyproject.toml allows): $PYTEST
+          - admission-slow (the slow smoke screens, on the hashed CI lock): $SLOW
+          - no-torch-import-check: $NO_TORCH
+
+          A red pytest leg with a green admission-slow usually means a new release broke the fast suite; the lock is unaffected until it is regenerated (requirements/README.md). A red admission-slow on the lock is a change in this repository or in the runner image.
+          EOF
+          )"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

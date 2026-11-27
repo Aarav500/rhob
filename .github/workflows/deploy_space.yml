@@ -5,6 +5,15 @@ name: deploy-space
 # maintainer has created the Space and added the secret (see docs/DEPLOY_SPACE.md).
 # Running this before that setup is done would just fail loudly on every push, so it's
 # opt-in until then.
+#
+# The deployed app and the rhob it imports are one commit. space/requirements.txt installs
+# rhob from git at `main`, so a Space deployed from any other commit (a branch, or main
+# before a later merge) would run this commit's app.py against whatever main is when the
+# Space next rebuilds. The staged copy of requirements.txt is therefore pinned to the
+# deploying SHA; the file in the repository is left as it is, so a local
+# `pip install -r space/requirements.txt` still tracks main. A deploy from a branch is
+# allowed but warned about: the Space then depends on that branch's commit staying
+# reachable on GitHub.
 
 on:
   workflow_dispatch:
@@ -14,16 +23,45 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-space-${{ inputs.space_repo }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # Pinned, and inside the `space` extra's range in pyproject.toml
+      # (huggingface_hub>=0.20,<2): 1.33.0 is the last 1.x release. Unpinned, this step
+      # installed 2.x, a major the extra excludes. Widen both together, or neither.
       - name: Install huggingface_hub
-        run: pip install huggingface_hub
+        run: pip install "huggingface_hub==1.33.0"
+      - name: Check the inputs
+        env:
+          SPACE_REPO: ${{ inputs.space_repo }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if ! printf '%s' "$SPACE_REPO" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*'; then
+            echo "::error::space_repo must be OWNER/NAME, got: $SPACE_REPO"
+            exit 1
+          fi
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::the HF_TOKEN secret is not set (docs/DEPLOY_SPACE.md, One-time setup)"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::warning::deploying $GITHUB_SHA from $GITHUB_REF, not main; the Space will install rhob at that commit"
+          fi
       - name: Stage deploy bundle (app + leaderboard data + measured figures)
         run: |
           mkdir -p deploy_bundle
@@ -36,19 +74,41 @@ jobs:
           # ship, and it must stay in step with the copy in docs/figures/.
           mkdir -p deploy_bundle/figures
           cp docs/figures/sign_randomization_impact.json deploy_bundle/figures/
+      - name: Pin the Space's rhob to this commit
+        run: |
+          python - <<'EOF'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          path = Path("deploy_bundle/requirements.txt")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          pattern = re.compile(r"^rhob @ git\+https://github\.com/[^@\s]+\.git@\S+$")
+          hits = [i for i, line in enumerate(lines) if pattern.match(line.strip())]
+          if len(hits) != 1:
+              sys.exit(f"expected one 'rhob @ git+https://github.com/...git@REF' line in "
+                       f"space/requirements.txt, found {len(hits)}: {lines}")
+          repo, sha = os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_SHA"]
+          lines[hits[0]] = f"rhob @ git+https://github.com/{repo}.git@{sha}"
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print(path.read_text(encoding="utf-8"))
+          EOF
       - name: Push to the Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          SPACE_REPO: ${{ inputs.space_repo }}
         run: |
-          python -c "
+          python - <<'EOF'
           import os
+
           from huggingface_hub import HfApi
 
-          api = HfApi(token=os.environ['HF_TOKEN'])
+          api = HfApi(token=os.environ["HF_TOKEN"])
           api.upload_folder(
-              folder_path='deploy_bundle',
-              repo_id='${{ inputs.space_repo }}',
-              repo_type='space',
-              commit_message='Deploy from GitHub Actions (${{ github.sha }})',
+              folder_path="deploy_bundle",
+              repo_id=os.environ["SPACE_REPO"],
+              repo_type="space",
+              commit_message=f"Deploy from GitHub Actions ({os.environ['GITHUB_SHA']})",
           )
-          "
+          EOF

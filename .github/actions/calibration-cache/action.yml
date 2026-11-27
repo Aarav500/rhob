@@ -1,0 +1,87 @@
+name: Restore the calibration cache
+description: >-
+  Fingerprint the physics stack, then restore the newest calibration-cache tarball that
+  matches it into .rhob_cache. Saving is left to the caller (actions/cache/save with the
+  `key` output), so the caller decides when, and under `if: always()`.
+
+# One definition of the tarball key, for tests.yml's admission-slow job and every scoring
+# job of regenerate.yml: the calibrate job saves under `key`, and the jobs after it must
+# compute exactly the same `key` to restore it. The caller must have checked out the
+# repository and installed rhob.
+#
+# Validity is decided per entry, in src/rhob/v3/calibration_cache.py: each entry's key
+# hashes the family module, every rhob module it imports (as code, docstrings and comments
+# stripped), the installed versions of the numerical stack, the Python minor version, the
+# machine and the numerics environment variables. This key only chooses which tarball to
+# restore. It names
+#   calib-v2      the entries' fingerprint format since 2026-11-27, so no earlier tarball,
+#                 none of whose entries can hit, is restored;
+#   runner.os and ImageOS (ubuntu24): the image supplies glibc's libm, which the simulators
+#                 call and the entry keys cannot see;
+#   np<hash>      the six numerics pins, readably, so pinned (regenerate.yml) and unpinned
+#                 (admission-slow) tarballs never restore each other;
+#   the physics token, the hash of src/rhob, and the run id.
+# Restore falls back to the newest tarball at the same sources, then at any sources: a
+# fallback is safe only because the per-entry keys are complete, so an entry an edit made
+# stale simply misses and is recomputed. The run id makes every save key unique; cache keys
+# cannot be overwritten, so a save under an existing key used to be skipped with a warning
+# and the run's new calibrations lost.
+
+inputs:
+  expect:
+    description: >-
+      Optional: the key an earlier job of this run saved (regenerate.yml's calibrate job).
+      When given, restoring any other tarball is reported as a warning: the job then
+      derives for itself whatever that tarball lacks, correctly but slowly.
+    required: false
+    default: ""
+
+outputs:
+  prefix:
+    description: The key up to and including the physics token.
+    value: ${{ steps.physics.outputs.prefix }}
+  key:
+    description: This run's save key; what the calibrate job saves and later jobs restore.
+    value: ${{ steps.physics.outputs.key }}
+  cache-matched-key:
+    description: The key of the tarball that was restored, empty if none.
+    value: ${{ steps.restore.outputs.cache-matched-key }}
+
+runs:
+  using: composite
+  steps:
+    - name: Fingerprint the physics stack
+      id: physics
+      shell: bash
+      env:
+        SRC_HASH: ${{ hashFiles('src/rhob/**/*.py') }}
+      run: |
+        python -c "from rhob.v3.calibration_cache import physics_versions; print(physics_versions())"
+        token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')
+        numerics=$(for v in OPENBLAS_CORETYPE OPENBLAS_NUM_THREADS MKL_CBWR MKL_NUM_THREADS \
+          OMP_NUM_THREADS ATEN_CPU_CAPABILITY; do printf '%s=%s\n' "$v" "${!v-unset}"; done)
+        echo "$numerics"
+        numerics=$(printf '%s\n' "$numerics" | sha256sum | cut -c1-12)
+        prefix="calib-v2-${RUNNER_OS}-${ImageOS:-unknown-image}-py3.12-np${numerics}-${token}-"
+        {
+          echo "prefix=$prefix"
+          echo "sources=$prefix$SRC_HASH-"
+          echo "key=$prefix$SRC_HASH-$GITHUB_RUN_ID"
+        } >> "$GITHUB_OUTPUT"
+        echo "key: $prefix$SRC_HASH-$GITHUB_RUN_ID"
+    - name: Restore the newest matching tarball
+      id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: .rhob_cache
+        key: ${{ steps.physics.outputs.key }}
+        restore-keys: |
+          ${{ steps.physics.outputs.sources }}
+          ${{ steps.physics.outputs.prefix }}
+    - name: The calibrate job's tarball was the one restored
+      if: ${{ inputs.expect != '' && steps.restore.outputs.cache-matched-key != inputs.expect }}
+      shell: bash
+      env:
+        EXPECT: ${{ inputs.expect }}
+        GOT: ${{ steps.restore.outputs.cache-matched-key }}
+      run: echo "::warning::restored '${GOT:-nothing}', not this run's calibrate tarball '$EXPECT'"

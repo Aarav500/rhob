@@ -35,11 +35,21 @@ class ARResidualDetector(PosthocDetector):
     def name(self) -> str:
         return "AR(p) Residual"
 
+    @property
+    def min_episodes(self) -> int:
+        """``order + 1`` episodes of ``behav_trace``: one lagged window and the value it predicts.
+
+        Below that ``fit`` has no regression rows and trains nothing, and ``_residuals``
+        returns None, so ``classify`` returns 0.5 for every run. ``detect_onset``'s own
+        rule (ten residuals) is an onset rule, not a scoring constant, and is not this.
+        """
+        return self.order + 1
+
     def fit(self, runs_a: list[RunData], runs_b: list[RunData]) -> None:
         X_rows, y_vals = [], []
         for run in runs_b:
             trace = run.behav_trace
-            if trace is None or len(trace) <= self.order:
+            if trace is None or len(trace) < self.min_episodes:
                 continue
             for t in range(self.order, len(trace)):
                 X_rows.append(trace[t - self.order : t])
@@ -85,7 +95,7 @@ class ARResidualDetector(PosthocDetector):
         if not self.is_trained or self.coeffs is None:
             return None
         trace = run.behav_trace
-        if trace is None or len(trace) <= self.order:
+        if trace is None or len(trace) < self.min_episodes:
             return None
         rows = [trace[t - self.order : t] for t in range(self.order, len(trace))]
         X = np.array(rows)

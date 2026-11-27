@@ -244,6 +244,253 @@ def test_editing_a_module_the_calibration_imports_changes_its_fingerprint(tmp_pa
     assert before != after, "a helper the calibration imports changed and the fingerprint did not"
 
 
+_PROBE_PACKAGE = "_calibprobe_doc_pkg"
+
+_FAM = '''
+"""A probe family."""
+
+from _calibprobe_doc_pkg.helper import scale
+
+
+def calibrate():
+    """Bisect the amplitude."""
+    return scale(0.20)
+'''
+
+_HELPER = '''
+"""Shared helper."""
+
+
+def scale(x):
+    """Double it."""
+    return 2 * x
+'''
+
+
+def _fingerprint_with(tmp_path, monkeypatch, fam: str = _FAM, helper: str = _HELPER) -> str:
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module = _fresh_import(tmp_path, _PROBE_PACKAGE, {"fam": fam, "helper": helper})
+    fingerprint = cc._module_fingerprint(module.calibrate)
+    assert fingerprint
+    return fingerprint
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        pytest.param(lambda s: s.replace('"""A probe family."""', '"""Reworded."""'),
+                     id="module-docstring"),
+        pytest.param(lambda s: s.replace('"""Bisect the amplitude."""',
+                                         '"""Bisect it.\n\n    A longer story.\n    """'),
+                     id="function-docstring"),
+        pytest.param(lambda s: s.replace("    return scale(0.20)",
+                                         "    # the published amplitude\n    return scale(0.20)"),
+                     id="comment"),
+        pytest.param(lambda s: s.replace("    return scale(0.20)", "    return scale( 0.20 )")
+                     + "\n\n\n", id="layout"),
+    ],
+)
+def test_a_docstring_comment_or_layout_edit_keeps_the_fingerprint(tmp_path, monkeypatch, edit):
+    """Five times in eleven days a docstring or comment edit, and nothing else, threw away
+    every calibrated family's entry and cost a cold recalibration on CI. None of them
+    could change a calibrated value, so none of them may change the key."""
+    before = _fingerprint_with(tmp_path, monkeypatch)
+    edited = edit(_FAM)
+    assert edited != _FAM, "the edit did not apply; the test would prove nothing"
+    assert _fingerprint_with(tmp_path, monkeypatch, fam=edited) == before
+
+
+def test_a_docstring_edit_to_an_imported_helper_keeps_the_fingerprint(tmp_path, monkeypatch):
+    before = _fingerprint_with(tmp_path, monkeypatch)
+    helper = _HELPER.replace('"""Double it."""', '"""Multiply by two, as the paper says."""')
+    helper = helper.replace('"""Shared helper."""', '"""Shared helper.\n\nNow documented."""')
+    assert helper != _HELPER
+    assert _fingerprint_with(tmp_path, monkeypatch, helper=helper) == before
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        # A docstring turned into code next to it: the docstring is still stripped, the
+        # new statement is not.
+        pytest.param(lambda s: s.replace('"""Bisect the amplitude."""',
+                                         '"""Bisect the amplitude."""\n    X = 1'),
+                     id="statement-added-after-docstring"),
+        pytest.param(lambda s: s.replace("0.20", "0.21"), id="constant"),
+        pytest.param(lambda s: s.replace("    return scale(0.20)",
+                                         '    "not a docstring"\n    return scale(0.20)'),
+                     id="bare-string-that-is-not-first"),
+        # A no-op as code, and still a miss: ``[pass, return]`` is not the tree
+        # ``[return]``. The normalization does not try to decide which edits are
+        # semantically empty beyond docstrings; pinned so that stays a decision.
+        pytest.param(lambda s: s.replace('"""Bisect the amplitude."""', "pass"),
+                     id="docstring-replaced-by-a-statement"),
+    ],
+)
+def test_any_other_edit_still_changes_the_fingerprint(tmp_path, monkeypatch, edit):
+    """The normalization must strip docstrings and nothing else. A bare string that is
+    not the first statement is kept on purpose -- an over-conservative miss, never a
+    shared key between two programs that compute different things."""
+    before = _fingerprint_with(tmp_path, monkeypatch)
+    edited = edit(_FAM)
+    assert edited != _FAM
+    assert _fingerprint_with(tmp_path, monkeypatch, fam=edited) != before
+
+
+def test_editing_a_helper_constant_still_changes_the_fingerprint(tmp_path, monkeypatch):
+    before = _fingerprint_with(tmp_path, monkeypatch)
+    assert _fingerprint_with(tmp_path, monkeypatch, helper=_HELPER.replace("2 * x", "3 * x")) != before
+
+
+@pytest.mark.parametrize(
+    "source, stripped_equivalent",
+    [
+        ('"""doc"""\nX = 1\n', "X = 1\n"),
+        ("class C:\n    '''doc'''\n    y = 2\n", "class C:\n    y = 2\n"),
+        ("def f():\n    'doc'\n    return 1\n", "def f():\n    return 1\n"),
+        ("async def f():\n    '''doc'''\n    return 1\n", "async def f():\n    return 1\n"),
+        # A body that was only a docstring executes as ``pass``.
+        ("def f():\n    '''doc'''\n", "def f():\n    pass\n"),
+        ("class C:\n    '''doc'''\n", "class C:\n    pass\n"),
+        ('"""only a docstring"""\n', "pass\n"),
+        ("X = 1  # a comment\n\n\n", "X = 1\n"),
+    ],
+)
+def test_normalized_strips_exactly_the_docstrings(source, stripped_equivalent):
+    assert cc._normalized(source) == cc._normalized(stripped_equivalent)
+
+
+@pytest.mark.parametrize(
+    "a, b",
+    [
+        # Not docstrings: a bytes literal, an f-string and a second string statement.
+        ("def f():\n    b'doc'\n    return 1\n", "def f():\n    return 1\n"),
+        ("def f():\n    f'doc'\n    return 1\n", "def f():\n    return 1\n"),
+        ("def f():\n    return 1\n    'tail'\n", "def f():\n    return 1\n"),
+        ("X = 'a'\n", "X = 'b'\n"),
+    ],
+)
+def test_normalized_keeps_every_string_that_is_not_a_docstring(a, b):
+    assert cc._normalized(a) != cc._normalized(b)
+
+
+def test_a_docstring_edit_to_posthoc_keeps_every_calibrated_familys_key(monkeypatch):
+    """The real case. ``rhob.detectors.posthoc`` defines ``RunData``, so every calibrated
+    family reaches it, and three of the five full invalidations were edits to its
+    docstrings alone (96d928c, f83a152, 67c73b4). Replayed here on the family whose
+    calibration is the most expensive, through the real import walk."""
+    import importlib  # noqa: PLC0415
+
+    name = "rhob.v3.families.mujoco_joint_limit_gaming"
+    module = importlib.import_module(name)
+    real_source_of = cc._source_of
+
+    def with_posthoc(transform):
+        def source_of(dep):
+            found = real_source_of(dep)
+            if dep != "rhob.detectors.posthoc" or found is None:
+                return found
+            text, is_package = found
+            new = transform(text)
+            assert new != text, "the posthoc edit did not apply"
+            return new, is_package
+
+        return source_of
+
+    before = cc._compute_fingerprint(name, module)
+    assert "rhob.detectors.posthoc" in cc.reachable_sources(name, module)
+
+    monkeypatch.setattr(cc, "_source_of", with_posthoc(
+        lambda t: t.replace('"""A completed run', '"""A finished run', 1) + "\n# a comment\n"
+    ))
+    assert cc._compute_fingerprint(name, module) == before
+
+    monkeypatch.setattr(cc, "_source_of", with_posthoc(lambda t: t + "\n_ADDED = 1\n"))
+    assert cc._compute_fingerprint(name, module) != before
+
+
+def test_normalization_is_memoized_across_families():
+    """The modules every family reaches are parsed once per process, not once each."""
+    import importlib  # noqa: PLC0415
+
+    names = ["rhob.v3.families.mujoco_joint_limit_gaming", "rhob.v3.families.mujoco_camping"]
+    cc._code_digest.cache_clear()
+    for name in names:
+        cc._compute_fingerprint(name, importlib.import_module(name))
+    info = cc._code_digest.cache_info()
+    assert info.hits > 0, "two families sharing base_pair et al. re-parsed every module"
+
+
+# ------------------------------------------------------------------- numerics pins
+
+#: What CI sets (the shared contract). The cache does not read these values; it hashes
+#: whatever the process has, so the test only pins the names.
+_CI_PINS = {
+    "OPENBLAS_CORETYPE": "Haswell",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_CBWR": "COMPATIBLE",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "ATEN_CPU_CAPABILITY": "avx2",
+}
+
+
+@pytest.fixture
+def _fresh_token():
+    cc.environment_token.cache_clear()
+    yield
+    cc.environment_token.cache_clear()
+
+
+def _token_under(monkeypatch, env: dict[str, str]) -> str:
+    for name in cc.NUMERICS_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    cc.environment_token.cache_clear()
+    return cc.environment_token()
+
+
+def test_the_key_hashes_exactly_the_pins_ci_sets():
+    assert set(cc.NUMERICS_ENV_VARS) == set(_CI_PINS)
+
+
+def test_an_unset_numerics_variable_is_hashed_as_unset(monkeypatch):
+    for name in cc.NUMERICS_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    assert cc.numerics_env() == {name: "unset" for name in cc.NUMERICS_ENV_VARS}
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    assert cc.numerics_env()["OMP_NUM_THREADS"] == "1"
+
+
+@pytest.mark.usefixtures("_fresh_token")
+@pytest.mark.parametrize("name", sorted(_CI_PINS))
+def test_each_numerics_pin_is_part_of_the_environment_token(monkeypatch, name):
+    """Pinned and unpinned calibrations can differ in the last bits, so they must never
+    share an entry -- nor may a run that dropped just one of the pins."""
+    unpinned = _token_under(monkeypatch, {})
+    pinned = _token_under(monkeypatch, _CI_PINS)
+    one_missing = _token_under(monkeypatch, {k: v for k, v in _CI_PINS.items() if k != name})
+    only_this = _token_under(monkeypatch, {name: _CI_PINS[name]})
+    assert len({unpinned, pinned, one_missing, only_this}) == 4
+
+
+@pytest.mark.usefixtures("_fresh_token")
+def test_pinning_the_numerics_turns_a_warm_entry_into_a_miss(monkeypatch):
+    """End to end through the memoizer, as for a version change."""
+    calibrate, calls = _counting_fn()
+    _token_under(monkeypatch, {})
+    calibrate(2)
+    calibrate.cache_clear()
+    calibrate(2)
+    assert calls["n"] == 1, "precondition: the entry is warm"
+
+    _token_under(monkeypatch, _CI_PINS)
+    calibrate.cache_clear()
+    calibrate(2)
+    assert calls["n"] == 2, "a pinned run was served an unpinned calibration"
+
+
 def test_the_key_changes_when_a_physics_library_changes_version(monkeypatch):
     """The failure that motivated this: MuJoCo 4.0.0 replaced 3.17.0 overnight, CI
     installed unpinned, and the cache served the 3.17 calibration under 4.0 physics."""

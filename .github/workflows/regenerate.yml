@@ -1,17 +1,40 @@
 name: regenerate artifacts
 
-# Regenerates the two artifacts that take hours, on the hashed lock the nightly physics
-# screen installs (requirements/ci-admission-linux-py312.txt), and commits each to the
-# branch the run is on:
+# Regenerates the artifacts that take hours, on the hashed lock the nightly physics screen
+# installs (requirements/ci-admission-linux-py312.txt), under the numerics pins below, and
+# commits each to the branch the run is on. One mode per dispatch (`artifacts`):
 #
-#   leaderboard/v5_leaderboard.json   one job: the script exactly as a person runs it
-#   admission/admission_ledger.json   the full 123-cell grid, one job per cell, merged
-#   admission/ADMISSION_LEDGER.md
-#   results/replication/replicate_*.json, leaderboard/v5_replicated.json and
-#   docs/figures/replication_summary.md: `replicated` re-scores the named detectors on
-#   each of the 20 draws, one job per draw, and merges each detector's rows into the
-#   committed replicates with scripts/merge_rescored_detector.py, which refuses a scored
-#   cell whose value moved unless it is named in `allow_changed`; then re-aggregates.
+#   board       leaderboard/v5_leaderboard.json: one job, the script exactly as a person
+#               runs it.
+#   ledger      admission/admission_ledger.json and admission/ADMISSION_LEDGER.md: the full
+#               123-cell grid, one job per cell, merged.
+#   both        board and ledger.
+#   replicated  results/replication/replicate_*.json, leaderboard/v5_replicated.json and
+#               docs/figures/replication_summary.md: re-scores the named detectors on each
+#               of the 20 committed draws, one job per draw, and merges each detector's rows
+#               with scripts/merge_rescored_detector.py, which refuses a scored cell whose
+#               value moved unless it is named in `allow_changed`, and refuses any draw made
+#               before layout_seed reached the families (no draw_schema); then
+#               re-aggregates.
+#   redraw      the same four files and leaderboard/v5_leaderboard.json, drawn whole: the
+#               board (with its per-cell sidecar) in one job and the 20 draws in 20 more, all
+#               detectors, all at this run's commit. scripts/check_redraw.py refuses the set
+#               unless it is complete, uniform, one clean commit's, and replicate 0 equals
+#               the board cell for cell; scripts/aggregate_replication.py
+#               --require-single-source then rebuilds the intervals, and the board and the
+#               draws land in ONE commit, so the single draw and the 20 never disagree on the
+#               branch.
+#   transfer    leaderboard/cross_family_transfer_v5.json: one job, the published design
+#               (5 trials). leaderboard/cross_family_transfer.json is the 2026-07-09 record
+#               and is never written.
+#   signrand    docs/figures/sign_randomization_impact.json and .md: one job, the published
+#               design end to end (`measure_sign_randomization.py ci`).
+#
+# `from_run` (replicated and redraw) merges the artifacts of an earlier run of this workflow
+# instead of drawing again, after the merge itself was fixed. The plan job checks that the
+# run is this workflow on this branch, that src/, requirements/, pyproject.toml and the
+# scripts that drew the artifacts are identical between that run's commit and this one, and
+# that its artifacts are exactly the expected set and still downloadable.
 #
 # Why the board is one job and the ledger is many. The board scores 30 detectors on the
 # SAME rollouts, shared in-process (Benchmark._rollout_cache), so its cost is the rollouts
@@ -23,19 +46,28 @@ name: regenerate artifacts
 # refuses anything but the full grid from one clean commit under one Python, one set of
 # package versions, one gate and one design.
 #
-# Each commit job commits only if the code that produced its artifact is still the code
-# at the branch tip (src/, scripts/, requirements/ and pyproject.toml unchanged since the
+# Calibrations are derived once per run, by the `calibrate` job, and saved; every job that
+# scores restores that tarball rather than re-deriving the same amplitudes in parallel.
+# Calibrations depend only on difficulty-derived arguments, never on a draw's layout or
+# rollout seeds, so one warm cache serves the board, every draw and every ledger cell. In
+# the f83a152 re-score (run 45747922473) each of the 20 draw jobs spent 78 minutes deriving
+# calibrations before scoring anything, about 1560 runner-minutes of the run's 2030.
+#
+# Each commit job commits only if the code that produced its artifact is still the code at
+# the branch tip (src/, scripts/, requirements/ and pyproject.toml unchanged since the
 # run's commit), checked again after every rebase (regenerate-commit.sh). The commits land
 # the artifacts alone: the docs and tests that quote them (test_ledger_doc_consistency,
-# test_access_summary) fail on the branch tip until a reviewed follow-up updates them.
+# test_access_summary, test_transfer_loader) fail on the branch tip until a reviewed
+# follow-up updates them. So freeze those four paths on the branch while a run is in
+# flight; docs may still be pushed.
 
 on:
   workflow_dispatch:
     inputs:
       artifacts:
-        description: "Which artifacts to regenerate"
+        description: "Which artifacts to regenerate (`both` is board + ledger)"
         type: choice
-        options: [both, board, ledger, replicated]
+        options: [both, board, ledger, replicated, redraw, transfer, signrand]
         default: both
       detectors:
         description: "replicated only: comma-separated detector names to re-score"
@@ -54,25 +86,70 @@ on:
         type: boolean
         default: false
       from_run:
-        description: "replicated only: merge the replicate-* artifacts of this earlier run instead of re-scoring"
+        description: "replicated and redraw only: merge the artifacts of this earlier run of this workflow (same mode, same branch, same sources) instead of drawing again"
         type: string
         default: ""
+      board_mismatch_allowed:
+        description: "redraw only: how many cells of replicate 0 may differ from the board (check_redraw.py --max-board-mismatch); each one is listed in the log"
+        type: string
+        default: "0"
 
 permissions:
   contents: read
 
+# The portable-numerics pins, for every job of every mode. Without them OpenBLAS, MKL and
+# PyTorch pick kernels by the CPU the runner happens to have, and threaded reductions sum in
+# a thread-count-dependent order, so two hosted runners can disagree in the last bits of
+# one fit; the 20 draws and the board of a redraw run on 21 different machines. Haswell and
+# avx2 are the newest kernels every x86-64 hosted runner has, Intel or AMD; one thread
+# makes every reduction's order fixed. The names are read by rhob.v3.calibration_cache
+# (they are part of every calibration key, so pinned and unpinned calibrations never share
+# an entry) and recorded by rhob.v3.provenance in every artifact's `numerics` block, which
+# scripts/check_redraw.py and aggregate_replication.py --require-single-source require to
+# agree across a set. tests.yml's admission-slow job does not set them.
+env:
+  OPENBLAS_CORETYPE: Haswell
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  ATEN_CPU_CAPABILITY: avx2
+
+# One run at a time per branch for the modes that commit the same files (board, ledger and
+# both share the board and ledger; replicated and redraw share the replicates, and redraw
+# also writes the board), so a second dispatch queues instead of computing for hours and
+# then losing the rebase to the first. transfer and signrand write files nothing else
+# writes, so each has its own queue and can run beside a board or a redraw. A group holds
+# one running and one waiting run: a third dispatch replaces the waiting one, which GitHub
+# then shows as cancelled.
 concurrency:
-  group: regenerate-${{ github.ref }}
+  group: >-
+    regenerate-${{ github.ref }}-${{ fromJSON('{"both": "boards", "board": "boards",
+    "ledger": "boards", "replicated": "boards", "redraw": "boards", "transfer": "transfer",
+    "signrand": "signrand"}')[inputs.artifacts || 'both'] }}
   cancel-in-progress: false
 
 jobs:
   plan:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     outputs:
+      mode: ${{ steps.inputs.outputs.mode }}
       cells: ${{ steps.plan.outputs.cells }}
       python: ${{ steps.py.outputs.python-version }}
+      source_sha: ${{ steps.inputs.outputs.source_sha }}
+      source_run_url: ${{ steps.inputs.outputs.source_run_url }}
+      calibrate: ${{ steps.inputs.outputs.calibrate }}
+      warm_families: ${{ steps.inputs.outputs.warm_families }}
     steps:
+      # Full history: a from_run's commit is diffed against this one.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       # Every later job installs exactly the patch release resolved here, so all 123
       # ledger shards record the same Python and the merge does not refuse them over a
       # runner image that happened to carry a different 3.12.x.
@@ -84,33 +161,214 @@ jobs:
         run: |
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      # Every input is checked here, before a single runner is spent on it: a mistyped
+      # detector name used to fail all 20 draw jobs after their install, and an input for
+      # another mode was silently ignored.
+      - name: Check the inputs
+        id: inputs
+        env:
+          MODE: ${{ inputs.artifacts || 'both' }}
+          DETECTORS: ${{ inputs.detectors }}
+          ALLOW: ${{ inputs.allow_changed }}
+          ALLOW_FAMILIES: ${{ inputs.allow_changed_families }}
+          KEEP: ${{ inputs.keep_old_values }}
+          FROM_RUN: ${{ inputs.from_run }}
+          MISMATCH: ${{ inputs.board_mismatch_allowed }}
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'EOF'
+          import importlib.util
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          env = os.environ
+          mode = env["MODE"]
+          errors = []
+
+          def fail(msg):
+              errors.append(msg)
+
+          def load(name, path):
+              sys.path.insert(0, "scripts")
+              spec = importlib.util.spec_from_file_location(name, path)
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+
+          modes = ["both", "board", "ledger", "replicated", "redraw", "transfer", "signrand"]
+          if mode not in modes:
+              fail(f"artifacts must be one of {modes}, got {mode!r}")
+
+          detectors = [d.strip() for d in env["DETECTORS"].split(",") if d.strip()]
+          allow = env["ALLOW"].split()
+          allow_families = env["ALLOW_FAMILIES"].split()
+          keep = env["KEEP"] == "true"
+          from_run = env["FROM_RUN"].strip()
+          mismatch = env["MISMATCH"].strip()
+
+          # Inputs that only one mode reads are refused elsewhere, not ignored.
+          if mode != "replicated":
+              for name, given in [("detectors", detectors), ("allow_changed", allow),
+                                  ("allow_changed_families", allow_families),
+                                  ("keep_old_values", keep)]:
+                  if given:
+                      fail(f"{name} is read only by artifacts=replicated, not {mode}")
+          if from_run and mode not in ("replicated", "redraw"):
+              fail(f"from_run is read only by artifacts=replicated or redraw, not {mode}")
+          if not re.fullmatch(r"[0-9]+", mismatch or ""):
+              fail(f"board_mismatch_allowed must be a non-negative integer, got {mismatch!r}")
+          elif int(mismatch) != 0 and mode != "redraw":
+              fail(f"board_mismatch_allowed is read only by artifacts=redraw, not {mode}")
+          if from_run and not re.fullmatch(r"[0-9]+", from_run):
+              fail(f"from_run must be a run id (digits), got {from_run!r}")
+
+          import rhob.v3.families  # noqa: F401  -- importing registers every family
+          from rhob.v3.registry import FamilyRegistry
+
+          families = set(FamilyRegistry.list_families())
+
+          if mode == "replicated":
+              # A merge with no detector named re-aggregates the committed draws and commits
+              # them as "re-scored rows" when the aggregator's output format has moved.
+              if not detectors:
+                  fail("artifacts=replicated needs detectors (comma-separated names)")
+              board = load("_v5_board", "scripts/v5_leaderboard_and_transfer.py")
+              known = [d.name for d in board.DETECTORS]
+              for name in detectors:
+                  if name not in known:
+                      fail(f"unknown detector {name!r}; the board's are: {known}")
+              for spec in allow:
+                  family, _, difficulty = spec.rpartition(":")
+                  try:
+                      value = round(float(difficulty), 4)
+                  except ValueError:
+                      fail(f"allow_changed entry {spec!r} is not family:difficulty")
+                      continue
+                  if family not in families:
+                      fail(f"allow_changed entry {spec!r}: no family {family!r}")
+                      continue
+                  tiers = {round(float(d), 4)
+                           for d in FamilyRegistry.get(family).default_difficulties()}
+                  if value not in tiers:
+                      fail(f"allow_changed entry {spec!r}: {family} is scored at {sorted(tiers)}")
+              for family in allow_families:
+                  if family not in families:
+                      fail(f"allow_changed_families: no family {family!r}")
+
+          source_sha = env["GITHUB_SHA"]
+          source_run_url = ""
+          if from_run and not errors:
+              repo = env["GITHUB_REPOSITORY"]
+
+              def api(path):
+                  out = subprocess.run(["gh", "api", path], check=True, capture_output=True,
+                                       text=True).stdout
+                  return json.loads(out)
+
+              run = api(f"repos/{repo}/actions/runs/{from_run}")
+              path = (run.get("path") or "").split("@")[0]
+              if path != ".github/workflows/regenerate.yml":
+                  fail(f"run {from_run} is {path!r}, not .github/workflows/regenerate.yml")
+              if run.get("event") != "workflow_dispatch":
+                  fail(f"run {from_run} was triggered by {run.get('event')!r}, not a dispatch")
+              if run.get("head_branch") != env["BRANCH"]:
+                  fail(f"run {from_run} ran on {run.get('head_branch')!r}, not {env['BRANCH']!r}")
+              if run.get("status") != "completed":
+                  fail(f"run {from_run} is {run.get('status')!r}; wait for it to complete")
+              if str(run.get("id")) == env["GITHUB_RUN_ID"]:
+                  fail("from_run names this run")
+              head = run.get("head_sha") or ""
+              source_sha, source_run_url = head, run.get("html_url") or ""
+
+              # The artifacts are only this run's if the code that drew them is this
+              # run's code: the package, its lock and the scripts that wrote them. The merge
+              # and check scripts run here, from this commit, so they may have changed.
+              drew = ["scripts/v5_leaderboard_and_transfer.py"]
+              if mode in ("replicated", "redraw"):
+                  drew.append("scripts/replicate_leaderboard.py")
+              if subprocess.run(["git", "cat-file", "-e", f"{head}^{{commit}}"]).returncode:
+                  subprocess.run(["git", "fetch", "-q", "origin", head], check=False)
+              diff = subprocess.run(
+                  ["git", "diff", "--stat", "--exit-code", head, env["GITHUB_SHA"], "--",
+                   "src", "requirements", "pyproject.toml", *drew],
+                  capture_output=True, text=True)
+              if diff.returncode != 0:
+                  fail(f"the sources that drew run {from_run}'s artifacts ({head}) differ from "
+                       f"this run's ({env['GITHUB_SHA']}):\n{diff.stdout}{diff.stderr}")
+
+              listing = api(f"repos/{repo}/actions/runs/{from_run}/artifacts?per_page=100")
+              artifacts = listing.get("artifacts", [])
+              if listing.get("total_count") != len(artifacts):
+                  fail(f"run {from_run} lists {listing.get('total_count')} artifacts and "
+                       f"returned {len(artifacts)}")
+              if mode == "replicated":
+                  want = {f"replicate-{i}" for i in range(20)}
+              else:
+                  want = {f"redraw-replicate-{i}" for i in range(20)} | {"redraw-board"}
+              names = [a["name"] for a in artifacts]
+              got = {n for n in names if n in want}
+              if sorted(n for n in names if n in want) != sorted(want):
+                  missing = sorted(want - got)
+                  dupes = sorted({n for n in names if names.count(n) > 1 and n in want})
+                  fail(f"run {from_run} does not hold exactly the {len(want)} {mode} artifacts: "
+                       f"missing {missing}, duplicated {dupes}")
+              expired = sorted(a["name"] for a in artifacts if a["name"] in want and a.get("expired"))
+              if expired:
+                  fail(f"run {from_run}'s artifacts have expired: {expired}")
+
+          # Which families the calibrate job warms: every one, except for the transfer,
+          # which rolls out only its own train and test families.
+          warm = ""
+          if mode == "transfer" and not errors:
+              transfer = load("_transfer", "scripts/cross_family_transfer.py")
+              warm = " ".join(sorted(set(transfer.TRAIN_FAMILIES) | set(transfer.TEST_FAMILIES)))
+
+          for e in errors:
+              print(f"::error::{e}")
+          if errors:
+              sys.exit(1)
+          calibrate = "false" if from_run else "true"
+          with open(env["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"mode={mode}\nsource_sha={source_sha}\nsource_run_url={source_run_url}\n"
+                        f"calibrate={calibrate}\nwarm_families={warm}\n")
+          print(f"mode={mode} source_sha={source_sha} calibrate={calibrate}"
+                f" warm_families={warm or 'all'}")
+          EOF
       - name: List the ledger's cells
         id: plan
         run: |
-          python scripts/admission_ledger.py --list-cells > cells.json
+          python scripts/admission_ledger.py --list-cells > "$RUNNER_TEMP/cells.json"
           python - <<'EOF' >> "$GITHUB_OUTPUT"
-          import json
-          cells = json.load(open("cells.json"))
+          import json, os
+          cells = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "cells.json")))
           print("cells=" + json.dumps([{"id": f"{i:03d}", **c} for i, c in enumerate(cells)]))
           EOF
-          python -c 'import json; print(len(json.load(open("cells.json"))), "cells")'
+          python -c 'import json, os; print(len(json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "cells.json")))), "cells")'
 
-  board:
+  calibrate:
+    # Derives every calibration the run's scoring jobs will need, once, serially, and saves
+    # the tarball under this run's id, so each of them restores it instead of deriving the
+    # same amplitudes side by side. Cold, all 33 families took 42.6 minutes on a hosted
+    # runner (tests.yml run 45936287211); warm, seconds. No budget: unlike tests.yml's warm
+    # step there is nothing to protect, since every job after this one derives whatever is
+    # left cold. A failure here never blocks scoring (the `!cancelled()` below).
     needs: plan
-    if: ${{ contains(fromJSON('["both", "board"]'), inputs.artifacts || 'both') }}
+    if: ${{ needs.plan.outputs.calibrate == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 350
-    permissions:
-      contents: write
+    timeout-minutes: 150
+    outputs:
+      key: ${{ steps.calib.outputs.key }}
+      warm: ${{ steps.warm.outcome }}
     steps:
-      # The branch tip, so the commit step can push; it must hold the run's sources,
-      # checked here and again before the push.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 0
-      - name: Sources at the branch tip are the run's
-        run: git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ needs.plan.outputs.python }}
@@ -119,41 +377,105 @@ jobs:
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
           pip check
-      - name: Fingerprint the physics stack
-        id: physics
-        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
-      # Restore only; the per-entry keys inside are complete (src/rhob/v3/calibration_cache.py),
-      # so a stale or missing entry is recomputed rather than trusted. The nightly keeps
-      # the cache current.
-      - name: Restore calibration cache
-        uses: actions/cache/restore@v6
+          python scripts/check_ci_lock.py --installed
+      # The key every scoring job computes (.github/actions/calibration-cache): saved
+      # under this run's id, it is exactly what they restore.
+      - name: Restore the calibration cache
+        id: calib
+        uses: ./.github/actions/calibration-cache
+      # Prints, per family, what it derived and what was already warm, so a run that
+      # unexpectedly recomputes everything is visible in this log.
+      - name: Warm the calibration cache
+        id: warm
+        timeout-minutes: 130
+        continue-on-error: true
+        env:
+          FAMILIES: ${{ needs.plan.outputs.warm_families }}
+        run: |
+          # shellcheck disable=SC2086  # FAMILIES is a space-separated list of family names
+          python -u scripts/warm_calibration_cache.py ${FAMILIES:+--families $FAMILIES}
+      - name: Save calibration cache
+        if: ${{ always() && steps.calib.outputs.key != '' }}
+        uses: actions/cache/save@v6
         with:
           path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
-          restore-keys: |
-            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+          key: ${{ steps.calib.outputs.key }}
+
+  board:
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      contains(fromJSON('["both", "board"]'), needs.plan.outputs.mode) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    steps:
+      # The run's commit, with full history so the commit step can rebase onto the branch
+      # tip and push. Scoring at GITHUB_SHA, not at whatever the tip is when the job starts,
+      # makes the artifact's provenance commit the dispatched one.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The branch tip still has the run's sources
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git fetch -q origin "refs/heads/$BRANCH"
+          git diff --exit-code --stat "$GITHUB_SHA" FETCH_HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      # Restore only; the per-entry keys inside are complete
+      # (src/rhob/v3/calibration_cache.py), so a stale or missing entry is
+      # recomputed rather than trusted.
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
+        with:
+          expect: ${{ needs.calibrate.outputs.key }}
+      # The per-cell sidecar is not committed (nothing in the repository reads it); it is
+      # uploaded beside the board as the record of every cell the per-family means average.
       - name: Score 30 detectors on 33 families
-        run: python -u scripts/v5_leaderboard_and_transfer.py --out leaderboard/v5_leaderboard.json
+        run: |
+          python -u scripts/v5_leaderboard_and_transfer.py --out leaderboard/v5_leaderboard.json \
+            --cells-out "$RUNNER_TEMP/board/v5_leaderboard_cells.json"
+          cp leaderboard/v5_leaderboard.json "$RUNNER_TEMP/board/"
       # Saved before anything can refuse it, so a failed check, a refused commit or a
       # rejected push still leaves hours of scoring downloadable from the run.
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: board
-          path: leaderboard/v5_leaderboard.json
+          path: ${{ runner.temp }}/board/
           if-no-files-found: error
           retention-days: 14
       # The script records a detector that raised as {"error": ...} and carries on, which
       # is right for a person reading the console and wrong for an unattended commit.
-      - name: Every detector scored, from a clean tree
+      - name: Every detector scored, from a clean tree at the run's commit, under the pins
         run: |
           python - <<'EOF'
-          import json, sys
+          import json, os, sys
+          from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
           board = json.load(open("leaderboard/v5_leaderboard.json"))
+          prov = board["provenance"]
           errors = {n: r["error"] for n, r in board["results"].items() if "error" in r}
-          dirty = board["provenance"]["git"]["dirty"]
-          if errors or dirty is not False:
-              sys.exit(f"not committing: errors={errors}, dirty={dirty}")
+          problems = [f"errors: {errors}"] if errors else []
+          if prov["git"]["dirty"] is not False:
+              problems.append(f"dirty: {prov['git']['dirty']!r}")
+          if prov["git"]["commit"] != os.environ["GITHUB_SHA"]:
+              problems.append(f"commit {prov['git']['commit']} is not {os.environ['GITHUB_SHA']}")
+          pins = {n: os.environ.get(n) for n in NUMERICS_ENV_VARS}
+          if (prov.get("numerics") or {}).get("env") != pins:
+              problems.append(f"numerics {(prov.get('numerics') or {}).get('env')} are not {pins}")
+          if problems:
+              sys.exit("not committing: " + "; ".join(problems))
           print(len(board["results"]), "detectors,", board["families"], "families")
           EOF
       - name: Commit to ${{ github.ref_name }}
@@ -165,8 +487,10 @@ jobs:
         run: bash .github/workflows/regenerate-commit.sh
 
   ledger:
-    needs: plan
-    if: ${{ contains(fromJSON('["both", "ledger"]'), inputs.artifacts || 'both') }}
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      contains(fromJSON('["both", "ledger"]'), needs.plan.outputs.mode) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     strategy:
@@ -176,6 +500,8 @@ jobs:
     name: ledger ${{ matrix.shard.id }} ${{ matrix.shard.family }} @ ${{ matrix.shard.difficulty }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ needs.plan.outputs.python }}
@@ -184,16 +510,11 @@ jobs:
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
           pip check
-      - name: Fingerprint the physics stack
-        id: physics
-        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
-      - name: Restore calibration cache
-        uses: actions/cache/restore@v6
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
         with:
-          path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
-          restore-keys: |
-            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+          expect: ${{ needs.calibrate.outputs.key }}
       - name: Certify one cell
         env:
           FAMILY: ${{ matrix.shard.family }}
@@ -224,6 +545,7 @@ jobs:
     needs: [plan, ledger]
     if: ${{ !cancelled() && needs.ledger.result == 'success' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       contents: write
     steps:
@@ -240,6 +562,8 @@ jobs:
         run: |
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
       - uses: actions/download-artifact@v8
         with:
           pattern: ledger-*
@@ -255,8 +579,10 @@ jobs:
         run: bash .github/workflows/regenerate-commit.sh
 
   replicated:
-    needs: plan
-    if: ${{ inputs.artifacts == 'replicated' && inputs.from_run == '' }}
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'replicated' && inputs.from_run == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     strategy:
@@ -266,6 +592,8 @@ jobs:
     name: replicate ${{ matrix.replicate }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ needs.plan.outputs.python }}
@@ -274,16 +602,11 @@ jobs:
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
           pip check
-      - name: Fingerprint the physics stack
-        id: physics
-        run: echo "token=$(python -c 'from rhob.v3.calibration_cache import environment_token; print(environment_token())')" >> "$GITHUB_OUTPUT"
-      - name: Restore calibration cache
-        uses: actions/cache/restore@v6
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
         with:
-          path: .rhob_cache
-          key: calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-${{ hashFiles('src/rhob/**/*.py') }}
-          restore-keys: |
-            calib-${{ runner.os }}-py3.12-${{ steps.physics.outputs.token }}-
+          expect: ${{ needs.calibrate.outputs.key }}
       - name: Re-score the named detectors on this draw
         env:
           DETECTORS: ${{ inputs.detectors }}
@@ -315,10 +638,12 @@ jobs:
     needs: [plan, replicated]
     # With from_run the matrix is skipped and its artifacts come from that run instead.
     if: >-
-      ${{ !cancelled() && inputs.artifacts == 'replicated' &&
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'replicated' &&
       (needs.replicated.result == 'success' ||
       (inputs.from_run != '' && needs.replicated.result == 'skipped')) }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: read
@@ -336,6 +661,8 @@ jobs:
         run: |
           pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
           pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
       - uses: actions/download-artifact@v8
         with:
           pattern: replicate-*
@@ -343,6 +670,17 @@ jobs:
           merge-multiple: true
           run-id: ${{ inputs.from_run || github.run_id }}
           github-token: ${{ github.token }}
+      - name: Exactly the 20 draws
+        run: |
+          python - <<'EOF'
+          import os, sys
+          from pathlib import Path
+          got = sorted(p.name for p in Path(os.environ["RUNNER_TEMP"], "rescore").iterdir())
+          want = [f"replicate_{i:03d}.json" for i in range(20)]
+          if got != want:
+              sys.exit(f"expected exactly {want}, got {got}")
+          print(len(got), "draws")
+          EOF
       # One detector at a time, as the script is written: each merge checks that every
       # cell the committed replicate scored comes back with the same AUROC, and refuses
       # the whole detector otherwise.
@@ -352,23 +690,24 @@ jobs:
           ALLOW: ${{ inputs.allow_changed }}
           ALLOW_FAMILIES: ${{ inputs.allow_changed_families }}
           KEEP: ${{ inputs.keep_old_values }}
-          SOURCE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ inputs.from_run || github.run_id }}
+          SOURCE: ${{ needs.plan.outputs.source_run_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
         run: |
-          ls "$RUNNER_TEMP/rescore"
           IFS=',' read -ra names <<< "$DETECTORS"
           # Every detector is compared and reported even after one is refused, so a single
           # run shows every cell that moved; the job fails, and commits nothing, at the end.
           failed=()
+          keep=()
+          [ "$KEEP" = "true" ] && keep=(--keep-old-values)
           for n in "${names[@]}"; do
             n="${n#"${n%%[![:space:]]*}"}"; n="${n%"${n##*[![:space:]]}"}"; [ -z "$n" ] && continue
             echo "::group::$n"
-            # shellcheck disable=SC2086
+            # shellcheck disable=SC2086  # ALLOW and ALLOW_FAMILIES are space-separated lists
             python scripts/merge_rescored_detector.py --detector "$n" \
               --from-dir "$RUNNER_TEMP/rescore" --into-dir results/replication \
               --source "$SOURCE" \
               ${ALLOW:+--allow-changed $ALLOW} \
               ${ALLOW_FAMILIES:+--allow-changed-family $ALLOW_FAMILIES} \
-              $([ "$KEEP" = "true" ] && echo --keep-old-values) || failed+=("$n")
+              "${keep[@]}" || failed+=("$n")
             echo "::endgroup::"
           done
           if [ "${#failed[@]}" -gt 0 ]; then echo "::error::refused: ${failed[*]}"; exit 1; fi
@@ -377,6 +716,429 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SOURCE_RUN_URL: ${{ needs.plan.outputs.source_run_url }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source_sha }}
           FILES: results/replication leaderboard/v5_replicated.json docs/figures/replication_summary.md
           WHAT: the replicated board (re-scored rows)
+        run: bash .github/workflows/regenerate-commit.sh
+
+  redraw-board:
+    # The single draw, (layout_seed, seed_base) = (0, 0), which is also replicate 0: its
+    # per-cell sidecar is what check_redraw.py holds replicate 0 to. Not committed here;
+    # merge-redraw commits it with the 20 draws, or not at all.
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'redraw' && inputs.from_run == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
+        with:
+          expect: ${{ needs.calibrate.outputs.key }}
+      - name: Score 30 detectors on 33 families, with the per-cell sidecar
+        run: |
+          python -u scripts/v5_leaderboard_and_transfer.py \
+            --out "$RUNNER_TEMP/board/v5_leaderboard.json" \
+            --cells-out "$RUNNER_TEMP/board/v5_leaderboard_cells.json"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: redraw-board
+          path: ${{ runner.temp }}/board/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Every detector scored, from a clean tree at the run's commit, under the pins
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
+          root = os.path.join(os.environ["RUNNER_TEMP"], "board")
+          board = json.load(open(os.path.join(root, "v5_leaderboard.json")))
+          cells = json.load(open(os.path.join(root, "v5_leaderboard_cells.json")))
+          prov = board["provenance"]
+          errors = {n: r["error"] for n, r in board["results"].items() if "error" in r}
+          problems = [f"errors: {errors}"] if errors else []
+          if prov["git"]["dirty"] is not False:
+              problems.append(f"dirty: {prov['git']['dirty']!r}")
+          if prov["git"]["commit"] != os.environ["GITHUB_SHA"]:
+              problems.append(f"commit {prov['git']['commit']} is not {os.environ['GITHUB_SHA']}")
+          pins = {n: os.environ.get(n) for n in NUMERICS_ENV_VARS}
+          if (prov.get("numerics") or {}).get("env") != pins:
+              problems.append(f"numerics {(prov.get('numerics') or {}).get('env')} are not {pins}")
+          if cells.get("provenance") != prov:
+              problems.append("the cells sidecar is not this board's")
+          if problems:
+              sys.exit("not merging: " + "; ".join(problems))
+          print(len(board["results"]), "detectors,", board["families"], "families")
+          EOF
+
+  redraw-draw:
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'redraw' && inputs.from_run == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        replicate: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    name: redraw ${{ matrix.replicate }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
+        with:
+          expect: ${{ needs.calibrate.outputs.key }}
+      - name: Draw replicate ${{ matrix.replicate }}, every detector
+        env:
+          ID: ${{ matrix.replicate }}
+        run: python -u scripts/replicate_leaderboard.py --replicate-id "$ID" --out-dir "$RUNNER_TEMP/redraw"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: redraw-replicate-${{ matrix.replicate }}
+          path: ${{ runner.temp }}/redraw/replicate_*.json
+          if-no-files-found: error
+          retention-days: 14
+      # After the upload, so the record survives; failing here lets "Re-run failed jobs"
+      # retry exactly this draw (and then the merge). check_redraw.py repeats every check
+      # across the set; this one only stops a bad draw at its own job.
+      - name: The draw scored every detector, from a clean tree at the run's commit
+        env:
+          ID: ${{ matrix.replicate }}
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          path = os.path.join(os.environ["RUNNER_TEMP"], "redraw", f"replicate_{int(os.environ['ID']):03d}.json")
+          rep = json.load(open(path))
+          prov = rep.get("provenance") or {}
+          git = prov.get("git") or {}
+          errors = {n: r["error"] for n, r in rep["results"].items() if "error" in r}
+          problems = [f"errors: {errors}"] if errors else []
+          if rep.get("draw_schema") != 2:
+              problems.append(f"draw_schema is {rep.get('draw_schema')!r}, not 2")
+          if git.get("dirty") is not False:
+              problems.append(f"dirty: {git.get('dirty')!r}")
+          if git.get("commit") != os.environ["GITHUB_SHA"]:
+              problems.append(f"commit {git.get('commit')} is not {os.environ['GITHUB_SHA']}")
+          if problems:
+              sys.exit("not merging: " + "; ".join(problems))
+          print(len(rep["results"]), "detectors drawn at", rep.get("layout_seed"), rep.get("seed_base"))
+          EOF
+
+  merge-redraw:
+    needs: [plan, redraw-board, redraw-draw]
+    # With from_run the board and the draws are skipped and come from that run instead.
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'redraw' &&
+      ((needs.redraw-board.result == 'success' && needs.redraw-draw.result == 'success') ||
+      (inputs.from_run != '' && needs.redraw-board.result == 'skipped' &&
+      needs.redraw-draw.result == 'skipped')) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Sources at the branch tip are the run's
+        run: git diff --exit-code --stat "$GITHUB_SHA" HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: redraw-replicate-*
+          path: ${{ runner.temp }}/redraw
+          merge-multiple: true
+          run-id: ${{ inputs.from_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: redraw-board
+          path: ${{ runner.temp }}/board
+          run-id: ${{ inputs.from_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - name: Exactly the 20 draws and the board
+        run: |
+          python - <<'EOF'
+          import os, sys
+          from pathlib import Path
+          tmp = os.environ["RUNNER_TEMP"]
+          draws = sorted(p.name for p in Path(tmp, "redraw").iterdir())
+          board = sorted(p.name for p in Path(tmp, "board").iterdir())
+          want_draws = [f"replicate_{i:03d}.json" for i in range(20)]
+          want_board = ["v5_leaderboard.json", "v5_leaderboard_cells.json"]
+          problems = []
+          if draws != want_draws:
+              problems.append(f"draws: expected {want_draws}, got {draws}")
+          if board != want_board:
+              problems.append(f"board: expected {want_board}, got {board}")
+          if problems:
+              sys.exit("; ".join(problems))
+          print(len(draws), "draws and the board")
+          EOF
+      # Before anything in the tree is touched: a refused set leaves the committed boards
+      # exactly as they were.
+      - name: The draws are one complete, clean, single-commit re-draw, and draw 0 is the board
+        env:
+          SOURCE_SHA: ${{ needs.plan.outputs.source_sha }}
+          MISMATCH: ${{ inputs.board_mismatch_allowed }}
+        run: |
+          python scripts/check_redraw.py --from-dir "$RUNNER_TEMP/redraw" \
+            --board "$RUNNER_TEMP/board/v5_leaderboard.json" \
+            --board-cells "$RUNNER_TEMP/board/v5_leaderboard_cells.json" \
+            --expect-commit "$SOURCE_SHA" --max-board-mismatch "$MISMATCH"
+      - name: Replace the draws and the board, then re-aggregate
+        run: |
+          rm -f results/replication/replicate_*.json
+          mkdir -p results/replication
+          cp "$RUNNER_TEMP"/redraw/replicate_*.json results/replication/
+          cp "$RUNNER_TEMP/board/v5_leaderboard.json" leaderboard/v5_leaderboard.json
+          python scripts/aggregate_replication.py --require-single-source
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SOURCE_RUN_URL: ${{ needs.plan.outputs.source_run_url }}
+          SOURCE_SHA: ${{ needs.plan.outputs.source_sha }}
+          FILES: >-
+            results/replication leaderboard/v5_replicated.json leaderboard/v5_leaderboard.json
+            docs/figures/replication_summary.md
+          WHAT: the re-drawn boards (the single draw and all 20 draws)
+        run: bash .github/workflows/regenerate-commit.sh
+
+  transfer:
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'transfer' }}
+    runs-on: ubuntu-24.04
+    # One job, not a matrix by row: the script has no merge step, and each row would come
+    # from a different machine. Measured at about 1.6 h for the 5 trials on a contended
+    # 4-core box.
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The branch tip still has the run's sources
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git fetch -q origin "refs/heads/$BRANCH"
+          git diff --exit-code --stat "$GITHUB_SHA" FETCH_HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
+        with:
+          expect: ${{ needs.calibrate.outputs.key }}
+      # Every design flag explicit, so a change to a default cannot silently change what is
+      # committed; the gate below also checks the artifact calls itself the published design.
+      - name: Train on 6 families, test on 8 held out, 5 trials
+        run: |
+          python -u scripts/cross_family_transfer.py --n-seeds-train 10 --n-seeds-test 20 \
+            --n-trials 5 --out leaderboard/cross_family_transfer_v5.json
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: transfer
+          path: leaderboard/cross_family_transfer_v5.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: The published design, shipped configuration, from a clean tree under the pins
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
+          def no_constant(token):
+              raise ValueError(f"non-JSON token {token}")
+
+          path = "leaderboard/cross_family_transfer_v5.json"
+          art = json.loads(open(path, encoding="utf-8").read(), parse_constant=no_constant)
+          prov = art["provenance"]
+          problems = []
+          if prov["git"]["dirty"] is not False:
+              problems.append(f"dirty: {prov['git']['dirty']!r}")
+          if prov["git"]["commit"] != os.environ["GITHUB_SHA"]:
+              problems.append(f"commit {prov['git']['commit']} is not {os.environ['GITHUB_SHA']}")
+          pins = {n: os.environ.get(n) for n in NUMERICS_ENV_VARS}
+          if (prov.get("numerics") or {}).get("env") != pins:
+              problems.append(f"numerics {(prov.get('numerics') or {}).get('env')} are not {pins}")
+          if art.get("published_design") is not True:
+              problems.append(f"published_design is {art.get('published_design')!r}")
+          if art.get("n_trials") != 5:
+              problems.append(f"n_trials is {art.get('n_trials')!r}, not 5")
+          configs = art.get("configs") or {}
+          if not configs or any(c.get("randomize_behav_sign") is not True for c in configs.values()):
+              problems.append(f"configs {configs} are not the shipped sign-randomized configuration")
+          rows = art.get("results") or {}
+          if len(rows) != 4:
+              problems.append(f"{len(rows)} rows, not the 4 reference rows")
+          for name, row in rows.items():
+              if "error" in row:
+                  problems.append(f"{name}: {row['error']}")
+              if "test_families_not_applicable" not in row:
+                  problems.append(f"{name}: no test_families_not_applicable")
+              if row.get("pooled_fit_error"):
+                  problems.append(f"{name}: pooled fit failed: {row['pooled_fit_error']}")
+          if problems:
+              sys.exit("not committing: " + "; ".join(problems))
+          print(len(rows), "rows,", art["n_trials"], "trials")
+          EOF
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FILES: leaderboard/cross_family_transfer_v5.json
+          WHAT: the cross-family transfer artifact
+        run: bash .github/workflows/regenerate-commit.sh
+
+  signrand:
+    needs: [plan, calibrate]
+    if: >-
+      ${{ !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.mode == 'signrand' }}
+    runs-on: ubuntu-24.04
+    # One job, as the design is published: every stage in one process, sharing rollouts
+    # through Benchmark._rollout_cache, so the board, its companions and the three transfer
+    # configurations are one machine's. It is the longest mode: the board's rollout volume
+    # in both orientations at n_seeds 10. If it does not fit, the stages can be split
+    # (`board`, `transfer` and `report` are separate subcommands); this timeout is the
+    # signal, not something to raise past GitHub's 360-minute job limit.
+    timeout-minutes: 350
+    permissions:
+      contents: write
+    steps:
+      # Full history: the pre-audit board is read with `git show c54a8cc:...`.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: The branch tip still has the run's sources
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          git fetch -q origin "refs/heads/$BRANCH"
+          git diff --exit-code --stat "$GITHUB_SHA" FETCH_HEAD -- src scripts requirements pyproject.toml
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ needs.plan.outputs.python }}
+      - name: Install
+        run: |
+          pip install --require-hashes -r requirements/ci-admission-linux-py312.txt
+          pip install --no-deps -e .
+          pip check
+          python scripts/check_ci_lock.py --installed
+      - name: Restore the calibration cache
+        uses: ./.github/actions/calibration-cache
+        with:
+          expect: ${{ needs.calibrate.outputs.key }}
+      # The intermediate boards and transfers go to the runner's temp directory, outside
+      # the checkout, so the tree the provenance blocks read stays clean.
+      - name: Board, companions, transfer and report, the published design
+        run: |
+          python -u scripts/measure_sign_randomization.py ci \
+            --out-json docs/figures/sign_randomization_impact.json \
+            --out-md docs/figures/sign_randomization_impact.md \
+            --work-dir "$RUNNER_TEMP/signrand"
+          cp docs/figures/sign_randomization_impact.json docs/figures/sign_randomization_impact.md \
+            "$RUNNER_TEMP/signrand/"
+      # The intermediates too, so a stage that finished is downloadable even if a later one
+      # or the gate refused.
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: signrand
+          path: ${{ runner.temp }}/signrand/
+          if-no-files-found: error
+          retention-days: 14
+      - name: The published design, from a clean tree at the run's commit, under the pins
+        run: |
+          python - <<'EOF'
+          import json, os, sys
+          from rhob.v3.calibration_cache import NUMERICS_ENV_VARS
+
+          def no_constant(token):
+              raise ValueError(f"non-JSON token {token}")
+
+          path = "docs/figures/sign_randomization_impact.json"
+          art = json.loads(open(path, encoding="utf-8").read(), parse_constant=no_constant)
+          prov, design = art["provenance"], art["design"]
+          inputs = design.get("input_provenance") or {}
+          sha = os.environ["GITHUB_SHA"]
+          problems = []
+          if design.get("published_design") is not True:
+              problems.append(f"published_design is {design.get('published_design')!r}"
+                              f" (reduced: {design.get('ci_reduced_options')})")
+          if prov["git"]["dirty"] is not False:
+              problems.append(f"dirty: {prov['git']['dirty']!r}")
+          if prov["git"]["commit"] != sha:
+              problems.append(f"commit {prov['git']['commit']} is not {sha}")
+          if inputs.get("commit") != sha or inputs.get("dirty") is not False:
+              problems.append(f"inputs at {inputs.get('commit')} (dirty {inputs.get('dirty')!r})")
+          pins = {n: os.environ.get(n) for n in NUMERICS_ENV_VARS}
+          if (prov.get("numerics") or {}).get("env") != pins:
+              problems.append(f"numerics {(prov.get('numerics') or {}).get('env')} are not {pins}")
+          if "transfer" not in art:
+              problems.append("no transfer block (the Space's transfer panel reads it)")
+          if not open("docs/figures/sign_randomization_impact.md", encoding="utf-8").read().strip():
+              problems.append("the markdown is empty")
+          if problems:
+              sys.exit("not committing: " + "; ".join(problems))
+          print("published design,", len(design.get("families_measured", [])), "families")
+          EOF
+      - name: Commit to ${{ github.ref_name }}
+        env:
+          BRANCH: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FILES: docs/figures/sign_randomization_impact.json docs/figures/sign_randomization_impact.md
+          WHAT: the sign-randomization measurement
         run: bash .github/workflows/regenerate-commit.sh

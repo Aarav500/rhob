@@ -720,7 +720,7 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
+          "auroc": 0.6172,
           "onset_mae_normalized": 1.0,
           "na_reason": null
         },
@@ -1021,8 +1021,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.918,
+          "onset_mae_normalized": 0.7422,
           "na_reason": null
         },
         {
@@ -1325,8 +1325,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.4745,
+          "onset_mae_normalized": 0.7964,
           "na_reason": null
         },
         {
@@ -1629,8 +1629,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.4643,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.5459,
+          "onset_mae_normalized": 0.7161,
           "na_reason": null
         },
         {
@@ -1934,8 +1934,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.5062,
+          "onset_mae_normalized": 0.6194,
           "na_reason": null
         },
         {
@@ -2239,8 +2239,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.3889,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.5123,
+          "onset_mae_normalized": 0.5444,
           "na_reason": null
         },
         {
@@ -2551,7 +2551,7 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.4667,
+          "auroc": 0.6,
           "onset_mae_normalized": 1.0,
           "na_reason": null
         },
@@ -2850,7 +2850,7 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.4737,
+          "auroc": 0.6759,
           "onset_mae_normalized": 1.0,
           "na_reason": null
         },
@@ -3147,7 +3147,7 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.475,
+          "auroc": 0.7875,
           "onset_mae_normalized": 1.0,
           "na_reason": null
         },
@@ -3446,8 +3446,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.6111,
+          "onset_mae_normalized": 0.8188,
           "na_reason": null
         },
         {
@@ -3745,8 +3745,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5278,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.5895,
+          "onset_mae_normalized": 0.9299,
           "na_reason": null
         },
         {
@@ -4044,8 +4044,8 @@
           "detector": "Bayesian Online Changepoint Detection",
           "access_level": "L0",
           "label_fitted": false,
-          "auroc": 0.5,
-          "onset_mae_normalized": 1.0,
+          "auroc": 0.6142,
+          "onset_mae_normalized": 0.9815,
           "na_reason": null
         },
         {

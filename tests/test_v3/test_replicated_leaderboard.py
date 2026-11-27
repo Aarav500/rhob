@@ -153,6 +153,45 @@ def test_statistic_disagreement_is_carried(tmp_path):
     assert board.zero_variance_detectors == ("Saturated One",)
 
 
+def test_each_partition_carries_its_own_statistic_disagreement(tmp_path):
+    payload = _minimal()
+    payload["supervision"]["statistic_disagreement_unsupervised_only"] = {
+        "rungs_where_max_and_mean_disagree_on_separation": ["L1_minus_L0"],
+        "rungs_where_max_and_mean_disagree_on_direction": ["L3_minus_L2"],
+        "note": "quote both",
+    }
+    board = load_replicated_leaderboard(_write(tmp_path, payload))
+    assert board.unsupervised_only.statistic_disagreement == ("L1_minus_L0", "L3_minus_L2")
+    assert board.all_detectors.statistic_disagreement == ("L2_minus_L1",)
+
+
+def test_an_artifact_without_the_newer_blocks_still_loads_and_says_so(tmp_path):
+    """Not recorded is ``None``, which a renderer must not read as "they agree"."""
+    board = load_replicated_leaderboard(_write(tmp_path, _minimal()))
+    assert board.unsupervised_only.statistic_disagreement is None
+    assert board.layouts_resampled is None
+    assert board.single_source is None
+    assert board.single_source_problems == ()
+    assert board.provenance == {} and board.replicates == {}
+
+
+def test_the_replicates_block_is_read(tmp_path):
+    payload = _minimal(
+        provenance={"generated_utc": "2026-11-27T00:00:00Z", "script": "agg"},
+        replicates={
+            "n_replicate_files": 2,
+            "layouts_resampled": False,
+            "single_source": False,
+            "single_source_problems": ["no replicate records the commit it was drawn from"],
+        },
+    )
+    board = load_replicated_leaderboard(_write(tmp_path, payload))
+    assert board.layouts_resampled is False
+    assert board.single_source is False
+    assert board.single_source_problems == ("no replicate records the commit it was drawn from",)
+    assert board.provenance["script"] == "agg"
+
+
 def test_method_block_is_exposed(tmp_path):
     board = load_replicated_leaderboard(_write(tmp_path, _minimal()))
     assert board.ci_percent == 95
@@ -189,6 +228,43 @@ def test_adapter_reads_the_committed_replicated_board():
     assert len(l1.family_auroc) == 7
     assert l1.n_cells == 31
     assert board.standings()[0].detector_name == rich.standings()[0].name
+
+
+@pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
+def test_the_committed_board_says_what_its_draws_resampled():
+    """``layouts_resampled`` must be the committed replicate files' own answer.
+
+    True only if every file records ``draw_schema`` 2 or later; the set drawn before the
+    layout-seed fix records none and was built at layout 0.
+    """
+    board = load_replicated_leaderboard(_REPLICATED)
+    files = sorted((_REPO_ROOT / "results" / "replication").glob("replicate_*.json"))
+    if not files:
+        pytest.skip("committed replicates not present")
+    schemas = [json.loads(f.read_text(encoding="utf-8")).get("draw_schema") for f in files]
+    assert board.replicates["n_replicate_files"] == len(files) == board.n_replicates
+    assert board.layouts_resampled is all(isinstance(v, int) and v >= 2 for v in schemas)
+    assert [d.get("draw_schema") for d in board.draws] == schemas
+
+
+@pytest.mark.skipif(not _REPLICATED.exists(), reason="committed replicated board not present")
+def test_the_committed_unsupervised_disagreement_matches_its_separations():
+    """The recorded list is the max/mean rule applied to the partition's own rungs."""
+    board = load_replicated_leaderboard(_REPLICATED)
+    for partition in (board.all_detectors, board.unsupervised_only):
+        expected = []
+        for kind in ("separation", "direction"):
+            for lo, hi in (("L0", "L1"), ("L1", "L2"), ("L2", "L3")):
+                mx = partition.separation(lo, hi, "max")
+                mn = partition.separation(lo, hi, "mean")
+                if mx is None or mn is None:
+                    continue
+                separation = mx.separates != mn.separates
+                direction = (mx.separates and mn.separates
+                             and (mx.difference.mean > 0) != (mn.difference.mean > 0))
+                if (separation if kind == "separation" else direction):
+                    expected.append(mx.key)
+        assert partition.statistic_disagreement == tuple(expected), partition.name
 
 
 @pytest.mark.skipif(not _V5.exists(), reason="committed v5 board not present")

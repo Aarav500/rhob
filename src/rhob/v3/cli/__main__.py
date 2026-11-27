@@ -4,7 +4,8 @@ Commands:
     families               List registered environment families.
     evaluate               Evaluate a detector and write a submission JSON.
     validate SUBMISSION    Validate a submission JSON's schema.
-    submit SUBMISSION      Add a validated submission to the leaderboard.
+    submit SUBMISSION      Add a validated submission to the community board
+                           (``leaderboard/community/`` by default; ``--board-dir``).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import argparse
 import importlib.util
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from rhob.detectors.posthoc import PosthocDetector
@@ -20,7 +22,21 @@ from rhob.v3.benchmark import Benchmark
 from rhob.v3.leaderboard.board import Leaderboard, LeaderboardEntry
 
 _REQUIRED_SUBMISSION_KEYS = {"detector_name", "access_level", "overall_auroc", "n_cells"}
-_DEFAULT_LEADERBOARD_DIR = Path("leaderboard")
+
+#: Where ``submit`` records community submissions, relative to the working directory. Not
+#: ``leaderboard/`` itself: that directory holds the benchmark's own boards
+#: (``v5_replicated.json``, ``v5_leaderboard.json``, the transfer artifacts) and a
+#: hand-written index ``README.md``, none of which ``submit`` may write. Not under
+#: ``submissions/`` either: ``.github/workflows/leaderboard_validate.yml`` validates every
+#: ``submissions/*.json`` as a submission, and ``board.json`` is not one.
+_DEFAULT_LEADERBOARD_DIR = Path("leaderboard") / "community"
+
+#: The first line of every Markdown file ``submit`` renders. ``submit`` only overwrites a
+#: file in the board directory that starts with it, so it cannot replace a README it did
+#: not write (``--board-dir leaderboard`` would otherwise overwrite the index).
+_COMMUNITY_HEADER = "# RHOB community submissions (self-reported, single draw)"
+
+_RENDERED_MD = ("README.md", "by_mechanism.md", "by_difficulty.md")
 
 
 def _load_detector(path: str) -> PosthocDetector:
@@ -104,26 +120,83 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _render_community_md(board: Leaderboard) -> dict[str, str]:
+    """The three Markdown files ``submit`` writes next to ``board.json``, by file name."""
+    note = (
+        "Self-reported results added with `python -m rhob submit`, each from one draw of\n"
+        "the suite run by its submitter. They are not the benchmark's board: that is\n"
+        "`leaderboard/v5_replicated.json` (intervals over independent draws). `Cells` is the\n"
+        "submission's `n_cells`; `rhob evaluate` writes the number of measured cells the\n"
+        "overall AUROC averages, with not-applicable cells left out.\n"
+    )
+    return {
+        "README.md": f"{_COMMUNITY_HEADER}\n\n{note}\n{board.render_standings_md()}\n",
+        "by_mechanism.md": (
+            f"{_COMMUNITY_HEADER}\n\n## By mechanism\n\n{board.render_by_mechanism_md()}\n"
+        ),
+        "by_difficulty.md": (
+            f"{_COMMUNITY_HEADER}\n\n## By difficulty tier\n\n{board.render_by_difficulty_md()}\n"
+        ),
+    }
+
+
+def _foreign_markdown(board_dir: Path) -> list[Path]:
+    """Files ``submit`` would overwrite in ``board_dir`` that it did not write itself."""
+    foreign = []
+    for name in _RENDERED_MD:
+        path = board_dir / name
+        if not path.exists():
+            continue
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            first = fh.readline().rstrip("\r\n")
+        if first != _COMMUNITY_HEADER:
+            foreign.append(path)
+    return foreign
+
+
 def cmd_submit(args: argparse.Namespace) -> int:
+    """Validate a submission and add it to the entries board in ``--board-dir``.
+
+    Every check runs before anything is written, so a refusal (exit 1) leaves the board
+    directory exactly as it was. Refused: an invalid submission; a ``board.json`` that is
+    not an entries-schema board (one of the benchmark's own boards, say); and a
+    Markdown file in the directory that ``submit`` did not render.
+    """
     if cmd_validate(args) != 0:
         return 1
-    data = json.loads(Path(args.submission).read_text())
+    data = json.loads(Path(args.submission).read_text(encoding="utf-8"))
     if args.name:
         data["detector_name"] = args.name
     if args.author:
         data["author"] = args.author
+    # The documented minimum is four keys (submissions/README.md); LeaderboardEntry also
+    # needs these two, so supply them rather than fail on a valid submission.
+    data["author"] = data.get("author") or "anonymous"
+    data["timestamp"] = data.get("timestamp") or datetime.now(timezone.utc).isoformat()
 
-    board_path = _DEFAULT_LEADERBOARD_DIR / "leaderboard.json"
-    board = Leaderboard.load(board_path)
-    board.add(LeaderboardEntry(**{k: data[k] for k in LeaderboardEntry.__dataclass_fields__ if k in data}))
+    board_dir = Path(args.board_dir)
+    board_path = board_dir / "board.json"
+    try:
+        board = Leaderboard.load(board_path)
+    except ValueError as exc:
+        print(f"REFUSED: {exc}. Nothing was written; pass --board-dir to use another directory.")
+        return 1
+    foreign = _foreign_markdown(board_dir)
+    if foreign:
+        names = ", ".join(str(p) for p in foreign)
+        print(
+            f"REFUSED: {names} not written by `rhob submit` (first line is not "
+            f"{_COMMUNITY_HEADER!r}). Nothing was written; pass --board-dir to use another "
+            "directory."
+        )
+        return 1
+
+    fields = LeaderboardEntry.__dataclass_fields__
+    board.add(LeaderboardEntry(**{k: data[k] for k in fields if k in data}))
     board.save(board_path)
-
-    (_DEFAULT_LEADERBOARD_DIR / "README.md").write_text(
-        "# RHOB v3 Leaderboard\n\n" + board.render_standings_md() + "\n"
-    )
-    (_DEFAULT_LEADERBOARD_DIR / "by_mechanism.md").write_text(board.render_by_mechanism_md() + "\n")
-    (_DEFAULT_LEADERBOARD_DIR / "by_difficulty.md").write_text(board.render_by_difficulty_md() + "\n")
-    print(f"Added {data['detector_name']} to the leaderboard at {board_path}")
+    for name, text in _render_community_md(board).items():
+        (board_dir / name).write_text(text, encoding="utf-8")
+    print(f"Added {data['detector_name']} to the community board at {board_path}")
     return 0
 
 
@@ -147,10 +220,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("submission")
     p_val.set_defaults(func=cmd_validate)
 
-    p_sub = sub.add_parser("submit", help="Add a submission to the leaderboard")
+    p_sub = sub.add_parser(
+        "submit", help="Add a validated submission to the community board (leaderboard/community/)"
+    )
     p_sub.add_argument("submission")
     p_sub.add_argument("--name", default=None)
     p_sub.add_argument("--author", default=None)
+    p_sub.add_argument(
+        "--board-dir",
+        type=Path,
+        default=_DEFAULT_LEADERBOARD_DIR,
+        dest="board_dir",
+        help=(
+            "Directory holding the community board.json and its rendered tables "
+            f"(default: {_DEFAULT_LEADERBOARD_DIR.as_posix()}, relative to the working directory)"
+        ),
+    )
     p_sub.set_defaults(func=cmd_submit)
 
     return parser

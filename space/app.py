@@ -1,10 +1,11 @@
 """RHOB interactive leaderboard viewer (Gradio).
 
 A read-only viewer over the committed leaderboard JSON files -- no submission form,
-no auth, no write path. Community detector results are submitted via a PR touching
-``leaderboard/`` (validated by ``python -m rhob validate``, see
-``.github/workflows/leaderboard_validate.yml``), not through this UI. This matches the
-project's existing "static files are fine" leaderboard design
+no auth, no write path. Community detector results are submitted via a PR adding a file
+under ``submissions/`` (the only path ``.github/workflows/leaderboard_validate.yml``
+validates, with ``python -m rhob validate``), not through this UI; ``python -m rhob
+submit`` then records a validated submission in ``leaderboard/community/``. This matches
+the project's existing "static files are fine" leaderboard design
 (see ``src/rhob/v3/leaderboard/board.py``).
 
 Run locally (from within a full clone of the repo):
@@ -31,12 +32,20 @@ The cross-family transfer (RTS) panel is a **separate** experiment and is not co
 that replication. It is also the one place where the pre-audit sign convention still had
 live numbers: ``leaderboard/cross_family_transfer.json`` was generated on 2026-07-09, and
 behavioural sign randomization landed on 2026-08-03, so its L2 figures measure compliance
-with a house orientation convention rather than transfer (the published RTS of 0.994
-re-measures at 0.508 with randomization on). This page therefore renders the *measured
-post-randomization* figures from ``docs/figures/sign_randomization_impact.json`` and shows
-the published numbers only in a column labelled as superseded. If that measurement file is
-absent the panel says so and renders nothing -- it deliberately does not fall back to the
-superseded artifact.
+with a house orientation convention rather than transfer. This page therefore renders
+current figures from one of two measurements, and shows the 2026-07-09 numbers only in a
+column labelled as superseded:
+
+1. ``leaderboard/cross_family_transfer_v5.json``, when present: written by
+   ``scripts/cross_family_transfer.py`` under the shipped configuration and the
+   not-applicable rules of 2026-11-27 (a family a detector cannot be scored on, by channel,
+   run length or representation, is N/A rather than 0.5).
+2. Otherwise the ``after`` configuration of ``docs/figures/sign_randomization_impact.json``,
+   labelled *pre-declaration* while it predates those rules (it was measured on
+   2026-08-03, before the detectors declared ``min_episodes`` on 2026-11-26).
+
+If neither is present the panel says so and renders nothing -- it deliberately does not
+fall back to the superseded 2026-07-09 artifact.
 
 Schema knowledge lives in ``rhob.v3.leaderboard.replicated`` and
 ``rhob.v3.leaderboard.transfer``, not here. This module reads both artifacts through those
@@ -63,6 +72,8 @@ from rhob.v3.leaderboard.replicated import (
     load_replicated_leaderboard,
 )
 from rhob.v3.leaderboard.transfer import (
+    CURRENT_TRANSFER_ARTIFACT,
+    HISTORICAL_TRANSFER_ARTIFACT,
     TransferBoard,
     TransferComparison,
     load_transfer_results,
@@ -82,10 +93,16 @@ _LEADERBOARD_DIR = next((d for d in _CANDIDATE_LEADERBOARD_DIRS if d.is_dir()), 
 #: page that promises confidence intervals.
 _REPLICATED_FILE = _LEADERBOARD_DIR / "v5_replicated.json"
 
-#: The published transfer artifact. Pre-sign-randomization (2026-07-09) and pre-dating the
-#: fix that stopped absent channels being imputed as 0.5, so it is read only to report
-#: which figure each current one supersedes -- never as a current standing.
-_PUBLISHED_TRANSFER_FILE = _LEADERBOARD_DIR / "cross_family_transfer.json"
+#: The 2026-07-09 transfer artifact. Pre-sign-randomization and pre-dating the fix that
+#: stopped absent channels being imputed as 0.5, so it is read only to report which figure
+#: each current one supersedes -- never as a current standing.
+_PUBLISHED_TRANSFER_FILE = _LEADERBOARD_DIR / Path(HISTORICAL_TRANSFER_ARTIFACT).name
+#: It records no provenance block, so its date comes from git history (``d872916``).
+_PUBLISHED_TRANSFER_DATE = "2026-07-09"
+
+#: The current transfer artifact, preferred whenever it is present: measured under the
+#: shipped configuration with the 2026-11-27 not-applicable rules.
+_CURRENT_TRANSFER_FILE = _LEADERBOARD_DIR / Path(CURRENT_TRANSFER_ARTIFACT).name
 
 #: The measured before/after sign-randomization artifact, which is where this page's
 #: transfer numbers come from. Written by ``scripts/measure_sign_randomization.py``. The
@@ -107,29 +124,45 @@ def _board() -> ReplicatedLeaderboard:
 
 
 @lru_cache(maxsize=1)
+def _transfer_board() -> TransferBoard | None:
+    """The measurement the RTS panel's current figures come from, or None.
+
+    ``leaderboard/cross_family_transfer_v5.json`` when present, else the
+    sign-randomization measurement. Never the 2026-07-09 artifact: on its own it cannot
+    produce a current number, so a missing measurement must yield no panel rather than
+    the superseded figures.
+    """
+    for path in (_CURRENT_TRANSFER_FILE, _SIGN_RANDOMIZATION_FILE):
+        if path.exists():
+            return load_transfer_results(path)
+    return None
+
+
+def _transfer_is_pre_declaration(board: TransferBoard | None) -> bool:
+    """Whether the panel's source predates the 2026-11-27 not-applicable rules.
+
+    Read off the rows' own bookkeeping rather than off which file was found, so a
+    regenerated sign-randomization measurement stops being labelled the moment it
+    records the rules.
+    """
+    return board is not None and not board.applies_na_rules
+
+
+@lru_cache(maxsize=1)
 def _transfer_rows() -> tuple[TransferComparison, ...]:
     """Transfer rows valid under sign randomization, with the figures they supersede.
 
-    Empty when the measurement artifact is not present. That is the safe direction: the
-    published artifact alone cannot produce a current number, so a missing measurement
-    must yield no panel rather than the superseded ones.
+    Empty when no measurement artifact is present (see :func:`_transfer_board`).
     """
-    if not _SIGN_RANDOMIZATION_FILE.exists():
+    measured = _transfer_board()
+    if measured is None:
         return ()
-    measured: TransferBoard = load_transfer_results(_SIGN_RANDOMIZATION_FILE)
     published = (
         load_transfer_results(_PUBLISHED_TRANSFER_FILE)
         if _PUBLISHED_TRANSFER_FILE.exists()
         else None
     )
     return tuple(transfer_under_sign_randomization(measured, published))
-
-
-@lru_cache(maxsize=1)
-def _transfer_board() -> TransferBoard | None:
-    if not _SIGN_RANDOMIZATION_FILE.exists():
-        return None
-    return load_transfer_results(_SIGN_RANDOMIZATION_FILE)
 
 
 def _esc(text: object) -> str:
@@ -812,24 +845,42 @@ def _worst_supersession_note() -> str:
     if not superseded:
         return ""
     worst = max(superseded, key=lambda c: abs(c.published_delta or 0.0))
+    if worst.published is None or worst.rts is None or worst.row.sd is None:
+        return ""
+    # Whether the old figure reproduces with randomization off is only known when the
+    # source measured that configuration too (the sign-randomization artifact does;
+    # cross_family_transfer_v5.json measures the shipped configuration only).
+    board = _transfer_board()
+    baseline = board.baseline_config() if board else None
+    off = board.row(worst.name, baseline) if board and baseline else None
+    if off is not None and off.avg_transfer_auroc is not None:
+        same = f"{off.avg_transfer_auroc:.3f}" == f"{worst.published:.3f}"
+        off_clause = (
+            "reproduces with randomization off"
+            if same
+            else f"reads {off.avg_transfer_auroc:.3f} with randomization off"
+        )
+        on_clause = f" and re-measures at {worst.rts:.3f} with it on"
+    else:
+        off_clause = f"re-measures at {worst.rts:.3f} with randomization on"
+        on_clause = ""
     return (
-        f" The published <b>{_esc(worst.name)}</b> figure of {worst.published:.3f} "
-        f"reproduces with randomization off and re-measures at {worst.rts:.3f} with it on "
-        f"&mdash; a drop of {abs(worst.published_delta):.3f}, against a trial-to-trial "
-        f"spread of {worst.row.sd:.3f}."
-        if worst.published is not None and worst.rts is not None and worst.row.sd is not None
-        else ""
+        f" The {_PUBLISHED_TRANSFER_DATE} <b>{_esc(worst.name)}</b> figure of "
+        f"{worst.published:.3f} {off_clause}{on_clause} &mdash; a change of "
+        f"{worst.published_delta:+.3f}, against a trial-to-trial spread of {worst.row.sd:.3f}."
     )
 
 
 def _flat_rows_note() -> str:
     """Name any row that returned the identical value on every family it could score.
 
-    Such a row has not measured a gradient of transfer, and the reason it can happen
-    without the detector discriminating anything is documented in the experiment: a frozen
-    model that can read a family's channel but cannot consume that family's own
-    discretization of it is scored at chance rather than dropped. Computed from the
-    artifact so the sentence disappears if a regenerated run stops being flat.
+    Such a row has not measured a gradient of transfer. In a measurement made before the
+    2026-11-27 not-applicable rules, the documented way it happens without the detector
+    discriminating anything is that a frozen model which could read a family's channel
+    but not consume that family's own discretization of it was scored at chance; under
+    the rules that cell is N/A instead, so the explanation is given only for such a
+    measurement. Computed from the artifact so the sentence disappears if a regenerated
+    run stops being flat.
     """
     flat = [
         (c, value)
@@ -843,14 +894,30 @@ def _flat_rows_note() -> str:
         f"{c.row.n_families_scored} families it could score"
         for c, value in flat
     )
+    if not _transfer_is_pre_declaration(_transfer_board()):
+        return f" {described} &mdash; a flat row, not a gradient."
     return (
-        f" {described} &mdash; a flat row, not a gradient. Where a frozen model can read a "
-        "family's channel but cannot consume that family's own discretization of it, the "
-        "cell is scored at chance rather than dropped, on the grounds that the channel was "
-        "there and the model failed to use it "
-        "(<code>scripts/cross_family_transfer.py::transfer_eval</code>), so a flat 0.500 "
-        "row should be read as transfer failure rather than as a measured near-chance "
-        "separation."
+        f" {described} &mdash; a flat row, not a gradient. This measurement predates the "
+        "2026-11-27 rules: where a frozen model could read a family's channel but could "
+        "not consume that family's own discretization of it, the cell was scored at "
+        "chance rather than marked not applicable, so a flat 0.500 row here is a column "
+        "of imputed scores, not a measured near-chance separation."
+    )
+
+
+def _unmeasurable_rows_note() -> str:
+    """Name each row no held-out family could be scored for, with the artifact's reason."""
+    rows = [c for c in _transfer_rows() if c.rts is None]
+    if not rows:
+        return ""
+    parts = []
+    for c in rows:
+        reasons = list(dict.fromkeys(c.row.not_applicable_reasons.values()))
+        why = f" ({_esc(reasons[0])})" if reasons else ""
+        parts.append(f"<b>{_esc(c.name)}</b> scored no held-out family{why}")
+    return (
+        " " + "; ".join(parts) + ". Its RTS is not applicable, and it is not 0.5: there is "
+        "no measurement to average."
     )
 
 
@@ -863,25 +930,28 @@ def _rts_html() -> str:
     mechanisms and tests on 8 held out, at a single benchmark draw. It carries no
     bootstrap interval and none of the replication's uncertainty estimates apply to it.
 
-    Second, the published artifact's numbers are superseded. It was generated before
+    Second, the 2026-07-09 artifact's numbers are superseded. It was generated before
     behavioural sign randomization, when ``behav_trace``'s sign *was* the label, so its L2
-    figures scored compliance with a house convention: the published 0.994 re-measures at
-    0.508 once the orientation is randomized. The numbers rendered here are the measured
-    post-randomization ones; the published figures appear only in a column that says they
-    are superseded. L0 and L1 rows carry over unchanged from the pre-randomization run,
-    because ``restrict()`` nulls ``behav_trace`` below L2 and leaves them no axis to flip.
+    figures scored compliance with a house convention. The numbers rendered here are the
+    measured post-randomization ones (see :func:`_transfer_board` for which file); the
+    2026-07-09 figures appear only in a column that says they are superseded. From the
+    sign-randomization measurement, L0 and L1 rows carry over from its pre-randomization
+    configuration, because ``restrict()`` nulls ``behav_trace`` below L2 and leaves them
+    no axis to flip; ``leaderboard/cross_family_transfer_v5.json`` measures every row
+    under the shipped configuration directly.
     """
     rows = _transfer_rows()
     if not rows:
-        return """
+        return f"""
     <div class="rhob-panel" id="rhob-rts-panel">
       <h3>THE RHOB TRANSFER SCORE (RTS)<span class="rhob-scope single">not shown</span></h3>
       <p>
-        The cross-family transfer figures are not rendered on this build. The published
-        artifact <code>leaderboard/cross_family_transfer.json</code> predates behavioural
-        sign randomization, so its L2 numbers measure the old orientation convention
-        rather than transfer, and the post-randomization measurement
-        (<code>docs/figures/sign_randomization_impact.json</code>) is not present here.
+        The cross-family transfer figures are not rendered on this build. The
+        {_PUBLISHED_TRANSFER_DATE} artifact <code>{HISTORICAL_TRANSFER_ARTIFACT}</code>
+        predates behavioural sign randomization, so its L2 numbers measure the old
+        orientation convention rather than transfer, and neither post-randomization
+        measurement (<code>{CURRENT_TRANSFER_ARTIFACT}</code>,
+        <code>docs/figures/sign_randomization_impact.json</code>) is present here.
         Showing the superseded figures instead would be the worse of the two options, so
         the panel shows none.
       </p>
@@ -889,20 +959,24 @@ def _rts_html() -> str:
     """
 
     board = _transfer_board()
+    pre_declaration = _transfer_is_pre_declaration(board)
     body = ""
     for c in rows:
         r = c.row
         rts = c.rts
         if rts is None:
-            continue
-        # No "near-perfect" band any more: under randomization nothing reaches it, and a
-        # band that only ever fired on the sign-convention artifact was decoration for it.
-        color = "var(--rhob-red)" if rts < 0.55 else "var(--rhob-amber)"
-        spread = (
-            f" <span class='rhob-na'>&plusmn; {r.sd:.3f}</span>"
-            if isinstance(r.sd, float)
-            else ""
-        )
+            rts_cell = f"<td><span class='rhob-na'>{NOT_MEASURED}</span></td>"
+        else:
+            # No "near-perfect" band any more: under randomization nothing reaches it,
+            # and a band that only ever fired on the sign-convention artifact was
+            # decoration for it.
+            color = "var(--rhob-red)" if rts < 0.55 else "var(--rhob-amber)"
+            spread = (
+                f" <span class='rhob-na'>&plusmn; {r.sd:.3f}</span>"
+                if isinstance(r.sd, float)
+                else ""
+            )
+            rts_cell = f"<td style='color:{color};font-weight:700;'>{rts:.3f}{spread}</td>"
         scored = (
             f"{r.n_families_scored} of {r.n_families}"
             if r.n_families_not_applicable
@@ -925,8 +999,12 @@ def _rts_html() -> str:
             if c.published is not None and c.published_differs
             else (
                 f"<span class='rhob-na'>{c.published:.3f} (unchanged)</span>"
-                if c.published is not None
-                else f"<span class='rhob-na'>{NOT_MEASURED}</span>"
+                if c.published is not None and rts is not None
+                else (
+                    f"<span class='rhob-no'>{c.published:.3f}</span>"
+                    if c.published is not None
+                    else f"<span class='rhob-na'>{NOT_MEASURED}</span>"
+                )
             )
         )
         # The surviving L2 maximum under randomization is a label-fitted detector, which
@@ -939,7 +1017,7 @@ def _rts_html() -> str:
         )
         body += (
             f"<tr><td>{_esc(r.name)}{fitted}</td><td>{_esc(r.access_level)}</td>"
-            f"<td style='color:{color};font-weight:700;'>{rts:.3f}{spread}</td>"
+            f"{rts_cell}"
             f"<td>{scored}{na_note}</td>"
             f"<td>{basis}</td>"
             f"<td>{superseded}</td></tr>\n"
@@ -958,7 +1036,23 @@ def _rts_html() -> str:
     provenance = ""
     if board and board.generated_utc:
         commit = f", commit <code>{_esc(board.git_commit)}</code>" if board.git_commit else ""
-        provenance = f" Measured {_esc(board.generated_utc[:10])}{commit}."
+        source = _esc(board.path.as_posix().split("/")[-1]) if board.path else "the artifact"
+        provenance = f" Measured {_esc(board.generated_utc[:10])}{commit} (<code>{source}</code>)."
+    published_date = _PUBLISHED_TRANSFER_DATE
+    pre_note = (
+        """
+      <p class="rhob-note">
+        <b>Pre-declaration measurement.</b> These figures predate the 2026-11-27
+        not-applicable rules: a held-out family below a detector's declared
+        <code>min_episodes</code>, or one whose representation the frozen model cannot
+        consume, was scored at chance rather than marked not applicable. Its successor,
+        <code>"""
+        + CURRENT_TRANSFER_ARTIFACT
+        + """</code>, replaces this panel's source once it is committed.
+      </p>"""
+        if pre_declaration
+        else ""
+    )
 
     return f"""
     <div class="rhob-panel" id="rhob-rts-panel">
@@ -973,15 +1067,15 @@ def _rts_html() -> str:
             <th>Test families scored</th><th>Under randomization</th>
             <th>Superseded figure</th></tr>
         {body}
-      </table>
+      </table>{pre_note}
       <p class="rhob-note">
-        <b>These are not the published RTS figures, and the published ones are wrong.</b>
-        <code>leaderboard/cross_family_transfer.json</code> was generated on 2026-07-09;
+        <b>These are not the {published_date} RTS figures, and those are wrong.</b>
+        <code>{HISTORICAL_TRANSFER_ARTIFACT}</code> was generated on {published_date};
         behavioural sign randomization landed on 2026-08-03. Before it, every family
         emitted its behavioural trace under one fixed global orientation with positive =
         hacking, so the sign of the observation <i>was</i> the label and an L2 detector
         that &ldquo;transferred&rdquo; had learned the repository's house convention. The
-        L2 rows above are re-measured with that orientation randomized
+        L2 rows above are measured with that orientation randomized
         (<a href="{_GITHUB_BLOB}/docs/figures/sign_randomization_impact.md" target="_blank">measured
         before/after</a>).{_worst_supersession_note()}{provenance}
       </p>
@@ -989,8 +1083,8 @@ def _rts_html() -> str:
         <b>Scope.</b> This is one benchmark draw, so nothing here carries the
         {_board().n_replicates}-draw replication's bootstrap intervals and the confidence
         stated elsewhere on this page does not extend to it. {spread_note}
-        A test family that emits no channel the detector reads is <code>{NOT_MEASURED}</code>
-        &mdash; excluded from the average, never imputed at 0.5.{_flat_rows_note()}
+        A test family a detector cannot be scored on is <code>{NOT_MEASURED}</code>
+        &mdash; excluded from the average, never imputed at 0.5.{_unmeasurable_rows_note()}{_flat_rows_note()}
       </p>
     </div>
     """
@@ -1211,6 +1305,7 @@ with gr.Blocks(title="RHOB Leaderboard") as demo:
     )
     _best_rts_note = (
         f"{_best_transfer_row.name} — sign randomization on, single draw, no CI"
+        + (" (pre-declaration)" if _transfer_is_pre_declaration(_transfer_board()) else "")
         if _best_transfer_row is not None
         else "superseded by sign randomization; not shown"
     )
@@ -1298,14 +1393,16 @@ This viewer is read-only by design (no auth, no write path -- see
 `src/rhob/v3/leaderboard/board.py`'s "static files are fine" approach). To get a result
 included here:
 
-1. Evaluate your detector: `python -m rhob evaluate --detector your_detector.py`
-2. Validate the submission: `python -m rhob validate submission.json`
-3. Open a PR adding your submission under `leaderboard/`, or run
-   `python -m rhob submit submission.json` to merge it into the tracked leaderboard
-   files locally before committing.
+1. Evaluate your detector:
+   `python -m rhob evaluate --detector your_detector.py --output submissions/your_detector.json`
+2. Validate the submission: `python -m rhob validate submissions/your_detector.json`
+3. Open a PR adding that file under `submissions/`. A CI workflow
+   (`.github/workflows/leaderboard_validate.yml`) re-validates every changed
+   `submissions/*.json` in the PR; a file anywhere else is not validated.
 
-A CI workflow (`.github/workflows/leaderboard_validate.yml`) automatically validates
-any submission JSON added in a PR.
+Once a submission is validated, `python -m rhob submit submissions/your_detector.json`
+records it in the community board, `leaderboard/community/`: self-reported, single-draw
+results, kept apart from the benchmark's own boards.
 
 The standings on this page are the replicated board, `leaderboard/v5_replicated.json`,
 built by `scripts/replicate_leaderboard.py` (one run of the full suite per draw) and

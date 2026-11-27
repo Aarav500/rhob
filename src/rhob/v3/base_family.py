@@ -45,19 +45,25 @@ class BaseFamily(ABC):
         """Generate one pair targeting the given behavioral separability (L2-AUROC)."""
 
     def generate_pair_at(self, difficulty: float, seed: int = 0) -> MatchedPair:
-        """:meth:`generate_pair`, with the layout seed recorded on the returned pair.
+        """:meth:`generate_pair` at layout ``seed``, with that seed recorded on the pair.
 
         Families build their :class:`~rhob.v3.base_pair.MatchedPair` themselves and are
         not required to know that the benchmark keys anything off the layout seed, so
-        stamping it is done here, once, instead of in 33 constructors.
+        stamping it is done here, once, instead of in 33 constructors. The same ``seed``
+        is passed to :meth:`generate_pair`, so the stamped value is always the layout
+        the pair was actually built at.
 
-        Every path that varies the layout (the admission gate's ``n_layouts`` sweep,
-        anything sweeping ``seed=``) should call this rather than :meth:`generate_pair`,
-        so that two layouts of one family get independent behavioral orientations. A
-        pair built by :meth:`generate_pair` directly keeps ``layout_seed=0`` and is
-        still randomized -- just at the family's layout-0 orientation, which is what the
-        benchmark suite itself uses (:meth:`FamilyRegistry.generate_suite` generates
-        every scored cell at the default ``seed=0``).
+        Every path that varies the layout should call this rather than
+        :meth:`generate_pair`, so that two layouts of one family get independent
+        behavioral orientations: the admission gate's ``n_layouts`` sweep, and
+        :meth:`FamilyRegistry.generate_suite <rhob.v3.registry.FamilyRegistry.generate_suite>`,
+        which builds every scored cell as ``generate_pair_at(d, seed=layout_seed)`` -- at
+        layout 0 for the single-draw board, at layout ``k`` for replicate ``k``. A pair
+        built by :meth:`generate_pair` directly keeps ``layout_seed=0`` whatever ``seed``
+        it was given, and so is randomized at the family's layout-0 orientation.
+
+        (Before 2026-11-27 ``generate_suite`` called this without ``seed``, so every
+        scored cell -- every replicate's included -- was built and oriented at layout 0.)
         """
         return replace(self.generate_pair(difficulty, seed=seed), layout_seed=int(seed))
 

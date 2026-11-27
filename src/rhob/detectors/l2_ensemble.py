@@ -1,9 +1,19 @@
-"""Ensemble detector (L2): combines multiple detectors' scores by rank-averaging.
+"""Ensemble detector (L2): combines multiple detectors' scores by their plain mean.
+
+The mean is of the members' raw scores, not of their ranks, so a member whose scores
+spread wider (a probability near 0 or 1 rather than near 0.5) weighs more in the
+ensemble's ranking.
 
 Members must share an access level (the ensemble's own ``access_level`` is that
 shared level, so it is subject to the same restriction as any single member). Onset
 is the earliest onset any member detects with majority-plus support, which is a
 simple, dependency-free way to combine asynchronous per-member onset estimates.
+
+The ensemble has no ``fit`` of its own, so ``rhob.v3.benchmark._evaluate_cell`` scores it
+directly, without cross-validation. A member that needs fitting must be fitted before it
+is passed in, and if it was fitted on the runs the ensemble is then scored on, that score
+is in-sample for that member. A cross-validated figure needs a wrapper whose ``fit``
+refits the members on each training fold.
 """
 
 from __future__ import annotations
@@ -12,7 +22,7 @@ from rhob.detectors.posthoc import PosthocDetector, RunData
 
 
 class EnsembleDetector(PosthocDetector):
-    """Rank-averages a list of same-level detectors; flags onset by member agreement."""
+    """Averages the scores of a list of same-level detectors; flags onset by member agreement."""
 
     def __init__(self, members: list[PosthocDetector], name: str = "Ensemble"):
         if not members:

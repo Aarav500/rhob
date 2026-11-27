@@ -79,9 +79,12 @@ A subset, e.g. to smoke-test a change to the gate::
 
 Determinism: the gate seeds every layout and bootstrap from a fixed root seed
 (``rhob.v3.admission_gate._RNG_SEED``), so re-running with the same flags on the same
-commit reproduces the ``results`` block byte-for-byte. The ``timing_seconds`` block and
-the provenance timestamp are machine-dependent by construction and are the only parts
-that will differ.
+commit, the same locked environment and the same CPU model reproduces the ``results``
+block byte-for-byte. Across CPU models it need not: numpy's SIMD dispatch and the BLAS
+kernels depend on the CPU, and a cell can then differ in its last digits (the numerics
+pins in ``.github/workflows/regenerate.yml`` narrow this, and ``provenance.numerics``
+records what was in force). The ``timing_seconds`` block and the provenance timestamp are
+machine-dependent by construction.
 
 The artifact is rewritten after every family, so an interrupted run still leaves a
 complete, correctly-labelled ledger for the families it finished.
@@ -794,6 +797,11 @@ def _shard_environment(prov: dict[str, Any]) -> dict[str, Any]:
         "python_implementation": prov.get("python_implementation"),
         "packages": prov.get("packages"),
         "gate": prov.get("gate"),
+        # The numerics pins (OPENBLAS_CORETYPE, MKL_CBWR, ATEN_CPU_CAPABILITY, thread
+        # counts) select the floating-point kernels; shards certified under different
+        # pins were not measured under the same arithmetic. Null on shards stamped before
+        # the block existed, which then agree with each other and with nothing newer.
+        "numerics_env": (prov.get("numerics") or {}).get("env"),
     }
 
 
@@ -909,6 +917,10 @@ def merge_shards(
     # `sharding`, so the single-machine fields are emptied rather than left naming one.
     provenance["platform"] = None
     provenance["cpu"] = None
+    if isinstance(provenance.get("numerics"), dict):
+        # Same reason: the reference shard's CPU is one machine's. The pins (`env`) are
+        # checked equal across shards above, so they stay.
+        provenance["numerics"]["cpu"] = None
     provenance["scope"] = {
         "families_run": families,
         "families_registered": len(FamilyRegistry.list_families()),
@@ -929,6 +941,10 @@ def merge_shards(
         "generated_utc_last": stamps[-1],
         "platforms": sorted({s["provenance"].get("platform") for _, s in ordered}),
         "cpus": sorted({s["provenance"].get("cpu") or "" for _, s in ordered}),
+        "cpu_vendors": sorted({
+            ((s["provenance"].get("numerics") or {}).get("cpu") or {}).get("vendor") or ""
+            for _, s in ordered
+        }),
         "shard_command": (
             "python scripts/admission_ledger.py --families F --difficulties D --out-dir DIR"
         ),

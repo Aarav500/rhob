@@ -1,8 +1,19 @@
-"""Leaderboard: load, update, and render RHOB v3 standings.
+"""Leaderboard: load, update, and render a board of RHOB v3 submissions.
 
 A static, file-based leaderboard (JSON + Markdown), matching the "static files are
-fine" guidance -- no server, no auth, just committed artifacts a CI job or a
-maintainer can regenerate.
+fine" guidance -- no server, no auth. Its one writer in the repository is ``python -m
+rhob submit``, which records self-reported single-draw submissions under
+``leaderboard/community/`` (``board.json`` in the ``{"entries": [...]}`` schema, plus
+Markdown tables rendered from it).
+
+This is not where the benchmark's own numbers live. ``leaderboard/v5_replicated.json``
+(intervals over 20 draws) and ``leaderboard/v5_leaderboard.json`` (one draw, with
+provenance) are written by their scripts in other schemas; read those with
+:func:`rhob.v3.leaderboard.replicated.load_replicated_leaderboard` or
+:func:`rhob.v3.leaderboard.adapters.load_any_leaderboard_json`. :meth:`Leaderboard.load`
+refuses them rather than reading them as an empty board, because the caller that loads
+a board usually saves it back, and saving an empty board over one of them would
+replace it with the single new entry.
 """
 
 from __future__ import annotations
@@ -39,12 +50,21 @@ class LeaderboardEntry:
 
     @classmethod
     def from_results(cls, results: BenchmarkResults, author: str = "anonymous") -> "LeaderboardEntry":
+        """Summarize ``results`` over its measured cells only.
+
+        ``n_cells`` is the number of measured cells, the denominator of
+        ``overall_auroc`` (as in :mod:`rhob.v3.leaderboard.adapters`, which reads it from
+        a board's ``cells_measured``). A not-applicable cell (``na_reason`` set, AUROC
+        NaN) is no evidence about the detector, so it is neither averaged nor counted:
+        counting it would rank a detector measured on one cell alongside one measured
+        on three as "3 cells". A run with no measured cell has ``overall_auroc`` None
+        and ``n_cells`` 0, never NaN, which JSON cannot carry.
+        """
         by_family: dict[str, list[float]] = {}
         by_mechanism: dict[str, list[float]] = {}
         by_tier: dict[str, list[float]] = {}
-        for cell in results.cells:
-            if cell.discrimination_auroc != cell.discrimination_auroc:  # NaN guard
-                continue
+        scored = results.scored_cells
+        for cell in scored:
             by_family.setdefault(cell.family, []).append(cell.discrimination_auroc)
             by_mechanism.setdefault(cell.mechanism, []).append(cell.discrimination_auroc)
             by_tier.setdefault(_nearest_tier(cell.difficulty), []).append(cell.discrimination_auroc)
@@ -57,8 +77,8 @@ class LeaderboardEntry:
             access_level=results.access_level,
             author=author,
             timestamp=datetime.now(timezone.utc).isoformat(),
-            overall_auroc=round(results.overall_auroc, 4),
-            n_cells=len(results.cells),
+            overall_auroc=round(results.overall_auroc, 4) if scored else None,
+            n_cells=len(scored),
             family_auroc=_mean(by_family),
             mechanism_auroc=_mean(by_mechanism),
             tier_auroc=_mean(by_tier),
@@ -97,14 +117,37 @@ class Leaderboard:
     # -------------------------------------------------------------- persistence
     @classmethod
     def load(cls, path: Path) -> "Leaderboard":
+        """Load an ``{"entries": [...]}`` board; an empty board if ``path`` does not exist.
+
+        Raises:
+            ValueError: ``path`` exists but is not an entries-schema board (for example
+                ``leaderboard/v5_leaderboard.json``, which is ``{"results": ...}``), or
+                it is not valid JSON, or an entry does not match :class:`LeaderboardEntry`.
+                It used to read such a file as an empty board, and ``rhob submit`` then
+                saved the one new entry over it.
+        """
+        path = Path(path)
         if not path.exists():
             return cls()
-        data = json.loads(path.read_text())
-        return cls([LeaderboardEntry(**e) for e in data.get("entries", [])])
+        hint = "read it with rhob.v3.leaderboard.adapters.load_any_leaderboard_json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}: not valid JSON ({exc})") from exc
+        if not isinstance(data, dict) or "entries" not in data:
+            raise ValueError(f"{path}: not an entries-schema board; {hint}")
+        if not isinstance(data["entries"], list):
+            raise ValueError(f"{path}: 'entries' is not a list; {hint}")
+        try:
+            return cls([LeaderboardEntry(**e) for e in data["entries"]])
+        except TypeError as exc:
+            raise ValueError(f"{path}: an entry does not match LeaderboardEntry ({exc})") from exc
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"entries": [asdict(e) for e in self.entries]}, indent=2))
+        path.write_text(
+            json.dumps({"entries": [asdict(e) for e in self.entries]}, indent=2), encoding="utf-8"
+        )
 
     # ------------------------------------------------------------------ render
     def render_standings_md(self) -> str:

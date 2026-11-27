@@ -22,26 +22,47 @@ changes the physics under every published number. So the key is deliberately
 over-conservative. It hashes three things, none of them a hand-listed set of
 dependencies:
 
-- the **entire source of the defining module**, so editing a constant, the measure
-  function, a bracket or the tolerance invalidates it (so does a docstring, which costs a
-  recomputation nobody minds);
-- the source of **every module of the same package it imports**, followed transitively
+- the **code of the entire defining module**, so editing a constant, the measure
+  function, a bracket or the tolerance invalidates it;
+- the code of **every module of the same package it imports**, followed transitively
   through ``import`` statements anywhere in the file, function bodies included, so a
   change to the shared rollout helper a family calls is a change to the family's
   calibration;
 - the **installed versions of the numerical stack** (:data:`PHYSICS_DISTRIBUTIONS`), the
-  Python minor version and the machine architecture, because the same code under a new
-  simulator is a different calibration.
+  Python minor version, the machine architecture and the **numerics environment
+  variables** (:data:`NUMERICS_ENV_VARS`), because the same code under a new simulator,
+  or under a different BLAS kernel, is a different calibration.
 
-The last two were added on 2026-11-15. The key used to hash the defining module alone,
-and the nightly then installed unpinned dependencies. So once MuJoCo 4.0.0 was published on 2026-11-06,
-every nightly rolled ``mujoco_joint_limit_gaming`` out under 4.0 on a hip amplitude
-calibrated under 3.17. Those runs failed, but the cache was not the cause: recalibrated
-under 4.0 the family fails too, and ``pyproject.toml`` now excludes 4.x. What the cache
-did was make each run a mixture of two simulators, with nothing in its key able to
-notice. It would have done the same, silently, to an upgrade that moved the numbers
-without failing a test. That is the shape of the checks this repository's paper is
-about, here in infrastructure rather than in a benchmark check.
+"Code" means the module's syntax tree with its docstrings removed (:func:`_normalized`),
+not its text. Comments never reach the tree, layout and line numbers are dropped, and the
+docstring -- the first statement of a module, class or function, when that statement is a
+bare string -- is stripped. Nothing else is: any other string statement stays hashed, so
+two sources can share a key only when they differ in nothing a calibration computes with.
+(A value could still read a docstring through ``__doc__`` or ``inspect``; nothing under
+``src/rhob`` does.) The tree's text format can change between Python versions, which is
+safe: the Python minor version is already in the key, so a format change only causes
+misses.
+
+The import walk and the package versions were added on 2026-11-15. The key used to hash
+the defining module alone, and the nightly then installed unpinned dependencies. So once
+MuJoCo 4.0.0 was published on 2026-11-06, every nightly rolled
+``mujoco_joint_limit_gaming`` out under 4.0 on a hip amplitude calibrated under 3.17.
+Those runs failed, but the cache was not the cause: recalibrated under 4.0 the family
+fails too, and ``pyproject.toml`` now excludes 4.x. What the cache did was make each run a
+mixture of two simulators, with nothing in its key able to notice. It would have done the
+same, silently, to an upgrade that moved the numbers without failing a test. That is the
+shape of the checks this repository's paper is about, here in infrastructure rather than
+in a benchmark check.
+
+Two changes followed on 2026-11-27. The fingerprint had hashed each module's raw text,
+and of the eleven commits that touched ``src/`` since the import walk landed, five
+changed every calibrated family's key by docstring or comment edits alone -- three of them
+a docstring in ``rhob.detectors.posthoc``, which every family reaches through
+``RunData``. Each cost a cold recalibration of about 43 minutes on CI; hashing the code
+instead keeps all eleven keys. And the numerics variables joined the key when CI began
+pinning them, so that OpenBLAS, MKL and ATen pick the same kernels on every runner: a
+calibration derived under the pins and one derived without them can differ in the last
+bits, so they must never share an entry. An unset variable is hashed as ``"unset"``.
 
 Everything else fails safe. An unreadable, corrupt, or unparseable entry is a miss, not
 an error. Writes go to a temp file and are atomically replaced, so concurrent xdist
@@ -85,6 +106,20 @@ PHYSICS_DISTRIBUTIONS = (
     "mpe2",
 )
 
+#: Environment variables that choose which BLAS, LAPACK and ATen kernels run, and with
+#: how many threads -- so they can move the last bits of a floating-point result without
+#: any code or version changing. These are the portable-numerics pins CI sets. Their
+#: values (``"unset"`` when absent) are part of every key, so pinned and unpinned
+#: calibrations never share an entry. :mod:`rhob.v3.provenance` records the same names.
+NUMERICS_ENV_VARS = (
+    "OPENBLAS_CORETYPE",
+    "OPENBLAS_NUM_THREADS",
+    "MKL_CBWR",
+    "MKL_NUM_THREADS",
+    "OMP_NUM_THREADS",
+    "ATEN_CPU_CAPABILITY",
+)
+
 _DEFAULT_DIR = Path(__file__).resolve().parents[3] / ".rhob_cache" / "calibration"
 
 
@@ -111,18 +146,34 @@ def physics_versions() -> dict[str, str]:
     return out
 
 
+def numerics_env() -> dict[str, str]:
+    """Value of each of :data:`NUMERICS_ENV_VARS` in this process ("unset" if not set).
+
+    The raw value, not a parsed one: ``OMP_NUM_THREADS=1`` and ``OMP_NUM_THREADS=01``
+    hash differently, which can only cost a recomputation.
+    """
+    out = {}
+    for name in NUMERICS_ENV_VARS:
+        value = os.environ.get(name)
+        out[name] = "unset" if value is None else value
+    return out
+
+
 @functools.lru_cache(maxsize=None)
 def environment_token() -> str:
     """Hash of everything outside the source tree that a calibration's value depends on.
 
-    Also what CI keys its cache tarball on, so a dependency upgrade starts a new tarball
-    instead of restoring entries that would all miss anyway.
+    Also what CI keys its cache tarball on, so a dependency upgrade, or a change to the
+    numerics pins, starts a new tarball instead of restoring entries that would all miss
+    anyway. Computed once per process: the libraries the pins steer read them when they
+    are loaded, so a variable changed mid-process would not change their kernels either.
     """
     payload = json.dumps(
         {
             "versions": physics_versions(),
             "python": "%d.%d" % sys.version_info[:2],
             "machine": platform.machine(),
+            "numerics_env": numerics_env(),
         },
         sort_keys=True,
     )
@@ -169,16 +220,18 @@ def _source_of(name: str) -> tuple[str, bool] | None:
 
 
 def _module_fingerprint(func: Callable) -> str:
-    """SHA-256 over the source of ``func``'s module and of every module it reaches.
+    """SHA-256 over the code of ``func``'s module and of every module it reaches.
 
     The whole module rather than the function: a calibration reads module-level constants
     and helper functions, and listing them by hand is exactly where a missed dependency
     would turn into a silently stale value. For the same reason the hash follows the
     module's imports, transitively, within its own top-level package (``rhob`` for every
     shipped family). Third-party code is covered by version instead, in
-    :func:`environment_token`. Falls back to a marker that never matches a real hash when
-    the defining module's source is unavailable (a zipimport, an exec'd module), which
-    makes such a function uncacheable rather than wrongly cached.
+    :func:`environment_token`. Each module is hashed as :func:`_normalized` code, so an
+    edit to a docstring or a comment leaves the fingerprint alone and an edit to anything
+    else changes it. Falls back to a marker that never matches a real hash when the
+    defining module's source is unavailable (a zipimport, an exec'd module), which makes
+    such a function uncacheable rather than wrongly cached.
     """
     module = sys.modules.get(func.__module__)
     if module is None:
@@ -232,13 +285,55 @@ def reachable_sources(module_name: str, module: Any) -> dict[str, str] | None:
     return sources
 
 
+_DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _normalized(source: str) -> str:
+    """``source``'s syntax tree without docstrings, as text: what the fingerprint hashes.
+
+    A docstring is the first statement of a module, class or function when that
+    statement is a bare ``str`` literal; it is removed, and a body it leaves empty gets a
+    ``pass``, which is what such a body executes as anyway. Every other statement is kept,
+    bare strings elsewhere included, so this errs toward a miss. Comments are not in the
+    tree, and positions are left out of the dump, so neither can change the result.
+
+    Raises ``SyntaxError`` on unparseable input. :func:`reachable_sources` returns None
+    for any walk that meets such a file, so the fingerprint never calls this on one.
+    """
+    tree = ast.parse(source)
+    for node in list(ast.walk(tree)):
+        if not isinstance(node, _DOCSTRING_OWNERS):
+            continue
+        body = node.body
+        first = body[0] if body else None
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree, include_attributes=False)
+
+
+@functools.lru_cache(maxsize=None)
+def _code_digest(source: str) -> str:
+    """SHA-256 of :func:`_normalized` ``source``, memoized on the text.
+
+    The modules every family reaches (``base_pair``, ``base_family``, this file, ...) are
+    then parsed once per process rather than once per family. The digest is stored, not
+    the dump, which is several times the size of the source.
+    """
+    return hashlib.sha256(_normalized(source).encode("utf-8")).hexdigest()
+
+
 def _compute_fingerprint(module_name: str, module: Any) -> str:
     sources = reachable_sources(module_name, module)
     if sources is None:
         return ""
     digest = hashlib.sha256()
     for name in sorted(sources):
-        digest.update(name.encode("utf-8") + b"\0" + sources[name].encode("utf-8") + b"\0")
+        code = _code_digest(sources[name])
+        digest.update(name.encode("utf-8") + b"\0" + code.encode("ascii") + b"\0")
     return digest.hexdigest()
 
 

@@ -242,6 +242,42 @@ def test_a_differing_machine_is_recorded_not_refused(tmp_path, ledger_script):
     assert "on Linux-aarch64, Linux-x86_64" in md and "CPUs: Other CPU, Test CPU" in md
 
 
+_PINS = {"OPENBLAS_CORETYPE": "Haswell", "OPENBLAS_NUM_THREADS": "1", "MKL_CBWR": "COMPATIBLE",
+         "MKL_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "ATEN_CPU_CAPABILITY": "avx2"}
+
+
+def _with_numerics(i: int, shard: dict, vendor: str = "GenuineIntel") -> None:
+    shard["provenance"]["numerics"] = {
+        "env": dict(_PINS),
+        "cpu": {"vendor": vendor, "model": f"{vendor} model"},
+        "torch_imported": True, "torch_cpu_capability": "AVX2", "blas": [],
+    }
+
+
+def test_shards_under_different_numerics_pins_are_refused(tmp_path, ledger_script):
+    """The pins select the kernels; cells certified under different ones are not merged."""
+    def mutate(i, s):
+        _with_numerics(i, s)
+        if i == 3:
+            s["provenance"]["numerics"]["env"]["OPENBLAS_CORETYPE"] = None
+    _write_ledger_shards(tmp_path, ledger_script, mutate)
+    with pytest.raises(ledger_script.ShardError, match="numerics_env differs"):
+        ledger_script.merge_shards(tmp_path, families=FAMILIES)
+
+
+def test_the_reference_shards_cpu_is_not_published_as_the_ledgers(tmp_path, ledger_script):
+    """numerics.cpu is one machine's; the merge empties it and lists every vendor seen."""
+    _write_ledger_shards(
+        tmp_path, ledger_script,
+        lambda i, s: _with_numerics(i, s, "AuthenticAMD" if i == 3 else "GenuineIntel"),
+    )
+    payload = ledger_script.merge_shards(tmp_path, families=FAMILIES)
+    numerics = payload["provenance"]["numerics"]
+    assert numerics["cpu"] is None
+    assert numerics["env"] == _PINS
+    assert payload["provenance"]["sharding"]["cpu_vendors"] == ["AuthenticAMD", "GenuineIntel"]
+
+
 def test_the_markdown_says_the_ledger_was_sharded(tmp_path, ledger_script):
     _write_ledger_shards(tmp_path, ledger_script)
     payload = ledger_script.merge_shards(tmp_path, families=FAMILIES)

@@ -30,7 +30,18 @@ draw, with zero spread, as if measured.
 cross-validation (:mod:`rhob.detectors.supervision`). The artifact carries the
 access-level ladder computed with and without them, because on this board the published
 L0->L1 step is carried entirely by one of them and reverses sign without it. Both are
-exposed as :class:`LadderPartition` and neither is the default.
+exposed as :class:`LadderPartition` and neither is the default, and each carries the
+rungs on which the max and the mean disagree
+(:attr:`LadderPartition.statistic_disagreement`): on the unsupervised partition that is
+the L0->L1 step itself, which separates under the max and not under the mean.
+
+**What a draw resampled.** A replicate drawn before 2026-11-27 was built and oriented at
+layout 0 whatever layout seed it records, and resampled only its rollout seeds. The
+artifact's ``replicates`` block says which kind its draws were and whether they come
+from one source; :attr:`ReplicatedLeaderboard.layouts_resampled` and
+:attr:`ReplicatedLeaderboard.single_source` read it, and are ``None`` for an artifact
+written before the block existed, so a renderer can say "layout seed and rollout seeds
+resampled together" only when the artifact says so.
 
 **Zero variance is saturation, not precision.** A detector that returned the same score
 on all 20 draws has a zero-width interval by construction.
@@ -277,6 +288,13 @@ class LadderPartition:
     name: str
     levels: Mapping[str, LevelStats]
     separations: Mapping[str, LevelSeparation]
+    #: Rungs (``"L1_minus_L0"``) on which the max and the mean disagree for this
+    #: partition: those separating under one statistic and not the other, then those
+    #: separating under both with opposite signs. A renderer showing one statistic for a
+    #: rung on this list must show both. ``None`` when the artifact does not record it
+    #: for this partition (the unsupervised one before 2026-11-27), which is not the same
+    #: statement as "they agree everywhere".
+    statistic_disagreement: Optional[tuple[str, ...]] = None
 
     def level(self, name: str) -> Optional[LevelStats]:
         return self.levels.get(name)
@@ -412,8 +430,37 @@ class ReplicatedLeaderboard:
     #: first, which compared separation and not direction.
     statistic_disagreement: tuple[str, ...] = ()
     statistic_disagreement_note: str = ""
+    #: The aggregation's own provenance block; empty for an artifact written before it.
+    provenance: Mapping[str, Any] = field(default_factory=dict)
+    #: The ``replicates`` block: the input replicates' provenance, tallied by
+    #: ``scripts/aggregate_replication.py``. Empty for an artifact written before it.
+    replicates: Mapping[str, Any] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ accessors
+    @property
+    def layouts_resampled(self) -> Optional[bool]:
+        """Whether every draw's layout seed reached the families (``draw_schema`` >= 2).
+
+        ``False`` means at least one draw was built and oriented at layout 0 and
+        resampled only its rollout seeds; ``None`` that the artifact does not say.
+        """
+        value = self.replicates.get("layouts_resampled")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def single_source(self) -> Optional[bool]:
+        """Whether the draws are one clean commit's, under one environment, unpatched.
+
+        ``None`` when the artifact does not say; :attr:`single_source_problems` lists
+        why not when it is ``False``.
+        """
+        value = self.replicates.get("single_source")
+        return value if isinstance(value, bool) else None
+
+    @property
+    def single_source_problems(self) -> tuple[str, ...]:
+        return _str_tuple(self.replicates.get("single_source_problems"))
+
     def standings(self) -> list[ReplicatedDetector]:
         """Every detector, best mean first. Detectors with no estimate sort last."""
         return sorted(
@@ -555,6 +602,20 @@ def _str_tuple(values: Any) -> tuple[str, ...]:
     return tuple(str(v) for v in values)
 
 
+def _disagreement(blob: Any) -> Optional[tuple[str, ...]]:
+    """The rungs a ``statistic_disagreement`` block lists, or ``None`` if there is none.
+
+    Separation-disagreements first, then direction-disagreements; an artifact written
+    before the direction list existed carries only the first.
+    """
+    if not isinstance(blob, Mapping):
+        return None
+    return tuple(dict.fromkeys(
+        _str_tuple(blob.get("rungs_where_max_and_mean_disagree_on_separation"))
+        + _str_tuple(blob.get("rungs_where_max_and_mean_disagree_on_direction"))
+    ))
+
+
 def is_replicated_schema(data: Mapping[str, Any]) -> bool:
     """Whether ``data`` is the replicated artifact rather than one of the point schemas.
 
@@ -606,6 +667,7 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
         if isinstance(data.get("statistic_disagreement"), Mapping)
         else {}
     )
+    all_disagreement = _disagreement(data.get("statistic_disagreement"))
     n = data.get("n_replicates")
 
     return ReplicatedLeaderboard(
@@ -618,6 +680,7 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
             name="all detectors",
             levels=_level_stats(data.get("access_levels")),
             separations=_separations(data.get("adjacent_level_separation")),
+            statistic_disagreement=all_disagreement,
         ),
         unsupervised_only=LadderPartition(
             name="unsupervised only",
@@ -625,14 +688,16 @@ def load_replicated_leaderboard(path: str | Path) -> ReplicatedLeaderboard:
             separations=_separations(
                 supervision.get("adjacent_level_separation_unsupervised_only")
             ),
+            statistic_disagreement=_disagreement(
+                supervision.get("statistic_disagreement_unsupervised_only")
+            ),
         ),
         label_fitted_detectors=label_fitted,
         supervision_note=str(supervision.get("why_it_matters") or ""),
         zero_variance_detectors=_str_tuple(degeneracy.get("detectors_with_zero_variance")),
         zero_variance_note=str(degeneracy.get("note") or ""),
-        statistic_disagreement=tuple(dict.fromkeys(
-            _str_tuple(disagreement.get("rungs_where_max_and_mean_disagree_on_separation"))
-            + _str_tuple(disagreement.get("rungs_where_max_and_mean_disagree_on_direction"))
-        )),
+        statistic_disagreement=all_disagreement or (),
         statistic_disagreement_note=str(disagreement.get("note") or ""),
+        provenance=data.get("provenance") if isinstance(data.get("provenance"), Mapping) else {},
+        replicates=data.get("replicates") if isinstance(data.get("replicates"), Mapping) else {},
     )

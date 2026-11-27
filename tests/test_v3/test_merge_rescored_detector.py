@@ -4,6 +4,10 @@ A horizon fix only removes cells, so a re-scored replicate must agree with the c
 one wherever both scored. Where it cannot (the family's code changed after the draw was
 made), ``--keep-old-values`` keeps the committed value and applies only the re-score's
 not-applicable set, so every detector in the replicate stays scored on the same runs.
+
+And it merges only into a draw made since the layout-seed fix (``draw_schema`` 2): a
+draw made before it was built at layout 0 whatever it records, and a re-score at its
+recorded layout would mix two layouts into one replicate.
 """
 
 from __future__ import annotations
@@ -42,11 +46,14 @@ def _record(cells: dict[tuple[str, float], float | None], na_reason: str | None 
     }
 
 
-def _replicate(cells, na_reason=None) -> dict:
-    return {
+def _replicate(cells, na_reason=None, draw_schema: int | None = 2) -> dict:
+    rep = {
         "replicate_id": 0, "layout_seed": 0, "seed_base": 0, "n_seeds": 5,
         "provenance": {}, "results": {_DET: _record(cells, na_reason)},
     }
+    if draw_schema is not None:
+        rep["draw_schema"] = draw_schema
+    return rep
 
 
 @pytest.fixture
@@ -102,3 +109,47 @@ def test_report_only_writes_nothing(dirs):
     before = (into / "replicate_000.json").read_text()
     assert _run(into, src, "--report-only", "--allow-changed-family", "drift") == 0
     assert (into / "replicate_000.json").read_text() == before
+
+
+# ------------------------------------------------------------------ the draw schema
+@pytest.mark.parametrize("schema", [None, 1])
+def test_a_draw_made_before_the_layout_fix_is_refused(dirs, schema):
+    """The ``replicated`` mode's trap once the layout seed reaches the families.
+
+    A committed draw without ``draw_schema`` was built at layout 0 whatever its
+    ``layout_seed`` says. Re-scoring it at that seed now builds the recorded layout, so
+    every cell moves, and ``--keep-old-values`` would keep the layout-0 values under the
+    new not-applicable set. Both modes must refuse, before anything is written.
+    """
+    into, src = dirs
+    old = json.loads((into / "replicate_000.json").read_text())
+    if schema is None:
+        old.pop("draw_schema")
+    else:
+        old["draw_schema"] = schema
+    (into / "replicate_000.json").write_text(json.dumps(old))
+    before = (into / "replicate_000.json").read_text()
+    for extra in ((), ("--keep-old-values", "--allow-changed-family", "drift")):
+        with pytest.raises(SystemExit, match="draw_schema"):
+            _run(into, src, *extra)
+    assert (into / "replicate_000.json").read_text() == before
+
+
+def test_a_rescore_from_older_code_is_refused(dirs):
+    """The re-score must be a draw of the same kind as the one it is merged into."""
+    into, src = dirs
+    new = json.loads((src / "replicate_000.json").read_text())
+    new.pop("draw_schema")
+    (src / "replicate_000.json").write_text(json.dumps(new))
+    with pytest.raises(SystemExit, match="draw_schema differs"):
+        _run(into, src, "--allow-changed-family", "drift")
+
+
+def test_the_minimum_schema_is_the_replicate_scripts():
+    """Restated in the merge script to avoid importing the detector suite; keep them equal."""
+    spec = importlib.util.spec_from_file_location(
+        "_replicate_leaderboard_under_test", _SCRIPT.parent / "replicate_leaderboard.py"
+    )
+    replicate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(replicate)
+    assert merge.MIN_DRAW_SCHEMA == replicate.DRAW_SCHEMA

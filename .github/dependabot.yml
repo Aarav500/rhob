@@ -1,0 +1,30 @@
+# Dependabot: the GitHub Actions the workflows use, and nothing else.
+#
+# Python dependencies are deliberately not here. The physics screen installs a hashed lock
+# (requirements/ci-admission-linux-py312.txt) that changes only through
+# scripts/update_ci_lock.sh, a diff someone reviews with the drift table in front of them
+# (.github/workflows/drift.yml, which already reports every release the lock does not have).
+# A bot bumping single pins would bypass both, and the pyproject.toml ranges are policy
+# (mujoco<4, mpe2<1.2), not staleness.
+#
+# Actions, though, are code that runs with this repository's token on every push, and the
+# one pinned by SHA (astral-sh/setup-uv in register_guard.yml) otherwise never moves. One
+# grouped pull request a week, so it is read rather than muted; it runs tests.yml like any
+# other pull request.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # The workflows, and the composite action they share (actions/cache inside it).
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+      day: monday
+      # Off the hour, and clear of drift.yml (05:43) and cannotfail.yml (05:47).
+      time: "06:17"
+      timezone: Etc/UTC
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+    open-pull-requests-limit: 3

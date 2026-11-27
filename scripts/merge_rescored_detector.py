@@ -8,8 +8,16 @@ come back with exactly the AUROCs they had. This script enforces both halves.
 For each ``replicate_NNN.json`` in ``--from-dir`` (produced by
 ``scripts/replicate_leaderboard.py --detectors <name>``):
 
-* the replicate's ``(replicate_id, layout_seed, seed_base, n_seeds)`` must match the
-  file of the same name in ``--into-dir`` -- same draw, or the merge is refused;
+* the committed replicate in ``--into-dir`` must record ``draw_schema`` 2 or later
+  (:data:`MIN_DRAW_SCHEMA`), or the merge is refused. A file without it was drawn while
+  ``FamilyRegistry.generate_suite`` dropped ``layout_seed``, so its draw ``k`` was built
+  at layout 0. Re-scoring it now builds layout ``k`` instead and moves every cell, and
+  ``--keep-old-values`` would then keep the layout-0 values under the new
+  not-applicable set: a draw mixing two layouts while recording one. Such a set is
+  re-drawn whole (``scripts/check_redraw.py``), not patched;
+* the replicate's ``(replicate_id, draw_schema, layout_seed, seed_base, n_seeds)`` must
+  match the file of the same name in ``--into-dir`` -- same draw, or the merge is
+  refused;
 * on every cell the old record scored AND the new record scored, the AUROCs must agree
   to ``--atol`` -- the fix was supposed to leave scored cells alone, and this is where
   that claim is checked rather than asserted. A cell that nonetheless differs can be
@@ -53,6 +61,13 @@ import numpy as np
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+#: The oldest ``draw_schema`` a committed replicate may have and still be merged into:
+#: ``scripts/replicate_leaderboard.py``'s ``DRAW_SCHEMA`` as of the layout-seed fix
+#: (2026-11-27). Restated here rather than imported, because importing that script loads
+#: the whole detector suite; tests/test_v3/test_merge_rescored_detector.py checks the two
+#: agree.
+MIN_DRAW_SCHEMA = 2
+
 
 def _commit() -> str:
     try:
@@ -79,7 +94,17 @@ def compare_one(new_path: Path, into_dir: Path, detector: str, atol: float) -> d
         raise SystemExit(f"{new_path.name}: no counterpart in {into_dir}")
     old = json.loads(old_path.read_text(encoding="utf-8"))
 
-    for key in ("replicate_id", "layout_seed", "seed_base", "n_seeds"):
+    schema = old.get("draw_schema")
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema < MIN_DRAW_SCHEMA:
+        raise SystemExit(
+            f"{old_path}: draw_schema is {schema!r}, older than {MIN_DRAW_SCHEMA}. This "
+            f"draw was made while FamilyRegistry.generate_suite dropped layout_seed, so it "
+            f"was built at layout 0 whatever layout_seed {old.get('layout_seed')!r} says; "
+            f"a re-score now builds that layout and cannot be merged into it. Re-draw the "
+            f"whole set instead (regenerate.yml's redraw mode, gated by "
+            f"scripts/check_redraw.py)."
+        )
+    for key in ("replicate_id", "draw_schema", "layout_seed", "seed_base", "n_seeds"):
         if old.get(key) != new.get(key):
             raise SystemExit(
                 f"{new_path.name}: {key} differs ({old.get(key)} vs {new.get(key)}); "

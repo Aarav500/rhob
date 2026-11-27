@@ -36,6 +36,16 @@ class PCAReconstructionDetector(PosthocDetector):
     def name(self) -> str:
         return "PCA Reconstruction"
 
+    @property
+    def min_episodes(self) -> int:
+        """``fit`` and ``classify`` see no steady-state histogram below ``steady_window``
+        rows of ``state_counts``.
+
+        Below that ``_steady_hist`` returns None for every run, ``fit`` trains nothing and
+        ``classify`` returns 0.5.
+        """
+        return self.steady_window
+
     def fit(self, runs_a: list[RunData], runs_b: list[RunData]) -> None:
         hists = [self._steady_hist(r) for r in runs_b]
         hists = [h for h in hists if h is not None]
@@ -67,7 +77,7 @@ class PCAReconstructionDetector(PosthocDetector):
         if not self.is_trained or self.pca is None:
             return -1
         counts = run.state_counts
-        if counts is None or counts.shape[0] < self.steady_window:
+        if counts is None or counts.shape[0] < self.min_episodes:
             return -1
         errors = []
         for t in range(self.steady_window, counts.shape[0]):
@@ -88,7 +98,7 @@ class PCAReconstructionDetector(PosthocDetector):
 
     def _steady_hist(self, run: RunData) -> Optional[np.ndarray]:
         counts = run.state_counts
-        if counts is None or counts.shape[0] < self.steady_window:
+        if counts is None or counts.shape[0] < self.min_episodes:
             return None
         window = counts[-self.steady_window :].sum(axis=0)
         return self._normalize(window)

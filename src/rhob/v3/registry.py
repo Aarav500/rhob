@@ -57,10 +57,26 @@ class FamilyRegistry:
     ) -> list[MatchedPair]:
         """Generate the evaluation suite: one pair per (family, difficulty).
 
-        ``layout_seed`` selects the environment layout every cell is built at, and
-        therefore the behavioral orientation each family is scored under (see
-        :mod:`rhob.v3.sign_randomization`); ``generate_pair_at`` stamps it onto the pair
-        so the orientation is derived from it rather than assumed.
+        Every cell is built by ``fam.generate_pair_at(d, seed=layout_seed)``, so
+        ``layout_seed`` reaches the family in two ways. It is the ``seed`` the family's
+        :meth:`~rhob.v3.base_family.BaseFamily.generate_pair` builds from, in the
+        families that use one: the item grid of ``proxy_correlation_gaming``, the reward
+        model fitted by ``rlhf_reward_model_overopt``, and an offset to the rollout seeds
+        in the MuJoCo, PettingZoo, sequence and other RLHF families; the families with
+        a fixed layout ignore it. And it is stamped on the pair as
+        :attr:`~rhob.v3.base_pair.MatchedPair.layout_seed`, from which the behavioral
+        orientation the family is scored under is drawn (see
+        :mod:`rhob.v3.sign_randomization`).
+
+        Until 2026-11-27 this method called ``generate_pair_at(d)`` and dropped the
+        argument: every cell was built, and stamped, at layout 0 whatever was asked
+        for. A replicate at ``layout_seed=k`` therefore resampled only its rollout seeds
+        (``Benchmark.evaluate``'s ``seed_base``), under layout 0's orientation. That
+        affected only what reaches this method with a non-zero ``layout_seed``: the
+        20-draw replication committed before that date (``results/replication/``), whose
+        draws 1 to 19 record layout seeds 1 to 19 all the same. The admission gate and
+        ``scripts/measure_difficulty_calibration.py``, which call ``generate_pair_at``
+        with their own layout seeds, were not affected.
 
         The default ``0`` reproduces the historical single-draw suite: one layout per
         (family, difficulty) for the whole benchmark. That is a single sample, not a
@@ -83,5 +99,5 @@ class FamilyRegistry:
             lo, hi = fam.difficulty_range()
             for d in diffs:
                 if lo - 1e-9 <= d <= hi + 1e-9:
-                    pairs.append(fam.generate_pair_at(d))
+                    pairs.append(fam.generate_pair_at(d, seed=layout_seed))
         return pairs

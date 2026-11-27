@@ -1,6 +1,6 @@
 # Leaderboard replication
 
-20 independent draws of the full benchmark (layout seed and rollout seeds resampled together). Intervals are 95% percentile bootstrap over replicates.
+20 independent draws of the full benchmark that resample the rollout seeds only. Every draw was made before the layout seed reached the families (`draw_schema` absent; see *Provenance of the draws*), so each was built and oriented at layout 0, whatever layout seed it records. Intervals are 95% percentile bootstrap over replicates.
 
 ## Access-level ladder
 
@@ -23,9 +23,20 @@ Removing them and re-deriving the ladder from the same draws:
 | L2 | 0.9430 | [0.9380, 0.9478] | 0.5990 | [0.5892, 0.6096] | Reward-Feature Correlation |
 | L3 | 0.9746 | [0.9712, 0.9778] | 0.9746 | [0.9711, 0.9778] | True Reward Oracle |
 
-Unsupervised L1 minus L0 (max, paired): **-0.0293 [-0.0537, -0.0051]**, 5/20 draws favouring L1 -- separates.
+Adjacent rungs without the label-fitted detectors, paired within each draw under both statistics:
 
-The L0->L1 climb under the max (+0.4272) is carried by a label-fitted detector, `State Divergence`, the best L1 detector on 20/20 draws. Without the label-fitted detectors the step reverses sign and separates the other way: unsupervised L1 sits below L0. Quote the partition alongside any rung difference.
+| Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |
+|---|---|---|---|---|---|
+| L1 minus L0 | max | -0.0293 | [-0.0537, -0.0051] | yes | 5/20 |
+| L2 minus L1 | max | +0.0606 | [+0.0347, +0.0884] | yes | 16/20 |
+| L3 minus L2 | max | +0.3756 | [+0.3641, +0.3868] | yes | 20/20 |
+| L1 minus L0 | mean | -0.0022 | [-0.0217, +0.0167] | **NO** | 11/20 |
+| L2 minus L1 | mean | +0.0254 | [+0.0078, +0.0444] | yes | 13/20 |
+| L3 minus L2 | mean | +0.4571 | [+0.4505, +0.4637] | yes | 20/20 |
+
+**Statistic-dependent without the label-fitted detectors: L1 minus L0.** One statistic separates it and the other does not: the max puts L0 above L1 (-0.0293 [-0.0537, -0.0051], 5/20 draws favouring L1); the mean does not separate L1 from L0 (-0.0022 [-0.0217, +0.0167], 11/20 draws favouring L1). Quote both.
+
+The L0->L1 climb under the max (+0.4272) is carried by a label-fitted detector, `State Divergence`, the best L1 detector on 20/20 draws. Without the label-fitted detectors the step reverses sign under the max, and whether it separates depends on the statistic: the max puts L0 above L1 and the mean does not separate L1 from L0, so quote both. Quote the partition alongside any rung difference.
 
 ## Do adjacent rungs separate?
 
@@ -48,3 +59,21 @@ not equalise denominators. The families each detector is scored on (a family is 
 
 0 of 30 detectors returned an identical score on every draw. That is saturation, not precision; their intervals are points by construction.
 
+## Provenance of the draws
+
+Read from each replicate file's own provenance (`replicates` in `leaderboard/v5_replicated.json`).
+
+- Draw schema: absent (drawn before 2026-11-27, at layout 0), on all 20.
+- Source commit: not recorded, on all 20.
+- Tree: tree state unrecorded, on all 20.
+- Python: CPython 3.11.15, on all 20.
+- Packages: numpy 2.4.6, scipy 1.17.1, scikit-learn 1.9.0, torch 2.13.0, rhob 1.8.0, on all 20.
+- Platform: Linux-6.12.94-123.192.amzn2023.x86_64-x86_64-with-glibc2.34, on all 20.
+- Numerics: not recorded (the block dates from 2026-11-27), on all 20.
+- CPU: not recorded, on all 20.
+- Rows re-scored after the draw: 20 rows (Reward Skewness at `c6bb6f6`; 19 detectors at `6e8521a`), on all 20.
+- Single source: **no**:
+  - no replicate records the commit it was drawn from
+  - 20 replicate(s) not recorded as drawn from a clean tree (dirty true or unrecorded): replicates 0-19
+  - no replicate records its numerics signature
+  - 20 replicate(s) carry rows re-scored after the draw (provenance.rescored): replicates 0-19

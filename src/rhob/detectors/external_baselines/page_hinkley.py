@@ -6,6 +6,11 @@ import numpy as np
 
 from rhob.detectors.posthoc import PosthocDetector, RunData
 
+#: One running mean and two deviations from it. Below three rewards the statistic (the
+#: cumulative deviation minus its running minimum) is 0 at the first index and has
+#: nothing to compare, so ``classify`` returns its 0.5 fallback for every run.
+MIN_EPISODES = 3
+
 
 class PageHinkleyDetector(PosthocDetector):
     """Sequential change-point test on the proxy-reward stream.
@@ -32,6 +37,15 @@ class PageHinkleyDetector(PosthocDetector):
     def name(self) -> str:
         return "Page-Hinkley Test"
 
+    @property
+    def min_episodes(self) -> int:
+        """Three rewards: a running mean and two deviations from it.
+
+        Below that ``_ph_statistic`` returns None and ``classify`` returns 0.5 for every
+        run. The bound does not depend on ``delta`` or ``threshold``.
+        """
+        return MIN_EPISODES
+
     def classify(self, run: RunData) -> float:
         stat = self._ph_statistic(run.proxy_rewards)
         if stat is None or len(stat) == 0:
@@ -48,7 +62,7 @@ class PageHinkleyDetector(PosthocDetector):
         return int(crossed[0]) if len(crossed) else -1
 
     def _ph_statistic(self, rewards: np.ndarray) -> np.ndarray | None:
-        if rewards is None or len(rewards) < 3:
+        if rewards is None or len(rewards) < self.min_episodes:
             return None
         x = rewards.astype(np.float64)
         mean_t = np.cumsum(x) / (np.arange(len(x)) + 1)

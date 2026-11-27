@@ -62,6 +62,8 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
+import inspect
 import json
 import math
 import platform
@@ -90,6 +92,24 @@ def _scrub_home(path: str) -> str:
     if home and path.lower().startswith(home.lower()):
         return "~" + path[len(home):]
     return path
+
+
+def source_sha256(cls) -> dict:
+    """A detector's source module, by repository-relative path and content hash.
+
+    Recorded per detector in every artifact (``detector_sources``), so a later report can
+    tell which draws were scored by a detector's current code and which by an older one
+    (``make_results.py`` marks the latter pre-fix). Line endings are normalised first, so
+    a Windows checkout with ``autocrlf`` attests the same source as a Linux one.
+    """
+    path = Path(inspect.getsourcefile(cls)).resolve()
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    try:
+        shown = path.relative_to(HERE.parents[1]).as_posix()
+    except ValueError:
+        shown = path.name
+    return {"path": shown, "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+
 
 from sklearn.metrics import roc_auc_score  # noqa: E402
 
@@ -578,6 +598,7 @@ def main() -> int:
             "numpy": np.__version__,
         },
         "evaluation_path": "rhob.v3.benchmark._evaluate_cell (unmodified)",
+        "detector_sources": {f().name: source_sha256(f) for f in DETECTOR_FACTORIES},
         "n_pairs_per_cell": n_pairs,
         "auroc_null_se": null_se(n_pairs),
         "auroc_null_se_note": (

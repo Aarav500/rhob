@@ -5,11 +5,29 @@ each one a full leaderboard run at an independent ``(layout_seed, seed_base)`` d
 
 The unit of resampling is the **replicate**, not the cell and not the run. Replicates are
 the independent draws of the whole pipeline -- environment layout, behavioral orientation
-and run seeds all resample together -- so a percentile bootstrap over them is an interval
-on "what would this number be if the benchmark had been drawn again", which is the
-question a reader of the leaderboard is actually asking. Bootstrapping cells instead
-would treat 123 cells of one draw as 123 independent observations; they are not, they
-share a layout and an orientation per family.
+and run seeds resample together in a replicate of ``draw_schema`` 2 -- so a percentile
+bootstrap over them is an interval on "what would this number be if the benchmark had
+been drawn again", which is the question a reader of the leaderboard is actually asking.
+Bootstrapping cells instead would treat 123 cells of one draw as 123 independent
+observations; they are not, they share a layout and an orientation per family.
+
+A replicate written before 2026-11-27 has no ``draw_schema``: ``generate_suite`` dropped
+its layout seed, so it was built and oriented at layout 0 and resampled only its rollout
+seeds. Its interval then answers the narrower question "drawn again with new rollout
+seeds". The artifact's ``replicates`` block records which kind every input was, and the
+summary's first sentence is written from it rather than assumed.
+
+**Where the draws came from.** ``provenance`` is this aggregation's own block
+(:func:`rhob.v3.provenance.provenance_block`). ``replicates`` tallies the inputs' own
+provenance -- source commit, clean tree, Python, package versions, platform, numerics
+(the pins and the kernels picked), CPU, draw schema and any rows merged in afterwards by
+``scripts/merge_rescored_detector.py`` -- and says whether the set is *single-source*:
+one recorded commit, a clean tree, one Python, one package set, one numerics signature,
+one draw schema and no re-scored rows. Platform and CPU are reported but not required to
+agree: the hosted runners of one CI run differ in kernel build and CPU model, and under
+the numerics pins the kernels they pick do not. ``--require-single-source`` refuses to
+write anything unless the set is single-source; the redraw workflow passes it, after
+``scripts/check_redraw.py`` has checked the set against the board.
 
 The access-level ladder is recomputed per replicate through
 :func:`~rhob.v3.leaderboard.access_summary.summarize_access_levels` rather than
@@ -28,6 +46,9 @@ it does not have:
   * **Local degeneracy is reported, not fatal.** A single detector scoring 1.000 on every
     replicate is a real finding -- saturation -- and its zero-width interval is honest.
     These are counted and listed so saturation is never mistaken for precision.
+
+Run: python scripts/aggregate_replication.py [--in-dir DIR] [--out PATH] [--out-md PATH]
+     [--require-single-source]
 """
 
 from __future__ import annotations
@@ -49,11 +70,24 @@ from rhob.v3.leaderboard.access_summary import (  # noqa: E402
     degenerate_families_from_ledger,
     summarize_access_levels,
 )
+from rhob.v3.provenance import provenance_block  # noqa: E402
 
 BOOTSTRAP_RESAMPLES = 10_000
 CI_LEVEL = 0.95
 #: Fixed so the published interval is reproducible from the same replicate files.
 BOOTSTRAP_SEED = 20260804
+
+#: The ``draw_schema`` from which a replicate's layout seed reaches the families
+#: (``scripts/replicate_leaderboard.py``'s ``DRAW_SCHEMA``). A file without the key was
+#: written before it, and was built at layout 0.
+LAYOUT_DRAW_SCHEMA = 2
+
+STATISTIC_DISAGREEMENT_NOTE = (
+    "The max and the mean give these rungs different verdicts: a rung listed under "
+    "separation separates under one statistic and not the other, and a rung listed under "
+    "direction separates under both with opposite signs. Reporting either alone would "
+    "present a statistic-dependent result as a settled one. Quote both."
+)
 
 
 def bootstrap_ci(values: list[float], key: str) -> dict:
@@ -117,15 +151,262 @@ def load_replicates(in_dir: Path) -> list[dict]:
     return reps
 
 
-def main() -> None:
+# --------------------------------------------------------------------- provenance
+def _prov(rep: dict) -> dict:
+    prov = rep.get("provenance")
+    return prov if isinstance(prov, dict) else {}
+
+
+def _git(rep: dict) -> dict:
+    git = _prov(rep).get("git")
+    return git if isinstance(git, dict) else {}
+
+
+def _commit(rep: dict):
+    return _git(rep).get("commit")
+
+
+def _dirty(rep: dict):
+    return _git(rep).get("dirty")
+
+
+def _python(rep: dict):
+    prov = _prov(rep)
+    if prov.get("python") is None:
+        return None
+    impl = prov.get("python_implementation")
+    return f"{impl} {prov['python']}" if impl else str(prov["python"])
+
+
+def _packages(rep: dict):
+    packages = _prov(rep).get("packages")
+    return packages if isinstance(packages, dict) else None
+
+
+def _platform(rep: dict):
+    return _prov(rep).get("platform")
+
+
+def _numerics(rep: dict):
+    """What selected the kernels: the pins, the ATen level and the BLAS libraries picked.
+
+    ``None`` when the replicate predates the ``numerics`` block. The CPU is left out on
+    purpose (see :func:`_cpu`): two runners with different CPUs and the same signature
+    here ran the same kernels.
+    """
+    numerics = _prov(rep).get("numerics")
+    if not isinstance(numerics, dict):
+        return None
+    return {
+        "env": numerics.get("env"),
+        "torch_cpu_capability": numerics.get("torch_cpu_capability"),
+        "blas": numerics.get("blas"),
+    }
+
+
+def _cpu(rep: dict):
+    numerics = _prov(rep).get("numerics")
+    cpu = numerics.get("cpu") if isinstance(numerics, dict) else None
+    if not isinstance(cpu, dict):
+        return None
+    return {k: cpu.get(k) for k in ("vendor", "model", "family", "model_number", "stepping")}
+
+
+def _draw_schema(rep: dict):
+    schema = rep.get("draw_schema")
+    return schema if isinstance(schema, int) and not isinstance(schema, bool) else None
+
+
+def _rescored(rep: dict) -> list[dict]:
+    entries = _prov(rep).get("rescored")
+    if not isinstance(entries, list):
+        return []
+    return [
+        {"detector": e.get("detector"), "commit": e.get("commit"), "source": e.get("source")}
+        for e in entries
+        if isinstance(e, dict)
+    ]
+
+
+def _tally(reps: list[dict], value_of) -> list[dict]:
+    """Group replicates by ``value_of(rep)``, in order of first appearance.
+
+    ``[{"value": v, "n": k, "replicate_ids": [...]}]``: a list rather than a mapping,
+    because the values (a package set, a numerics block, ``null``) are not JSON keys.
+    One entry means every replicate agrees.
+    """
+    groups: list[dict] = []
+    for r in reps:
+        v = value_of(r)
+        for g in groups:
+            if g["value"] == v:
+                g["replicate_ids"].append(r["replicate_id"])
+                break
+        else:
+            groups.append({"value": v, "replicate_ids": [r["replicate_id"]]})
+    return [
+        {"value": g["value"], "n": len(g["replicate_ids"]), "replicate_ids": g["replicate_ids"]}
+        for g in groups
+    ]
+
+
+def layouts_resampled(reps: list[dict]) -> bool:
+    """Whether every replicate's layout seed reached the families (``draw_schema`` >= 2)."""
+    return all((_draw_schema(r) or 1) >= LAYOUT_DRAW_SCHEMA for r in reps)
+
+
+def single_source_problems(reps: list[dict]) -> list[str]:
+    """Why the replicates are not one uniform draw of one source; empty when they are.
+
+    Single-source means: one recorded commit, every tree clean (``dirty`` exactly
+    False, not unknown), one Python, one package set, one numerics signature (recorded),
+    one draw schema, and no rows merged in after the draw. Platform and CPU are not
+    required to agree; see the module docstring.
+    """
+    problems: list[str] = []
+    commits = _tally(reps, _commit)
+    if len(commits) > 1:
+        problems.append(
+            f"{len(commits)} source commits: "
+            + "; ".join(f"{g['value']} on {_ids(g['replicate_ids'])}" for g in commits)
+        )
+    elif commits and commits[0]["value"] is None:
+        problems.append("no replicate records the commit it was drawn from")
+    unclean = [r["replicate_id"] for r in reps if _dirty(r) is not False]
+    if unclean:
+        problems.append(
+            f"{len(unclean)} replicate(s) not recorded as drawn from a clean tree "
+            f"(dirty true or unrecorded): {_ids(unclean)}"
+        )
+    # A draw schema that is absent everywhere is uniform (every file predates the key);
+    # whether a set is of the current schema is check_redraw.py's question, not this one.
+    for label, value_of, required in (
+        ("Python", _python, True),
+        ("package set", _packages, True),
+        ("numerics signature", _numerics, True),
+        ("draw schema", _draw_schema, False),
+    ):
+        t = _tally(reps, value_of)
+        if len(t) > 1:
+            problems.append(
+                f"{len(t)} different {label}s: "
+                + "; ".join(f"{_ids(g['replicate_ids'])}" for g in t)
+            )
+        elif required and t and t[0]["value"] is None:
+            problems.append(f"no replicate records its {label}")
+    rescored = [r["replicate_id"] for r in reps if _rescored(r)]
+    if rescored:
+        problems.append(
+            f"{len(rescored)} replicate(s) carry rows re-scored after the draw "
+            f"(provenance.rescored): {_ids(rescored)}"
+        )
+    return problems
+
+
+def summarize_replicates(reps: list[dict]) -> dict:
+    """The ``replicates`` block: the inputs' provenance, tallied; see the module docstring."""
+    problems = single_source_problems(reps)
+    return {
+        "n_replicate_files": len(reps),
+        "commits": _tally(reps, _commit),
+        "dirty": _tally(reps, _dirty),
+        "pythons": _tally(reps, _python),
+        "package_sets": _tally(reps, _packages),
+        "platforms": _tally(reps, _platform),
+        "numerics": _tally(reps, _numerics),
+        "cpus": _tally(reps, _cpu),
+        "draw_schemas": _tally(reps, _draw_schema),
+        "rescored_rows": _tally(reps, _rescored),
+        "layouts_resampled": layouts_resampled(reps),
+        "single_source": not problems,
+        "single_source_problems": problems,
+        "note": (
+            "Each list groups the replicate files by one provenance field; one entry means "
+            "every replicate agrees, and a null value means the field is not recorded. "
+            "draw_schema null means the file predates the key: it was drawn while "
+            "FamilyRegistry.generate_suite dropped layout_seed (before 2026-11-27), so it "
+            "was built and oriented at layout 0 and resampled only its rollout seeds, "
+            "whatever its layout_seed says; layouts_resampled is false if any replicate "
+            "is such a draw. single_source requires one recorded commit, clean trees, one "
+            "Python, one package set, one numerics signature, one draw schema and no "
+            "re-scored rows; platforms and CPUs are reported, not required to agree."
+        ),
+    }
+
+
+def _ids(ids: list[int]) -> str:
+    """``[0, 1, 2, 5]`` -> ``"replicates 0-2, 5"``."""
+    ids = sorted(ids)
+    runs: list[str] = []
+    start = prev = None
+    for i in ids + [None]:
+        if start is None:
+            start = prev = i
+        elif i is not None and i == prev + 1:
+            prev = i
+        else:
+            runs.append(f"{start}" if start == prev else f"{start}-{prev}")
+            start = prev = i
+    word = "replicate" if len(ids) == 1 else "replicates"
+    return f"{word} {', '.join(runs)}"
+
+
+# ----------------------------------------------------------- statistic disagreement
+def disagreement_kind(mx: dict, mn: dict) -> str:
+    """How the max and the mean disagree on one rung: ``"separation"``, ``"direction"`` or ``""``.
+
+    ``"separation"``: one statistic separates the rung and the other does not.
+    ``"direction"``: both separate it, with opposite signs.
+    """
+    if mx["excludes_zero"] != mn["excludes_zero"]:
+        return "separation"
+    if mx["excludes_zero"] and mn["excludes_zero"] and (mx["mean"] > 0) != (mn["mean"] > 0):
+        return "direction"
+    return ""
+
+
+def statistic_disagreement(separations: dict) -> dict:
+    """The rungs of one partition whose verdict depends on the statistic."""
+    kinds: dict[str, list[str]] = {"separation": [], "direction": []}
+    for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:]):
+        rung = f"{hi}_minus_{lo}"
+        mx, mn = separations.get(f"{rung}_max"), separations.get(f"{rung}_mean")
+        if mx is None or mn is None:
+            continue
+        kind = disagreement_kind(mx, mn)
+        if kind:
+            kinds[kind].append(rung)
+    return {
+        "rungs_where_max_and_mean_disagree_on_separation": kinds["separation"],
+        "rungs_where_max_and_mean_disagree_on_direction": kinds["direction"],
+        "note": STATISTIC_DISAGREEMENT_NOTE,
+    }
+
+
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--in-dir", type=Path, default=Path("results/replication"))
     parser.add_argument("--out", type=Path, default=Path("leaderboard/v5_replicated.json"))
     parser.add_argument("--out-md", type=Path, default=Path("docs/figures/replication_summary.md"))
-    args = parser.parse_args()
+    parser.add_argument(
+        "--require-single-source",
+        action="store_true",
+        help=(
+            "Refuse, writing nothing, unless every replicate records one commit, a clean "
+            "tree, one Python, one package set, one numerics signature and one draw "
+            "schema, and none carries re-scored rows."
+        ),
+    )
+    args = parser.parse_args(argv)
 
     reps = load_replicates(args.in_dir)
     print(f"loaded {len(reps)} replicates from {args.in_dir}")
+    replicates = summarize_replicates(reps)
+    if args.require_single_source and not replicates["single_source"]:
+        raise SystemExit(
+            "refusing (--require-single-source): the replicates are not one uniform draw "
+            "of one source:\n  - " + "\n  - ".join(replicates["single_source_problems"])
+        )
 
     # ---- per-detector overall AUROC ------------------------------------------------
     detector_names = sorted({n for r in reps for n in r["results"]})
@@ -301,22 +582,25 @@ def main() -> None:
 
     separations = compute_separations(ladder_by_rep, "all")
     separations_unsup = compute_separations(unsup_by_rep, "unsup")
-    rungs = [
-        (f"{hi}_minus_{lo}", separations[f"{hi}_minus_{lo}_max"],
-         separations[f"{hi}_minus_{lo}_mean"])
-        for lo, hi in zip(ACCESS_LEVELS, ACCESS_LEVELS[1:])
-        if f"{hi}_minus_{lo}_max" in separations and f"{hi}_minus_{lo}_mean" in separations
-    ]
-    disagree = [r for r, mx, mn in rungs if mx["excludes_zero"] != mn["excludes_zero"]]
-    disagree_direction = [
-        r for r, mx, mn in rungs
-        if mx["excludes_zero"] and mn["excludes_zero"] and (mx["mean"] > 0) != (mn["mean"] > 0)
-    ]
+    # The same verdict-pair rule for both partitions. The unsupervised partition is where
+    # the L0->L1 step is read against the label-fitted climb, so it needs the rule most:
+    # on the 2026-11-26 board its step separates below zero under the max and does not
+    # separate under the mean, and a summary reading only the max said it "separates the
+    # other way".
+    disagreement = statistic_disagreement(separations)
+    disagreement_unsup = statistic_disagreement(separations_unsup)
 
     out = {
         "n_replicates": len(reps),
-        "draws": [{"replicate_id": r["replicate_id"], "layout_seed": r["layout_seed"],
-                   "seed_base": r["seed_base"], "n_seeds": r["n_seeds"]} for r in reps],
+        "draws": [{"replicate_id": r["replicate_id"], "draw_schema": _draw_schema(r),
+                   "layout_seed": r["layout_seed"], "seed_base": r["seed_base"],
+                   "n_seeds": r["n_seeds"]} for r in reps],
+        # This aggregation's own provenance, stamped once the work above is done.
+        "provenance": provenance_block(
+            script="scripts/aggregate_replication.py", in_dir=Path(args.in_dir).as_posix()
+        ),
+        # The inputs' provenance, tallied.
+        "replicates": replicates,
         "method": {
             "resampling_unit": "replicate",
             "bootstrap_resamples": BOOTSTRAP_RESAMPLES,
@@ -346,20 +630,11 @@ def main() -> None:
             ),
             "access_levels_unsupervised_only": ladder_unsup,
             "adjacent_level_separation_unsupervised_only": separations_unsup,
+            "statistic_disagreement_unsupervised_only": disagreement_unsup,
         },
         "access_levels": ladder,
         "adjacent_level_separation": separations,
-        "statistic_disagreement": {
-            "rungs_where_max_and_mean_disagree_on_separation": disagree,
-            "rungs_where_max_and_mean_disagree_on_direction": disagree_direction,
-            "note": (
-                "The max and the mean give these rungs different verdicts: a rung listed "
-                "under separation separates under one statistic and not the other, and a "
-                "rung listed under direction separates under both with opposite signs. "
-                "Reporting either alone would present a statistic-dependent result as a "
-                "settled one. Quote both."
-            ),
-        },
+        "statistic_disagreement": disagreement,
         "detectors": per_detector,
     }
 
@@ -377,13 +652,189 @@ def main() -> None:
             print(f"  {lv} max: {m['mean']:.3f}  [{m['ci_lo']:.3f}, {m['ci_hi']:.3f}]")
 
 
+def _ci_text(v: dict, missing: str = "n/a") -> str:
+    if v.get("ci_lo") is None:
+        return missing
+    return f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]"
+
+
+def _verdict(v: dict, hi: str, lo: str) -> str:
+    """``"puts L0 above L1"`` or ``"does not separate L1 from L0"``, for one statistic."""
+    if not v["excludes_zero"]:
+        return f"does not separate {hi} from {lo}"
+    top, bottom = (hi, lo) if v["mean"] > 0 else (lo, hi)
+    return f"puts {top} above {bottom}"
+
+
+def _says(v: dict, hi: str, lo: str) -> str:
+    """:func:`_verdict` with its numbers, for quoting one statistic on one rung."""
+    return (f"{_verdict(v, hi, lo)} ({v['mean']:+.4f} {_ci_text(v, '[n/a]')}, "
+            f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring {hi})")
+
+
+def _separation_table(seps: dict) -> list[str]:
+    L = ["| Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |",
+         "|---|---|---|---|---|---|"]
+    for k, v in seps.items():
+        L.append(
+            f"| {k.rsplit('_', 1)[0].replace('_', ' ')} | {v['statistic']} | "
+            f"{v['mean']:+.4f} | {_ci_text(v)} | "
+            f"{'yes' if v['excludes_zero'] else '**NO**'} | "
+            f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} |"
+        )
+    return L
+
+
+def _statistic_dependent(seps: dict, sd: dict, where: str = "") -> list[str]:
+    """One paragraph per rung whose verdict depends on the statistic, or the all-clear."""
+    L: list[str] = []
+    for kind, how in (
+        ("separation", "One statistic separates it and the other does not"),
+        ("direction", "Both statistics separate it, in opposite directions"),
+    ):
+        for rung in sd.get(f"rungs_where_max_and_mean_disagree_on_{kind}", []):
+            hi, _, lo = rung.split("_")
+            mx, mn = seps[f"{rung}_max"], seps[f"{rung}_mean"]
+            L += ["", f"**Statistic-dependent{where}: {hi} minus {lo}.** {how}: the max "
+                      f"{_says(mx, hi, lo)}; the mean {_says(mn, hi, lo)}. Quote both."]
+    if not (sd.get("rungs_where_max_and_mean_disagree_on_separation")
+            or sd.get("rungs_where_max_and_mean_disagree_on_direction")):
+        L += ["", f"Max and mean agree on every rung{where}, on whether it separates and in "
+                  "which direction."]
+    return L
+
+
+_NUMBER_WORDS = ("No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+                 "Nine", "Ten")
+
+
+def _intro(out: dict) -> str:
+    n = out["n_replicates"]
+    reps = out.get("replicates") or {}
+    schemas = reps.get("draw_schemas") or []
+    n_layout = sum(
+        g["n"] for g in schemas
+        if isinstance(g["value"], int) and g["value"] >= LAYOUT_DRAW_SCHEMA
+    )
+    if n_layout == n:
+        what = "(layout seed and rollout seeds resampled together)"
+    elif n_layout == 0:
+        what = (
+            "that resample the rollout seeds only. Every draw was made before the layout "
+            "seed reached the families (`draw_schema` absent; see *Provenance of the "
+            "draws*), so each was built and oriented at layout 0, whatever layout seed it "
+            "records"
+        )
+    else:
+        what = (
+            f"of two kinds: {n_layout} resample the layout seed with the rollout seeds, "
+            f"and {n - n_layout} were built and oriented at layout 0 and resample the "
+            f"rollout seeds only (see *Provenance of the draws*)"
+        )
+    return (f"{n} independent draws of the full benchmark {what}. Intervals are "
+            f"{int(CI_LEVEL * 100)}% percentile bootstrap over replicates.")
+
+
+def _short_commit(value) -> str:
+    return f"`{str(value)[:12]}`" if value else "not recorded"
+
+
+def _fmt_packages(value) -> str:
+    if not isinstance(value, dict):
+        return "not recorded"
+    return ", ".join(f"{k} {v}" if v is not None else f"{k} (not installed)"
+                     for k, v in value.items())
+
+
+def _fmt_numerics(value) -> str:
+    if not isinstance(value, dict):
+        return "not recorded (the block dates from 2026-11-27)"
+    env = value.get("env") or {}
+    pins = ", ".join(f"{k}={v}" for k, v in env.items() if v is not None) or "no pins set"
+    bits = [pins]
+    if value.get("torch_cpu_capability"):
+        bits.append(f"ATen {value['torch_cpu_capability']}")
+    for lib in value.get("blas") or []:
+        if isinstance(lib, dict) and lib.get("internal_api"):
+            arch = lib.get("architecture")
+            bits.append(f"{lib['internal_api']}" + (f" {arch}" if arch else ""))
+    return "; ".join(bits)
+
+
+def _fmt_cpu(value) -> str:
+    if not isinstance(value, dict):
+        return "not recorded"
+    return " ".join(str(value[k]) for k in ("vendor", "model") if value.get(k)) or "unknown"
+
+
+def _fmt_schema(value) -> str:
+    if value is None:
+        return "absent (drawn before 2026-11-27, at layout 0)"
+    if value >= LAYOUT_DRAW_SCHEMA:
+        return f"{value} (layout seed forwarded to the families)"
+    return str(value)
+
+
+def _fmt_dirty(value) -> str:
+    return {False: "clean tree", True: "uncommitted changes"}.get(value, "tree state unrecorded")
+
+
+def _fmt_rescored(value) -> str:
+    if not value:
+        return "none"
+    by_commit: dict = {}
+    for e in value:
+        by_commit.setdefault(e.get("commit"), []).append(e.get("detector"))
+    parts = []
+    for commit, names in by_commit.items():
+        who = ", ".join(str(n) for n in names) if len(names) <= 3 else f"{len(names)} detectors"
+        parts.append(f"{who} at {_short_commit(commit)}")
+    return f"{len(value)} rows ({'; '.join(parts)})"
+
+
+def _tally_text(groups: list[dict], fmt, n: int) -> str:
+    if not groups:
+        return "not recorded"
+    if len(groups) == 1:
+        return f"{fmt(groups[0]['value'])}" + (f", on all {n}" if n > 1 else "")
+    return "; ".join(f"{fmt(g['value'])} on {_ids(g['replicate_ids'])}" for g in groups)
+
+
+def _provenance_lines(out: dict) -> list[str]:
+    reps = out.get("replicates")
+    if not reps:
+        return []
+    n = reps.get("n_replicate_files", out["n_replicates"])
+    L = ["", "## Provenance of the draws", "",
+         "Read from each replicate file's own provenance (`replicates` in "
+         "`leaderboard/v5_replicated.json`).", ""]
+    rows = (
+        ("Draw schema", "draw_schemas", _fmt_schema),
+        ("Source commit", "commits", _short_commit),
+        ("Tree", "dirty", _fmt_dirty),
+        ("Python", "pythons", lambda v: v or "not recorded"),
+        ("Packages", "package_sets", _fmt_packages),
+        ("Platform", "platforms", lambda v: v or "not recorded"),
+        ("Numerics", "numerics", _fmt_numerics),
+        ("CPU", "cpus", _fmt_cpu),
+        ("Rows re-scored after the draw", "rescored_rows", _fmt_rescored),
+    )
+    for label, key, fmt in rows:
+        L.append(f"- {label}: {_tally_text(reps.get(key) or [], fmt, n)}.")
+    if reps.get("single_source"):
+        L.append("- Single source: **yes** -- one commit, clean trees, one Python, one "
+                 "package set, one numerics signature, one draw schema, no re-scored rows.")
+    else:
+        L.append("- Single source: **no**:")
+        L += [f"  - {problem}" for problem in reps.get("single_source_problems", [])]
+    return L
+
+
 def _write_markdown(out: dict, path: Path) -> None:
     L = [
         "# Leaderboard replication",
         "",
-        f"{out['n_replicates']} independent draws of the full benchmark "
-        f"(layout seed and rollout seeds resampled together). Intervals are "
-        f"{int(CI_LEVEL * 100)}% percentile bootstrap over replicates.",
+        _intro(out),
         "",
         "## Access-level ladder",
         "",
@@ -401,9 +852,11 @@ def _write_markdown(out: dict, path: Path) -> None:
             f"| {lv} | {mx['mean']:.3f} | {f(mx)} | "
             f"{mn['mean']:.3f} | {f(mn)} |"
         )
+    fitted = out["supervision"]["label_fitted_detectors"]
+    count = _NUMBER_WORDS[len(fitted)] if len(fitted) < len(_NUMBER_WORDS) else str(len(fitted))
     L += ["", "## Supervised vs unsupervised", "",
-          "Five detectors expose `fit()` and are scored by 5-fold cross-validation on labels: "
-          + ", ".join(f"`{n}`" for n in out["supervision"]["label_fitted_detectors"]) + ".",
+          f"{count} detectors expose `fit()` and are scored by 5-fold cross-validation on "
+          "labels: " + ", ".join(f"`{n}`" for n in fitted) + ".",
           "Removing them and re-deriving the ladder from the same draws:", "",
           "| Level | best AUROC (all) | 95% CI | best AUROC (unsupervised) | 95% CI | best unsupervised detector |",
           "|---|---|---|---|---|---|"]
@@ -417,18 +870,31 @@ def _write_markdown(out: dict, path: Path) -> None:
         bv = f"{b['mean']:.4f}" if b["mean"] is not None else "--"
         L.append(f"| {lv} | {a['mean']:.4f} | {f(a)} | {bv} | {f(b)} | {bd} |")
     us = out["supervision"]["adjacent_level_separation_unsupervised_only"]
+    usd = (out["supervision"].get("statistic_disagreement_unsupervised_only")
+           or statistic_disagreement(us))
+    if us:
+        L += ["", "Adjacent rungs without the label-fitted detectors, paired within each "
+                  "draw under both statistics:", ""]
+        L += _separation_table(us)
+        L += _statistic_dependent(us, usd, " without the label-fitted detectors")
     if "L1_minus_L0_max" in us:
-        v = us["L1_minus_L0_max"]
-        L += ["", f"Unsupervised L1 minus L0 (max, paired): **{v['mean']:+.4f} "
-                  f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]**, "
-                  f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring L1 "
-                  f"-- {'separates' if v['excludes_zero'] else 'does NOT separate'}."]
+        v, m = us["L1_minus_L0_max"], us.get("L1_minus_L0_mean")
         both = out["adjacent_level_separation"].get("L1_minus_L0_max")
         best = out["access_levels"]["L1"].get("best_detector_frequency") or {}
         carrier = max(best, key=best.get) if best else None
-        if both is not None and carrier in out["supervision"]["label_fitted_detectors"]:
+        if both is not None and carrier in fitted:
             flips = (both["mean"] > 0) != (v["mean"] > 0)
-            if v["excludes_zero"]:
+            sign = "reverses sign" if flips else "keeps its sign"
+            # "Separates the other way" is a verdict, and a verdict needs both statistics:
+            # it is written only when the mean agrees with the max. Where they disagree
+            # the sentence names both, as the rung tables above do.
+            kind = disagreement_kind(v, m) if m is not None else ""
+            if kind:
+                dep = "whether it separates" if kind == "separation" else "which way it separates"
+                ending = (f" under the max, and {dep} depends on the statistic: the max "
+                          f"{_verdict(v, 'L1', 'L0')} and the mean {_verdict(m, 'L1', 'L0')}, "
+                          f"so quote both")
+            elif v["excludes_zero"]:
                 ending = (" and separates the other way: unsupervised L1 sits below L0"
                           if flips else " and still separates")
             else:
@@ -437,8 +903,8 @@ def _write_markdown(out: dict, path: Path) -> None:
                   f"The L0->L1 climb under the max ({both['mean']:+.4f}) is carried by a "
                   f"label-fitted detector, `{carrier}`, the best L1 detector on "
                   f"{best[carrier]}/{out['n_replicates']} draws. Without the label-fitted "
-                  f"detectors the step {'reverses sign' if flips else 'keeps its sign'}"
-                  f"{ending}. Quote the partition alongside any rung difference."]
+                  f"detectors the step {sign}{ending}. Quote the partition alongside any "
+                  f"rung difference."]
     degenerate = set(degenerate_families_from_ledger())
     spans = []
     for lv in ACCESS_LEVELS:
@@ -457,42 +923,8 @@ def _write_markdown(out: dict, path: Path) -> None:
           "min_episodes, and the ledger-degenerate ones are left out of L0): "
           + ", ".join(spans) + ".", ""]
     if out["adjacent_level_separation"]:
-        L += ["| Comparison | statistic | difference | 95% CI | excludes 0? | draws favouring higher |",
-              "|---|---|---|---|---|---|"]
-        for k, v in out["adjacent_level_separation"].items():
-            ci = (f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]" if v.get("ci_lo") is not None else "n/a")
-            L.append(
-                f"| {k.rsplit('_', 1)[0].replace('_', ' ')} | {v['statistic']} | "
-                f"{v['mean']:+.4f} | {ci} | "
-                f"{'yes' if v['excludes_zero'] else '**NO**'} | "
-                f"{v['replicates_with_hi_above_lo']}/{v['n_paired']} |"
-            )
-        seps = out["adjacent_level_separation"]
-        sd = out["statistic_disagreement"]
-
-        def says(v: dict, hi: str, lo: str) -> str:
-            ci = (f"{v['mean']:+.4f} "
-                  + (f"[{v['ci_lo']:+.4f}, {v['ci_hi']:+.4f}]" if v.get("ci_lo") is not None
-                     else "[n/a]")
-                  + f", {v['replicates_with_hi_above_lo']}/{v['n_paired']} draws favouring {hi}")
-            if not v["excludes_zero"]:
-                return f"does not separate {hi} from {lo} ({ci})"
-            top, bottom = (hi, lo) if v["mean"] > 0 else (lo, hi)
-            return f"puts {top} above {bottom} ({ci})"
-
-        for kind, how in (
-            ("separation", "One statistic separates it and the other does not"),
-            ("direction", "Both statistics separate it, in opposite directions"),
-        ):
-            for rung in sd.get(f"rungs_where_max_and_mean_disagree_on_{kind}", []):
-                hi, _, lo = rung.split("_")
-                mx, mn = seps[f"{rung}_max"], seps[f"{rung}_mean"]
-                L += ["", f"**Statistic-dependent: {hi} minus {lo}.** {how}: the max "
-                          f"{says(mx, hi, lo)}; the mean {says(mn, hi, lo)}. Quote both."]
-        if not (sd["rungs_where_max_and_mean_disagree_on_separation"]
-                or sd.get("rungs_where_max_and_mean_disagree_on_direction")):
-            L += ["", "Max and mean agree on every rung, on whether it separates and in "
-                      "which direction."]
+        L += _separation_table(out["adjacent_level_separation"])
+        L += _statistic_dependent(out["adjacent_level_separation"], out["statistic_disagreement"])
     L += [
         "",
         "## Zero-variance detectors",
@@ -504,6 +936,10 @@ def _write_markdown(out: dict, path: Path) -> None:
     ]
     for n in out["degeneracy"]["detectors_with_zero_variance"]:
         L.append(f"- {n} ({out['detectors'][n]['mean']:.3f})")
+    provenance = _provenance_lines(out)
+    if provenance and L[-1] == "":
+        provenance = provenance[1:]
+    L += provenance
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(L) + "\n")
 

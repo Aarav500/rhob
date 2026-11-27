@@ -4,7 +4,9 @@ Unlike ``scripts/plot_results.py`` (which plots the original 6-detector x
 4-variant-set Family 1-2 case study from ``results/detector_evaluation/``),
 this script plots the full v5 scope: 30 detectors x all registered families, from
 ``leaderboard/v5_leaderboard.json``, plus the cross-family transfer results
-from ``leaderboard/cross_family_transfer.json`` once that experiment has run.
+from ``leaderboard/cross_family_transfer_v5.json`` once that experiment has run.
+``leaderboard/cross_family_transfer.json`` (the run of 2026-07-09, made before the
+behavioural sign was randomized) is a historical record and is never plotted.
 
 Outputs (written to ``docs/figures/``):
   v5_heatmap.png        30 detectors x all registered families, per-family AUROC; a
@@ -18,7 +20,9 @@ Outputs (written to ``docs/figures/``):
   v5_access_summary.md  The same access-level table in Markdown, for citing in docs
   v5_transfer.png       Train vs. per-family-transfer AUROC (Reward MLP, State
                          Divergence, Trajectory MLP, Ensemble) -- only produced
-                         if leaderboard/cross_family_transfer.json exists.
+                         if leaderboard/cross_family_transfer_v5.json exists. A row
+                         whose transfer AUROC is null (no held-out family scored) is
+                         drawn without a transfer bar and labelled n/a
 """
 
 from __future__ import annotations
@@ -333,18 +337,26 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     Neural-net detectors (Reward MLP, Trajectory MLP, Ensemble) are run across
     multiple independently-seeded trials and stored under ``*_mean``/``*_std``
     keys (see ``scripts/cross_family_transfer.py``); deterministic detectors
-    (State Divergence) keep the older single-run keys. Handle both.
+    (State Divergence) keep the single-run keys. Handle both.
+
+    A value is ``null`` when nothing was measured (no held-out family passed the
+    not-applicable rule, or the pooled fit failed). Such a bar is left out and the
+    row is labelled "n/a"; it is never drawn as 0.5.
     """
     data = json.loads(transfer_path.read_text())
     results = data["results"]
     names = list(results.keys())
 
-    def get(n: str, key: str) -> float:
+    def get(n: str, key: str) -> float | None:
         r = results[n]
         return r.get(f"{key}_mean", r.get(key))
 
     def get_std(n: str, key: str) -> float:
-        return results[n].get(f"{key}_std", 0.0)
+        v = results[n].get(f"{key}_std")
+        return 0.0 if v is None else float(v)
+
+    def bars(vals: list[float | None]) -> list[float]:
+        return [np.nan if v is None else float(v) for v in vals]
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
     x = np.arange(len(names))
@@ -353,28 +365,40 @@ def plot_transfer(transfer_path: Path, out_path: Path) -> None:
     train_errs = [get_std(n, "train_auroc") for n in names]
     transfer_vals = [get(n, "avg_transfer_auroc") for n in names]
     transfer_errs = [get_std(n, "avg_transfer_auroc") for n in names]
-    ax.bar(x - width / 2, train_vals, width, yerr=train_errs, capsize=3,
-           label="Train (Families 1-6, in-distribution)")
-    ax.bar(x + width / 2, transfer_vals, width, yerr=transfer_errs, capsize=3,
-           label="Transfer (Families 7-14, held-out)")
+    train_fams = data.get("train_families") or []
+    test_fams = data.get("test_families") or []
+    ax.bar(x - width / 2, bars(train_vals), width, yerr=train_errs, capsize=3,
+           label=f"Train ({len(train_fams)} families, in-distribution 5-fold CV)")
+    ax.bar(x + width / 2, bars(transfer_vals), width, yerr=transfer_errs, capsize=3,
+           label=f"Transfer ({len(test_fams)} held-out families)")
     ax.axhline(0.5, color="gray", ls=":", lw=1)
     for i, n in enumerate(names):
-        gap = results[n].get("generalization_gap_pct", results[n].get("generalization_gap_pct_mean"))
+        r = results[n]
+        gap = r.get("generalization_gap_pct", r.get("generalization_gap_pct_mean"))
+        present = [v for v in (train_vals[i], transfer_vals[i]) if v is not None]
+        top = max(present) if present else 0.0
         # gap = (train - transfer) / train * 100, so a positive gap is a real
         # drop from train to transfer and a negative gap means transfer beat
         # train. Label as a signed "change" so it reads correctly either way
         # instead of always showing a leading minus sign.
-        ax.text(i, max(train_vals[i], transfer_vals[i]) + 0.05, f"{-gap:+.0f}%", ha="center", fontsize=9)
+        label = "n/a" if gap is None or transfer_vals[i] is None else f"{-gap:+.0f}%"
+        ax.text(i, top + 0.05, label, ha="center", fontsize=9)
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=15, ha="right")
     ax.set_ylabel("AUROC")
     ax.set_ylim(0.0, 1.1)
-    ax.set_title("Cross-Family Transfer Gap (Train on 1-6, Test on 7-14)")
+    ax.set_title("Cross-Family Transfer: train families vs. held-out families")
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(out_path, dpi=130)
     plt.close(fig)
     print(f"wrote {out_path}")
+
+
+#: The transfer artifact this script plots. The 2026-07-09 file
+#: (``leaderboard/cross_family_transfer.json``) is deliberately not a fallback: it was
+#: measured while the sign of the behavioural feature was the label.
+TRANSFER_PATH = Path("leaderboard/cross_family_transfer_v5.json")
 
 
 def main() -> None:
@@ -389,7 +413,7 @@ def main() -> None:
     print(f"wrote {summary_path}")
     print(summary_md)
 
-    transfer_path = Path("leaderboard/cross_family_transfer.json")
+    transfer_path = TRANSFER_PATH
     if transfer_path.exists():
         plot_transfer(transfer_path, figures_dir / "v5_transfer.png")
     else:

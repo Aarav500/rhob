@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=65", "wheel"]
+# setuptools 77 is the first to accept the SPDX string form of `license` below (older
+# releases refuse it), and since 70.1 setuptools builds wheels itself, so `wheel` is no
+# longer a build requirement.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +11,12 @@ version = "1.8.0"
 description = "RHOB, the case study for 'Checks That Cannot Fail': reward-hacking environment families certified by a falsifiable admission gate"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+# An SPDX expression and the file it names (PEP 639). The `{text = "MIT"}` table this
+# replaces is deprecated by setuptools 77 and later, which stop supporting it after
+# 2027-02-18; the project declares no License classifier, which setuptools would refuse
+# beside an expression.
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Aarav Shah", email = "aarav7.shah@gmail.com"}]
 
 # Version policy: floors state the oldest supported release; upper bounds cap the
