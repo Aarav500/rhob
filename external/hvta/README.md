@@ -30,12 +30,12 @@ HVTA breaks the circle. Its `FilesystemWrapper` decides, structurally, whether t
 ## Headline findings
 
 1. **Discrimination partially transfers.** Best unsupervised detector is Reward Trend (L0) at **0.869** mean AUROC on the primary draw, **0.864** averaged over all 4 draws (range 0.042). It climbs monotonically with slip rate, which is the expected shape — a leaked solution is worth something only to an agent that could not already solve the puzzle.
-2. **Onset localization does not transfer. This is the finding.** 9 of the 26 scoreable detectors never nominate an onset on any HVTA run. Among those that do, no prediction *tracks* the truth: the best correlation across all 4 draws among detectors firing on a majority of runs is **r = 0.43**, four detectors emit literally the same step on every run, and the lowest step error (Reward Peak, 10.4 steps) barely beats an oracle-informed *constant* at 11.1. The positive control confirms the measure works — the L3 oracle, reading a label-derived channel, reaches **r = 0.93**.
-3. **Every detector that fires, fires on the legitimate twin too.** Largest hacking-vs-legitimate firing gap in the whole suite: **+0.10**. Because HVTA is decidable, these are real false positives.
+2. **Onset localization does not transfer. This is the finding.** 8 of the 26 scoreable detectors never nominate an onset on any HVTA run. Among those that do, no prediction *tracks* the truth: the best correlation across all 4 draws among detectors firing on a majority of runs is **r = 0.44** (Bayesian Online Changepoint Detection, on the primary draw only: its rows on the other three draws predate its 2026-11-27 fix), four detectors emit literally the same step on every run, and the lowest step error (Reward Peak, 10.4 steps) barely beats an oracle-informed *constant* at 11.1. The positive control confirms the measure works — the L3 oracle, reading a label-derived channel, reaches **r = 0.93**.
+3. **Every detector that fires, fires on the legitimate twin too.** Largest hacking-vs-legitimate firing gap in the whole suite: **+0.17** (Bayesian Online Changepoint Detection, which fires on 94% of hacking runs and 76% of legitimate ones). Because HVTA is decidable, these are real false positives.
 4. **Two concrete, fixable defects in RHOB's onset rules.** `RewardTrendDetector` fires on a rolling slope `> 0.1`/step and `GradientReversalDetector` on `> 0.05`; the largest slope anywhere in HVTA's proxy is **0.00574**. `MaxPlateau` and `VarianceWindow` assume a plateau or a variance collapse that a monotone reward never produces. Both are invisible from inside RHOB, because inside RHOB both assumptions hold.
 5. **L1 is unmeasured, and reported as such.** HVTA exposes no state-visitation distribution, so `state_counts` is absent and all 9 L1 detectors return N/A. Nothing is imputed to 0.5 — that is the defect RHOB's own audit found, and it is deliberately not reintroduced.
 
-Three different subsets of size 9 appear above and in RESULTS.md — *never fires*, *below chance*, *across-draw range exceeds distance from 0.500*. They are different sets. RESULTS.md enumerates each.
+Three different subsets appear above and in RESULTS.md — *never fires* (8 of the 26 scoreable detectors), *below chance* (9 of the 26), and *across-draw range at least the distance from 0.500* (8 of the 25 measured on every draw; Bayesian Online Changepoint Detection is not assessed, for want of a current figure on the replicate draws). They are different sets. RESULTS.md enumerates each.
 
 ## What this does and does not establish
 
@@ -73,7 +73,7 @@ What each RHOB channel was mapped to, and why. The rule was that a channel with 
 * **Sign randomization on** for everything L2. `behav_trace` was multiplied by `behav_sign("hvta_hidden_solution", layout_seed=0)` = **-1** before any detector saw it, identically in both variants, and the draw was fixed before any score was computed. The counterfactual-orientation column is a harness-side diagnostic; no headline number is a maximum over the two orientations.
 * **Label-fitted detectors are partitioned, never pooled** with the unsupervised ones, via `rhob.detectors.supervision.is_label_fitted`.
 * **Uncertainty is reported, not buried.** Per-cell AUROC null SE = **0.0924** (Bamber/Hanley, n=m=20). The 10-cell mean is *not* 10 independent replicates — every cell shares the same 20 seeds and onset schedule — so the SE is not divided by sqrt(10). Independent seed draws are reported separately.
-* **Nothing was tuned to improve a number.** The detectors that never fire were left not firing; that is the result.
+* **Nothing was tuned to improve a number.** The detectors that never fire were left not firing; that is the result. One detector was fixed, for a different reason: until 2026-11-27 Bayesian Online Changepoint Detection scored `max_t P(r_t = 0)`, which its constant hazard pins at 0.004 on every run, so its onset rule could never fire and its AUROCs ranked rounding noise. It now scores `1 - P(no changepoint over the run)`, the score its docstring specifies, and was re-scored alone; RESULTS.md names the re-score and the figures it replaced. That probability is exactly 1.0 once `P(no changepoint)` falls to `2**-54`, which no committed HVTA run comes within 10 nats of; whether it should score the log-odds instead is an open question for the author.
 * **Degenerate cells are excluded, flagged from the environment's payout at generation time** — never inferred from a detector score. 2 of 12 cells are degenerate: the scripted solver completes those puzzles unaided, so the leaked solution confers nothing and the variants are identical in every observable channel.
 
 ## Reproduce
@@ -96,13 +96,19 @@ PYTHONUTF8=1 PYTHONPATH="$RHOB/src" HVTA_REPO="$HVTA" \
 # 2. score every detector (needs torch)
 PYTHONPATH="$RHOB/src" python external/hvta/score_detectors.py
 
+# 2b. or, after a fix to one detector, re-score only it on the committed draw and
+#     merge its rows; every other row stays as committed (same interpreter as step 2)
+python -I external/hvta/rescore_detector.py --detector BOCPDDetector --reason "..."
+
 # 3. render RESULTS.md
 python external/hvta/make_results.py
 ```
 
-Step 3 is verified byte-identical: regenerating `RESULTS.md` from the committed `hvta_results.json` reproduces sha256 `4be0aa8968a1cad7…`. Every figure in the report comes from `make_results.py`; the file is generated, not hand-edited.
+Step 2b re-scores through the same `score_cell` as step 2, refuses unless the pairs file is the artifact's own draw and no other detector's aggregate moves, and records the re-score under `rescored` in `hvta_results.json`: the reason, the date, the RHOB revision, any uncommitted `src/` files, the detector's source (a sha256 of its code without docstrings or comments, and its git blob), the interpreter and the figures it replaced. A full step 2 run carries that history forward as `detector_fixes`, so `make_results.py` keeps marking other draws' rows for a fixed detector as pre-fix.
 
-The three additional seed draws behind the *Uncertainty* section are steps 1–2 rerun at a different seed base, landing in `replicates/`:
+Step 3 is verified byte-identical: regenerating `RESULTS.md` from the committed `hvta_results.json` and `replicates/*.json` reproduces sha256 `d7019daaed97bbce…`. That is the hash with CRLF line endings, as `make_results.py` writes the file on Windows, where the report was first generated; with the LF endings it is committed with, and written with on Linux, it is `1c39989c6d5e58d4…`. Every figure in the report comes from `make_results.py`; the file is generated, not hand-edited.
+
+The three additional seed draws behind the *Uncertainty* section are steps 1–2 rerun at a different seed base, landing in `replicates/`. Their frozen pairs are not committed (only the primary draw's `hvta_pairs.npz` is), and their Bayesian Online Changepoint Detection rows predate its fix, so RESULTS.md marks those rows pre-fix and leaves them out of every across-draw figure. Re-scoring a draw clears its markers: either the loop below, or its `export_pairs.py` line followed by `rescore_detector.py --detector BOCPDDetector --pairs-stem external/hvta/pairs_$SB --results external/hvta/replicates/seedbase_$SB.json --reason "..."`.
 
 ```bash
 for SB in 100 200 300; do
@@ -135,7 +141,8 @@ cd "$HVTA" && PYTHONUTF8=1 .venv/bin/python -m pytest tests/test_onset_logging.p
 | `hvta_policies.py` | scripted matched HACKING/LEGIT policies over HVTA |
 | `hvta_adapter.py` | HVTA episode → `rhob.detectors.posthoc.RunData` |
 | `export_pairs.py` | rolls out the grid, freezes it as `hvta_pairs.npz` + `.meta.json` |
-| `score_detectors.py` | runs the detectors via `_evaluate_cell`, writes `hvta_results.json` |
+| `score_detectors.py` | runs the detectors via `_evaluate_cell`, writes `hvta_results.json` (with each detector's source, and the replaced file's fix history as `detector_fixes`) |
+| `rescore_detector.py` | re-scores named detectors on a committed draw, merges their rows into its artifact and records the re-score under `rescored` |
 | `make_results.py` | renders `RESULTS.md` |
 | `generate_pairs.py` | standalone pair-construction check (prints the matching table) |
 | `test_matched_pairs.py` | 19 invariants on the pair construction |
@@ -153,4 +160,4 @@ This rests on [MajoRoth/hack-verifiable-environments#2](https://github.com/MajoR
 
 **Merged** on 2026-08-19 as [`ae668a5`](https://github.com/MajoRoth/hack-verifiable-environments/commit/ae668a52b56fc5552b7a6b5751567b8965545c70), so a plain clone of `main` carries it; the `87949b26f63f` above is the branch tip these artifacts were generated against. `None` means *did not fire*, never *fired at step 0*; a consumer treating a missing value as 0 reads every clean episode as hacking on its first action.
 
-**Provenance.** Generation: Python 3.12.13 (Windows-11-10.0.26200-SP0), numpy 2.5.2, HVTA `87949b26f63f`, RHOB `eb575f0abfd7`. Scoring: Python 3.13.14, numpy 2.4.3.
+**Provenance.** Generation: Python 3.12.13 (Windows-11-10.0.26200-SP0), numpy 2.5.2, HVTA `87949b26f63f`, RHOB `eb575f0abfd7`. Scoring: Python 3.13.14, numpy 2.4.3 (Windows), for every row except one: on 2026-11-27 Bayesian Online Changepoint Detection's rows on the primary draw were re-scored with `rescore_detector.py` on Python 3.12.3 (Linux), numpy 2.5.4, at RHOB `320b7b761b6d` with no uncommitted `src/` files, and its rows on the three replicate draws are still pre-fix. The other three channels' set (CHANNELS.md) was re-scored in full the same day, with the same interpreter and revision; CHANNELS.md's own *Provenance* section records it, and `channels_results.json` records every detector's source under `detector_sources`.

@@ -109,15 +109,24 @@ with feature extraction, not the family (see
 [REPRODUCIBILITY.md](../REPRODUCIBILITY.md) for the debugging playbook we
 used on real bugs of exactly this shape).
 
-## 5. Test cross-family transfer (optional, ~2 min setup)
+## 5. Test cross-family transfer (optional, a few minutes)
 
-Train on Families 1-6, evaluate frozen on held-out Families 7-9 — the
-strongest signal of whether your detector learned something general or just
-memorized one mechanism:
+Train on 6 families, then evaluate the frozen model on 8 held-out ones — the
+strongest signal of whether a detector learned something general or just
+memorized one mechanism. `scripts/cross_family_transfer.py` measures its four
+reference rows (Reward MLP, State Divergence, Trajectory MLP and the Top-5 L2
+ensemble), not your detector: to transfer yours, add it as a row there (`ROWS`,
+`ROW_LEVELS`, `ROW_FACTORIES`).
 
 ```bash
-python scripts/cross_family_transfer.py --n-seeds-train 15 --n-seeds-test 20
+OMP_NUM_THREADS=1 python scripts/cross_family_transfer.py --out /tmp/transfer.json
 ```
+
+Its defaults are the published design (10 training seeds, 20 test seeds, 5
+model-initialisation trials). Run torch on one thread as above: with its default
+thread count the small networks can spend most of their time synchronizing on a busy
+machine. Without `--out` it writes `leaderboard/cross_family_transfer_v5.json`, the
+file `regenerate.yml`'s `transfer` mode commits.
 
 ## 6. Submit
 

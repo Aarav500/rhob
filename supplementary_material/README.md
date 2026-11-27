@@ -9,6 +9,14 @@
 > covers all 33 families since `d4b700d`: of 123 cells, 42 ADMITTED, 30 DEGENERATE and 51
 > NOT ADMITTED. `leaderboard/cross_family_transfer.json` was last changed in v1.4
 > (`d872916`), with 6 training and 8 held-out families.
+>
+> *(2026-11-27: `scripts/cross_family_transfer.py` no longer writes
+> `cross_family_transfer.json`. It refuses to overwrite that file, which is kept as the
+> 2026-07-09 record, and writes `leaderboard/cross_family_transfer_v5.json` under the
+> current rules: sign randomization on, and a cell the detector cannot score not
+> applicable rather than 0.5 (`827aec9`). Run with torch on one thread
+> (`OMP_NUM_THREADS=1`), its published design took about five minutes on a 4-core
+> machine, not the 1.5–2 hours given below.)*
 
 This directory contains supporting material for the RHOB v1.0 paper.
 

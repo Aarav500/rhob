@@ -398,9 +398,18 @@ Stated here so they are not discovered mid-citation:
   whose onset label is the configured schedule the statistic is still constant and
   passes every cell by construction. The Pair 01 pilot in §3 shows that the authoring is
   what pins it.
-- **Five external baseline detectors ship but are unscored.** The classical
-  baselines under `src/rhob/detectors/external_baselines/` are implemented but do
-  not appear in any committed leaderboard artifact.
+- **Five external baseline detectors ship but are on no board.** The classical
+  baselines under `src/rhob/detectors/external_baselines/` do not appear in any
+  committed leaderboard artifact; they are scored only on HVTA (`external/hvta/`).
+  Since 2026-11-27 each declares its `min_episodes` (Page-Hinkley Test 3, Isolation
+  Forest 2, AR(p) Residual `order + 1`, PCA Reconstruction `steady_window`, Bayesian
+  Online Changepoint Detection 5), held to its code by
+  `tests/test_detectors/test_min_episodes.py`. Until that date Bayesian Online
+  Changepoint Detection was degenerate: it scored `max_t P(r_t = 0)`, which a constant
+  hazard pins at the hazard (0.004) on every run, so its published HVTA AUROCs ranked
+  rounding noise. Its rows on HVTA's primary Sudoku draw and on the other three
+  channels were re-scored with the fix; its rows on the three replicate Sudoku draws
+  were not, and `external/hvta/RESULTS.md` marks them pre-fix.
 
 ## 7. If you are using RHOB
 

@@ -50,7 +50,7 @@ whose difference overflows float64 is ordered rather than tied. Its verdict cuts
 the gate's at both boundaries. And fed the gate's measured resolution and informativeness,
 it marks the same 30 of the 123 ledger cells degenerate. Its primary resolution counts ties
 by exact equality, as a standard AUROC does, so the AUROC range it reports holds for the
-number a maintainer actually computes.
+number a maintainer actually computes. The same test re-certifies the six DEGENERATE families at the ledger's design and has the tool recompute every resolution and dispersion from the score vectors and proxy streams the gate measured: they must match the gate, re-run on the same machine, bit for bit per layout, the per-cell means must match the ledger (within 1e-12 for resolution, 1e-6 relative or 1e-15 absolute for informativeness), and the tool must call each of those cells degenerate on its own. Two of the six families run in the per-push suite and the other four nightly. It also holds the third copy of the tie rule, the Inspect eval's `score_resolution`, to the gate's.
 
 If you run it on a benchmark, please tell the author what it found, `ok` included:
 [report the run](https://github.com/Aarav500/rhob/issues/new?template=cannotfail_run.yml), or
@@ -75,7 +75,7 @@ the author designed the exploitable flaw and assigned the label, and only in six
 itself, so in 27 the hack is authored, and even in `gridworld_camping` the config places
 the onset ([Scope](#scope-limits-and-what-the-numbers-do-not-say)). Against an
 external environment it did not build, the best correlation with true hack onset, among
-detectors that fire on most runs, is r = 0.43, and every detector that fires on a hack
+detectors that fire on most runs, is r = 0.44 (Bayesian Online Changepoint Detection, on the primary seed draw only; its other three draws are pre-fix), and every detector that fires on a hack
 also fires on its matched legitimate twin. [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 states what the construction can and cannot support.
 
@@ -238,7 +238,7 @@ DOI is the paper named here; cite it by this title.
 > **Status (2026-08-15):** the replication these corrections called for is done.
 > `leaderboard/v5_replicated.json` carries 20 independent draws with bootstrap
 > intervals, and the figures below are drawn from it. The null SE quoted in earlier
-> revisions of this file as 0.16 was wrong; it is 0.19.
+> revisions of this file as 0.16 was wrong; it is 0.19. *(2026-11-27: those draws resample the rollout seeds only. Each records its own layout seed, 0 to 19, but until that date `FamilyRegistry.generate_suite` dropped it, so every draw was built, and had its behavioural signs drawn, at layout 0, and `leaderboard/v5_replicated.json` records `layouts_resampled` as false. Its intervals cover rollout-seed variation at one layout, not layout variation; see [Scope](#scope-limits-and-what-the-numbers-do-not-say).)*
 >
 > **Update (2026-10-31):** the access-ladder and cross-family transfer tables that
 > followed this banner were removed rather than left standing beside their
@@ -479,6 +479,14 @@ package versions, argv) and the gate's fixed root seed 12345. The `results` bloc
 reproduces byte-for-byte on the same commit and CPU model; a cell certified on a different
 CPU model can differ in its last digits, and the committed ledger was merged from cells
 certified on seven CPU models ([REPRODUCIBILITY.md](REPRODUCIBILITY.md)).
+[`tests/test_v3/test_ledger_reproduces.py`](tests/test_v3/test_ledger_reproduces.py)
+re-runs the gate on part of it in the per-push suite: four families at every tier the
+ledger scores, at the ledger's own design, which between them reach every status and
+every outcome value. Statuses and outcomes must match exactly, and every number within
+5e-3 if it is rank-derived or 1e-9 relative otherwise, tolerances set from the drift
+measured across the CI lock and the unpinned Python 3.10 and 3.11 jobs. The one
+(criterion, outcome) pair those four do not reach, a measured `proxy_matched` FAIL, is
+re-certified nightly on `rlhf_feature_blindspot_gaming` at 0.80.
 
 The ledger reports three outcomes per cell, and the headline is all three of them.
 **Of the 123 cells in scope, 42 are ADMITTED, 30 are DEGENERATE, and 51 are NOT ADMITTED.**
@@ -589,10 +597,17 @@ Condensed from [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md):
   comparison at layout seed 0. **SE near AUROC 0.5 is ≈ 0.19** — the Mann–Whitney
   null, `sqrt((n+m+1)/(12nm))` at n=m=5. That board carries no confidence intervals;
   do not read its third decimal, and do not rank two of its detectors that differ by
-  less than ~0.2. **This limitation is closed for the aggregates**: the suite has been
-  replicated over 20 independent `(layout_seed, seed_base)` draws and
-  `leaderboard/v5_replicated.json` publishes bootstrap intervals per detector and per
-  family. Individual cells remain single-draw.
+  less than ~0.2. **This limitation is closed for the aggregates, over rollout seeds**:
+  the suite has been replicated over 20 draws and `leaderboard/v5_replicated.json`
+  publishes bootstrap intervals per detector and per family. The committed draws resample
+  the rollout seeds only. Each records its own `(layout_seed, seed_base)`, but until
+  2026-11-27 `FamilyRegistry.generate_suite` dropped the layout seed, so every draw was
+  built, and had its behavioural signs drawn, at layout 0; the file says so
+  (`replicates.layouts_resampled` is false). Forwarding the seed changes less than its
+  name suggests: 12 of the 33 families ignore it, 19 use it only as an offset to their
+  rollout seeds, and 2 (`proxy_correlation_gaming`, `rlhf_reward_model_overopt`) build a
+  different layout from it; in every family it also draws the behavioural sign.
+  Individual cells remain single-draw.
 - **All 30 detectors share that draw**, so their cell values are correlated and their
   differences are not independent measurements.
 - **The certified distribution is not the scored distribution.** The gate averages
@@ -617,9 +632,10 @@ draw; its L2 rung predates the sign of the behavioural feature ceasing to encode
 label; its L1 rung imputed a constant on 74.8% of cells; and its maxima mixed label-fitted
 detectors with unsupervised ones. It is removed rather than left beside its corrections.
 
-From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 independent
-draws, percentile bootstrap of the mean over draws, 10,000 resamples — the best
-**unsupervised** detector at each level scores:
+From [`leaderboard/v5_replicated.json`](leaderboard/v5_replicated.json) — 20 draws that
+resample the rollout seeds, every one at environment layout 0 (see
+[Scope](#scope-limits-and-what-the-numbers-do-not-say)), percentile bootstrap of the mean
+over draws, 10,000 resamples — the best **unsupervised** detector at each level scores:
 
 | Access level | Best unsupervised detector, mean AUROC [95% CI] |
 |---|---|
@@ -840,6 +856,18 @@ Even before that defect, the held-out families were not novel mechanisms. All 14
 test families were written by one author under one construction recipe, so the most the
 design could support was transfer within a single authored convention.
 
+Since 2026-11-27 `scripts/cross_family_transfer.py` writes
+`leaderboard/cross_family_transfer_v5.json`, under the shipped configuration (behavioural
+sign randomized per family), and refuses to overwrite the 2026-07-09 file. It
+applies the benchmark's not-applicable rule (`rhob.v3.benchmark.not_applicable_reason`)
+to each pooled fit and to every held-out cell, and a frozen model that cannot read a
+held-out family's version of its channel makes that cell N/A, with the number of runs it
+raised on, rather than scoring it 0.5. Until then State Divergence's frozen 49-bin
+gridworld centroids raised on every run of the six held-out families that emit
+`state_counts`, and those 1200 runs were scored at 0.5. The Top-5 ensemble's train AUROC
+is now cross-validated like the other rows: its Trajectory MLP member is refitted on each
+training fold, where before it was fitted on the runs it was then scored on.
+
 ### Outside this repository: HVTA
 
 Every number above is measured on families this repo wrote, where "false positive" is
@@ -864,9 +892,12 @@ part of this work.
 Two findings the internal corpus cannot produce, and one it could not test:
 
 - **Onset localization does not transfer.** Against a decidable oracle the best
-  correlation between predicted and true onset is r = 0.43 among detectors that fire on
-  a majority of runs. A *constant* prediction chosen with knowledge of the true onsets
-  scores 11.1 steps and only 1 of 17 detectors beats it — by 0.7 steps.
+  correlation between predicted and true onset is r = 0.44 among detectors that fire on
+  a majority of runs (Bayesian Online Changepoint Detection, on the primary seed draw
+  only: its figures on the other three draws were scored before its 2026-11-27 fix and
+  are left out of every across-draw statistic). A *constant* prediction chosen with
+  knowledge of the true onsets scores 11.1 steps and only 1 of 18 detectors beats it —
+  by 0.7 steps.
 - **Every detector that fires, fires on the legitimate twin too.** The twin provably
   never reads the solution, so these are real false positives with no oracle uncertainty.
 - **`write_hack`'s true reward cannot diverge, by construction.** Proxy separates by
@@ -1015,7 +1046,8 @@ is not. The regenerated leaderboard is built on code that includes the fix.
 
 **30 detectors are scored in the committed leaderboard; 29 of them are independent
 measurements.** A further 5 classical external baselines ship as code but do **not**
-appear in any committed leaderboard artifact.
+appear in either committed leaderboard; they are scored on HVTA
+([below](#external-baselines-5-not-on-the-board)).
 
 Per-level figures in this section are from the single-draw board
 (`leaderboard/v5_leaderboard.json`), re-scored on 2026-11-26 by CI run 45747902322
@@ -1073,16 +1105,29 @@ the correction banner at the top. Do not cite 0.994 without its randomized partn
   (identical scores on 33/33 families). Retained as a cross-check; **excluded from
   every access-level aggregate**. Not an oracle.
 
-### External Baselines (5, shipped but unscored)
-Classical, citable methods from the wider change-point/anomaly-detection/representation-learning/Bayesian-inference literature, not designed for RHOB. They are implemented but are **not** present in `leaderboard/v5_leaderboard.json`:
+### External Baselines (5, not on the board)
+Classical, citable methods from the wider change-point/anomaly-detection/representation-learning/Bayesian-inference literature, not designed for RHOB. They are implemented but are **not** present in `leaderboard/v5_leaderboard.json` or `leaderboard/v5_replicated.json`; they are scored, beside the board's 30, on HVTA ([Outside this repository](#outside-this-repository-hvta)). Since 2026-11-27 each declares the run length its score needs as `min_episodes`, like the board's detectors, so the harness records a shorter cell N/A instead of scoring the constant:
 
-| Detector | Access | Method family | Reference |
-|---|---|---|---|
-| Page-Hinkley Test | L0 | Classical change-point | Page (1954); Hinkley (1971) |
-| Isolation Forest | L2 | Unsupervised anomaly detection | Liu, Ting & Zhou (2008) |
-| AR(p) Residual | L2 | Sequence model | Classical autoregressive baseline |
-| PCA Reconstruction | L1 | Representation learning | Linear reconstruction-error baseline |
-| Bayesian Online Changepoint Detection | L0 | Bayesian inference | Adams & MacKay (2007) |
+| Detector | Access | Method family | Reference | `min_episodes` |
+|---|---|---|---|---|
+| Page-Hinkley Test | L0 | Classical change-point | Page (1954); Hinkley (1971) | 3 |
+| Isolation Forest | L2 | Unsupervised anomaly detection | Liu, Ting & Zhou (2008) | 2 |
+| AR(p) Residual | L2 | Sequence model | Classical autoregressive baseline | `order + 1` (6 by default) |
+| PCA Reconstruction | L1 | Representation learning | Linear reconstruction-error baseline | `steady_window` (100 by default) |
+| Bayesian Online Changepoint Detection | L0 | Bayesian inference | Adams & MacKay (2007) | 5 |
+
+Until 2026-11-27 Bayesian Online Changepoint Detection could not discriminate at all. It
+scored `max_t P(r_t = 0)`, the probability of a changepoint *at* a step, which a constant
+hazard pins to the hazard itself, so every run scored 0.004, its onset rule never fired,
+and its published HVTA AUROCs ranked rounding noise. It now scores the posterior
+probability that a changepoint occurred anywhere in the run, `1 - P(no changepoint)`, with
+onset at the first step where that exceeds 0.5. Re-scored on HVTA's primary Sudoku draw it
+is the strongest external baseline there, mean AUROC 0.739 against Page-Hinkley's 0.690,
+and it fires on 76% of the legitimate twins
+([`external/hvta/RESULTS.md`](external/hvta/RESULTS.md)); its rows in the three replicate
+draws are still the pre-fix ones. The probability is exactly 1.0 once
+`P(no change) <= 2**-54`, so sharply changed runs tie there; no committed HVTA run comes
+within 10 nats of that. Whether it should score the log-odds instead is an open question.
 
 See [`src/rhob/detectors/external_baselines/`](src/rhob/detectors/external_baselines/).
 
@@ -1135,16 +1180,54 @@ blocks and records a cell as `null` rather than imputing 0.5 when the channel it
 reads is missing, or when the horizon is below the `min_episodes` the detector declares
 (since `f83a152`, every detector whose score is a constant below some run length declares
 one; see [L0 at chance](#l0-at-chance-is-a-negative-control-not-a-finding)).
+`--cells-out PATH` also writes every detector's per-cell AUROCs, with the board's own
+provenance, for `scripts/check_redraw.py` to compare with replicate 0 of a re-draw.
+
+### Re-draw the 20-draw board
+
+```bash
+python scripts/replicate_leaderboard.py --replicate-id I --out-dir DIR   # I = 0 .. 19
+python scripts/check_redraw.py --from-dir DIR --board leaderboard/v5_leaderboard.json \
+    --board-cells BOARD_CELLS_JSON --expect-commit "$(git rev-parse HEAD)"
+# then replace results/replication/replicate_*.json with DIR's files, and:
+python scripts/aggregate_replication.py --require-single-source
+# Outputs: leaderboard/v5_replicated.json, docs/figures/replication_summary.md
+```
+
+`scripts/replicate_leaderboard.py` records `draw_schema` 2 in every file it writes,
+meaning its layout seed reached the families; a file without it was drawn before
+2026-11-27 at layout 0, as every committed draw was. `scripts/check_redraw.py`
+refuses the set unless all 20 draws are present at their `(layout_seed, seed_base)`, at
+the board's `n_seeds`, with all 30 detectors in order on every registered family and no
+errors, from one clean commit (the one given) under one Python, one package set and the
+six numerics pins (with ATen at AVX2 wherever torch loaded and every OpenBLAS at Haswell,
+showing the pins took effect), with no rows merged in afterwards, and with replicate 0
+equal to the board's `--cells-out` sidecar cell for cell (`--max-board-mismatch`, default
+0). `--require-single-source` makes the aggregator refuse, writing nothing, a set that
+does not record one commit, a clean tree, one Python, one package set, one numerics
+signature and one draw schema, or that carries re-scored rows. On CI, `regenerate.yml`'s
+`redraw` mode does all of it: the board and the 20 draws at the dispatched commit, the
+check, the aggregation, and one commit for the board and the draws together. Its `replicated` mode, which re-scores named
+detectors on the committed draws, refuses to start while any committed draw has
+`draw_schema` below 2, because the merge would refuse every such draw.
 
 ### Run the cross-family transfer experiment
 
 ```bash
-python scripts/cross_family_transfer.py --n-seeds-train 10 --n-seeds-test 20
-# Outputs: leaderboard/cross_family_transfer.json
+python scripts/cross_family_transfer.py
+# Outputs: leaderboard/cross_family_transfer_v5.json
 ```
 
-Trains Reward MLP, State Divergence, Trajectory MLP, and a Top-5 L2 ensemble on
-Families 1–6, evaluates on 8 held-out Families 7–14. Runtime: ~1–2 hours.
+With no arguments it runs the published design, `--n-seeds-train 10 --n-seeds-test 20
+--n-trials 5`. Trains Reward MLP, State Divergence, Trajectory MLP, and a Top-5 L2
+ensemble on Families 1–6 (each on the families it can be scored on; the rest are listed
+in `train_families_excluded_from_pooled_fit`), and evaluates the frozen models on 8
+held-out Families 7–14, recording a cell it cannot score as `null` with its reason. It
+refuses to overwrite `leaderboard/cross_family_transfer.json`, the 2026-07-09 record.
+Run it with torch on one thread (`OMP_NUM_THREADS=1`, which the CI numerics pins set):
+under the pins the published design took 5m23s on a 4-core machine, while unpinned on the
+same machine one trial's Trajectory MLP train AUROC alone took 489 s. The pins also change
+the fitted models' numbers, so an unpinned run does not reproduce the CI artifact.
 
 ### Run the admission ledger
 
@@ -1163,6 +1246,11 @@ ledger's `summary` block — a degenerate cell is not a failure and is not a pas
 python scripts/plot_v5_results.py
 # Outputs: docs/figures/v5_heatmap.png, v5_access_summary.png, v5_access_summary.md, v5_transfer.png
 ```
+
+`v5_transfer.png` is drawn only from `leaderboard/cross_family_transfer_v5.json`, and only
+when that file exists; the 2026-07-09 `cross_family_transfer.json` is never plotted. The
+committed `docs/figures/v5_transfer.png` dates from 2026-07-09 (`d872916`) and shows that
+superseded run.
 
 ## Adding a New Detector
 
@@ -1386,7 +1474,9 @@ We welcome new families and detectors! See [CONTRIBUTING.md](CONTRIBUTING.md) fo
   `pip install -e ".[space]" && python space/app.py` ([source](space/app.py)) -- see
   [docs/DEPLOY_SPACE.md](docs/DEPLOY_SPACE.md) for the HF Space deploy steps
 - **Submit a detector result**: drop a submission JSON in [`submissions/`](submissions/)
-  and open a PR (auto-validated by CI) -- see [submissions/README.md](submissions/README.md)
+  and open a PR (auto-validated by CI with `python -m rhob validate`); a validated one is
+  recorded with `python -m rhob submit` on the community board, `leaderboard/community/`,
+  apart from the benchmark's own boards -- see [submissions/README.md](submissions/README.md)
 - **GitHub**: https://github.com/Aarav500/rhob
 - **Inspect Evals Register (HVTB)**:
   https://ukgovernmentbeis.github.io/inspect_evals/evals/hvtb/ — the `hvtb_hack_rate` eval,

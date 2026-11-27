@@ -372,6 +372,16 @@ holds the copy to the original:
   123 its statistic takes six values and the tool says `ok`. Over the 118 cells outside
   the two families whose onset is read off the trained agent (`continuous_camping` and
   `gridworld_camping`), the statistic is 0.0 in every cell and the tool says `fixed`.
+- Since 2026-11-27 the 30 degenerate cells are also recomputed from the score vectors
+  themselves, not only from the ledger's aggregates. The test re-certifies each of the
+  ledger's six DEGENERATE families at the ledger's design and captures every score
+  vector and proxy stream the gate measures. From those, the tool must reproduce the
+  gate's resolution and dispersion per layout, bit for bit against the gate re-run on
+  the same machine, and call each cell degenerate on its own. The per-cell means are
+  held to the committed ledger within 1e-12 (resolution) and 1e-6 relative
+  (informativeness), or 1e-15 absolute for a dust-level proxy. Two of the six families,
+  one degenerate by resolution and one by informativeness, run on every push, and the
+  other four nightly.
 
 The difference-power function, the exact-equality resolution and the `dust` verdict are
 new here, and are tested against brute force and simulation in this package's own tests.
@@ -379,9 +389,14 @@ new here, and are tested against brute force and simulation in this package's ow
 The tie tolerance has a third copy, in the RHOB repository's Inspect eval:
 `score_resolution` in
 [`inspect_eval/hvtb_hack_detection/metrics.py`](https://github.com/Aarav500/rhob/blob/main/inspect_eval/hvtb_hack_detection/metrics.py),
-with the same 1e-9 and 1e-12. It treats an overflowing finite pair as tied, as the gate does, and no test
-holds it to either of the other two. A change to the gate's tolerance has to be applied to
-all three.
+with the same 1e-9 and 1e-12. It treats an overflowing finite pair as tied, as the gate
+does. Since 2026-11-27 the same parity test holds it to the gate too: it reads that file
+with `ast`, so `inspect_ai` need not be installed, checks that its tolerances are the
+gate's, and runs its tie rule against the gate's bit for bit, on pairs exactly on the
+tolerance among others. It also pins where the two differ: the metric drops a sample
+whose score is not finite before pairing anything, where the gate keeps the sample and
+counts its pairs as tied. A change to the gate's tolerance has to be applied to all
+three, and the parity test fails until it is.
 
 ## Cite
 

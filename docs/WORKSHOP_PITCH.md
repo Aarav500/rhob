@@ -18,6 +18,12 @@
 > A shared task asks outside groups to spend their time on a ranking. Neither premise
 > survives, so this one should not be proposed. See [ROADMAP.md](../ROADMAP.md) for what
 > replaced it.
+>
+> *(2026-11-27: the submission path the draft calls existing has changed since.
+> `python -m rhob submit` wrote to the v3.2 tables in `leaderboard/`, which were retired
+> in `827aec9`; it now records self-reported, single-draw submissions in
+> `leaderboard/community/`, and `python -m rhob validate` checks a submission's values as
+> well as its keys (`d7c865c`).)*
 
 A short pitch for proposing an RTS-based shared task at an ICML/NeurIPS
 safety/alignment workshop, once there's enough external submission activity to justify

@@ -92,6 +92,22 @@ keys are now complete. Five regression tests in `tests/test_v3/test_calibration_
 fail against the old module. The pin is a stopgap. The key is what makes the next upgrade a
 cache miss instead of a silent mixture, pinned or not.
 
+*(2026-11-27: the entry key changed in two more ways in `827aec9`. It now hashes each reachable
+module's code, its syntax tree with docstrings removed, rather than its text, so a
+comment, layout or docstring edit no longer invalidates an entry and any other edit
+still does. Of the eleven commits that touched `src/` after `9cc96e2`, five had changed
+every calibrated family's key by docstring or comment edits alone, each costing a cold
+recalibration of about 43 minutes on CI; under the new fingerprint all eleven keep every
+key. And the version token now also hashes the six numerics variables `regenerate.yml`
+pins for every job (`OPENBLAS_CORETYPE`, `OPENBLAS_NUM_THREADS`, `MKL_CBWR`,
+`MKL_NUM_THREADS`, `OMP_NUM_THREADS`, `ATEN_CPU_CAPABILITY`; `unset` when absent), since
+the BLAS and ATen kernels they select can move the last bits of a calibration: pinned and
+unpinned calibrations never share an entry, so a cache serves only a process started
+under the same values it was warmed under. `admission-slow` sets none of them. The CI
+tarball key is now defined once, in `.github/actions/calibration-cache`, as
+`calib-v2-<os>-<image>-py3.12-np<pins>-<token>-<src>-<run id>-<attempt>`, and provenance
+written since records the pins and the kernels they selected in a `numerics` block.)*
+
 `b70d258` corrected the wording about what the cache did. The `workflow_dispatch` run
 43679157068 on the branch succeeded. It started cold. The warm step spent 37 minutes of its
 45-minute budget deriving 8 families and then stopped rather than start one that could

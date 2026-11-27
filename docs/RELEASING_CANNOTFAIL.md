@@ -235,6 +235,12 @@ behaves as described, and the changed project builds with `License-Expression: M
 its metadata. If setuptools drops the table form sooner, the weekly run of
 `cannotfail.yml` is what turns red.
 
+2026-11-27: the repository's root `pyproject.toml` (the `rhob` package) has made this
+change, with `license = "MIT"`, `license-files = ["LICENSE"]` and
+`requires = ["setuptools>=77"]`, and it declares no License classifier.
+`tools/cannotfail/pyproject.toml` has not: it still has the table and the classifier,
+so all three parts above remain for its next release.
+
 ## What each workflow covers
 
 - [`cannotfail.yml`](../.github/workflows/cannotfail.yml), the README badge. On pushes to
@@ -247,9 +253,16 @@ its metadata. If setuptools drops the table form sooner, the weekly run of
   prints, first with numpy only (the `resolution` and `power difference` examples, minus
   the Parquet and Inspect recipes; `power equivalence` and `power seeds` need SciPy) and
   then all of them with `[power,parquet,inspect]`, and then the tool's tests against that
-  installed wheel.
-- [`cannotfail-release.yml`](../.github/workflows/cannotfail-release.yml), above.
+  installed wheel. Since 2026-11-27 each job has a timeout (30 minutes for `test` and
+  `package`), a newer push to the same pull request cancels the run in flight
+  (scheduled, manual and `main` runs are never cancelled), and a `report` job, on
+  scheduled runs only, opens or comments on the issue "Weekly cannotfail check is
+  failing" when `test` or `package` does not pass and closes it when both pass again.
+- [`cannotfail-release.yml`](../.github/workflows/cannotfail-release.yml), above. Since
+  2026-11-27 its jobs time out: 20 minutes for `build`, 15 for each upload.
 - [`tests.yml`](../.github/workflows/tests.yml) keeps
   [`tests/test_cannotfail_parity.py`](../tests/test_cannotfail_parity.py) in its pytest
   job. It imports `rhob`, to hold the tool's copy of the admission gate to the original,
-  so it runs with RHOB installed and not in the tool's own CI.
+  so it runs with RHOB installed and not in the tool's own CI. Its re-certification of
+  four of the ledger's six DEGENERATE families is marked slow and runs in the nightly
+  `admission-slow` job instead; the other two run on every push.

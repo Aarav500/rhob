@@ -26,6 +26,12 @@ Against the *range* across draws (0.407-0.646 for Behavioral Threshold, width 0.
 platform difference is ~17x smaller, but a range is not a standard deviation and the two
 should not be swapped to reach a rounder multiplier.
 
+*(2026-11-27: the sampling variation above is variation over rollout seeds at one layout.
+Until `827aec9`, `FamilyRegistry.generate_suite` dropped its `layout_seed`, so all 20
+draws, made on 2026-08-04, were built and oriented at layout 0, whatever layout seed they
+record. Replicate 0 is the layout-0 draw by design, so the comparison below is
+unaffected.)*
+
 ## What this means
 
 RHOB's published AUROCs are reproducible to about **+-0.015 across dependency stacks**, not

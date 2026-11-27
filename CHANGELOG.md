@@ -13,8 +13,432 @@ L3 aggregates were incorrect and are retracted here**; if you cited them, cite t
 corrected values below instead. *(2026-11-19: the board has since been regenerated, and
 its figures supersede the recomputed ones below; see the 2026-11-19 regeneration entry
 below.)* *(2026-11-26: both boards have since been re-scored with every detector's run
-length declared, and those figures supersede the 2026-11-19 ones too; see the first
-entry.)*
+length declared, and those figures supersede the 2026-11-19 ones too; see the 2026-11-26
+entry below.)* *(2026-11-27: the 20 draws behind the replicated board were all built at
+layout 0, so its intervals carry no layout variation, and Bayesian Online Changepoint
+Detection's HVTA figures were those of a constant score and are re-scored on HVTA's
+primary draw; see the 2026-11-27 entries.)*
+
+### Fixed (2026-11-27): the layout seed never reached the families, so the 20 draws all ran at layout 0
+
+`FamilyRegistry.generate_suite` took a `layout_seed` and dropped it: it built every cell
+with `generate_pair_at(d)`, at layout 0 and stamped as layout 0, whatever was asked for.
+It now calls `generate_pair_at(d, seed=layout_seed)` (`827aec9`). The layout seed reaches
+a family in two ways, as the seed its `generate_pair` builds from and as the key its
+behavioural sign is drawn from (`rhob.v3.sign_randomization.behav_sign`), and a draw at a
+non-zero layout seed got neither.
+
+What this changes for a reader of the published numbers:
+
+- **The 20-draw board.** Its 20 replicates (`results/replication/replicate_*.json`),
+  drawn on 2026-08-04, record layout seeds 0 to 19, but each was built and oriented at
+  layout 0: only their rollout seeds (`seed_base`) differ. The intervals published from
+  them in `leaderboard/v5_replicated.json` and `docs/figures/replication_summary.md`, the
+  20-draw table in the 2026-11-26 entry below included, therefore measure how the board
+  varies over rollout seeds at one layout, with every family under one behavioural
+  orientation. As that they are correct; they say nothing about variation over layouts or
+  orientations, which is what the summary's "layout seed and rollout seeds resampled
+  together" claimed.
+- **Not affected:** the single-draw board (`leaderboard/v5_leaderboard.json`), which is
+  scored at layout 0 by design; the admission ledger and
+  `scripts/measure_difficulty_calibration.py`, which call `generate_pair_at` with their own
+  layout seeds; and the HVTA results.
+- **What a re-draw can vary.** For 12 of the 33 families, which never read the seed, the
+  fix changes only the orientation a draw is scored under. 19 use the seed only as an
+  offset to their rollout seeds, which the draws already resampled, so for them too the
+  fix adds the orientation and no new layout. 2 build a real layout from it:
+  `proxy_correlation_gaming` its item grid and `rlhf_reward_model_overopt` its fitted
+  reward model. A re-drawn interval covers the orientation in every family, and the
+  environment layout in those two only. `tests/test_v3/test_replication_draws_differ.py`
+  pins the forwarding, the per-layout orientation, and that varying only the layout
+  changes the rollouts.
+
+A draw made before the fix can no longer pass for one made after it.
+`scripts/replicate_leaderboard.py` writes `"draw_schema": 2` into every replicate, and a
+file without it predates the fix. `scripts/merge_rescored_detector.py` refuses to merge
+re-scored rows into a draw older than schema 2, and `regenerate.yml`'s plan job refuses
+`artifacts=replicated` while any committed replicate is older (`320b7b7`), before twenty
+re-score jobs have run rather than after. `scripts/aggregate_replication.py` gives
+`v5_replicated.json` its own `provenance` block and a `replicates` block, which tallies
+the inputs' commits, trees, Pythons, package sets, platforms, numerics, CPUs, draw schemas
+and re-scored rows and says whether the layouts were resampled (`layouts_resampled`) and
+whether the set is single-source; `--require-single-source` refuses a set that is not. It
+also applies the max/mean verdict rule to the unsupervised partition
+(`supervision.statistic_disagreement_unsupervised_only`). Re-aggregating the 2026-08-04
+draws changes no number and corrects two statements in `replication_summary.md`: the
+draws resampled the rollout seeds only; and without the label-fitted detectors the
+L1 minus L0 step is statistic-dependent, separating below zero under the max and not under
+the mean (the figures are in the 2026-11-26 entry), rather than a step that "separates the
+other way". For those draws the `replicates` block reads `layouts_resampled: false` and
+`single_source: false`: no draw records its commit, a clean tree or its numerics, and each
+carries 20 detector rows re-scored after it was drawn. That re-aggregation's provenance
+was stamped from a clean tree at `f192797` under the numerics pins (`eaa75f8`), with
+everything outside it unchanged. The Space's provenance panel reads `layouts_resampled`
+and, for these draws, says that the rollout seeds were resampled with every draw at layout
+0.
+
+**Re-drawing.** `regenerate.yml`'s new `redraw` mode draws the single board and all 20
+replicates, every detector, at one commit, and commits them together.
+`scripts/v5_leaderboard_and_transfer.py --cells-out` writes the board's per-cell AUROCs to
+a sidecar carrying the board's provenance, through the same `_cells_detail` the replicates
+are written with. `scripts/check_redraw.py` refuses the set unless all of these hold:
+
+- `replicate_000` to `replicate_019` are all present, each at draw schema 2, each the draw
+  `draw_for(i)`, with one `n_seeds` equal to the board's;
+- every file, the board and the sidecar score the 30 detectors in `DETECTORS` order, and
+  every file and the board the registered families, with no errors;
+- every file and the board come from one clean commit equal to `--expect-commit`, under
+  one Python, one package set and one numerics signature, with no rows merged in after the
+  draw;
+- every file and the board ran under the six numerics pins themselves, and their kernels
+  show the pins took effect: ATen at AVX2 wherever torch loaded, every OpenBLAS at Haswell
+  (`d36d60f`). Agreement alone is not enough, since runners that all lost the pins agree
+  with each other;
+- every file has the sidecar's cell grid, and `replicate_000`, the board's own draw, equals
+  the board cell for cell, up to `--max-board-mismatch` (default 0).
+
+The set is then aggregated with `--require-single-source`.
+
+### Fixed (2026-11-27): Bayesian Online Changepoint Detection (BOCPD) scored a constant, and its HVTA figures change
+
+`BOCPDDetector` scored `max_t P(r_t = 0)`, the probability that a changepoint happened *at*
+step `t`. With a constant hazard that is the hazard itself at every step, so every run
+scored 0.004, its onset rule could never fire, and its published HVTA AUROCs were 0.500
+on every cell of the Sudoku draw and, on the other channels, a ranking of rounding noise.
+It now returns the score its docstring specifies, `1 − P(no changepoint over the run)`,
+and onset is the first step at which that exceeds 0.5 (`827aec9`). Past 500 episodes,
+where the run-length truncation can drop the full-length hypothesis, a dropped hypothesis
+now stays dropped, rather than whichever survivor is last being read as "no change". A
+hazard outside (0, 1) raises `ValueError`; it used to produce −inf or NaN.
+
+On HVTA (`external/hvta/`) the primary Sudoku pairs draw was re-scored for this detector
+alone by the new `rescore_detector.py`, which merges one detector's rows into
+`hvta_results.json` and records the re-score under `rescored`. In `RESULTS.md`:
+
+- its mean AUROC over the 10 non-degenerate cells goes from 0.500 to 0.739, which makes it
+  the strongest external baseline, ahead of Page-Hinkley at 0.690, and its normalised
+  onset MAE from 1.000 to 0.296;
+- it now fires, on 94% of hacking runs and 76% of legitimate twins. That gap, +0.17, is
+  the largest in the suite (it was Centroid Tracker's +0.10), and the finding that every
+  detector that fires also fires on the legitimate twin stands;
+- among detectors that fire on a majority of runs, the best onset correlation is r = 0.44
+  (BOCPD, on the primary draw only), up from Reward Peak's 0.43. 8 of the 26 scoreable
+  detectors never nominate an onset, not 9, and 1 of the 18 that do beats a constant
+  prediction, as 1 of 17 did.
+
+`score_channels.py` was re-run in full on the other three channels: BOCPD's mean over the
+12 cells goes from 0.483 to 0.621, and no other row changes. Both re-scores were run again
+on a clean tree at `320b7b7` and committed in `f192797`, so their records name that
+revision with no uncommitted files; no figure moved.
+
+The three replicate seed draws (`replicates/seedbase_{100,200,300}.json`) were not
+re-scored: that needs each draw's frozen pairs, which are not in the repository
+(`export_pairs.py` rebuilds them in the HVTA environment). `RESULTS.md` marks BOCPD's
+figures in them *(pre-fix)* and leaves them out of every across-draw figure.
+`make_results.py` works that out from the files it loads (`a6bb519`), so re-scoring a
+replicate clears its markers; a full `score_detectors.py` run carries the primary draw's
+fix history forward (`detector_fixes`), and a draw whose detector source differs from the
+primary's is marked *(other source)* and left out the same way. A detector's source is
+attested by a sha256 of its code without docstrings or comments, identical on Python 3.11
+to 3.13, and by the file's git blob. `score_channels.py` now records the date, the RHOB
+revision, uncommitted `src/` files and every detector's source, and `CHANNELS.md` gains a
+Provenance section. A test fails when the committed HVTA artifacts no longer attest the
+current `bocpd.py`. `RESULTS.md` also drops a sentence that was false: not every
+observable-channel detector's onset correlation changes sign between draws, since Reward
+Peak, Page-Hinkley and Reward Threshold keep theirs, at |r| ≤ 0.43.
+
+The new score saturates: it is exactly 1.0 once `P(no change)` falls to `2**-54`, so runs
+that changed more clearly than that tie. No committed HVTA run comes within 10 nats of it,
+and the class docstring says to check for ties at 1.0 on sharper or longer reward streams.
+Whether BOCPD should score the log-odds instead, which keeps ordering such runs, is open,
+the author's decision.
+
+All five external baselines now declare the run length their score needs: Page-Hinkley
+Test 3, Isolation Forest 2, AR(p) Residual `order + 1` (6 by default), PCA Reconstruction
+`steady_window` (100) and BOCPD 5. Each length guard reads the declaration; Isolation
+Forest's late-window guard reads its module constant on purpose, since a standard
+deviation needs two points. None of the five is on either board, and the declarations
+alone move no artifact. `tests/test_detectors/test_min_episodes.py` holds them to the
+board detectors' rule, and fails if a `PosthocDetector` the package defines is not
+exported or not in one of its tables, unless it is named as needing constructor arguments.
+`EnsembleDetector`'s docstrings now say that it takes the plain mean of its members' raw
+scores, not of their ranks, and that its score is in-sample for any member fitted on the
+runs it scores.
+
+### Changed (2026-11-27): CI computes every artifact under six numerics pins, and every artifact records them
+
+Every job of `regenerate.yml` now runs with `OPENBLAS_CORETYPE=Haswell`,
+`OPENBLAS_NUM_THREADS=1`, `MKL_CBWR=COMPATIBLE`, `MKL_NUM_THREADS=1`, `OMP_NUM_THREADS=1`
+and `ATEN_CPU_CAPABILITY=avx2`, set workflow-wide. Without them OpenBLAS, MKL and PyTorch
+pick kernels by whichever CPU a hosted runner has, and threaded reductions sum in an order
+that depends on the thread count, so two runners can disagree in the last bits of one fit,
+and a re-draw runs on 21 runners. Haswell and AVX2 are the newest kernels every x86-64
+hosted runner has, Intel or AMD.
+
+For a reader of the published numbers: the artifacts committed before this change were
+computed without the pins and record no `numerics` block (the re-stamp of
+`v5_replicated.json`'s provenance in `eaa75f8` records them, but its 2026-08-04 draws
+record none). Every artifact CI writes from now on is computed under them. A figure from a
+pinned run need not match an unpinned run of the same code bit for bit, so quote each
+figure with the environment it came from. `tests.yml` sets none of the pins.
+
+Every artifact's `provenance` block gains `numerics`: `env` (the six variables, null when
+unset), `cpu` (vendor, model, family, model number and stepping, and the ISA flags that
+choose kernels, from `/proc/cpuinfo`), `torch_imported` and `torch_cpu_capability` (the
+ATen kernel level, `AVX2` under the pin), and `blas` (the loaded BLAS libraries, with the
+kernel OpenBLAS selected). The ATen level is read on every torch 2.x (`847a96f`):
+`torch.backends.cpu.get_cpu_capability()` first shipped in 2.1 and `pyproject.toml` allows
+2.0, so the block falls back to the `CPU capability usage` line of
+`torch.__config__.show()`, which gives the same string. Stamping never imports torch.
+`scripts/admission_ledger.py` refuses to merge shards certified under different pins,
+nulls the merged ledger's `numerics.cpu` as it already nulled its CPU, and lists the
+shards' CPU vendors. Its determinism note now says a re-run reproduces the results byte for
+byte on the same commit, locked environment and CPU model, and not across CPU models. A
+later `ledger` or `both` dispatch certifies under the pins, which the committed ledger was
+not.
+
+The calibration cache's key changes twice over. Each module it reaches is hashed as code,
+its syntax tree with docstrings removed, not as text, so comments, layout and docstring
+edits no longer invalidate an entry and any other edit still does. Of the 11 commits that
+touched `src/` since the import walk landed (`9cc96e2`), the text key had changed every
+calibrated family's key on 5, by docstring or comment edits alone, each at the cost of a
+cold recalibration of about 43 minutes on CI; the code key keeps all 11. And the
+environment token now hashes the six numerics variables (`"unset"` when absent), so
+calibrations derived with and without the pins never share an entry: a local
+`scripts/warm_calibration_cache.py` serves only a test run made with the same values of
+those variables, or with none of them set for either. Every calibrated family's key
+changes once with this release, and CI's calibration tarball starts a new `calib-v2`
+series, so the first CI run on it recalibrates cold.
+
+### Fixed (2026-11-27): cross-family transfer and the sign-randomization measurement leave what they cannot measure N/A, and both scripts run again
+
+`scripts/cross_family_transfer.py` now applies the benchmark's own not-applicable rule,
+`rhob.v3.benchmark.not_applicable_reason` (newly public; `Benchmark.evaluate` calls it,
+with unchanged reason strings), outside the harness. A family that lacks the channel a
+detector reads, or whose runs are shorter than the detector's `min_episodes`, contributes
+no rows to the pooled fit, and is listed in `train_families_excluded_from_pooled_fit`; as
+a held-out family it is not scored. Two more cases leave a held-out cell `null`, with its
+reason, instead of scoring it:
+
+- the frozen model cannot consume the family's version of the channel, because its
+  `classify` raises; `per_family_incompatible_runs` counts the runs. Those runs used to
+  score 0.5. State Divergence's frozen 49-bin gridworld centroids raised on every run of
+  the six held-out families that emit `state_counts`, so its flat 0.500 transfer row in
+  both committed measurements, `leaderboard/cross_family_transfer.json` (2026-07-09) and
+  the `before` configuration of `docs/figures/sign_randomization_impact.json`
+  (2026-08-03), was imputed, not measured;
+- the pooled fit failed or left the detector untrained, so nothing frozen exists to
+  transfer (`pooled_fit_error`).
+
+A held-out family scored on some difficulty tiers but not all is averaged over the scored
+ones and says so: each row records `per_family_cells_scored`,
+`per_family_cells_not_applicable` and `test_partial_not_applicable_reasons`, and a
+multi-trial row the fewest scored and the most left out in any trial (`f0caa3d`).
+`continuous_camping` is now listed as excluded from the Reward MLP and State Divergence
+pooled fits, but both fits already ignored its 40-episode runs, so the frozen models are
+unchanged (bit-identical); only the listing changed. Since the 2026-11-26 declarations the
+train AUROC, which `Benchmark.evaluate` computes, leaves its cells out too for Reward MLP,
+State Divergence and the ensemble, which need 50 episodes; the 2026-08-03
+measurement scored them at the fallback. The Top-5 ensemble's train AUROC is now
+cross-validated: `FoldFittedEnsemble` refits its Trajectory MLP member on each training
+fold. In both committed measurements that figure was in-sample for the member, which had
+been fitted on exactly the runs it was then scored on. The ensemble's transfer score does
+not depend on the wrapper.
+
+The script writes `leaderboard/cross_family_transfer_v5.json` by default, at the published
+design (10 train seeds, 20 test seeds, 5 trials). It carries a `configs` block naming the
+configuration it was measured in, sign randomization on, so `rhob.v3.leaderboard.transfer`,
+which names the file `CURRENT_TRANSFER_ARTIFACT`, reads it as the shipped configuration.
+It also carries a `published_design` flag, the per-row reasons and counts above, and
+`pooled_fit_error`. The script refuses to overwrite
+`leaderboard/cross_family_transfer.json`, kept as the 2026-07-09 record
+(`HISTORICAL_TRANSFER_ARTIFACT`). Under the CI pins, with torch on one thread, the
+published design took 5m23s on a 4-core machine. The documented 1–2 h came
+mostly from torch's default thread count on a busy machine, where one trial's Trajectory
+MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows from
+re-simulating runs. Set `OMP_NUM_THREADS=1` when running it by hand.
+`scripts/plot_v5_results.py` plots the v5 file, never the 2026-07-09 one, and labels a
+null transfer AUROC "n/a" instead of drawing a bar. The Space renders the v5 file when it
+is present, and otherwise the `after` configuration of `sign_randomization_impact.json`,
+labelled pre-declaration, with a note that representation mismatches there were scored at
+chance and that the run-length rule reached only its train AUROC.
+
+`scripts/measure_sign_randomization.py` had crashed on its first board cell since
+2026-09-02, when `CellResult` lost the onset column it read; it runs again. It builds the
+ensemble through the transfer script's own code, commits every per-cell AUROC its
+docstring promised, refuses to merge boards across commits, package stacks, dirty trees or
+duplicated families, compares only cells scored in both modes, checks the pre-audit board
+like for like, and computes every headline claim, "reproduces exactly" included, from the
+data. A new `ci` subcommand runs the published design end to end in one process. It
+simulates each cell once and derives the randomized runs from the un-randomized ones with
+the benchmark's own flip, which is bit-identical. The report records that
+(`design.sampling.rollouts_shared_across_modes`), and its invariance section says what the
+check therefore shows: that the flip reaches only `behav_trace` and that `restrict()` hides
+it below L2, not that two separate simulations agree. Run by hand, the stages now
+reproduce `ci` and can produce `published_design = true`, which also requires each
+companion board at its own seeds and families: `transfer` measures each configuration's
+published rows by default, `board --companion LABEL` runs a companion at its published
+design, and an unknown `--rows` or `--transfer-rows` name is refused instead of dropped.
+`transfer --n-trials` defaults to 3, the published design's value and the 2026-08-03
+measurement's (it was 5 until 2026-11-27), while `cross_family_transfer.py` keeps 5.
+Whether the default stays at 3 is open, the author's decision.
+
+### Removed (2026-11-27): the v3.2 tables, their two scripts, and `rhob submit` writing the tracked board
+
+The v3.2 tables are deleted: `leaderboard/leaderboard.json`, the standings in
+`leaderboard/README.md`, `leaderboard/by_mechanism.md` and `leaderboard/by_difficulty.md`,
+with the two scripts that wrote them, `scripts/populate_leaderboard_v32.py` and
+`scripts/populate_v3_leaderboard.py`. Nothing in the repository read the tables. They
+predate the 2026-08-03 audit and the not-applicable rule, they disagree with both v5
+boards, and every detector they ranked except `Ensemble(BehavioralThreshold x2)` is on
+`v5_leaderboard.json` and `v5_replicated.json`. The tables were last committed on
+2026-07-07 (`b7324ec`), and `populate_v3_leaderboard.py` could not run after 2026-09-02
+(`b796f9c`), when `CellResult` lost its onset column. They remain in the history:
+`git show b7324ec:leaderboard/leaderboard.json`, and likewise `README.md`,
+`by_mechanism.md` and `by_difficulty.md`; the scripts as they last stood are
+`git show 4728596:scripts/populate_leaderboard_v32.py` and
+`git show 4728596:scripts/populate_v3_leaderboard.py`. `leaderboard/README.md` is now an
+index of the current artifacts that quotes no figures.
+
+`python -m rhob submit` now records self-reported, single-draw submissions in
+`leaderboard/community/` (`board.json` plus rendered tables) instead of `leaderboard/`, and
+takes `--board-dir DIR` for another directory. It accepts the documented four-key minimum,
+filling in `author` ("anonymous") and `timestamp`, where it used to crash. It refuses, exit
+1 and nothing written, when the `board.json` it finds is not an entries-schema board;
+given the v3.2 `leaderboard.json`, a 30-detector `results` board, it used to read it as
+empty and save one entry over it, exiting 0. `Leaderboard.load` raises `ValueError` on any
+file that is not an entries-schema board instead of returning an empty board.
+`LeaderboardEntry.from_results`, and so `rhob evaluate`, counts only measured cells in
+`n_cells` and writes `overall_auroc` as null rather than NaN when no cell was measured. If
+you relied on the old location: `--board-dir leaderboard` is refused while the index
+`README.md` is there, so use another directory.
+
+### Changed (2026-11-27): CI hygiene, and `regenerate.yml` re-draws the boards and re-measures transfer and sign randomization
+
+`regenerate.yml` gains three modes: `redraw`, the board and all 20 replicates at one commit
+(the layout-seed entry above); `transfer`, `leaderboard/cross_family_transfer_v5.json` at
+the published design, 5 trials, never writing the 2026-07-09 file; and `signrand`,
+`measure_sign_randomization.py ci`, which writes
+`docs/figures/sign_randomization_impact.json` and `.md`. Every job runs under the
+numerics pins (the numerics entry above). Also in `regenerate.yml`:
+
+- Calibrations are derived once per run, by a `calibrate` job, and restored by every
+  scoring job. In the `f83a152` re-score each of the 20 draw jobs spent 78 minutes deriving
+  them, about 1560 of the run's 2030 runner-minutes.
+- The plan job validates every input before a runner is spent. A `from_run` merge must
+  name this workflow on this branch, with `src/`, `requirements/`, `pyproject.toml` and the
+  scripts that drew the artifacts identical, and exactly the expected artifacts still
+  downloadable.
+- Modes that write the same files share one concurrency queue; `transfer` and `signrand`
+  each have their own. A conflicted rebase in the commit step is aborted instead of
+  failing every retry after it.
+- Each long compute step (board, redraw board and draws, transfer, sign randomization)
+  times out at 330 minutes inside its job's 350, and its upload runs `always()`, so a run
+  that hits the limit still saves what it computed: a job that reaches its own timeout is
+  cancelled, which skipped the upload, while a step that times out only fails
+  (`320b7b7`). Each redraw draw job refuses a draw not made under the pins.
+- The calibration tarball's key is defined once, in `.github/actions/calibration-cache`.
+  It names the runner image and the numerics pins and starts a new `calib-v2` series.
+  Every save carries the run id and attempt, and a scoring job restores exactly the key
+  its calibrate job saved, whichever attempt saved it. A run that restored a full tarball
+  and still derived calibrations used to lose them, because a save under an existing key
+  is skipped.
+
+Elsewhere:
+
+- `tests.yml`: fail-fast off, read-only permissions by default, a timeout on every job,
+  only superseded pull-request runs cancelled, and `admission-slow` on `ubuntu-24.04`. A
+  scheduled failure opens one tracking issue ("Nightly tests are failing"), closed when a
+  scheduled run passes again. `cannotfail.yml` does the same weekly ("Weekly cannotfail
+  check is failing") and gains a concurrency group and timeouts; so does
+  `cannotfail-release.yml`.
+- `drift.yml` installs and tests on `ubuntu-24.04` too. `leaderboard_validate.yml` skips
+  deleted submissions and passes refs and paths through the environment.
+- `deploy_space.yml` pins `huggingface_hub` 1.33.0 (unpinned, it installed 2.x, outside
+  the `space` extra's `<2`), installs the deployed Space's `rhob` at the deploying commit,
+  with a warning when it deploys from a ref other than `main`, and takes its inputs
+  through the environment.
+- `pages.yml` holds `pages: write` and `id-token: write` only in its deploy job, and never
+  cancels a deployment in flight.
+- `register_guard.yml`'s failure report could not have been filed: with no checkout and
+  no `GH_REPO`, `gh` had no repository to file it to. It now sets `GH_REPO`, and finds
+  the tracking issue by its exact title.
+- Dependabot opens one grouped pull request a week for GitHub Actions. Python
+  dependencies still move only through `scripts/update_ci_lock.sh`.
+- `pyproject.toml` declares `license = "MIT"` with `license-files` and builds with
+  setuptools 77 or later, which silences setuptools' deprecation of the table form
+  (unsupported after 2027-02-18).
+
+### Fixed (2026-11-27): `rhob validate` checks a submission's values, and `rhob submit` writes nothing until it can write everything
+
+`python -m rhob validate` checked a submission's keys and its access level only, so a
+string AUROC passed, and `rhob submit` then saved it to `board.json` and crashed while
+rendering the tables, leaving them stale and making every later submission crash. Both
+now apply `rhob.v3.leaderboard.board.submission_problems` (`d7c865c`): `detector_name` a
+non-empty string, `access_level` one of L0 to L3, `overall_auroc` a finite number in
+[0, 1], or null for a run with no measured cell, `n_cells` a non-negative integer,
+`author` and `timestamp` strings, and `family_auroc`, `mechanism_auroc` and `tier_auroc`
+maps of names to numbers in [0, 1], the tier names difficulty tiers. `NaN` and `Infinity`
+are refused when the file is parsed, because they are not JSON.
+`.github/workflows/leaderboard_validate.yml` runs `validate`, so these checks now apply to
+submission pull requests. `submit` checks everything and renders `board.json` and its
+tables before writing any of them, refuses a `board.json` that holds an invalid entry,
+writes with `allow_nan=False`, and refuses, writing nothing, when `README.md`,
+`by_mechanism.md` or `by_difficulty.md` in the board directory does not start with the
+community header (`# RHOB community submissions (self-reported, single draw)`). Other files
+in the directory are left alone. Names and authors are escaped in the rendered tables, so
+a `|` cannot shift a column. The submit tests call `main()` in process, keeping one
+`python -m rhob submit` smoke test.
+
+### Changed (2026-11-27): tests that re-run the admission gate, and tests that can fail
+
+- `tests/test_v3/test_ledger_reproduces.py` re-certifies four registered families at
+  every tier the ledger scores (`reward_channel_tampering`, `proxy_correlation_gaming`,
+  `shortcut_exploitation`, `distributional_shift`; 20 cells), with a gate built from the
+  ledger's own recorded configuration (12 layouts, 24 seeds per side). Between them they
+  reach every status and every outcome value, with measured FAILs on
+  `proxy_distribution_matched` and `behavioral_separated`. Statuses, outcomes, the design
+  and the wording of each verdict, its numbers and its binding detector masked, must match
+  exactly, and every number must match within 5e-3 on rank statistics and 1e-9 relative
+  elsewhere. Those tolerances were measured across the CI lock and the unpinned Python
+  3.10 and 3.11 jobs: the only drift seen was a few near-tied Reward Skewness scores ranked
+  differently under scipy below 1.18, by at most 7.6e-4, with no outcome changed. The
+  binding detector is pinned exactly wherever the ledger's choice leads by more than twice
+  the rank tolerance; at `reward_channel_tampering`@0.80 Reward KDE and Reward Skewness
+  bind 4.4e-4 apart, so either may bind there (`2130ab2`). The test takes about 17 s and
+  runs on every push. A slow cell, `rlhf_feature_blindspot_gaming`@0.80, re-certifies
+  nightly the one (criterion, outcome) pair the four do not reach, a measured
+  `proxy_matched` FAIL.
+- `tests/test_cannotfail_parity.py` re-certifies the six DEGENERATE families instead of
+  reading only the gate's committed aggregates. It captures every score vector and proxy
+  stream the gate measures, and requires `cannotfail` to reproduce each per-layout
+  resolution and dispersion bit for bit against the gate re-run on the same machine, the
+  per-cell means to match the ledger (within 1e-12 for resolution, and 1e-6 relative or
+  1e-15 absolute for informativeness, whose committed values are 0 to 2.4e-16), and each
+  statistic to be called degenerate on its own. Two families run on every push, one of
+  each kind (`rlhf_reward_model_overopt` by informativeness, `shortcut_exploitation` by
+  resolution), so the call made from the scores alone runs on every push; the other four
+  run nightly.
+- The third copy of the tie rule, `inspect_eval/hvtb_hack_detection/metrics.py`, is held
+  to the gate, read with `ast` so `inspect_ai` is not needed: its tolerances must be the
+  gate's, and its tie rule must match the gate bit for bit, including on new pairs that
+  sit exactly on the tolerance, where no earlier test could tell `<=` from `<`. The tests
+  also pin that it drops a sample with a non-finite score rather than counting it as a
+  tie, which its docstring still says it does.
+- The transfer and sign-randomization script tests run on stub families noisy enough that
+  the values they compare are interior, not saturated at 0.0 on every held-out stub, and
+  seven mutants of the scripts each fail one of them. The test that stamping provenance
+  never imports torch records the import calls; the cache test of a docstring edit to
+  `rhob.detectors.posthoc` covers all 19 disk-memoized families and fails if its edit stops
+  applying. `tests/test_numerics_pins.py` holds `regenerate.yml`'s pins, the cache key's
+  variables and the composite action to one list, and every job of every workflow to a
+  timeout.
+- `test_the_committed_aggregate_is_what_the_aggregator_writes` compares the JSON trees
+  with `math.isclose` (relative 1e-9, absolute 1e-12) and everything else exactly. With
+  `==` it turned the Python 3.10 and 3.11 pytest legs red on `827aec9`: CPython 3.10's
+  twice-rounded `statistics.stdev` and numpy release drift moved 59 floats in the last bit.
+  It skips, giving the reason, where the label-fitted partition is not the pinned one
+  (torch absent).
 
 ### Fixed (2026-11-26): every detector declares the run length it needs; both boards re-scored
 
@@ -77,7 +501,9 @@ The re-scores:
   with both values. The 20-draw board is therefore the committed draws with the too-short
   cells set to `null`, which is what the fix changes and all it changes. Re-drawing the 20
   replicates on today's code, which would bring `sequence_keyword_stuffing` up to date, is
-  a separate item (ROADMAP.md).
+  a separate item (ROADMAP.md). *(2026-11-27: `regenerate.yml`'s new `redraw` mode draws
+  the 20 and the board at one commit, and a re-draw is also the only way to vary the
+  layout, which none of these draws did; see the 2026-11-27 layout-seed entry above.)*
   `scripts/aggregate_replication.py` then rebuilt `leaderboard/v5_replicated.json` and
   `docs/figures/replication_summary.md` from those draws. The run's aggregator (at
   `6e8521a`) already derived the sentences about the label-fitted climb and about each
@@ -114,7 +540,9 @@ Skewness over 8. Reward CUSUM's 0.5474 is over its 20, and Reward Peak moves fro
 second (0.5111 to 0.5375). The 8 L1 rows are N/A on 92 of 123 cells (26 families).
 
 **The 20-draw board**, before (as of the Reward Skewness re-score of 2026-09-03) and after,
-95% intervals over draws:
+95% intervals over draws *(2026-11-27: every one of these draws was built and oriented at
+layout 0, so the intervals are over rollout seeds only; see the 2026-11-27 layout-seed
+entry above)*:
 
 | Figure | Before | After |
 |---|---|---|
@@ -184,7 +612,12 @@ L2 max (0.9430 [0.9380, 0.9478]), L3 (0.9746 [0.9712, 0.9778]) and L3 − L2 on 
 Not re-run: `leaderboard/cross_family_transfer.json` and
 `docs/figures/sign_randomization_impact.json` were produced before the declarations, and
 the v3 tables `scripts/populate_v3_leaderboard.py` writes to `leaderboard/` date from
-2026-07-07. ROADMAP.md lists them.
+2026-07-07. ROADMAP.md lists them. *(2026-11-27: the v3 tables and that script are
+retired; see the 2026-11-27 Removed entry above. `cross_family_transfer.json` is kept as
+the 2026-07-09 record and is not re-run; its successor,
+`leaderboard/cross_family_transfer_v5.json`, and `sign_randomization_impact.json` are what
+`regenerate.yml`'s new `transfer` and `signrand` modes write; see the 2026-11-27 transfer
+entry above.)*
 
 ### Fixed (2026-11-25): the site deploys from two jobs
 
@@ -226,7 +659,7 @@ the 40-episode `continuous_camping`. *(2026-11-26: they all declare `min_episode
 (`f83a152`). On the re-scored board the 8 L1 rows are N/A on 92 of 123 cells (26
 families); Reward Peak, Reward Autocorrelation, Reward Trend, Variance Window and Feature
 Consistency on 59; Reward CUSUM, Max Plateau, Gradient Reversal, Reward MLP, Feature
-Magnitude and Reward-Feature Correlation on 22. See the first entry.)* It is scored under
+Magnitude and Reward-Feature Correlation on 22. See the 2026-11-26 entry above.)* It is scored under
 the shipped configuration, with the behavioural sign randomized per family. The ladder,
 with the six DEGENERATE families held out of L0 only:
 
@@ -244,7 +677,7 @@ rounded figures differ by 0.0022. Weighted by cell and with no exclusion, L0 rea
 over 20 of the 27 families), L1 0.5789 / 0.9820 (State Divergence, over 7 families and 31
 cells) and L2 0.5771 / 0.9430, with L3 unchanged. With the six families back in, L0 reads
 0.4877, an exclusion of 0.0043 (0.4877139 − 0.4833744 = 0.0043395), and 0.4881 by cell
-with no exclusion. See the first entry.)*
+with no exclusion. See the 2026-11-26 entry above.)*
 
 - Behavioral Threshold falls from 0.975 to 0.512 and Centroid Tracker from 0.966 to 0.361,
   the two L2 detectors that read the feature's sign
@@ -290,7 +723,7 @@ with no exclusion. See the first entry.)*
   the 104 L0 and 41 L1 and L2 values N/A: the single draw in run 45747902322 (`03d978e`),
   the 20 draws in runs 45747922473 and 45776113470 (`827ae57`). Without them the single-draw L0 mean is 0.4834 and
   Reward CUSUM 0.5474, over 20 families; on 20 draws the L0 control mean is 0.4951
-  [0.4899, 0.5000], against 0.4972 [0.4939, 0.5005]. See the first entry.)*
+  [0.4899, 0.5000], against 0.4972 [0.4939, 0.5005]. See the 2026-11-26 entry above.)*
 
 **The ledger** (`admission/admission_ledger.json`, `admission/ADMISSION_LEDGER.md`) now
 covers every registered family, merged from 123 single-cell shards certified on 7 CPU models.
@@ -511,7 +944,10 @@ the identical command admits 0.9 and fails 0.8 and 0.7 as documented. So:
   scipy, mujoco, mujoco-core, gymnasium, torch, pettingzoo, mpe2), the Python minor
   version and the machine. It also hashes the source of every `rhob` module the family
   imports, followed transitively. The key used to miss edits to
-  `rhob.environments.calibration`, where `calibrate_scale` lives.
+  `rhob.environments.calibration`, where `calibrate_scale` lives. *(2026-11-27: it now
+  hashes each module's code, docstrings and comments left out, rather than its source,
+  and the six numerics variables join the versions; see the 2026-11-27 numerics entry
+  above.)*
 - The CI tarball key includes the same version token and all of `src/rhob`, with a
   prefix fallback that the complete per-entry keys make safe.
 
@@ -550,7 +986,7 @@ which Reward Skewness declares as 100. *(2026-11-19: it is still the only detect
 declares one; eight other L0 detectors return a constant below their windows, which both
 boards record as 0.5. See the 2026-11-19 regeneration entry above.)* *(2026-11-26: every
 detector whose score is constant below some run length now declares it (`f83a152`), and
-both boards were re-scored with those cells not applicable; see the first entry.)* A
+both boards were re-scored with those cells not applicable; see the 2026-11-26 entry above.)* A
 shorter cell is recorded as not applicable,
 excluded and never imputed, and the detector returns NaN below its horizon, so a path
 that skips the guard fails loudly. `9da6b21` (2026-09-03) re-scored the row on the same 20
@@ -578,7 +1014,7 @@ unsupervised L1−L0 step on maxima −0.029 [−0.054, −0.005] (positive in 5
 which now separates, with L0 above L1. On means that step is −0.002 [−0.022, +0.017]
 (positive in 11 of 20) and still does not separate, so its status now depends on the
 statistic. The step counting the label-fitted detectors is +0.427 [+0.417, +0.439]
-(positive in 20 of 20). See the first entry.)*
+(positive in 20 of 20). See the 2026-11-26 entry above.)*
 
 The nightly smoke screen had seen the same tie: 33 of its 36 DEGENERATE cells were this
 (`tests/test_v3/test_gate_honest_verdicts.py`). Re-measured with the horizon declared, 19
@@ -649,7 +1085,7 @@ between L1 and L2, and **nothing happens between L2 and L3**. *(That is the 2026
 board. On the board regenerated on 2026-11-19 the maxima are 0.535 → 0.927 → 0.943 →
 0.983; see the 2026-11-19 regeneration entry above.)* *(2026-11-26 re-score: 0.547 →
 0.982 → 0.943 → 0.983. L1's best, over 7 families, is now above L2's and within 0.001 of
-L3's; see the first entry.)*
+L3's; see the 2026-11-26 entry above.)*
 
 Nothing was deleted. Perfect Feature Oracle keeps its leaderboard row and its
 reported "L3" label (artifacts, paper tables and the Space key off them), is
@@ -668,7 +1104,7 @@ negative-control entry below) — now generated to `docs/figures/v5_access_summa
 and printed by `scripts/plot_v5_results.py` *(2026-11-19: run on the regenerated board,
 they give the ladder in the 2026-11-19 regeneration entry above)* *(2026-11-26: run on the
 re-scored board, they give L0 0.4834 / 0.5474, L1 0.5789 / 0.9820, L2 0.5771 / 0.9430 and
-L3 0.9830 / 0.9830, mean / best; see the first entry)*:
+L3 0.9830 / 0.9830, mean / best; see the 2026-11-26 entry above)*:
 
 | Access level | Detectors | Mean AUROC | SD across detectors | Best AUROC | Best detector |
 |---|---|---|---|---|---|
@@ -728,7 +1164,7 @@ it is **not** comparable to the 33-family denominators used at L0 and L2. *(2026
 the re-scored boards `continuous_camping` is N/A at L1 too, so the statement is over 7
 families and 31 cells: on the single draw the best L1 detector reaches 0.982 and the other
 7 sit at 0.488–0.555 (on 20 draws 0.998 and 0.458–0.576), and every L1 figure carries that
-denominator. See the first entry.)*
+denominator. See the 2026-11-26 entry above.)*
 
 A `0.5` in a regenerated artifact now means "measured, and at chance" — a real
 result. `continuous_camping` is the clean example: it *does* emit `state_counts`,
@@ -738,7 +1174,7 @@ was indistinguishable from the 25 families where nothing was measured at all.
 every L1 detector's window, so each returns its fallback 0.5 there; see the 2026-11-19
 regeneration entry above.)* *(2026-11-26: every L1 detector now declares its window, so
 `continuous_camping` is N/A at L1 on both boards, and no 0.5 on the re-scored boards comes
-from a detector run below its window; see the first entry.)*
+from a detector run below its window; see the 2026-11-26 entry above.)*
 
 `behav_trace` is present in every family measured, and `proxy_rewards` /
 `true_rewards` always are, so no L2 or L3 cell was fabricated. This is an L1-only
@@ -747,7 +1183,7 @@ its horizon; see the 2026-09-03 entry above.)* *(2026-11-26: nor was it L0 and L
 Feature Consistency, Feature Magnitude and Reward-Feature Correlation wrote their fallback
 0.5 on 33 short-horizon per-family entries, and eight other L0 detectors on 104; all are
 N/A now. On the HVTA channels, Perfect Feature Oracle recorded its absent-trace 0.5 on
-`logical_bug_wordle` and now declares `behav_trace`. See the first entry.)*
+`logical_bug_wordle` and now declares `behav_trace`. See the 2026-11-26 entry above.)*
 
 *(Note for anyone cross-referencing the audit: its "20 of 33" figure is stale by
 exactly the 5 sequence-generation families added afterwards; 25 − 5 = 20.)*
@@ -1007,7 +1443,7 @@ unrounded means they are 0.0033, 0.0029 and 0.0004. NOT ADMITTED cells are not h
 they are still in the L0 mean, and whether they should be is an open question for the
 author; see ROADMAP.md.)* *(2026-11-26 re-score: 0.4834 held out and 0.4877 in, and 0.4881
 by cell with no exclusion; from the unrounded means the exclusion is worth 0.0043 and the
-re-weighting 0.0004. See the first entry.)*
+re-weighting 0.0004. See the 2026-11-26 entry above.)*
 
 ### Added: the smoke screen and certification are now labelled as different things
 
@@ -1069,7 +1505,10 @@ The sampling block exists specifically so that **a single unreplicated draw is
 machine-readable as such**. The leaderboard evaluates `n_layouts: 1`,
 `layout_seeds: [0]`, 5 seeds per variant, `n_replicates: 1` — because
 `FamilyRegistry.generate_suite` calls `generate_pair(d)` with
-`BaseFamily.generate_pair`'s default `seed=0`. Near AUROC 0.5 the standard error of
+`BaseFamily.generate_pair`'s default `seed=0`. *(2026-11-27: it now calls
+`generate_pair_at(d, seed=layout_seed)`. The board passes the default layout 0, so it is
+unchanged; until then a replicate at layout `k` was built at layout 0 too. See the
+2026-11-27 layout-seed entry above.)* Near AUROC 0.5 the standard error of
 a single cell is **≈ 0.19** (corrected 2026-08; this entry originally said 0.16, which
 was wrong — the Mann–Whitney null is `sqrt((n+m+1)/(12nm))` = 0.191 at n=m=5), and
 every detector is scored on the identical rollouts
@@ -1090,7 +1529,10 @@ carries them, regenerated in `52656cb`, and the re-measurement gives every per-d
 value in the L1 table above to three decimals. `cross_family_transfer.json` has not been
 regenerated and still lacks them.)* *(2026-11-26: the re-scored board makes
 `continuous_camping` N/A at L1, so its L1 values are over 7 families and 31 cells and no
-longer equal that table; State Divergence reads 0.982.)*
+longer equal that table; State Divergence reads 0.982.)* *(2026-11-27:
+`cross_family_transfer.json` will not acquire them: it is kept as the 2026-07-09 record,
+and `scripts/cross_family_transfer.py` now writes `leaderboard/cross_family_transfer_v5.json`,
+with both blocks, and refuses to overwrite it.)*
 
 ### Changed: N/A cells are `null`, never imputed
 
@@ -1107,7 +1549,7 @@ that declares `min_episodes`. Only Reward Skewness does; eight L0 detectors, thr
 detectors and every L1 detector still write their fallback 0.5 on a family shorter than
 their windows; see the 2026-11-19 regeneration entry above.)* *(2026-11-26: every one of
 them now declares `min_episodes` (`f83a152`), and those cells are `null` on both re-scored
-boards and in `external/hvta/channels_results.json`; see the first entry.)*
+boards and in `external/hvta/channels_results.json`; see the 2026-11-26 entry above.)*
 
 ### Changed: documentation reframed
 
@@ -1197,7 +1639,9 @@ Stated because the point of this entry is not to claim the benchmark is now soun
   script is its only caller.
 - **The leaderboard is still one unreplicated 5-vs-5 draw** with no confidence
   intervals, and **the distribution the gate certifies (12 layout seeds) is still
-  not the distribution the leaderboard scores (layout seed 0)**.
+  not the distribution the leaderboard scores (layout seed 0)**. *(2026-11-27: the
+  20-draw board drawn on 2026-08-04 did not close the second half either: every one of its
+  draws was built at layout 0; see the 2026-11-27 layout-seed entry above.)*
 - **`reward_channel_tampering` and `goal_misgeneralization` @0.60 genuinely fail**
   the new criterion and remain in the leaderboard, published as NOT ADMITTED rather
   than dropped. `tests/test_v3/test_family_reward_channel_tampering.py` fails; the
@@ -1215,8 +1659,13 @@ Stated because the point of this entry is not to claim the benchmark is now soun
   longer does, regenerated in `52656cb`; `cross_family_transfer.json` has not been
   regenerated and still carries no provenance.)* *(2026-11-26: the 2026-11-19 board still
   carried every L1 detector's fallback 0.5 on `continuous_camping`; since the re-score
-  that cell is N/A on both boards.)*
-- **Five external baseline detectors ship but are scored nowhere.**
+  that cell is N/A on both boards.)* *(2026-11-27: `cross_family_transfer.json` is kept
+  as the 2026-07-09 record and is not regenerated; see the 2026-11-27 transfer entry
+  above.)*
+- **Five external baseline detectors ship but are scored nowhere.** *(2026-11-27: they are
+  on neither board, but are scored on HVTA (`external/hvta/`), where Bayesian Online
+  Changepoint Detection's score was a constant until the 2026-11-27 fix. All five now
+  declare `min_episodes`; see the 2026-11-27 BOCPD entry above.)*
 - **Hacking policies remain scripted** in 28 of 33 families. Nothing in this
   remediation changes what that limits RHOB to concluding. *(Corrected to 26 of 33 in
   `9e2f068`; see `docs/THREAT_MODEL.md` §3.)*
@@ -1523,7 +1972,9 @@ See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) items 4-6 for full details and veri
   learning), and Bayesian Online Changepoint Detection (Adams & MacKay, 2007)
 - All five verified against `gridworld_camping`: L0 baselines correctly sit
   at chance (matched-proxy tautology holds for classical methods too), L1/L2
-  baselines discriminate above chance
+  baselines discriminate above chance *(2026-11-27: Bayesian Online Changepoint
+  Detection sat at chance because its score was the hazard, 0.004, on every run; see the
+  2026-11-27 BOCPD entry in the first [Unreleased] section above.)*
 - 12 new unit tests in `tests/test_detectors/test_external_baselines.py`
 
 ## [Unreleased] — Baseline Detectors: the Main Results Table

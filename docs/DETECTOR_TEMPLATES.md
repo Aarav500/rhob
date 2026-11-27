@@ -364,11 +364,15 @@ class FeatureDriftDetector(PosthocDetector):
    and the benchmark records a shorter family as not applicable. Every detector on the
    board whose score is a constant below some run length does this, and
    `tests/test_detectors/test_min_episodes.py` checks each declaration against
-   `classify`: constant one episode below it, varying at it. The five external
-   baselines in `src/rhob/detectors/external_baselines/`, which are not scored, do not
-   declare one yet (PCA Reconstruction returns 0.5 below its 100-episode window).
-   Until 2026-11-26 only Reward Skewness did, and the published boards carried the
-   others' fallback 0.5 as a measured value on the families too short for them.
+   `classify`: constant one episode below it, varying at it. Since 2026-11-27 the five
+   external baselines in `src/rhob/detectors/external_baselines/`, which are on no
+   board (the HVTA bridge in `external/hvta/` scores them), declare one too and are held
+   to it by the same test: Page-Hinkley Test 3, Isolation Forest 2, AR(p) Residual
+   `order + 1` (6 by default), PCA Reconstruction `steady_window` (100 by default) and
+   Bayesian Online Changepoint Detection 5. The same test file fails on any exported
+   detector that is in neither of its tables. Until 2026-11-26 only Reward Skewness
+   declared a minimum, and the published boards carried the others' fallback 0.5 as a
+   measured value on the families too short for them.
 4. **Test it**: Create a test file following the CONTRIBUTING guide
 5. **Submit**: Open a PR with your new detector
 

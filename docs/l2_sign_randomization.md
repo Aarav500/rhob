@@ -40,6 +40,12 @@ coordinate flip of the axis the pair is defined on, not a per-run perturbation:
 
 Of the 33 registered families, 20 draw -1 at layout 0 and 13 draw +1.
 
+*(2026-11-27: until `827aec9`, `FamilyRegistry.generate_suite` dropped its `layout_seed`
+and stamped every pair it built with layout 0, so every one of the 20 replication draws
+made on 2026-08-04 was scored under these layout-0 signs, whatever layout seed it
+records. The flip itself always read the pair's own `layout_seed`; it was the suite that
+never passed a non-zero one.)*
+
 `rollout(..., randomize_sign=False)` and `Benchmark.evaluate(...,
 randomize_behav_sign=False)` reach the family's own coordinate. Two callers use it
 deliberately: the **admission gate**, which certifies the family's separability rather

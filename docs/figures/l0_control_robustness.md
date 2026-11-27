@@ -143,6 +143,17 @@ now), and the intervals of the five 100-episode detectors are wider, because the
 from 0.4966 [0.4934, 0.4999] on 2026-08-06, through 0.4972 [0.4939, 0.5005] after the
 Skewness re-score, to 0.4951 [0.4899, 0.5000] now.
 
+**The draws vary rollout seeds only (2026-11-27).** Every interval in this file is over
+the 20 draws made on 2026-08-04, and all 20 were built at layout 0: until `827aec9`,
+`FamilyRegistry.generate_suite` dropped its `layout_seed`, so draws 1 to 19 resampled
+only their rollout seeds, whatever layout seed they record
+(`leaderboard/v5_replicated.json` reads `layouts_resampled: false`). The intervals are
+over rollout seeds at one layout. For these L0 rows the behavioural sign a layout also
+sets does not matter, since `restrict()` hides `behav_trace` below L2, and the layout
+seed builds a different environment in two families only, `proxy_correlation_gaming` and
+`rlhf_reward_model_overopt`: 12 families never read it, and 19 use it only to offset
+their rollout seeds.
+
 Regenerate: `scripts/aggregate_replication.py` for the headline; this table is recomputed from
 `results/replication/replicate_*.json` per-family values with the ledger's degenerate set:
 per draw, the mean of the detector's non-null per-family values (a not-applicable family is

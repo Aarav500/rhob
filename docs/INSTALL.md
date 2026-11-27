@@ -67,7 +67,7 @@ end-to-end in a single runtime.
 |---|---|
 | `ModuleNotFoundError: rhob` | Run `pip install -e .` from the repo root, not a subdirectory. |
 | `ImportError: torch required` | Install the `continuous` extra, or use a non-PyTorch detector. |
-| Tests hang or take >10 min | You're likely running the full leaderboard/transfer scripts, not `pytest`. Those take hours by design — see [REPRODUCIBILITY.md](../REPRODUCIBILITY.md). |
+| Tests hang or take >10 min | You're likely running the full leaderboard or replication scripts, not `pytest`. Those take hours by design — see [REPRODUCIBILITY.md](../REPRODUCIBILITY.md). The cross-family transfer script takes minutes with torch on one thread (`OMP_NUM_THREADS=1`), and can take far longer with torch's default thread count on a busy machine. |
 | `pydantic` version conflicts | RHOB requires pydantic ≥ 2.0; check `pip show pydantic`. |
 
 ## Next Steps

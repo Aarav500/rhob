@@ -168,15 +168,27 @@ shorter, and that cell is `null` too, with the horizon as its reason. Reward Ske
 declares 100 and is `null` on the 59 cells of the 19 families that run 40 or 60
 episodes.
 
+The rule is one public function, `rhob.v3.benchmark.not_applicable_reason(detector,
+runs, level=None)` (2026-11-27). It returns `None` when `detector` can be scored on
+`runs` (already restricted to the level), and otherwise the reason string an artifact
+records. It checks the channels first (`missing_channels` over
+`required_channels(detector)`), then the shortest run against `min_episodes`.
+`Benchmark.evaluate` applies it to every cell, and `scripts/cross_family_transfer.py`
+applies it to its pooled fit and to every held-out cell (§7);
+`external/hvta/score_detectors.py` still applies only the channel check.
+
 The distinction is load-bearing, and it covers every detector on the board: each one
 whose `classify` returns a constant below some run length declares that length
 (`f83a152`), and `tests/test_detectors/test_min_episodes.py` holds each declaration to
 the code, so a number in `per_family` is a measurement. The five external baselines
-under `src/rhob/detectors/external_baselines/`, which ship but are not scored, do not
-declare one yet: PCA Reconstruction returns 0.5 on runs shorter than its 100-episode
-window, and the other four on runs of a few episodes. Until 2026-11-26 only Reward
-Skewness declared one, and the board regenerated on 2026-11-19 (`52656cb`) published the
-fallback of eight L0 detectors (Reward Peak, Reward Autocorrelation, Reward Trend and
+under `src/rhob/detectors/external_baselines/` are on no board (the HVTA bridge,
+`external/hvta/score_detectors.py`, scores them), and since 2026-11-27 they declare
+theirs too, held to the same rule by their own table in that test: Page-Hinkley Test 3,
+Isolation Forest 2, AR(p) Residual `order + 1` (6 by default), PCA Reconstruction
+`steady_window` (100 by default) and Bayesian Online Changepoint Detection 5. On the
+board, until 2026-11-26 only Reward Skewness declared one, and the board regenerated
+on 2026-11-19 (`52656cb`) published the fallback of eight L0 detectors (Reward Peak,
+Reward Autocorrelation, Reward Trend and
 Variance Window on the 19 short-horizon families; Max Plateau, Reward MLP, Gradient
 Reversal and Reward CUSUM on the 7 that run 40), three L2 detectors (Feature
 Consistency on the 19; Feature Magnitude and Reward-Feature Correlation on the 7) and
@@ -263,8 +275,9 @@ def min_episodes(self) -> int:
     The benchmark and the admission gate record a family whose runs are shorter
     as not applicable (null) instead of calling classify(). Override it whenever
     classify() falls back to a constant on short runs; every detector on the board
-    that does so declares it, and tests/test_detectors/test_min_episodes.py checks each
-    declaration against classify(): constant one episode below it, varying at it.
+    that does so declares it, as does every external baseline since 2026-11-27, and
+    tests/test_detectors/test_min_episodes.py checks each declaration against
+    classify(): constant one episode below it, varying at it.
     """
 ```
 
@@ -353,7 +366,7 @@ excluded: they stay in the L0 mean, and whether they should is an open question
 | Key | Meaning |
 |---|---|
 | `schema` | `"rhob.admission_ledger/1"` |
-| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform` and `cpu` to null and records them under `sharding` (shard count, time span, platforms, CPUs, CI run) |
+| `provenance` | git commit + dirty flag, Python, platform and CPU, package versions, `numerics` (§7; written since 2026-11-27, so the committed ledger has none), `argv`, scope, gate configuration; a ledger merged from single-cell shards sets `platform`, `cpu` and `numerics.cpu` to null and records them under `sharding` (shard count, time span, platforms, CPUs, CI run, and since 2026-11-27 `cpu_vendors`). The merge refuses shards whose `numerics.env` differ |
 | `design` | layouts, seeds/side, bootstrap resamples, margin, α, shape-detector panel, a-priori power |
 | `summary` | `n_cells`, `n_admitted`, `n_degenerate`, `n_not_admitted`, `n_failed_by_criterion`, `n_degenerate_by_criterion`, `n_not_established_by_criterion`, `degenerate_families` |
 | `results` | one record per (family, difficulty): `family`, `difficulty`, `passed`, `status`, `criteria`, `outcomes`, `degenerate_criteria`, `details`, `metrics`, `design`, `error` |
@@ -364,6 +377,23 @@ root seed `12345`; a cell certified on a different CPU model can differ in its l
 digits, and the committed ledger was merged from cells certified on seven
 (`provenance.sharding.cpus`). Failing **and** degenerate cells are recorded, never
 filtered — the ledger is the falsifiable form of the negative control.
+
+"Last digits" understates it in two measured places, both re-certified on another CPU
+model on the same lock: `eval_probe_sandbagging` moved a Reward KDE AUROC by 3.6e-4, and
+`rlhf_reward_model_overopt`, whose proxy is constant to within rounding, moved its mean
+L0 AUROC at 0.98 from 0.5000 to 0.4931, still DEGENERATE on informativeness.
+`tests/test_v3/test_ledger_reproduces.py` records both, and leaves both families out
+for that reason.
+
+Since 2026-11-27 the test suite holds the committed `results` to the code.
+`tests/test_v3/test_ledger_reproduces.py` re-certifies four registered families at every
+tier the ledger scores (20 cells, on every push) and one more cell nightly
+(`rlhf_feature_blindspot_gaming` at 0.80), with a gate built from the ledger's own
+`provenance.gate`. Statuses, outcomes and the masked `details` text must match exactly,
+and every number in `metrics` to within 5e-3 on rank statistics and 1e-9 relative
+elsewhere, tolerances set from drift measured across the CI lock and the unpinned
+Python 3.10 and 3.11 test legs. `tests/test_cannotfail_parity.py` re-certifies the six
+DEGENERATE families (two on every push, four nightly).
 
 The three per-criterion blocks in `summary` are **not** interchangeable and none of
 them is the old `n_failing_by_criterion`, which was removed when the tri-state landed
@@ -389,7 +419,7 @@ backward compatibility — `passed` is `status == "ADMITTED"`, so a `False` ther
 | Entry point | `tests/test_v3/admission_helpers.assert_smoke_admissible_at`, one case per scored tier | `AdmissionGate.certify_all_tiers` via `scripts/admission_ledger.py` |
 | Design | 12 layouts × 4 seeds/side (96 rollouts/cell) | 12 × 24 (576 rollouts/cell) |
 | Equivalence margin | `SMOKE_MARGIN` ≈ ±0.256 | `EQUIVALENCE_MARGIN` = ±0.10 |
-| Runs in CI | yes | on demand only (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell; not per push |
+| Runs in CI | yes | on demand only (`.github/workflows/regenerate.yml`, `workflow_dispatch`), one job per cell; not per push. Since 2026-11-27 every job there runs under the numerics pins (§7), after one `calibrate` job |
 | Issues ADMITTED | **no** | yes |
 
 `SMOKE_MARGIN` is `required_seeds_per_layout` inverted at the smoke design, not a
@@ -398,14 +428,17 @@ identity and `SMOKE_MARGIN > EQUIVALENCE_MARGIN`. A green family test is a scree
 against *large* leaks; where the screen and the ledger disagree, the ledger is
 authoritative.
 
-**Neither column is enforced over the registry, and the right-hand one is not exercised
-by the test suite at all.** 22 of the 33 registered families call
-`assert_smoke_admissible_at`, 11 do not, and 10 never reach `AdmissionGate` in any test.
-No test in `tests/` calls `certify_all_tiers` on a *registered* family — the two that
-exercise it use synthetic fixtures — so `scripts/admission_ledger.py` is the only
-caller that certifies real families. The ledger it writes covers all 33 since its
-2026-11-19 regeneration on CI, as a separate run rather than a test. Read a
-green suite as "the screens that exist passed", never as "every family is admitted".
+**Neither column is enforced over the registry.** 22 of the 33 registered families call
+`assert_smoke_admissible_at`, 11 do not, and 8 never reach `AdmissionGate` in any test
+(10 until 2026-11-27, when the ledger-reproduction test above began re-certifying
+`proxy_correlation_gaming` on every push and the cannotfail parity test
+`orbit_chirality` nightly). No test in `tests/` calls `certify_all_tiers` on a
+*registered* family — the two that exercise it use synthetic fixtures — and the tests
+that re-certify registered families only compare their certificates with the committed
+ledger, so `scripts/admission_ledger.py` is the only caller whose certificates are
+published. The ledger it writes covers all 33 since its 2026-11-19 regeneration on CI, as
+a separate run rather than a test. Read a green suite as "the screens that exist
+passed", never as "every family is admitted".
 
 ---
 
@@ -424,12 +457,50 @@ class LeaderboardEntry:
     detector_name: str                    # From detector.name
     access_level: str                     # 'L0', 'L1', 'L2', 'L3'
     author: str                           # Detector author (for attribution)
-    timestamp: str                        # ISO 8601 (YYYY-MM-DDTHH:MM:SSZ)
-    overall_auroc: float                  # Mean AUROC across all MEASURED cells
-    per_family_auroc: dict[str, float]    # family -> mean AUROC
-    per_mechanism_auroc: dict[str, float] # mechanism -> mean AUROC
-    per_difficulty_auroc: dict[str, float]# "0.60" (as string) -> mean AUROC
+    timestamp: str                        # ISO 8601, UTC (datetime.isoformat())
+    overall_auroc: Optional[float]        # Mean AUROC over the MEASURED cells; None if none
+    n_cells: int                          # Number of measured cells: overall_auroc's denominator
+    family_auroc: dict[str, float]        # family -> mean AUROC (default {})
+    mechanism_auroc: dict[str, float]     # mechanism -> mean AUROC (default {})
+    tier_auroc: dict[str, float]          # DifficultyTier name ("MEDIUM") -> mean AUROC (default {})
 ```
+
+This block listed `per_family_auroc`, `per_mechanism_auroc` and `per_difficulty_auroc`,
+and no `n_cells`, until 2026-11-27; the dataclass's fields are the ones above.
+`LeaderboardEntry.from_results` (and so `python -m rhob evaluate`) averages and counts
+only measured cells: since 2026-11-27 `n_cells` excludes not-applicable cells, and a run
+with no measured cell has `overall_auroc` `None` (`null`) and `n_cells` 0, never `NaN`.
+
+**Validation.** `rhob.v3.leaderboard.board.submission_problems(data)` returns why `data`
+is not a valid submission or board entry, and an empty list when it is. The four keys
+`detector_name`, `access_level`, `overall_auroc` and `n_cells` are required;
+`detector_name` is a non-empty string, `access_level` one of L0–L3, `overall_auroc` a
+finite number in [0, 1] or `null`, `n_cells` a non-negative integer (`bool` is refused
+for both numbers); `author` and `timestamp`, when present and not `null`, are strings;
+`family_auroc`, `mechanism_auroc` and `tier_auroc`, when present, map names to finite
+numbers in [0, 1], and the tier names are `DifficultyTier` names. Unknown keys are
+ignored. `strict_json_loads` refuses `NaN`, `Infinity` and `-Infinity`, which are not
+JSON. `python -m rhob validate` applies both (exit 1 on a problem), and so does
+`.github/workflows/leaderboard_validate.yml`, which runs it on submission pull requests.
+
+**The community board.** `Leaderboard.load(path)` reads an `{"entries": [...]}` board
+(an empty board when `path` does not exist) and raises `ValueError` on anything else:
+a file in another schema such as `leaderboard/v5_leaderboard.json`, invalid JSON (`NaN`
+included), or an entry that does not match `LeaderboardEntry` or fails
+`submission_problems`. It used to read a file in another schema as an empty board.
+`Leaderboard.dumps()` serializes with `allow_nan=False`, and `save` writes nothing when
+that raises. `python -m rhob submit SUBMISSION` records self-reported, single-draw
+submissions in `leaderboard/community/` (`board.json` plus `README.md`,
+`by_mechanism.md` and `by_difficulty.md` rendered from it), or in `--board-dir DIR`; it
+never writes the benchmark's own boards in `leaderboard/`. It fills a missing `author`
+(`"anonymous"`) and `timestamp` (the time of submission), applies `--name` and
+`--author`, validates again, and renders the board and all three tables before writing
+any of them. It refuses with exit 1, writing nothing, when the submission does not
+validate, when `board.json` is not a valid entries-schema board, or when `README.md`,
+`by_mechanism.md` or `by_difficulty.md` in the directory does not start with the
+community header (`# RHOB community submissions (self-reported, single draw)`); other
+files there are left alone. So `--board-dir leaderboard` is refused while the
+hand-written index `leaderboard/README.md` is there.
 
 ### `leaderboard/v5_leaderboard.json` artifact schema (additive, non-breaking)
 
@@ -437,11 +508,36 @@ Top-level blocks:
 
 | Key | Meaning |
 |---|---|
-| `provenance` | git commit / branch / dirty flag + dirty file list, Python and platform, tracked package versions, `argv`, `script` |
+| `provenance` | `generated_utc`, git commit / branch / dirty flag + dirty file list, Python and platform, tracked package versions, `numerics` (below; written since 2026-11-27, so an artifact stamped before then has no such key), `argv`, `script` |
 | `sampling` | the draw: `n_seeds_per_variant`, `n_layouts`, `layout_seeds`, the explicit rollout seed lists, `n_replicates`, `single_draw`, `shared_draw_across_detectors`, `confidence_intervals` (null), and a `note` |
 | `cell_semantics` | what a `null` per-family value means vs. a number |
 | `families_evaluated` | explicit list of families in the run |
 | `timestamp` | retained for backward compatibility with `rhob.v3.leaderboard.adapters` and `space/app.py`; mirrors `provenance.generated_utc` |
+
+`provenance.numerics` (`rhob.v3.provenance.numerics_block`) is in every block
+`provenance_block` stamps since 2026-11-27, in this board and in the other artifacts the
+scripts write. It records what chose the floating-point kernels:
+
+| Key | Meaning |
+|---|---|
+| `env` | each of `rhob.v3.calibration_cache.NUMERICS_ENV_VARS` (`OPENBLAS_CORETYPE`, `OPENBLAS_NUM_THREADS`, `MKL_CBWR`, `MKL_NUM_THREADS`, `OMP_NUM_THREADS`, `ATEN_CPU_CAPABILITY`), or `null` when unset. Every job of `.github/workflows/regenerate.yml` sets them to `Haswell`, `1`, `COMPATIBLE`, `1`, `1`, `avx2` |
+| `cpu` | from `/proc/cpuinfo` where it exists: `vendor`, `model`, `family`, `model_number`, `stepping`, `isa` (the kernel-relevant ISA flags present), `logical_cpus`, `source`; elsewhere only `model`, from `platform.processor()` |
+| `torch_imported` | whether the process had loaded torch when the block was stamped |
+| `torch_cpu_capability` | the ATen kernel level torch dispatches to (`"AVX2"` under the pin), read on every torch 2.x; `null` when torch was not imported |
+| `blas` | the BLAS and OpenMP libraries loaded, as threadpoolctl reports them (`user_api`, `internal_api`, `prefix`, `version`, `architecture`, `threading_layer`, `num_threads`); `architecture` is the kernel OpenBLAS selected (`"Haswell"` under the pin). `null` when threadpoolctl is unavailable |
+
+Two runs with equal `env` and equal `blas` architectures picked the same kernels; equal
+`cpu` is neither needed for that nor implied by it, and a claim that results agree across
+CPU vendors needs two artifacts whose `cpu.vendor` differ. `scripts/check_redraw.py`
+refuses a re-draw unless every file records the pins and the kernels show they took
+effect: ATen at `AVX2` wherever torch loaded, every OpenBLAS at `Haswell`.
+
+`scripts/v5_leaderboard_and_transfer.py --cells-out PATH` also writes the board's
+per-cell AUROCs to a sidecar, `{"provenance": ..., "cells": {detector: [...]}}`, whose
+`provenance` is the board's own block. It is not committed: the `redraw` mode of
+`regenerate.yml` uploads it beside the board, and `scripts/check_redraw.py` requires
+replicate 0 of the re-draw to equal it cell for cell (up to `--max-board-mismatch`
+cells).
 
 Per-detector keys under `results[detector]`:
 
@@ -459,22 +555,65 @@ Per-detector keys under `results[detector]`:
 parsers, including the Gradio Space. Not-applicable and unmeasurable both serialize
 to `null`.
 
-`leaderboard/cross_family_transfer.json` additionally carries
-`train_cells_measured`, `train_cells_not_applicable`,
-`train_families_not_applicable`, `train_families_excluded_from_pooled_fit` and
-`test_families_not_applicable`; its `per_family_transfer` values are `null` for
-not-applicable families, and its `sampling` block adds `model_init_trials` (the
-weight-init replication axis, default 5 — **distinct from** `n_replicates`, which
-is the environment draw and is 1), `test_seed_base` (50000), `n_seeds_test`,
-`rollout_seeds_hacking_test` and `rollout_seeds_legit_test`.
-
 **Consumers must treat `null` as "no measurement exists", not as 0.5, and must not
 count it in a denominator.**
 
+### Cross-family transfer artifact schema
+
+`scripts/cross_family_transfer.py` writes `leaderboard/cross_family_transfer_v5.json` by
+default (`rhob.v3.leaderboard.transfer.CURRENT_TRANSFER_ARTIFACT`). It refuses to
+overwrite `leaderboard/cross_family_transfer.json` (`HISTORICAL_TRANSFER_ARTIFACT`), the
+2026-07-09 record of what was published before sign randomization and the
+not-applicable rules. That file carries only the family lists, the design and each row's
+AUROCs and gap, with no `provenance`, `sampling`, `configs` or not-applicable
+bookkeeping.
+
+Top-level keys:
+
+| Key | Meaning |
+|---|---|
+| `train_families`, `test_families` | the 6 train families and the 8 held out |
+| `n_seeds_train`, `n_seeds_test`, `n_trials` | the design actually run |
+| `published_design` | `true` only for the published design: all four rows, both family lists, 10 train seeds, 20 test seeds, 5 trials. A reduced smoke run records `false` |
+| `configs` | `{"shipped": {"randomize_behav_sign": true, "detector_infers_orientation": true}}`, so the loader reads the file as the shipped configuration |
+| `provenance` | as above, with `wall_clock_s` per row |
+| `sampling` | as above, plus `model_init_trials` (the weight-init replication axis — **distinct from** `n_replicates`, which is the environment draw and is 1), `test_seed_base` (50000), `n_seeds_test`, `rollout_seeds_hacking_test` and `rollout_seeds_legit_test` |
+| `cell_semantics` | what a `null` and a number mean in each field |
+| `results` | one row each for Reward MLP, State Divergence, Trajectory MLP and Ensemble (Top 5) |
+
+Per-row keys. The three neural-net rows are repeated over `n_trials` model
+initialisations and report `_mean` (and, for the AUROCs, `_std`) forms of the keys below
+(`train_auroc_mean`, `per_family_transfer_mean`, `avg_transfer_auroc_mean`,
+`generalization_gap_pct_mean`), plus `n_trials`, `all_trial_train_aurocs`,
+`all_trial_transfer_aurocs` and `per_family_trials_not_applicable` (families not
+applicable in some trials but not all). State Divergence is fitted once and reports the
+plain forms.
+
+| Key | Meaning |
+|---|---|
+| `train_auroc` | 5-fold stratified cross-validated AUROC over the scored train cells, out of fold for every row, the ensemble included |
+| `train_cells_measured`, `train_cells_not_applicable`, `train_families_not_applicable`, `train_not_applicable_reasons` | the train cells `not_applicable_reason` left out, and why |
+| `train_families_excluded_from_pooled_fit`, `train_excluded_from_pooled_fit_reasons` | train families that contributed no runs to the frozen model's fit, and why |
+| `pooled_fit_error` | why the pooled fit produced no frozen model (for a multi-trial row, each failing trial's reason), else `null`; a fit that failed scores no held-out cell |
+| `per_family_transfer` | the frozen model's mean AUROC on each held-out family over its scored cells, or `null` |
+| `test_families_not_applicable`, `test_not_applicable_reasons` | held-out families with no scored cell, and why |
+| `per_family_cells_scored`, `per_family_cells_not_applicable`, `test_partial_not_applicable_reasons` | how many of each held-out family's difficulty cells its number is over and how many were left out, and the reasons for a family scored on some cells only (for a multi-trial row, the fewest scored and the most left out in any trial) |
+| `per_family_incompatible_runs` | runs on which the frozen model's `classify` raised because it cannot consume that family's version of the channel; such a family is not applicable, not scored at 0.5 |
+| `avg_transfer_auroc` (the RTS), `generalization_gap_pct` | over the scored held-out families; `null` when none was scored |
+
+`rhob.v3.leaderboard.transfer.load_transfer_results(path)` reads this file, the
+historical one, and the `transfer` block of `docs/figures/sign_randomization_impact.json`.
+Since 2026-11-27 `TransferRow` also carries `not_applicable_reasons`,
+`incompatible_runs`, `pooled_fit_error` and `records_na_reasons` (the row was written
+under the run-length and representational rules), and `TransferBoard` carries
+`git_dirty`, `published_design` and `applies_na_rules` (every row was).
+
 > `leaderboard/v5_leaderboard.json` carries `provenance`, `sampling` and
 > `cell_semantics` since its 2026-11-19 regeneration (`52656cb`).
-> `leaderboard/cross_family_transfer.json` predates `src/rhob/v3/provenance.py`, has
-> not been regenerated, and does not yet carry them. `admission/admission_ledger.json`
+> `leaderboard/cross_family_transfer.json` predates `src/rhob/v3/provenance.py` and is
+> kept unchanged as the historical record, so it does not carry them;
+> `scripts/cross_family_transfer.py` writes all three into
+> `leaderboard/cross_family_transfer_v5.json`. `admission/admission_ledger.json`
 > carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors

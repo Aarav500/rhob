@@ -499,24 +499,30 @@ serial on purpose: `generate_pair` derives the calibration and returns closures 
 rolling anything out, so this costs the calibrations only, and it stops four workers
 deriving the same amplitude at the same moment.
 
-```bash
-python scripts/warm_calibration_cache.py
-```
+Run both commands in one shell, under the same numerics variables:
 
 ```bash
+export OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 MKL_CBWR=COMPATIBLE \
+       MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 ATEN_CPU_CAPABILITY=avx2
+python scripts/warm_calibration_cache.py
 pytest tests/ -m slow -n 4 --durations=15
 ```
 
-Cap the BLAS threads when you do — one thread per core *per process* is the default, and
-with `-n 4` that oversubscribes badly:
+Those six variables are part of every calibration's cache key (since 2026-11-27), so
+a warm pass under one setting and a test run under another miss every entry: the warm
+is wasted and each worker derives its calibrations again. The thread caps also matter
+on their own. One BLAS thread per core *per process* is the default, and with `-n 4`
+that oversubscribes badly. The values above are the portable-numerics pins every job of
+`.github/workflows/regenerate.yml` sets, which are meant for x86-64. On another
+architecture, export only the three thread counts, the same way for both commands.
 
-```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 pytest tests/ -m slow -n 4
-```
-
-Calibrations are cached under `.rhob_cache/` (gitignored), keyed on a hash of the
-defining family module, so editing a family invalidates its entries automatically. If a
-calibration is ever suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
+Calibrations are cached under `.rhob_cache/` (gitignored). The key hashes the code of the
+defining family module and of every `rhob` module it imports, transitively, with
+docstrings and comments excluded; the installed versions of the numerical stack; the
+Python minor version; the machine architecture; and those six variables (`"unset"` when
+absent). So editing a family's code, or a helper it imports, invalidates its entries
+automatically, and a docstring or comment edit does not. If a calibration is ever
+suspected, `RHOB_CALIB_CACHE=0` bypasses the disk layer entirely.
 
 ### Manual Validation Checklist
 - [ ] Family generates deterministic pairs (same seed = same run)

@@ -38,10 +38,23 @@ Or from the GitHub UI: Actions -> "deploy-space" -> Run workflow -> enter the Sp
 ID (e.g. `Aarav500/rhob-leaderboard`).
 
 This copies `space/app.py`, `space/requirements.txt`, `space/README.md` (the HF Space
-metadata card), and a snapshot of `leaderboard/*.json` into the Space repo. The Space
-then installs `rhob` itself from this repository's `main` branch (see
-`space/requirements.txt`) so `app.py` can use `rhob.v3.leaderboard` normally, exactly as
-it does when run locally.
+metadata card), a snapshot of the `leaderboard/` directory, and
+`docs/figures/sign_randomization_impact.json` (into `figures/`) into the Space repo. The
+transfer panel reads `leaderboard/cross_family_transfer_v5.json` when the snapshot has
+it, and otherwise that figures file. The Space then installs `rhob` itself from this
+repository, so `app.py` can use `rhob.v3.leaderboard` normally, exactly as it does when
+run locally.
+
+The installed `rhob` is the commit you deployed from. `space/requirements.txt` in the
+repository names `main`, so a local `pip install -r space/requirements.txt` tracks
+`main`; the workflow rewrites that line in its staged copy to the deploying commit
+(`rhob @ git+https://github.com/<repo>.git@<sha>`), so the Space's app and its `rhob`
+are always one commit, however far `main` has moved when the Space next rebuilds.
+Deploying from a branch other than `main` is allowed, with a warning in the run log: the
+Space then depends on that commit staying reachable on GitHub. The workflow also checks
+that `space_repo` has the form `OWNER/NAME` and that `HF_TOKEN` is set before it uploads
+anything, and installs `huggingface_hub` 1.33.0, the last 1.x release, inside the
+`space` extra's `<2` range.
 
 ## Keeping it up to date
 
