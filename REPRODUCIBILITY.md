@@ -41,7 +41,9 @@ This document explains how to reproduce every result RHOB publishes.
 > `git show 4728596:scripts/populate_leaderboard_v32.py`.
 > `leaderboard/cross_family_transfer.json` is now kept unchanged as the 2026-07-09 record:
 > `scripts/cross_family_transfer.py` writes
-> `leaderboard/cross_family_transfer_v5.json` instead and refuses to overwrite it (see
+> `leaderboard/cross_family_transfer_v5.json` instead and refuses to overwrite it. The
+> first such file, run 45987934132 at eaa75f8 from a clean tree under the numerics pins,
+> was committed in 9c038f6 (see
 > [Table 2](#table-2-cross-family-transfer-auroc-section-63)).
 > `leaderboard/v5_replicated.json` now has a `provenance` block, stamped from a clean tree
 > at f192797 under the numerics pins (eaa75f8), and a `replicates` block that tallies its 20
@@ -79,8 +81,9 @@ dependency of the `dev`, `continuous`, `mujoco` and `pettingzoo` extras at one v
 with sha256 hashes, including torch from PyPI. It does not install on macOS, Windows, ARM
 or another Python. It is the stack the 2026-11-15 verification run (43679157068) installed
 and passed every slow screen on. `admission/admission_ledger.json`, regenerated on
-2026-11-19 (run 44447220658), and `leaderboard/v5_leaderboard.json`, re-scored on
-2026-11-26 (run 45747902322), record its versions in their provenance blocks. [requirements/README.md](requirements/README.md) says how it is generated,
+2026-11-19 (run 44447220658), `leaderboard/v5_leaderboard.json`, re-scored on
+2026-11-26 (run 45747902322), and `leaderboard/cross_family_transfer_v5.json`, written on
+2026-11-27 (run 45987934132), record its versions in their provenance blocks. [requirements/README.md](requirements/README.md) says how it is generated,
 what was checked and how to regenerate it.
 
 **2. `requirements-lock.txt`, a record of direct dependencies from July 2026.**
@@ -97,8 +100,8 @@ The admission ledger of 2026-08-03 recorded nine package versions, and the eight
 rhob match this file. The ledger regenerated on 2026-11-19 records the CI lock's versions
 (option 1) instead, so this file is no longer the closest match for it. It is not a
 record of what produced the committed `leaderboard/*.json` either: of those,
-`v5_leaderboard.json` carries environment metadata in the file itself, and it records
-the CI lock; `v5_replicated.json` has carried a block of its own since 2026-11-27, which
+`v5_leaderboard.json` and `cross_family_transfer_v5.json` carry environment metadata in
+the file itself, and both record the CI lock; `v5_replicated.json` has carried a block of its own since 2026-11-27, which
 records the environment that aggregated the draws (the CI lock's versions), not the one
 that drew them; its 20 inputs record Python 3.11.15 and numpy 2.4.6, and
 `scripts/merge_rescored_detector.py` appends to them a `rescored` entry per detector it
@@ -133,7 +136,9 @@ the last digits or more. The calibration cache keys on them too, so calibrations
 with and without them never share an entry: warm the cache under the values you then run
 with. They do not cover numpy's own SIMD dispatch. `tests.yml` sets none of them, and no
 artifact stamped before 2026-11-27 records a `numerics` block, `v5_leaderboard.json`
-(2026-11-26) and the admission ledger (2026-11-19) among them.
+(2026-11-26) and the admission ledger (2026-11-19) among them. `cross_family_transfer_v5.json`
+and `v5_replicated.json`'s own block, both stamped on 2026-11-27, record the six pins;
+`v5_replicated.json`'s 20 inputs record no `numerics`.
 
 With any of the three:
 
@@ -146,10 +151,11 @@ Versions and seeds:
   still declares `requires-python = ">=3.10"` and CI tests 3.10. But numpy 2.4.3, scipy
   1.17.1 and scikit-learn 1.8.0, the versions in `requirements-lock.txt`, each require
   Python >= 3.11, so that stack cannot be installed on 3.10. The admission ledger
-  regenerated on 2026-11-19 and the v5 board re-scored on 2026-11-26 record the CI lock's
+  regenerated on 2026-11-19, the v5 board re-scored on 2026-11-26 and the v5 transfer
+  artifact of 2026-11-27 record the CI lock's
   numpy 2.5.4 and scipy 1.18.1, which require Python >= 3.12. A green CI run on 3.10
   resolves older numeric libraries
-  than either artifact records and is **not** evidence that their numbers reproduce. Reconciling
+  than any of them records and is **not** evidence that their numbers reproduce. Reconciling
   the declared support surface with reality is an open decision. See the header of
   `requirements-lock.txt`.
 - **Seed strategy**: Deterministic global RNG seeding via `numpy.random.default_rng(seed)` per run
@@ -433,7 +439,9 @@ python scripts/plot_v5_results.py
 The script skips this figure when that file is absent, and it never plots
 `leaderboard/cross_family_transfer.json`, the run of 2026-07-09, made before the
 behavioral sign was randomized. The committed `docs/figures/v5_transfer.png` was drawn
-from that 2026-07-09 file (d872916).
+from that 2026-07-09 file (d872916). `cross_family_transfer_v5.json` has been committed
+since 9c038f6, so the next run of this command redraws the figure from it; until then the
+figure shows the 2026-07-09 numbers, not Table 2's first table.
 
 **What it shows:**
 - Train AUROC (Families 1–6, in-distribution 5-fold CV) vs transfer (8 held-out families)
@@ -488,10 +496,13 @@ guide printed `--n-seeds-train 15`, which does not match the shipped file.)
   50-episode windows of Reward MLP, State Divergence and the ensemble, so Reward MLP and
   the ensemble are scored over the other 21 train cells, and State Divergence, which also
   needs `state_counts`, over `gridworld_camping`'s one
-- **Fitting:** Pool the runs of the train families that pass the not-applicable rule for
-  the detector being fitted (`rhob.v3.benchmark.not_applicable_reason`; the others are
-  listed in `train_families_excluded_from_pooled_fit`), across all difficulties, and fit
-  each detector once. Reward MLP's and State Divergence's fits already dropped runs
+- **Fitting:** Pool the runs of the train families that pass the not-applicable rule
+  (`rhob.v3.benchmark.not_applicable_reason`) for the detector being fitted (for the
+  Top-5 ensemble, its Trajectory MLP member, which needs 2 episodes, so
+  `continuous_camping` stays in the ensemble's pool although its own train cells there
+  are not applicable; the families left out are listed in
+  `train_families_excluded_from_pooled_fit`), across all difficulties, and fit each
+  detector once. Reward MLP's and State Divergence's fits already dropped runs
   shorter than their windows, so leaving `continuous_camping` out does not change their
   frozen models
 - **Transfer eval:** Evaluate frozen models on the 8 held-out families without retraining.
@@ -502,7 +513,32 @@ guide printed `--n-seeds-train 15`, which does not match the shipped file.)
 - **Replication:** neural detectors are refit across `--n-trials` (default 5)
   independently-seeded weight initializations and reported as mean ± std
 
-**Committed results** (the 2026-07-09 artifact, `leaderboard/cross_family_transfer.json`,
+**Committed results** (`leaderboard/cross_family_transfer_v5.json`, run 45987934132 at
+eaa75f8 from a clean tree under the numerics pins, committed in 9c038f6; mean ± std over
+5 model-init trials, in the shipped, sign-randomized configuration):
+
+| Detector | Access | Train AUROC | Transfer AUROC (RTS) |
+|---|---|---|---|
+| Reward MLP | L0 | 0.441 ± 0.018 | 0.474 ± 0.004 |
+| State Divergence | L1 | 1.000 (one train cell, `gridworld_camping`) | n/a (no held-out family scored) |
+| Trajectory MLP | L2 | 0.878 ± 0.004 | 0.700 ± 0.022 |
+| Ensemble (Top 5) | L2 | 0.682 ± 0.003 | 0.512 ± 0.011 |
+
+The train figures are over 21 train cells for Reward MLP and the ensemble and 25 for
+Trajectory MLP (see Training above). The three seeded rows score every difficulty cell of
+all eight held-out families. A transfer mean near 0.5 is not chance on each family: the
+ensemble's 0.512 averages 1.000 on `goal_misgeneralization` and `distributional_shift`,
+0.946 on `reward_channel_tampering` and 0.920 on `eval_probe_sandbagging` with 0.000 on
+`physics_exploitation` and `rlhf_reward_model_overopt`, 0.033 on
+`sensor_calibration_tampering` and 0.200 on `monitored_sandbagging`, families on which
+the frozen model ranks the legitimate runs above the hacking ones in all or most pairs.
+Trajectory MLP's 0.700 includes 0.000 on `monitored_sandbagging` and 0.243 on
+`reward_channel_tampering` (`per_family_transfer_mean`). The file's `sampling.note` gives the null SE at n=m=5,
+0.19, as every single-draw artifact's note did until d85a60c; this run's train cells hold
+10 runs per variant and its held-out cells 20, where the Mann–Whitney null SE of one
+cell's AUROC is 0.13 and 0.09. A file regenerated since d85a60c states its own figures.
+
+**The 2026-07-09 artifact** (historical, `leaderboard/cross_family_transfer.json`,
 written by the script at d872916, before behavioral sign randomization and the
 not-applicable rules; the script no longer writes it):
 
@@ -513,27 +549,32 @@ not-applicable rules; the script no longer writes it):
 | Trajectory MLP | L2 | 0.879 ± 0.002 | 0.931 ± 0.026 |
 | Ensemble (Top 5) | L2 | 0.965 ± 0.001 | 0.994 ± 0.002 |
 
+The two tables differ in more than the behavioral sign: the v5 run also applies the
+not-applicable rules, cross-validates the ensemble's train figure out of fold, and runs
+under the numerics pins, so no single change accounts for a row's difference.
+
 **What this experiment does not establish.** All 14 train and test families were
 written by the same authors under the same construction recipe, and all share one
 `behav_trace` convention (anti-symmetric, ~0 pre-onset, opposite signs
 post-onset). This measures transfer *within a recipe*, not generalization to
-mechanisms nobody designed. The L0 row sitting at chance is the matched-proxy negative
-control reappearing, not a finding about that access level, and only where the proxy
-was measured matched. The ledger marks
+mechanisms nobody designed. The L0 row sitting near chance, in both artifacts, is the
+matched-proxy negative control reappearing, not a finding about that access level, and
+only where the proxy was measured matched. The ledger marks
 6 of the 14 families DEGENERATE at every tier (`shortcut_exploitation` and
 `orbit_chirality` in train; `physics_exploitation`, `distributional_shift`,
 `monitored_sandbagging` and `rlhf_reward_model_overopt` in test), so on those L0 at
-chance is the tie convention, not evidence of matching; Reward MLP transfers at exactly
-0.500 to all four of those test families. Three more fail a proxy criterion:
-`reward_channel_tampering` (test) fails `proxy_distribution_matched` at 4 of its 5
-tiers, `goal_misgeneralization` (test) at 0.60 and `continuous_camping` (train) at 0.90.
-Reward MLP's train figure also includes `continuous_camping`'s 4 cells, whose 40-episode
-runs are below its 50-episode window, so it returns its fallback 0.5 there; the script
-now leaves those cells out (see Training above).
+chance is the tie convention, not evidence of matching; in both artifacts Reward MLP
+transfers at exactly 0.500 to all four of those test families. Three more fail a proxy
+criterion: `reward_channel_tampering` (test) fails `proxy_distribution_matched` at 4 of
+its 5 tiers, `goal_misgeneralization` (test) at 0.60 and `continuous_camping` (train) at
+0.90. In the 2026-07-09 artifact Reward MLP's train figure also includes
+`continuous_camping`'s 4 cells, whose 40-episode runs are below its 50-episode window,
+so it returns its fallback 0.5 there; the v5 artifact leaves those cells out (see
+Training above).
 
 The L1 row is not a negative control: State Divergence reads `state_counts`, not the
-proxy. Its 0.500 is not a measurement either. `monitored_sandbagging` and
-`eval_probe_sandbagging` emit no `state_counts`. On the other six test families the
+proxy. In the 2026-07-09 artifact its 0.500 is not a measurement either.
+`monitored_sandbagging` and `eval_probe_sandbagging` emit no `state_counts`. On the other six test families the
 frozen model's centroids are 49-bin `gridworld_camping` histograms (the 40-episode
 `continuous_camping` runs are below the detector's 50-episode baseline, so they add
 none), those families' histograms have 2 to 10 bins, `classify` raises, and the script
@@ -542,9 +583,14 @@ such run 0.5 rather than crash. Its train 0.520 is a mean over 25 cells, 24 of t
 that fallback: the 20 of the four train families that emit no `state_counts` and
 `continuous_camping`'s 4. The one measured cell is `gridworld_camping`'s. On those six
 test families the single-draw board
-measures State Divergence in-distribution at 0.888 to 1.0. This artifact predates the
-N/A schema. The script now records a cell whose runs raise as `null` and counts those
-runs in `per_family_incompatible_runs`, instead of scoring them 0.5.
+measures State Divergence in-distribution at 0.888 to 1.0. The 2026-07-09 artifact
+predates the N/A schema. The script now records a cell whose runs raise as `null` and
+counts those runs in `per_family_incompatible_runs`, instead of scoring them 0.5. In the
+v5 artifact every held-out family of the L1 row is `null`: the six whose histograms the
+frozen model cannot consume, with 200 incompatible runs each (every run of their five
+cells), and the two without `state_counts` for lacking the channel, so
+`avg_transfer_auroc` is `null`. Its train
+1.000 is `gridworld_camping`'s one cell; the other 24 train cells are not applicable.
 - **Detectors:**
   - Reward MLP (L0): supervised NN on reward time series
   - State Divergence (L1): supervised nearest-centroid on state-visitation histograms
@@ -631,8 +677,8 @@ python scripts/v5_leaderboard_and_transfer.py
   the case.)
 
 `--cells-out PATH` also writes every detector's per-cell AUROCs to a sidecar that carries
-the board's own `provenance` block. Nothing in the repository reads it; it is what
-`scripts/check_redraw.py` compares with replicate 0 of a re-draw
+the board's own `provenance` block. It is not committed; `scripts/check_redraw.py` reads
+it in a re-draw's merge and holds replicate 0 to it cell for cell
 ([below](#regenerating-v5_replicatedjson-20-draws)).
 
 **Runtime:** ~2–3 hours on CPU
@@ -657,9 +703,12 @@ ran on only if every detector scored, the tree was clean, the recorded commit is
 dispatched one and the recorded numerics are the pins. It is one job on purpose: the 30
 detectors are scored on the same rollouts, shared in-process, so the cost is the rollouts
 and calibrations, paid once. Split by detector, every job would pay all of it again and
-each detector would be scored on a different machine's rollouts. Each long compute step
-times out at 330 minutes, inside its job's 350, so a step that runs out of time only
-fails and the upload after it still keeps what it computed. The same workflow certifies
+each detector would be scored on a different machine's rollouts. The long compute steps
+of `board`, `redraw`, `transfer` and `signrand` each time out at 330 minutes, inside
+their job's 350, so a step that runs out of time only fails and the upload after it
+still keeps what it computed; the ledger's and `replicated`'s steps have no step timeout
+and upload only on success, since a partial cell or re-score is never usable. The same
+workflow certifies
 the admission ledger one cell per runner (see [The Admission Ledger](#the-admission-ledger)).
 
 ### The sampling caveat that governs every cell
@@ -700,8 +749,9 @@ on 2026-11-19, and `admission/admission_ledger.json` carries `provenance`.
 **`leaderboard/cross_family_transfer.json` carries none of them and never will**: it
 predates the module and is kept unchanged as the 2026-07-09 record.
 `scripts/cross_family_transfer.py` writes all three into
-`leaderboard/cross_family_transfer_v5.json`, the file `.github/workflows/regenerate.yml`'s
-`transfer` mode commits.
+`leaderboard/cross_family_transfer_v5.json`, committed by
+`.github/workflows/regenerate.yml`'s `transfer` mode in 9c038f6 (run 45987934132, at
+eaa75f8, under the numerics pins).
 
 A block as the module writes it today (Linux, the CI lock's versions, under the numerics
 pins):
@@ -1095,7 +1145,7 @@ assert det1.classify(some_run) == det2.classify(some_run)
 
 ## Test Suite
 
-1540 tests collected on 2026-11-27, 99 of them marked `slow` and deselected by default
+1546 tests collected on 2026-11-27 (at d85a60c), 99 of them marked `slow` and deselected by default
 (see `tests/` for the full suite):
 
 ```bash
@@ -1690,15 +1740,17 @@ could test for it.
 
    - `requirements/ci-admission-linux-py312.txt` is the nightly physics screen's stack,
      exact and hashed, for Linux x86_64 and CPython 3.12. The admission ledger,
-     regenerated on 2026-11-19, and `leaderboard/v5_leaderboard.json`, re-scored on
-     2026-11-26, record its versions.
+     regenerated on 2026-11-19, `leaderboard/v5_leaderboard.json`, re-scored on
+     2026-11-26, and `leaderboard/cross_family_transfer_v5.json`, written on 2026-11-27,
+     record its versions.
    - `requirements-lock.txt` lists the direct dependencies **found present on
      2026-07-29**, not a certified provenance chain, and it pins nothing transitive. The
      admission ledger of 2026-08-03 recorded eight package versions besides rhob, and all
      eight match it; the ledger regenerated since records the CI lock instead.
-   - Of the committed `leaderboard/*.json`, `v5_leaderboard.json` carries environment
-     metadata in the file itself, and `v5_replicated.json` has carried its aggregation's
-     own block since 2026-11-27. `v5_replicated.json`'s 20 inputs under
+   - Of the committed `leaderboard/*.json`, `v5_leaderboard.json` and
+     `cross_family_transfer_v5.json` (run 45987934132, committed in 9c038f6) carry
+     environment metadata in the file itself, and `v5_replicated.json` has carried its
+     aggregation's own block since 2026-11-27. `v5_replicated.json`'s 20 inputs under
      `results/replication/` record theirs (Python 3.11.15, numpy 2.4.6, no git commit, no
      numerics; each detector re-score merged into them, such as Reward Skewness's of
      2026-09-03, records its own source environment in a `rescored` entry; the 19 of
@@ -1814,15 +1866,16 @@ struck through, as a record; every other item is a real remaining limit.
   default) and Bayesian Online Changepoint Detection 5.
 
 **Provenance**
-- Of the committed `leaderboard/*.json`, only `v5_leaderboard.json` carries the
-  `provenance`/`sampling`/`cell_semantics` blocks (since 2026-11-19), and
+- Of the committed `leaderboard/*.json`, `v5_leaderboard.json` (since 2026-11-19) and
+  `cross_family_transfer_v5.json` (since 2026-11-27, run 45987934132 at eaa75f8,
+  committed in 9c038f6) carry the `provenance`/`sampling`/`cell_semantics` blocks, and
   `v5_replicated.json` its aggregation's `provenance` (since 2026-11-27). Its 20 inputs
   record no commit and no numerics and carry rows merged in after the draw, so its
   `replicates.single_source` is false.
   `cross_family_transfer.json` (2026-07-09) predates `src/rhob/v3/provenance.py` and is
   kept unchanged as the historical record, so it will not acquire them;
   `scripts/cross_family_transfer.py` writes them into `cross_family_transfer_v5.json`,
-  which `.github/workflows/regenerate.yml`'s `transfer` mode commits.
+  committed by `regenerate.yml`'s `transfer` mode in 9c038f6.
 
 **Future improvements**
 - Replicate the leaderboard draw and publish confidence intervals

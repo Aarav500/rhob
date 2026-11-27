@@ -489,9 +489,8 @@ tolerances set from the drift measured across the CI lock and the unpinned Pytho
 and 3.11 jobs. The binding detector a `proxy_distribution_matched` verdict names is chosen
 by rank too, so it must match exactly only where the ledger's choice is clear by more than
 0.01 (twice the rank tolerance); elsewhere any detector within 0.01 of the ledger's worst
-gap is accepted. The one
-(criterion, outcome) pair those four do not reach, a measured `proxy_matched` FAIL, is
-re-certified nightly on `rlhf_feature_blindspot_gaming` at 0.80.
+gap is accepted. The one (criterion, outcome) pair those four do not reach, a measured
+`proxy_matched` FAIL, is re-certified nightly on `rlhf_feature_blindspot_gaming` at 0.80.
 
 The ledger reports three outcomes per cell, and the headline is all three of them.
 **Of the 123 cells in scope, 42 are ADMITTED, 30 are DEGENERATE, and 51 are NOT ADMITTED.**

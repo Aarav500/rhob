@@ -17,7 +17,8 @@ length declared, and those figures supersede the 2026-11-19 ones too; see the 20
 entry below.)* *(2026-11-27: the 20 draws behind the replicated board were all built at
 layout 0, so its intervals carry no layout variation, and Bayesian Online Changepoint
 Detection's HVTA figures were those of a constant score and are re-scored on HVTA's
-primary draw; see the 2026-11-27 entries.)*
+primary draw and its three other channels, though not on its three replicate seed draws;
+see the 2026-11-27 entries.)*
 
 ### Fixed (2026-11-27): the layout seed never reached the families, so the 20 draws all ran at layout 0
 
@@ -106,10 +107,11 @@ step `t`. With a constant hazard that is the hazard itself at every step, so eve
 scored 0.004, its onset rule could never fire, and its published HVTA AUROCs were 0.500
 on every cell of the Sudoku draw and, on the other channels, a ranking of rounding noise.
 It now returns the score its docstring specifies, `1 − P(no changepoint over the run)`,
-and onset is the first step at which that exceeds 0.5 (`827aec9`). Past 500 episodes,
-where the run-length truncation can drop the full-length hypothesis, a dropped hypothesis
-now stays dropped, rather than whichever survivor is last being read as "no change". A
-hazard outside (0, 1) raises `ValueError`; it used to produce −inf or NaN.
+and onset is the first step at which that exceeds 0.5 (`827aec9`). The new score reads
+the full-length hypothesis, which the run-length truncation can drop past 500 episodes.
+Once dropped it stays dropped (`P(no change)` = 0), so the last surviving hypothesis is
+never read as "no change". A hazard outside (0, 1) raises `ValueError`; it used to
+produce −inf or NaN.
 
 On HVTA (`external/hvta/`) the primary Sudoku pairs draw was re-scored for this detector
 alone by the new `rescore_detector.py`, which merges one detector's rows into
@@ -224,9 +226,9 @@ reason, instead of scoring it:
   `classify` raises; `per_family_incompatible_runs` counts the runs. Those runs used to
   score 0.5. State Divergence's frozen 49-bin gridworld centroids raised on every run of
   the six held-out families that emit `state_counts`, so its flat 0.500 transfer row in
-  both committed measurements, `leaderboard/cross_family_transfer.json` (2026-07-09) and
-  the `before` configuration of `docs/figures/sign_randomization_impact.json`
-  (2026-08-03), was imputed, not measured;
+  both earlier measurements, `leaderboard/cross_family_transfer.json` (2026-07-09) and
+  the `before` configuration of `docs/figures/sign_randomization_impact.json` as
+  committed on 2026-08-03 (`b77d50d`), was imputed, not measured;
 - the pooled fit failed or left the detector untrained, so nothing frozen exists to
   transfer (`pooled_fit_error`).
 
@@ -241,7 +243,7 @@ train AUROC, which `Benchmark.evaluate` computes, leaves its cells out too for R
 State Divergence and the ensemble, which need 50 episodes; the 2026-08-03
 measurement scored them at the fallback. The Top-5 ensemble's train AUROC is now
 cross-validated: `FoldFittedEnsemble` refits its Trajectory MLP member on each training
-fold. In both committed measurements that figure was in-sample for the member, which had
+fold. In both earlier measurements that figure was in-sample for the member, which had
 been fitted on exactly the runs it was then scored on. The ensemble's transfer score does
 not depend on the wrapper.
 
@@ -252,7 +254,13 @@ which names the file `CURRENT_TRANSFER_ARTIFACT`, reads it as the shipped config
 It also carries a `published_design` flag, the per-row reasons and counts above, and
 `pooled_fit_error`. The script refuses to overwrite
 `leaderboard/cross_family_transfer.json`, kept as the 2026-07-09 record
-(`HISTORICAL_TRANSFER_ARTIFACT`). Under the CI pins, with torch on one thread, the
+(`HISTORICAL_TRANSFER_ARTIFACT`). Its sampling note gives the Mann–Whitney null standard
+error at the artifact's own seed counts (`d85a60c`, `rhob.v3.provenance.null_auroc_se`):
+0.13 at the 10 train seeds and 0.09 at the held-out cells' 20. Until then every
+single-draw artifact's note said 0.19 at n=m=5 whatever its `n_seeds`, which is right
+only for the board's 5 seeds; the board's note does not change.
+`cross_family_transfer_v5.json` as committed in `9c038f6` was written before `d85a60c`
+and still reads 0.19. Under the CI pins, with torch on one thread, the
 published design took 5m23s on a 4-core machine. The documented 1–2 h came
 mostly from torch's default thread count on a busy machine, where one trial's Trajectory
 MLP train AUROC alone took 489 s; the rollout cache only stops trials and rows from
@@ -350,8 +358,8 @@ Elsewhere:
   only superseded pull-request runs cancelled, and `admission-slow` on `ubuntu-24.04`. A
   scheduled failure opens one tracking issue ("Nightly tests are failing"), closed when a
   scheduled run passes again. `cannotfail.yml` does the same weekly ("Weekly cannotfail
-  check is failing") and gains a concurrency group and timeouts; so does
-  `cannotfail-release.yml`.
+  check is failing") and gains a concurrency group and timeouts; `cannotfail-release.yml`'s
+  jobs gain timeouts.
 - `drift.yml` installs and tests on `ubuntu-24.04` too. `leaderboard_validate.yml` skips
   deleted submissions and passes refs and paths through the environment.
 - `deploy_space.yml` pins `huggingface_hub` 1.33.0 (unpinned, it installed 2.x, outside
@@ -435,8 +443,9 @@ a `|` cannot shift a column. The submit tests call `main()` in process, keeping 
   timeout.
 - `test_the_committed_aggregate_is_what_the_aggregator_writes` compares the JSON trees
   with `math.isclose` (relative 1e-9, absolute 1e-12) and everything else exactly. With
-  `==` it turned the Python 3.10 and 3.11 pytest legs red on `827aec9`: CPython 3.10's
-  twice-rounded `statistics.stdev` and numpy release drift moved 59 floats in the last bit.
+  `==` it turned the Python 3.10 and 3.11 pytest legs red on `827aec9` (run 45975486312):
+  under those legs' Pythons and older numpy, 94 and 38 floats differed in their last
+  digits, by at most 2.5e-14 relative, and no key, string, integer or boolean differed.
   It skips, giving the reason, where the label-fitted partition is not the pinned one
   (torch absent).
 
@@ -583,9 +592,13 @@ L2 max (0.9430 [0.9380, 0.9478]), L3 (0.9746 [0.9712, 0.9778]) and L3 − L2 on 
   higher in 13 of 20 draws, with a lower end just above zero), so that rung's direction
   depends on the statistic and both must be quoted. Since `bfac304`,
   `statistic_disagreement` lists it under `rungs_where_max_and_mean_disagree_on_direction`
-  instead. `statistic_disagreement` is computed for the all-detector board only. In the
-  unsupervised partition, the L1 minus L0 step separated under neither statistic before
-  the re-score and now separates under one (next bullet).
+  instead. `statistic_disagreement` is computed for the all-detector board only.
+  *(2026-11-27: `scripts/aggregate_replication.py` now computes it for the unsupervised
+  partition too, as `supervision.statistic_disagreement_unsupervised_only`; for the
+  2026-08-04 draws it lists `L1_minus_L0` under separation, the step in the next bullet.
+  See the 2026-11-27 layout-seed entry above.)* In the unsupervised partition, the L1
+  minus L0 step separated under neither statistic before the re-score and now separates
+  under one (next bullet).
 - **The unsupervised L1 minus L0 step now separates on maxima, below zero, and not on
   means.** On maxima, −0.0174 [−0.0391, +0.0017], positive in 4 of 20 draws, did not
   exclude zero; −0.0293 [−0.0537, −0.0051], positive in 5 of 20, does: without the five
@@ -1513,12 +1526,18 @@ a single cell is **≈ 0.19** (corrected 2026-08; this entry originally said 0.1
 was wrong — the Mann–Whitney null is `sqrt((n+m+1)/(12nm))` = 0.191 at n=m=5), and
 every detector is scored on the identical rollouts
 so their differences are not independent measurements. The block says so in a
-`note` field rather than leaving it to be reconstructed from script source.
+`note` field rather than leaving it to be reconstructed from script source. *(2026-11-27:
+the note said 0.19 at n=m=5 whatever the artifact's `n_seeds`; it now gives the figure at
+the artifact's own seed counts (`d85a60c`), and is unchanged on the board's 5 seeds; see
+the 2026-11-27 transfer entry above.)*
 
 `cross_family_transfer.json`'s sampling block additionally carries
 `model_init_trials` (the weight-init replication axis, default 5 — **distinct
 from** `n_replicates`, the environment draw, which is 1), `test_seed_base` (50000),
-`n_seeds_test` and the test rollout seed lists.
+`n_seeds_test` and the test rollout seed lists. *(2026-11-27: the committed 2026-07-09
+`cross_family_transfer.json` has no sampling block. `scripts/cross_family_transfer.py`
+writes these keys to `leaderboard/cross_family_transfer_v5.json`; see the 2026-11-27
+transfer entry above.)*
 
 **Not yet applied to the committed leaderboard.** `leaderboard/v5_leaderboard.json`
 and `leaderboard/cross_family_transfer.json` predate the module and acquire these
@@ -1550,6 +1569,10 @@ detectors and every L1 detector still write their fallback 0.5 on a family short
 their windows; see the 2026-11-19 regeneration entry above.)* *(2026-11-26: every one of
 them now declares `min_episodes` (`f83a152`), and those cells are `null` on both re-scored
 boards and in `external/hvta/channels_results.json`; see the 2026-11-26 entry above.)*
+*(2026-11-27: the committed 2026-07-09 `cross_family_transfer.json` never gained the
+`train_*`/`test_*` keys. `scripts/cross_family_transfer.py` now writes them, with the
+sampling block, to `leaderboard/cross_family_transfer_v5.json`; see the 2026-11-27
+transfer entry above.)*
 
 ### Changed: documentation reframed
 
@@ -1662,10 +1685,11 @@ Stated because the point of this entry is not to claim the benchmark is now soun
   that cell is N/A on both boards.)* *(2026-11-27: `cross_family_transfer.json` is kept
   as the 2026-07-09 record and is not regenerated; see the 2026-11-27 transfer entry
   above.)*
-- **Five external baseline detectors ship but are scored nowhere.** *(2026-11-27: they are
-  on neither board, but are scored on HVTA (`external/hvta/`), where Bayesian Online
-  Changepoint Detection's score was a constant until the 2026-11-27 fix. All five now
-  declare `min_episodes`; see the 2026-11-27 BOCPD entry above.)*
+- **Five external baseline detectors ship but are scored nowhere.** *(2026-11-27: none is
+  on either board. Four are scored on HVTA (`external/hvta/`), where Bayesian Online
+  Changepoint Detection's score was a constant until the 2026-11-27 fix. PCA
+  Reconstruction, an L1 detector, is N/A there, since HVTA emits no `state_counts`. All
+  five now declare `min_episodes`; see the 2026-11-27 BOCPD entry above.)*
 - **Hacking policies remain scripted** in 28 of 33 families. Nothing in this
   remediation changes what that limits RHOB to concluding. *(Corrected to 26 of 33 in
   `9e2f068`; see `docs/THREAT_MODEL.md` §3.)*
