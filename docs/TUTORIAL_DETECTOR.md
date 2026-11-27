@@ -116,7 +116,8 @@ strongest signal of whether a detector learned something general or just
 memorized one mechanism. `scripts/cross_family_transfer.py` measures its four
 reference rows (Reward MLP, State Divergence, Trajectory MLP and the Top-5 L2
 ensemble), not your detector: to transfer yours, add it as a row there (`ROWS`,
-`ROW_LEVELS`, `ROW_FACTORIES`).
+`ROW_LEVELS`, `ROW_FACTORIES`, and `MULTI_TRIAL_ROWS` if its fit is seeded, so it is
+repeated over the trials).
 
 ```bash
 OMP_NUM_THREADS=1 python scripts/cross_family_transfer.py --out /tmp/transfer.json

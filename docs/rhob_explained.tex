@@ -342,9 +342,12 @@ You asked this straight, so here is what I have and what I do not.
 
 \subhead{What backs it up}
 The comparison is like for like. The randomisation is a single flag. Turn it off
-and 0.994 comes back exactly. And 0.508 is not one trained model. It is the mean of
-three trials, which train the networks from three different random starting points
-on the same runs, and the three land between 0.499 and 0.514.
+and 0.994 comes back exactly. And 0.508 does not rest on one trained model. It and
+the 0.994 are the transfer score of one detector, which combines five L2 detectors.
+Four of them are fixed formulas; the fifth, Trajectory MLP, is a network trained on
+labels. 0.508 is the mean of three trials. Each trains that network from a different random seed, which
+sets its starting weights and the order it sees the training runs in. The runs are
+the same in all three, and the three land between 0.499 and 0.514.
 
 Until 27 November 2026 this paragraph said I had repeated the whole transfer
 measurement 20 times, with 95\% intervals. That was wrong. The 20 repeats are of the
@@ -391,7 +394,9 @@ sign for each family, whatever layout it records. Only the rollout seeds changed
 layout seed also does less than its name suggests: two families build a different
 setup from it (an item grid in one, the fitted reward model in the other), twelve
 ignore it, and the other nineteen use it only to shift their rollout seeds. What it
-changes in every family is the sign the family is scored under.
+does reach in every family is the sign the family is scored under: each layout seed
+draws that sign again, so at any one layout other than 0 about half the families get
+the opposite sign to the one they have at layout 0.
 
 \heading{Five of the thirty}
 \label{h:five}
@@ -759,18 +764,22 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       longer marks it that way, though it still cannot fail on the 118. I
       keep the short name so old links work, and the long name should not be used.
 \item \textbf{The entry checks are only partly covered by my own tests.} Until 27
-      November 2026 the full check was never run on a real registered family
-      anywhere in the test suite; the two tests that touched it used made-up
-      fixtures. Now two tests re-run it on real families, at the ledger's own
-      settings. One takes four families through every difficulty the ledger scores,
-      20 cells, on every push, plus one more cell nightly. It fails unless every
-      verdict matches the ledger exactly and every number matches it to within a
-      tolerance set from the drift I measured across machines and Python versions.
-      The other re-runs the six families whose cells could not be measured, two on
-      every push and four nightly, and checks that each cell still cannot be.
-      Between them they cover nine of the 33 families. For the other 24, a green
-      test suite still means ``the screens that exist passed'', not ``the families
-      are checked''.
+      November 2026 no test compared what the checks find with the ledger. Two tests
+      ran them at the ledger's settings on one cell each of two real families, and
+      checked that each gave the verdict written into the test. The two that run
+      them across every difficulty use made-up families, and still do. Now two more
+      tests re-run the checks on real families at the ledger's settings and compare
+      the results with the ledger. One takes four families through every difficulty
+      the ledger scores, 20 cells, on every push, plus, nightly, one cell of a fifth
+      family. It fails unless every verdict matches the ledger exactly and every
+      number matches it to within a tolerance set from the drift I measured across
+      machines and Python versions. The other re-runs the six families whose cells
+      could not be measured, two on every push and four nightly, and checks that
+      each cell still cannot be. Two of the six are among the first test's four, so
+      between them they re-run 41 of the 123 cells, in nine of the 33 families, one
+      of them at a single cell. Everywhere else, apart from the one other cell the
+      older tests run, a green test suite still means ``the screens that exist
+      passed'', not ``the cells are checked''.
 \end{itemize}
 
 \heading{Your questions, and where I answered them}
@@ -816,8 +825,12 @@ files that matter:
       measure, including the scripted-policy limit.
 \item \code{src/rhob/v3/sign\_randomization.py} for the fake 0.994, written up at
       the top of the file.
-\item \code{docs/figures/sign\_randomization\_impact.md} for the before-and-after
-      measurement behind 0.994, 0.508 and the L2 averages.
+\item \code{docs/figures/sign\_randomization\_impact.md}, and its \code{.json} for
+      the three trials, for the before-and-after measurement behind 0.994, 0.508
+      and the L2 averages.
+\item \code{leaderboard/cross\_family\_transfer\_v5.json} for a re-run of the
+      transfer score alone on 27 November 2026, with the randomisation on and five
+      trials.
 \item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
 \item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
       four levels and the run format.

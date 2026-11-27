@@ -14,6 +14,9 @@
 
 - [ ] Implements `PosthocDetector` with the correct `access_level`
 - [ ] Added to `src/rhob/detectors/__init__.py` exports
+- [ ] Declares `min_episodes` for any run length below which `classify` is constant,
+      and is in the tables of `tests/test_detectors/test_min_episodes.py` (see
+      CONTRIBUTING.md, Step 3: Add to Exports)
 - [ ] Tests added under `tests/test_detectors/`
 
 ## If this adds a family

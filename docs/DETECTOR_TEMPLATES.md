@@ -369,10 +369,13 @@ class FeatureDriftDetector(PosthocDetector):
    board (the HVTA bridge in `external/hvta/` scores them), declare one too and are held
    to it by the same test: Page-Hinkley Test 3, Isolation Forest 2, AR(p) Residual
    `order + 1` (6 by default), PCA Reconstruction `steady_window` (100 by default) and
-   Bayesian Online Changepoint Detection 5. The same test file fails on any exported
-   detector that is in neither of its tables. Until 2026-11-26 only Reward Skewness
-   declared a minimum, and the published boards carried the others' fallback 0.5 as a
-   measured value on the families too short for them.
+   Bayesian Online Changepoint Detection 5. The same test file fails on any
+   `PosthocDetector` defined under `rhob.detectors` that is not exported, and on any
+   exported one that is in neither of its tables (the abstract base and
+   `EnsembleDetector`, which need constructor arguments, are named exceptions); see
+   Next Steps below. Until 2026-11-26 only Reward Skewness declared a minimum, and the
+   published boards carried the others' fallback 0.5 as a measured value on the
+   families too short for them.
 4. **Test it**: Create a test file following the CONTRIBUTING guide
 5. **Submit**: Open a PR with your new detector
 
@@ -380,6 +383,12 @@ class FeatureDriftDetector(PosthocDetector):
 
 After creating your detector:
 - Add to `src/rhob/detectors/__init__.py` __all__
+- Add the class to `_CLASSES` and its `min_episodes` (0 if it declares none) to
+  `_DECLARED` in `tests/test_detectors/test_min_episodes.py`. That table must also list
+  exactly the detectors on the committed `leaderboard/v5_leaderboard.json`, so a
+  detector that is not yet on the board fails one test or the other; how a new detector
+  should pass the suite before the board includes it is open (CONTRIBUTING.md, Step 3:
+  Add to Exports)
 - Create corresponding test file
 - Run `pytest tests/test_detectors/test_lX_your_detector.py -v`
 - Submit PR with link to design discussion (if applicable)
