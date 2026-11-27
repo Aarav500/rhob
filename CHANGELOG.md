@@ -175,7 +175,9 @@ and `ATEN_CPU_CAPABILITY=avx2`, set workflow-wide. Without them OpenBLAS, MKL an
 pick kernels by whichever CPU a hosted runner has, and threaded reductions sum in an order
 that depends on the thread count, so two runners can disagree in the last bits of one fit,
 and a re-draw runs on 21 runners. Haswell and AVX2 are the newest kernels every x86-64
-hosted runner has, Intel or AMD.
+hosted runner has, Intel or AMD. *(The pins do not make torch training identical across CPU
+vendors: `continuous_camping`'s camper trained to different weights on Intel and AMD
+runners under them. See the next entry.)*
 
 For a reader of the published numbers: the artifacts committed before this change were
 computed without the pins and record no `numerics` block (the re-stamp of
@@ -211,6 +213,49 @@ calibrations derived with and without the pins never share an entry: a local
 those variables, or with none of them set for either. Every calibrated family's key
 changes once with this release, and CI's calibration tarball starts a new `calib-v2`
 series, so the first CI run on it recalibrates cold.
+
+### Fixed (2026-11-27): `continuous_camping`'s camper trained differently on Intel and AMD runners; the family now loads frozen weights
+
+The first re-draw under the pins (run 45995235365, at `d85a60c`) was refused by
+`scripts/check_redraw.py`. 14 of its 15 checks passed; the one that failed is the check
+that replicate 0 equals the board, the same draw scored by two jobs on two runners. 16 of
+the 3,690 cells differed, all of them on `continuous_camping`. Behavioral Threshold and
+Perfect Feature Oracle scored 1.0 on one runner and 0.0 on the other at difficulty 0.9, and
+True Reward Oracle 0.96 and 0.84 at 0.8. No other family differed in any cell.
+
+The family trained its DQN camper, `rhob.agents.dqn.train_camper(seed=0)`, in every
+process that rolled it out. A diagnostic run (46007050078) trained it on 20 hosted runners
+under the pins. Every Intel runner (Xeon 6975P, 8573C, 8370C) produced the same weights.
+Every AMD runner (EPYC 7763, 9V45, 9V74) produced the same weights as the other AMD
+runners and different ones from Intel's. Three extra settings, tried one at a time on AMD
+runners, left the AMD weights unchanged: numpy's AVX-512 kernels disabled, oneDNN capped
+at AVX2, and MKL capped at AVX2. The RL loop turns a difference in the last bit of training
+into a different policy. Nothing else in the benchmark trains a feedback loop like it, and
+every detector, the fitted ones included, scored the other 32 families identically on the
+two runners.
+
+The family now loads frozen weights, `rhob/environments/continuous/frozen_camper.py`
+(`ddc8ab5`), written by the new `scripts/freeze_camper.py`. They are the weights
+`train_camper(seed=0)` produces under the pins on an Intel CPU, stored as base64 float32
+bytes and checked against their sha256 on load. The script refuses to write weights that
+do not match what the Intel runners trained. On Intel nothing moves: locally, the 120
+`continuous_camping` cells of the board are identical with trained and frozen weights.
+AMD runners now use the same weights. A second diagnostic run (46009249347) rolled the
+family out at all four scored difficulties on 16 runners, Intel Xeon 6975P and 8573C and
+AMD EPYC 7763, 9V45 and 9V74, and every runner gave the same rollouts at every
+difficulty. `tests/test_v3/test_frozen_camper.py` pins the digest and the layout, and
+checks that the family never trains. A slow test, which runs on Intel under the pins,
+checks that training still reproduces the weights.
+
+For a reader of the published numbers: every artifact committed before `ddc8ab5` that
+includes `continuous_camping` holds the camper its runner trained. Those artifacts are
+the board of 2026-11-26 (`f83a152`, unpinned), the 2026-08-04 draws, and the admission
+ledger's four `continuous_camping` cells (certified unpinned). Their `continuous_camping`
+figures depend on which CPU vendor ran them, and on the kernel level without the pins. The
+cross-family transfer artifact (`7d34989`, at `d85a60c`) ran on an Intel runner under the
+pins, so its camper, `continuous_camping` being a training family, is the frozen one. The
+legacy scripts that build the v1 pairs (`scripts/validate_pair_0*.py`,
+`scripts/generate_eval_data.py`) still train their own campers.
 
 ### Fixed (2026-11-27): cross-family transfer and the sign-randomization measurement leave what they cannot measure N/A, and both scripts run again
 

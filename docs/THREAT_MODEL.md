@@ -87,7 +87,8 @@ and a 20-episode forced exploration burst after it
 set to 0 the learner still finds the tile on 40 of 40 seeds, and the onset label
 dissolves: SD 76.5 episodes, bimodal (`results/emergent_pilot/README.md`, c6bb6f6).
 `continuous_camping` contains a pre-trained DQN (`rhob.agents.dqn.train_camper`), but
-that network was trained on a generic navigate-and-hold task and then frozen, and the
+that network was trained on a generic navigate-and-hold task and then frozen (its weights
+are committed, `rhob/environments/continuous/frozen_camper.py`, since 2026-11-27), and the
 switch to camping is triggered at an authored `activation_episode`, so nothing discovers
 the hack there. Seven families contain a learner; in six of them (`gridworld_camping`
 and the five below) an optimizer finds the exploit.
