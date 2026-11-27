@@ -41,8 +41,10 @@ column labelled as superseded:
    not-applicable rules of 2026-11-27 (a family a detector cannot be scored on, by channel,
    run length or representation, is N/A rather than 0.5).
 2. Otherwise the ``after`` configuration of ``docs/figures/sign_randomization_impact.json``,
-   labelled *pre-declaration* while it predates those rules (it was measured on
-   2026-08-03, before the detectors declared ``min_episodes`` on 2026-11-26).
+   labelled *pre-declaration* only while its rows predate those rules. The measurement
+   committed on 2026-08-03 did, since it was made before the detectors declared
+   ``min_episodes`` on 2026-11-26; the one that replaced it on 2026-11-27 (``0ff0d42``,
+   measured at ``54cd63c``) records them, so it is served without the label.
 
 If neither is present the panel says so and renders nothing -- it deliberately does not
 fall back to the superseded 2026-07-09 artifact.
@@ -105,7 +107,8 @@ _PUBLISHED_TRANSFER_DATE = "2026-07-09"
 _CURRENT_TRANSFER_FILE = _LEADERBOARD_DIR / Path(CURRENT_TRANSFER_ARTIFACT).name
 
 #: The measured before/after sign-randomization artifact, which is where this page's
-#: transfer numbers come from. Written by ``scripts/measure_sign_randomization.py``. The
+#: transfer numbers come from when the current transfer artifact above is absent.
+#: Written by ``scripts/measure_sign_randomization.py``. The
 #: Space deploy step stages it next to the app (see .github/workflows/deploy_space.yml).
 _CANDIDATE_FIGURE_DIRS = [
     _HERE / "figures",  # deployed Space
