@@ -40,10 +40,10 @@ ID (e.g. `Aarav500/rhob-leaderboard`).
 This copies `space/app.py`, `space/requirements.txt`, `space/README.md` (the HF Space
 metadata card), a snapshot of the `leaderboard/` directory, and
 `docs/figures/sign_randomization_impact.json` (into `figures/`) into the Space repo. The
-transfer panel reads `leaderboard/cross_family_transfer_v5.json` when the snapshot has
-it, and otherwise that figures file. The Space then installs `rhob` itself from this
-repository, so `app.py` can use `rhob.v3.leaderboard` normally, exactly as it does when
-run locally.
+transfer panel reads `leaderboard/cross_family_transfer_v5.json`, committed since
+2026-11-27, and falls back to that figures file only for a snapshot without it. The
+Space then installs `rhob` itself from this repository, so `app.py` can use
+`rhob.v3.leaderboard` normally, exactly as it does when run locally.
 
 The installed `rhob` is the commit you deployed from. `space/requirements.txt` in the
 repository names `main`, so a local `pip install -r space/requirements.txt` tracks

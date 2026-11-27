@@ -195,7 +195,8 @@ Consistency on the 19; Feature Magnitude and Reward-Feature Correlation on the 7
 every L1 detector on `continuous_camping` (it emits `state_counts`, and all 8 L1
 detectors read exactly 0.500 on it, but its 40 episodes are below each one's window) as
 measured 0.5s. On the re-scored boards (`03d978e` for the single draw) those cells are
-`null` with the horizon as the reason. Outside the L0 cells of the six DEGENERATE
+`null` with the horizon as the reason, and so they are on the re-drawn boards that
+replaced them on 2026-11-27 (`b93c351`). Outside the L0 cells of the six DEGENERATE
 families, where 0.5 is the tie convention, a `0.5` in an artifact means *"measured, and
 at chance"*.
 
@@ -205,9 +206,10 @@ pre-audit board (`git show c54a8cc:leaderboard/v5_leaderboard.json`, the board a
 stood before the 2026-11-19 regeneration) the best L1 detector read 0.621 over all 123
 cells. The re-scored board (`03d978e`) records those 88 cells as `null`, and
 `continuous_camping`'s 4 as `null` on the horizon, and scores that detector, State
-Divergence, over the remaining 31 cells (7 families) at 0.982; the 2026-11-19 board
-(`52656cb`), with `continuous_camping`'s four fallback 0.5s still in, read 0.927 over
-35.
+Divergence, over the remaining 31 cells (7 families) at 0.982. The re-drawn board
+(`b93c351`), the current single draw, records the same 92 `null`s and reads the same
+0.982 over the same 31 cells; the 2026-11-19 board (`52656cb`), with
+`continuous_camping`'s four fallback 0.5s still in, read 0.927 over 35.
 
 ---
 
@@ -528,16 +530,26 @@ scripts write. It records what chose the floating-point kernels:
 
 Two runs with equal `env` and equal `blas` architectures picked the same kernels; equal
 `cpu` is neither needed for that nor implied by it, and a claim that results agree across
-CPU vendors needs two artifacts whose `cpu.vendor` differ. `scripts/check_redraw.py`
-refuses a re-draw unless every file records the pins and the kernels show they took
-effect: ATen at `AVX2` wherever torch loaded, every OpenBLAS at `Haswell`.
+CPU vendors needs two artifacts whose `cpu.vendor` differ. In one place equal kernels did
+not give equal results across vendors: under the pins, `continuous_camping`'s DQN camper
+trained to different weights on Intel and AMD runners, so since 2026-11-27 (`ddc8ab5`)
+the family loads frozen weights (`src/rhob/environments/continuous/frozen_camper.py`,
+written by `scripts/freeze_camper.py`) instead of training them.
+`scripts/check_redraw.py` refuses a re-draw unless every file records the pins and the
+kernels show they took effect: ATen at `AVX2` wherever torch loaded, every OpenBLAS at
+`Haswell`.
 
 `scripts/v5_leaderboard_and_transfer.py --cells-out PATH` also writes the board's
 per-cell AUROCs to a sidecar, `{"provenance": ..., "cells": {detector: [...]}}`, whose
 `provenance` is the board's own block. It is not committed: `regenerate.yml` uploads it
 beside the board in every mode that scores one (`board`, `both` and `redraw`), and in
 `redraw` `scripts/check_redraw.py` requires replicate 0 of the re-draw to equal it cell
-for cell (up to `--max-board-mismatch` cells).
+for cell (up to `--max-board-mismatch` cells, default 0). That check refused the first
+re-draw under the pins (run 45995235365, at `d85a60c`): 16 `continuous_camping` cells
+differed, the camper above. The committed re-draw (`b93c351`, run 46011019246 at
+`54cd63c`) passed it with the board scored on an AMD runner and replicate 0 on an Intel
+one: two artifacts whose `cpu.vendor` differ, equal cell for cell. Its 20 draws ran on
+12 Intel and 8 AMD runners.
 
 Per-detector keys under `results[detector]`:
 
@@ -615,8 +627,10 @@ under the run-length and representational rules), and `TransferBoard` carries
 > kept unchanged as the historical record, so it does not carry them;
 > `scripts/cross_family_transfer.py` writes all three into
 > `leaderboard/cross_family_transfer_v5.json`, which carries them since its first CI run
-> (`9c038f6`, 2026-11-27); the committed file is `7d34989` (CI run 45995248987 at
-> `d85a60c`, `published_design` true). `admission/admission_ledger.json`
+> (`9c038f6`, 2026-11-27) and is the current transfer artifact. The committed file is
+> `02c0475` (CI run 46011034429 at `54cd63c`, `published_design` true), numerically
+> identical to `9c038f6` and to `7d34989` (CI run 45995248987 at `d85a60c`); all three
+> ran on Intel runners under the pins. `admission/admission_ledger.json`
 > carries `provenance` and its own `design` block, not `sampling` or `cell_semantics`.
 
 ### Aggregation contract: duplicate detectors

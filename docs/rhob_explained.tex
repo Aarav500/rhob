@@ -157,7 +157,10 @@ gridworld, where a simple learner finds the cheat, though I chose the episode it
 becomes available (250) and forced 20 episodes of exploration right after, so I
 still decide when it starts. But the hole they find, and the label saying which arm
 is which, are still mine. In the seventh the network was trained on a different task
-and then frozen, and it switches to cheating at an episode I wrote down.
+and then frozen, and it switches to cheating at an episode I wrote down. Since 27
+November 2026 its weights are stored in the repo. Until then the code trained it again,
+from the same seed, every time the family was used, and that training came out
+different on Intel and AMD machines (page \pageref{h:repeats}).
 
 So what does the benchmark show? It shows what you could detect \emph{in principle}
 from each kind of information. It does not show what real trained agents leave
@@ -212,7 +215,7 @@ No real monitoring system gets the true reward. If you had it you would not need
 detector. L3 is there as a ceiling, to say how well detection could possibly do on
 these tasks. It should never be quoted as a practical result. It is not a strict
 ceiling either: over the 20 repeats the best state-count detector, State Divergence,
-which is trained on labels, scores 0.998 against the oracle's 0.975. But it is scored
+which is trained on labels, scores 0.998 against the oracle's 0.979. But it is scored
 on 31 cells in 7 families and the oracle on 123 in 33, so the two are not like for
 like.
 
@@ -382,16 +385,24 @@ label''.
 \subhead{What confidence from twenty repeats means}
 \phantomsection\label{h:repeats}%
 I scored the whole benchmark 20 times, all 30 detectors on the whole board each
-time, which is 600 detector passes. Each summary number I quote from the repeats is the
-average over those 20. Its 95\% interval is the middle 95\% of the averages I get by
-resampling the 20 repeats with replacement. So it says how far that number moves when
-the random runs are drawn again.
+time, which is 600 detector passes. Each repeat is built at a layout of its own,
+layouts 0 to 19, with rollout seeds of its own. Each summary number I quote from the
+repeats is the average over those 20. Its 95\% interval is the middle 95\% of the
+averages I get by resampling the 20 repeats with replacement. So it says how far that
+number moves when the layout and the random runs are drawn again.
 
-It does not say how far the number moves when the layout changes. The 20 repeats in
-the repo were drawn while a bug dropped the layout seed before it reached the
-families, so every one of them was built at layout 0, and scored under layout 0's
-sign for each family, whatever layout it records. Only the rollout seeds changed. The
-layout seed also does less than its name suggests: two families build a different
+Until 27 November 2026 it did not say that. The 20 repeats then in the repo had been
+drawn while a bug dropped the layout seed before it reached the families, so every
+one of them was built at layout 0, and scored under layout 0's sign for each family,
+whatever layout it records. Only the rollout seeds changed. All 20 have since been
+drawn again, at one version of the code, with the layouts reaching the families, and
+the first of them, at layout 0, gives back the public table cell for cell. The first
+try at that was refused, because the two did not match on 16 cells of
+\code{continuous\_camping}: the network in that family, trained afresh every time the
+family was used, came out with different weights on Intel and AMD machines. It now
+loads stored weights instead.
+
+The layout seed also does less than its name suggests: two families build a different
 setup from it (an item grid in one, the fitted reward model in the other), twelve
 ignore it, and the other nineteen use it only to shift their rollout seeds. What it
 does reach in every family is the sign the family is scored under: each layout seed
@@ -431,10 +442,10 @@ Split the two kinds of detector apart, on the same 20 repeats:
 \toprule
 Level & Best of all detectors & Best of the fixed-formula ones \\
 \midrule
-L0 (reward only)      & 0.5713 & 0.5677 \\
+L0 (reward only)      & 0.5755 & 0.5699 \\
 L1 (+ state counts)   & 0.9984 & 0.5384 \\
-L2 (+ behaviour)      & 0.9430 & 0.5990 \\
-L3 (+ true reward)    & 0.9746 & 0.9746 \\
+L2 (+ behaviour)      & 0.9466 & 0.6082 \\
+L3 (+ true reward)    & 0.9789 & 0.9789 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
@@ -447,11 +458,11 @@ And each step of the ladder, best detector against best detector, measured acros
 \toprule
 Step & Detectors & Gap [95\% interval] & Repeats where the step held \\
 \midrule
-L1 $-$ L0 & all            & $+0.427$ \ $[+0.417,\ +0.439]$ & 20 of 20 \\
-L1 $-$ L0 & fixed-formula  & $-0.029$ \ $[-0.054,\ -0.005]$ & 5 of 20 \\
+L1 $-$ L0 & all            & $+0.423$ \ $[+0.413,\ +0.433]$ & 20 of 20 \\
+L1 $-$ L0 & fixed-formula  & $-0.032$ \ $[-0.055,\ -0.009]$ & 4 of 20 \\
 \addlinespace
-L2 $-$ L1 & all            & $-0.055$ \ $[-0.061,\ -0.050]$ & 0 of 20 \\
-L3 $-$ L2 & all            & $+0.032$ \ $[+0.027,\ +0.037]$ & 20 of 20 \\
+L2 $-$ L1 & all            & $-0.052$ \ $[-0.058,\ -0.046]$ & 0 of 20 \\
+L3 $-$ L2 & all            & $+0.032$ \ $[+0.025,\ +0.039]$ & 19 of 20 \\
 \bottomrule
 \end{tabular}
 \vspace{0.3em}
@@ -460,7 +471,7 @@ Read the first two rows together. The gap flips sign, and its interval sits belo
 zero: without the detectors trained on labels, the best fixed-formula state-count
 detector does measurably worse than the best reward-only one, on far fewer families
 (7, against up to 27). Averaged over detectors instead, the two do not separate
-($-0.002$ \ $[-0.022,\ +0.017]$), so whether state counts sit measurably below
+($-0.005$ \ $[-0.024,\ +0.014]$), so whether state counts sit measurably below
 reward-only depends on the statistic, and neither answer should be quoted alone. The
 whole published climb from reward-only to state counts was one detector that had been
 trained on labels. That is a real result about my benchmark. It is not the result the
@@ -469,13 +480,13 @@ ladder was being read as, and nobody could have got it out of a single-column ta
 The third row matters too. The step from state counts to behaviour runs backwards:
 the best L1 detector is above the best L2 one in all 20 repeats, and the interval
 leaves out zero. Averaged over detectors it runs forwards instead,
-$+0.012$ \ $[+0.001,\ +0.023]$, so which way this step points depends on the statistic
+$+0.026$ \ $[+0.010,\ +0.044]$, so which way this step points depends on the statistic
 too. The best-detector reading does not mean behaviour tells you less than state counts
 do.
 The best L1 detector is State Divergence, trained on labels, at 0.998 on 31 cells in
-7 families; the best L2 one is Trajectory MLP at 0.943 on 123 cells in 33. They are
+7 families; the best L2 one is Trajectory MLP at 0.947 on 123 cells in 33. They are
 not scored on the same cells, so the two are not like for like, and the 0.998 is
-above even the oracle's 0.975.
+above even the oracle's 0.979.
 
 \heading{What I meant by admission criteria}
 \label{h:checks}
@@ -722,13 +733,23 @@ All in one place, so you do not have to trust me to bring them up one at a time.
 \item \textbf{All 30 detectors share that one draw}, so their cell values move
       together and their differences are not independent.
 \item \textbf{The set I check is not the set I score.} The entry checks average
-      over 12 layouts. The public table uses one, and so do the 20 repeats in the
-      repo, which were all built at layout 0 (page \pageref{h:repeats}).
+      over 12 layouts. The public table uses one, and each of the 20 repeats uses one
+      of its own, layouts 0 to 19 (page \pageref{h:repeats}). Until 27 November 2026
+      the repeats in the repo were all built at layout 0.
 \item \textbf{L0 sitting at chance is a control, not a discovery.} The families are
       \emph{built} so reward-only detectors cannot work. An earlier version of my
       README reported this as a finding that ``reward-only monitoring fails''. That
       was wrong. It is only useful in the failure direction: an L0 detector going
-      above chance means the construction leaked.
+      above chance means the construction leaked. On the 20 repeats, 12 of the 13
+      reward-only detectors have a 95\% interval with 0.5 in it. The thirteenth,
+      Reward CUSUM, is at 0.486 $[0.475,\ 0.497]$, wholly below 0.5: it tells the two
+      arms apart weakly, in the direction that would not flag the cheating one.
+      Before the re-draw of 27 November 2026 all 13 intervals held 0.5. Whether a
+      detector below chance counts against the control is open. The best of the 13
+      in each repeat averages 0.575 $[0.565,\ 0.586]$, which leaves out 0.5, but it is
+      the largest of 13 numbers, picked after the fact, and picking the largest pushes
+      it up by itself. The average over the 13 is 0.498 $[0.492,\ 0.504]$, with 0.5
+      inside it, not at its edge.
 \item \textbf{Some of the 0.5s were not measurements.} Until 26 November 2026 eight
       of my reward-only detectors did not say how many episodes they need. On
       families too short for their windows (7 or 19 of the 27 I keep) they returned a
@@ -742,7 +763,10 @@ All in one place, so you do not have to trust me to bring them up one at a time.
       20-repeat L0 mean moved from 0.4972 to 0.4951 $[0.4899,\ 0.5000]$, an interval
       that holds 0.5 only at its very top; the single-draw one moved from 0.4876 to
       0.4834. Taking the fixed score out of \code{continuous\_camping} is what moved
-      the best state-count detector from 0.942 to 0.998.
+      the best state-count detector from 0.942 to 0.998. Since the re-draw of 27
+      November 2026 the 20-repeat L0 mean is 0.4977 $[0.4918,\ 0.5036]$, an interval
+      with 0.5 inside it rather than at its top, and the single-draw one is 0.4835;
+      the best state-count detector is still at 0.998.
 \item \textbf{One row in the table is a duplicate.} The detector I labelled
       ``Perfect Feature Oracle'' at L3 is a subclass of an L2 detector that
       overrides only its name and its level. It never reads the true reward. It
@@ -830,7 +854,8 @@ files that matter:
       and the L2 averages.
 \item \code{leaderboard/cross\_family\_transfer\_v5.json} for a re-run of the
       transfer score alone on 27 November 2026, with the randomisation on and five
-      trials.
+      trials. It was run three times that day, on Intel machines, and came out the
+      same to every digit.
 \item \code{src/rhob/v3/admission\_gate.py} for the entry checks.
 \item \code{src/rhob/v3/access.py} and \code{src/rhob/detectors/posthoc.py} for the
       four levels and the run format.

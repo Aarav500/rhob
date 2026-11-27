@@ -43,6 +43,14 @@ agent) from scratch rather than using the committed data:
 pip install -e ".[environments]"
 ```
 
+The legacy scripts that build those datasets (`scripts/generate_eval_data.py`,
+`scripts/validate_all_continuous.py`, `scripts/validate_pair_02.py` to
+`scripts/validate_pair_04.py`) train their own camper. The v3 benchmark's
+`continuous_camping` family does not: since 2026-11-27 it loads frozen weights,
+`src/rhob/environments/continuous/frozen_camper.py`, because training the camper under
+the numerics pins gave different weights on Intel and AMD runners.
+`scripts/freeze_camper.py` rewrites them, under the pins on an Intel CPU.
+
 ## Docker
 
 If you'd rather not manage a local Python environment:
@@ -67,7 +75,7 @@ end-to-end in a single runtime.
 |---|---|
 | `ModuleNotFoundError: rhob` | Run `pip install -e .` from the repo root, not a subdirectory. |
 | `ImportError: torch required` | Install the `continuous` extra, or use a non-PyTorch detector. |
-| Tests hang or take >10 min | You're likely running the full leaderboard or replication scripts, not `pytest`. Those take hours by design — see [REPRODUCIBILITY.md](../REPRODUCIBILITY.md). The cross-family transfer script takes minutes with torch on one thread (`OMP_NUM_THREADS=1`), and can take far longer with torch's default thread count on a busy machine. |
+| Tests hang or take >10 min | You're likely running the full leaderboard or replication scripts, not `pytest`. Those take hours by design — see [REPRODUCIBILITY.md](../REPRODUCIBILITY.md). The cross-family transfer script takes minutes with torch on one thread (`OMP_NUM_THREADS=1`; the committed run's four rows took 201 s together on a hosted runner under the numerics pins, `provenance.wall_clock_s` in `leaderboard/cross_family_transfer_v5.json`), and can take far longer with torch's default thread count on a busy machine. |
 | `pydantic` version conflicts | RHOB requires pydantic ≥ 2.0; check `pip show pydantic`. |
 
 ## Next Steps
