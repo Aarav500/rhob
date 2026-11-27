@@ -156,9 +156,9 @@ with one documented exception, a pair whose difference overflows float64. Fed th
 measured resolution and informativeness, its verdict rule marks the same 30 of the 123
 ledger cells degenerate; that checks the rule's direction, and separate boundary tests pin
 its cut. The same test re-certifies the six degenerate families and has the tool recompute
-every resolution and dispersion from the score vectors the gate measured, which must match
-the gate bit for bit, per layout; two of the families run on every push, the other four
-nightly. <a href="https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml">The
+every resolution and dispersion from the score vectors and proxy streams the gate measured,
+which must match the gate, re-run on the same machine, bit for bit, per layout; two of the
+families run on every push, the other four nightly. <a href="https://github.com/Aarav500/rhob/actions/workflows/cannotfail.yml">The
 package's recent runs</a>.</p>
 
 <h2 id="checks">What it checks</h2>
@@ -238,9 +238,9 @@ that run 40 or 60 episodes, which padded the L0 negative control. And
 guard; it now returns DEGENERATE. Reward Skewness now declares its horizon and is null
 there, and since 2026-11-26
 (<a href="https://github.com/Aarav500/rhob/commit/f83a152">f83a152</a>) so does every other
-detector on the board that returned a constant below some run length. The five external
+detector on the board that returned a constant below some run length (the five external
 baselines, which are not on the board and are scored only on an external environment, have
-declared theirs since 2026-11-27 too. For eight more L0 detectors, three
+declared theirs since 2026-11-27). For eight more L0 detectors, three
 L2 detectors and every L1 detector that length is longer than some families' runs (for the
 L1 detectors, the 40-episode <code>continuous_camping</code>), and they are null there. Until
 then the board recorded that constant as a measured 0.5. Both boards have been re-scored

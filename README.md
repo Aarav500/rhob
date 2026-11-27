@@ -482,9 +482,14 @@ certified on seven CPU models ([REPRODUCIBILITY.md](REPRODUCIBILITY.md)).
 [`tests/test_v3/test_ledger_reproduces.py`](tests/test_v3/test_ledger_reproduces.py)
 re-runs the gate on part of it in the per-push suite: four families at every tier the
 ledger scores, at the ledger's own design, which between them reach every status and
-every outcome value. Statuses and outcomes must match exactly, and every number within
-5e-3 if it is rank-derived or 1e-9 relative otherwise, tolerances set from the drift
-measured across the CI lock and the unpinned Python 3.10 and 3.11 jobs. The one
+every outcome value, with measured FAILs on `proxy_distribution_matched` and
+`behavioral_separated`. Statuses and outcomes must match exactly, and every number within
+5e-3 if it is rank-derived or 1e-9 relative (1e-12 absolute near zero) otherwise,
+tolerances set from the drift measured across the CI lock and the unpinned Python 3.10
+and 3.11 jobs. The binding detector a `proxy_distribution_matched` verdict names is chosen
+by rank too, so it must match exactly only where the ledger's choice is clear by more than
+0.01 (twice the rank tolerance); elsewhere any detector within 0.01 of the ledger's worst
+gap is accepted. The one
 (criterion, outcome) pair those four do not reach, a measured `proxy_matched` FAIL, is
 re-certified nightly on `rlhf_feature_blindspot_gaming` at 0.80.
 
@@ -1186,10 +1191,17 @@ provenance, for `scripts/check_redraw.py` to compare with replicate 0 of a re-dr
 ### Re-draw the 20-draw board
 
 ```bash
-python scripts/replicate_leaderboard.py --replicate-id I --out-dir DIR   # I = 0 .. 19
-python scripts/check_redraw.py --from-dir DIR --board leaderboard/v5_leaderboard.json \
-    --board-cells BOARD_CELLS_JSON --expect-commit "$(git rev-parse HEAD)"
-# then replace results/replication/replicate_*.json with DIR's files, and:
+# Every step from one clean checkout at one commit, under the numerics pins regenerate.yml
+# sets. OUT is a directory outside the checkout: an untracked file makes the tree dirty.
+export OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 MKL_CBWR=COMPATIBLE \
+    MKL_NUM_THREADS=1 OMP_NUM_THREADS=1 ATEN_CPU_CAPABILITY=avx2
+python scripts/v5_leaderboard_and_transfer.py --out OUT/board/v5_leaderboard.json \
+    --cells-out OUT/board/v5_leaderboard_cells.json
+python scripts/replicate_leaderboard.py --replicate-id I --out-dir OUT/draws   # I = 0 .. 19
+python scripts/check_redraw.py --from-dir OUT/draws --board OUT/board/v5_leaderboard.json \
+    --board-cells OUT/board/v5_leaderboard_cells.json --expect-commit "$(git rev-parse HEAD)"
+# then replace results/replication/replicate_*.json with OUT/draws' files and
+# leaderboard/v5_leaderboard.json with OUT/board/v5_leaderboard.json, and:
 python scripts/aggregate_replication.py --require-single-source
 # Outputs: leaderboard/v5_replicated.json, docs/figures/replication_summary.md
 ```
@@ -1197,19 +1209,29 @@ python scripts/aggregate_replication.py --require-single-source
 `scripts/replicate_leaderboard.py` records `draw_schema` 2 in every file it writes,
 meaning its layout seed reached the families; a file without it was drawn before
 2026-11-27 at layout 0, as every committed draw was. `scripts/check_redraw.py`
-refuses the set unless all 20 draws are present at their `(layout_seed, seed_base)`, at
-the board's `n_seeds`, with all 30 detectors in order on every registered family and no
-errors, from one clean commit (the one given) under one Python, one package set and the
-six numerics pins (with ATen at AVX2 wherever torch loaded and every OpenBLAS at Haswell,
-showing the pins took effect), with no rows merged in afterwards, and with replicate 0
-equal to the board's `--cells-out` sidecar cell for cell (`--max-board-mismatch`, default
-0). `--require-single-source` makes the aggregator refuse, writing nothing, a set that
+refuses the set unless all 20 draws are present at their `(layout_seed, seed_base)`,
+each recording `draw_schema` 2, at the board's `n_seeds`, with all 30 detectors in order
+on every registered family and no errors, from one clean commit (the one given) under one
+Python, one package set and the six numerics pins (with ATen at AVX2 wherever torch
+loaded and every OpenBLAS at Haswell, showing the pins took effect), with no rows merged
+in afterwards, with the `--cells-out` sidecar carrying the board's own provenance and
+every draw scoring exactly the sidecar's cells, and with replicate 0 equal to the sidecar
+cell for cell (`--max-board-mismatch`, default 0). The board and the sidecar are held to
+the same commit, clean tree and pins as the draws, which is why the recipe draws the board
+again. `--require-single-source` makes the aggregator refuse, writing nothing, a set that
 does not record one commit, a clean tree, one Python, one package set, one numerics
 signature and one draw schema, or that carries re-scored rows. On CI, `regenerate.yml`'s
-`redraw` mode does all of it: the board and the 20 draws at the dispatched commit, the
-check, the aggregation, and one commit for the board and the draws together. Its `replicated` mode, which re-scores named
-detectors on the committed draws, refuses to start while any committed draw has
-`draw_schema` below 2, because the merge would refuse every such draw.
+`redraw` mode does all of it under the pins: the board and the 20 draws at the dispatched
+commit, the check, the aggregation, and one commit for the board and the draws together.
+Its `board_mismatch_allowed` input sets `--max-board-mismatch` (default 0). With
+`from_run` it draws nothing and merges an earlier `redraw` run's board and draws instead,
+checked against that run's commit, after the plan job has confirmed that the run is a
+dispatch of this workflow on the same branch, that `src/`, `requirements/`,
+`pyproject.toml` and the two drawing scripts are unchanged between that commit and this
+one, and that the run holds exactly the 21 expected artifacts, none expired. Its
+`replicated` mode, which re-scores named detectors on the committed draws, refuses to
+start while any committed draw has `draw_schema` below 2, because the merge would refuse
+every such draw.
 
 ### Run the cross-family transfer experiment
 
